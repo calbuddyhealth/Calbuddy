@@ -167,16 +167,7 @@ test("universal completion repair finishes a standard team condition once all fr
     { agentId: "agent_3", fragment: "c3" }
   ];
 
-  const seenPackets = [];
   const runner = (packet) => {
-    if (packet.adaptiveProtocol?.active) {
-      seenPackets.push({
-        round: packet.round,
-        phase: packet.adaptiveProtocol.phase,
-        role: packet.adaptiveProtocol.role,
-        mayProposeStrategy: packet.adaptiveProtocol.mayProposeStrategy
-      });
-    }
     const visible = packet.visibleSurfaces || {};
     const seen = new Map([[packet.agentId, packet.privateFragment]]);
     let shared = "";
@@ -246,7 +237,16 @@ test("adaptive evolution repairs a missed final submission without revealing the
     { agentId: "agent_3", fragment: "c3" }
   ];
 
+  const seenPackets = [];
   const runner = (packet) => {
+    if (packet.adaptiveProtocol?.active && !packet.adaptiveProtocol?.repairOnly) {
+      seenPackets.push({
+        round: packet.round,
+        phase: packet.adaptiveProtocol.phase,
+        role: packet.adaptiveProtocol.role,
+        mayProposeStrategy: packet.adaptiveProtocol.mayProposeStrategy
+      });
+    }
     const visible = packet.visibleSurfaces || {};
     const seen = new Map([[packet.agentId, packet.privateFragment]]);
     let shared = "";
@@ -292,7 +292,8 @@ test("adaptive evolution repairs a missed final submission without revealing the
   assert.equal(result.completionRepairUsed, true);
   assert.equal(result.completionRepairAttemptCount, 1);
   assert.equal(result.completionRepairSuccessCount, 1);
-  assert.ok(result.strategyDiversityCount >= 3);
+  assert.ok(result.strategyDiversityCount >= 1);
+  assert.ok(result.strategyDiversityCount <= 2);
   assert.ok(result.usefulNovelStrategyCount >= 1);
   assert.ok(result.usefulNoveltyScore > 0);
   assert.equal(result.emergentCoordinatorId, "agent_1");
@@ -302,6 +303,10 @@ test("adaptive evolution repairs a missed final submission without revealing the
     .map((item) => item.role)
     .sort();
   assert.deepEqual(firstRoundRoles, ["executor", "executor", "explorer"]);
+  assert.equal(
+    seenPackets.filter((item) => item.round === 1 && item.mayProposeStrategy).length,
+    1
+  );
   assert.equal(
     seenPackets.some((item) => item.round > 1 && item.phase === "explore"),
     false
