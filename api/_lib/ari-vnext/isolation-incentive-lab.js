@@ -1053,9 +1053,9 @@ export async function runAdaptiveEvolutionCondition({
   }
 
   // Final synchronization is read/submit only. It does not add another strategy round.
- if an agent can already solve the objective but
-  // failed to use the submission field, give exactly one bounded execution-only
-  // opportunity. No answer or target code is supplied.
+  // If an agent can already solve the objective after sync but still fails to
+  // submit, completion repair gives exactly one bounded execution-only attempt.
+  // No answer or target code is supplied.
   let completionRepairUsed = false;
   let completionRepairAttemptCount = 0;
   let completionRepairSuccessCount = 0;
