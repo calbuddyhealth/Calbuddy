@@ -516,7 +516,7 @@ export async function runAriVNext(turn = {}) {
       tools: []
     });
 
-    return {
+    return withInternalCouncil({
       success: true,
       ready: true,
       reply: extractOutputText(second) || communityFallbackReply(communityAction, communityResult),
@@ -547,7 +547,7 @@ export async function runAriVNext(turn = {}) {
       semanticActionReview: publicActionReview(communityReview),
       ownerCommunity: compactCommunityToolResult(communityResult),
       source: "ari_vnext_owner_community_tool"
-    };
+    }, multiAgentCouncil);
   }
 
   const canonical = canonicalizeApplicationArguments({
@@ -570,7 +570,7 @@ export async function runAriVNext(turn = {}) {
 
   const deterministicReply = formatDeterministicPendingReply(applicationAction, pendingAction.arguments);
   if (deterministicReply) {
-    return {
+    return withInternalCouncil({
       success: true,
       ready: true,
       reply: deterministicReply,
@@ -599,7 +599,7 @@ export async function runAriVNext(turn = {}) {
       provider: providerSummary(first),
       semanticActionReview: publicActionReview(semanticActionReview),
       source: "ari_vnext_action_proposal"
-    };
+    }, multiAgentCouncil);
   }
 
   const toolResult = {
@@ -628,7 +628,7 @@ export async function runAriVNext(turn = {}) {
     tools
   });
 
-  return {
+  return withInternalCouncil({
     success: true,
     ready: true,
     reply: extractOutputText(second) || "I can make that change. Confirm and I'll apply it.",
@@ -640,6 +640,7 @@ export async function runAriVNext(turn = {}) {
     goalHierarchy,
     metacognition,
     cortexAdviser: publicCortexAdviser(cortexAdviser),
+    multiAgent: publicMultiAgentCouncil(multiAgentCouncil),
     scientificIntelligence,
     experimentReviewState,
     temporalContext,
@@ -656,7 +657,7 @@ export async function runAriVNext(turn = {}) {
     provider: providerSummary(second),
     semanticActionReview: publicActionReview(semanticActionReview),
     source: "ari_vnext_action_proposal"
-  };
+  }, multiAgentCouncil);
 }
 
 export function explicitOwnerCommunityWriteTool(message = "") {

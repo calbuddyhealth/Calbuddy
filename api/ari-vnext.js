@@ -61,6 +61,11 @@ import { filterMemoryResultForPrivacy, retrieveRelevantMemories } from "./_lib/a
 import { runAriVNext } from "./_lib/ari-vnext/orchestrator.js";
 import { retrieveInstitutionalMemory } from "./_lib/ari-vnext/institutional-memory.js";
 import { learnFromCouncilTurn } from "./_lib/ari-vnext/council-lesson-extractor.js";
+import {
+  applyCouncilOutcomeFeedback,
+  evaluateAndPersistCouncilPerformance,
+  loadAgentPerformanceState
+} from "./_lib/ari-vnext/agent-performance.js";
 import { loadSavedCommunicationPreferences } from "./_lib/ari-vnext/saved-communication-preferences.js";
 import { deriveProactiveInsights } from "./_lib/ari-vnext/proactive-insights.js";
 import {
@@ -232,6 +237,11 @@ export default async function handler(req, res) {
           hiddenChainOfThoughtStored: false,
           source: "ari_institutional_memory"
         });
+    const agentPerformancePromise = loadAgentPerformanceState({
+      userId: auth.userId,
+      route: routePreview
+    });
+
 
     const [
       retrievedRaw,
@@ -243,7 +253,8 @@ export default async function handler(req, res) {
       accountEntitlements,
       persistedCognitiveState,
       adaptiveStrategyPreparation,
-      institutionalMemory
+      institutionalMemory,
+      agentPerformance
     ] = await Promise.all([
       shouldLoadMemory
         ? retrieveRelevantMemories({
@@ -272,7 +283,8 @@ export default async function handler(req, res) {
         ? loadAriCognitiveState({ userId: auth.userId })
         : Promise.resolve(null),
       strategyPreparationPromise,
-      institutionalMemoryPromise
+      institutionalMemoryPromise,
+      agentPerformancePromise
     ]);
 
     if (persistedWorldModel) {
@@ -360,12 +372,25 @@ export default async function handler(req, res) {
     const decisionOutcomeLearning = {
       resolved: decisionOutcomeResolution?.resolved === true,
       decisionId: decisionOutcomeResolution?.decision?.id || reportedDecisionOutcome?.decisionId || null,
+      sourceTurnId: decisionOutcomeResolution?.decision?.turnId || null,
       proposition: decisionOutcomeResolution?.decision?.proposition || null,
       outcomeDirection: decisionOutcomeResolution?.decision?.outcomeDirection || reportedDecisionOutcome?.outcomeDirection || null,
       confidence: reportedDecisionOutcome?.confidence ?? null,
       outcome: decisionOutcomeResolution?.decision?.outcome || null,
       source: decisionOutcomeResolution?.resolved ? "explicit_user_real_world_report" : null
     };
+    const councilOutcomeFeedbackTask =
+      decisionOutcomeLearning.resolved === true && decisionOutcomeLearning.sourceTurnId
+        ? applyCouncilOutcomeFeedback({
+            userId: auth.userId,
+            sourceTurnId: decisionOutcomeLearning.sourceTurnId,
+            outcomeDirection: decisionOutcomeLearning.outcomeDirection
+          })
+        : Promise.resolve({
+            applied: false,
+            reason: decisionOutcomeLearning.resolved ? "decision_not_linked_to_turn" : "no_resolved_decision",
+            outcomeStatus: null
+          });
     const decisionState = shouldLoadDecisionHistory ? summarizeDecisionState(effectiveDecisions) : null;
     const communicationLearning = communicationOutcomes.length
       ? summarizeCommunicationLearning(communicationOutcomes, { route: routePreview })
@@ -468,6 +493,32 @@ export default async function handler(req, res) {
           ? institutionalMemory.lessons.slice(0, 5)
           : [],
         hiddenChainOfThoughtStored: false
+      },
+      agentPerformance: {
+        version: agentPerformance?.version || "1.0.0",
+        active: agentPerformance?.active === true,
+        reason: agentPerformance?.reason || null,
+        domain: agentPerformance?.domain || "general",
+        agentTrialCount: Number(agentPerformance?.agentTrialCount || 0),
+        teamTrialCount: Number(agentPerformance?.teamTrialCount || 0),
+        selectionConfidence: Number(agentPerformance?.selectionConfidence || 0),
+        delegationValueEstimate: agentPerformance?.delegationValueEstimate ?? null,
+        recommendedRoles: Array.isArray(agentPerformance?.recommendedRoles)
+          ? agentPerformance.recommendedRoles.slice(0, 5)
+          : [],
+        avoidRoles: Array.isArray(agentPerformance?.avoidRoles)
+          ? agentPerformance.avoidRoles.slice(0, 4)
+          : [],
+        preferredWorkerCount: agentPerformance?.preferredWorkerCount || null,
+        preferredTeam: agentPerformance?.preferredTeam || null,
+        roleEvidence: Array.isArray(agentPerformance?.roleEvidence)
+          ? agentPerformance.roleEvidence.slice(0, 8)
+          : [],
+        teamEvidence: Array.isArray(agentPerformance?.teamEvidence)
+          ? agentPerformance.teamEvidence.slice(0, 5)
+          : [],
+        hiddenChainOfThoughtStored: false,
+        rawWorkerTextStored: false
       }
     };
 
@@ -607,6 +658,9 @@ export default async function handler(req, res) {
             adaptiveStrategyProposal: Boolean(adaptiveStrategyReflection?.proposal),
             institutionalMemoryRetrieved: Number(institutionalMemory?.retrievedCount || 0),
             institutionalMemoryCouncilActive: result?.multiAgent?.active === true,
+            agentPerformanceTeamTrials: Number(agentPerformance?.teamTrialCount || 0),
+            agentPerformanceSelectionConfidence: Number(agentPerformance?.selectionConfidence || 0),
+            agentPerformanceGuidedCouncil: result?.multiAgent?.performanceGuided === true,
             mode: result?.modelPolicy?.mode || null,
             actionType: result?.action?.type || null,
             memoryCount: retrievedMemoryCount,
@@ -703,6 +757,58 @@ export default async function handler(req, res) {
           hiddenChainOfThoughtStored: false
         });
 
+    const agentPerformanceLearningTask =
+      result?.multiAgent?.active === true &&
+      result?.multiAgent?.verifiedSynthesisAvailable === true &&
+      result?._multiAgentCouncil
+      ? evaluateAndPersistCouncilPerformance({
+          userId: auth.userId,
+          turn,
+          result,
+          council: result._multiAgentCouncil
+        }).then(async (learning) => {
+          if (learning?.provider?.usage) {
+            await recordOpenAIUsage({
+              userId: auth.userId,
+              endpoint: "/api/ari-vnext",
+              usageType: "reasoning_reflection",
+              requestCategory: "ari_agent_performance_learning",
+              model: learning.provider.model,
+              responseData: {
+                id: learning.provider.id,
+                model: learning.provider.model,
+                usage: learning.provider.usage
+              },
+              providerRequestId: learning.provider.id || null,
+              metadata: {
+                turnId: turn.turnId,
+                domain: agentPerformance?.domain || null,
+                teamScore: learning?.teamScore ?? null,
+                delegationValue: learning?.delegationValue ?? null,
+                verdict: learning?.verdict || null,
+                agentProfilesUpdated: Number(learning?.agentProfilesUpdated || 0),
+                teamProfileUpdated: learning?.teamProfileUpdated === true,
+                hiddenChainOfThoughtStored: false,
+                rawWorkerTextStored: false
+              }
+            }).catch(() => null);
+          }
+          return learning;
+        })
+      : Promise.resolve({
+          attempted: false,
+          reason: result?.multiAgent?.active ? "council_not_verified" : "council_inactive",
+          stored: false,
+          duplicate: false,
+          agentProfilesUpdated: 0,
+          teamProfileUpdated: false,
+          teamScore: null,
+          delegationValue: null,
+          verdict: null,
+          hiddenChainOfThoughtStored: false,
+          rawWorkerTextStored: false
+        });
+
     const turnPersistenceTask = cleanText(result?.reply, 12000)
       ? persistConversationTurn({
           userId: auth.userId,
@@ -774,7 +880,8 @@ export default async function handler(req, res) {
     const [
       , , turnPersistence, durablePersistence, worldPersistence, cognitivePersistence,
       strategyUsePersistence, strategySignalPersistence, decisionPersistence,
-      communicationResolution, communicationPersistence, institutionalLearningPersistence
+      communicationResolution, communicationPersistence, institutionalLearningPersistence,
+      agentPerformanceLearningPersistence, councilOutcomeFeedbackPersistence
     ] = await Promise.allSettled([
       usageTask,
       strategyReflectionUsageTask,
@@ -787,7 +894,9 @@ export default async function handler(req, res) {
       decisionJournalTask,
       communicationResolutionTask,
       communicationExposureTask,
-      institutionalLearningTask
+      institutionalLearningTask,
+      agentPerformanceLearningTask,
+      councilOutcomeFeedbackTask
     ]);
 
     const continuityTurnStored = turnPersistence.status === "fulfilled" && turnPersistence.value === true;
@@ -811,6 +920,28 @@ export default async function handler(req, res) {
           reinforcedCount: 0,
           conflictCount: 0,
           hiddenChainOfThoughtStored: false
+        };
+    const agentPerformanceLearning = agentPerformanceLearningPersistence.status === "fulfilled"
+      ? agentPerformanceLearningPersistence.value
+      : {
+          attempted: false,
+          reason: "learning_task_failed",
+          stored: false,
+          duplicate: false,
+          agentProfilesUpdated: 0,
+          teamProfileUpdated: false,
+          teamScore: null,
+          delegationValue: null,
+          verdict: null,
+          hiddenChainOfThoughtStored: false,
+          rawWorkerTextStored: false
+        };
+    const councilOutcomeFeedback = councilOutcomeFeedbackPersistence.status === "fulfilled"
+      ? councilOutcomeFeedbackPersistence.value
+      : {
+          applied: false,
+          reason: "outcome_feedback_task_failed",
+          outcomeStatus: null
         };
 
     const responsePayload = {
@@ -902,6 +1033,32 @@ export default async function handler(req, res) {
         conflictCount: Number(institutionalLearning?.conflictCount || 0),
         hiddenChainOfThoughtStored: false,
         rawCouncilTranscriptStored: false
+      },
+      agentPerformanceLearning: {
+        active: agentPerformance?.active === true,
+        domain: agentPerformance?.domain || "general",
+        priorAgentTrials: Number(agentPerformance?.agentTrialCount || 0),
+        priorTeamTrials: Number(agentPerformance?.teamTrialCount || 0),
+        selectionConfidence: Number(agentPerformance?.selectionConfidence || 0),
+        preferredWorkerCount: agentPerformance?.preferredWorkerCount || null,
+        recommendedRoles: Array.isArray(agentPerformance?.recommendedRoles)
+          ? agentPerformance.recommendedRoles.slice(0, 5)
+          : [],
+        evaluationAttempted: agentPerformanceLearning?.attempted === true,
+        evaluationReason: agentPerformanceLearning?.reason || null,
+        stored: agentPerformanceLearning?.stored === true,
+        duplicate: agentPerformanceLearning?.duplicate === true,
+        agentProfilesUpdated: Number(agentPerformanceLearning?.agentProfilesUpdated || 0),
+        teamProfileUpdated: agentPerformanceLearning?.teamProfileUpdated === true,
+        teamScore: agentPerformanceLearning?.teamScore ?? null,
+        delegationValue: agentPerformanceLearning?.delegationValue ?? null,
+        verdict: agentPerformanceLearning?.verdict || null,
+        performanceGuidedThisCouncil: result?.multiAgent?.performanceGuided === true,
+        realWorldOutcomeLinked: councilOutcomeFeedback?.applied === true,
+        realWorldOutcomeReason: councilOutcomeFeedback?.reason || null,
+        realWorldOutcomeStatus: councilOutcomeFeedback?.outcomeStatus || null,
+        hiddenChainOfThoughtStored: false,
+        rawWorkerTextStored: false
       },
       recentContinuityPairs: recentContinuity.hydratedPairs,
       continuityTurnStored,
