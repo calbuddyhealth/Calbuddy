@@ -60,7 +60,7 @@ test("trusted browser patch distinguishes whole replacement from exercise replac
 
 test("Home loads replacement support before pending-action recovery", () => {
   const replacementIndex = home.indexOf("js/training/ari-whole-workout-replacement.js?v=1.0.0");
-  const pendingRecoveryIndex = home.indexOf("js/ari-pending-action-recovery.js?v=1.1.0");
+  const pendingRecoveryIndex = home.indexOf("js/ari-pending-action-recovery.js?v=1.2.0");
   assert.ok(replacementIndex >= 0);
   assert.ok(pendingRecoveryIndex > replacementIndex);
 });
