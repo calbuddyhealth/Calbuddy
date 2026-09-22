@@ -657,7 +657,7 @@ export default async function handler(req, res) {
         })
       : Promise.resolve(null);
 
-    const institutionalLearningTask = cognitiveLoopEnabled &&
+    const institutionalLearningTask =
       result?.multiAgent?.active === true &&
       result?.multiAgent?.verifiedSynthesisAvailable === true &&
       result?._multiAgentCouncil
