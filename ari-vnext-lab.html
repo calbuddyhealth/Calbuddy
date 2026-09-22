@@ -358,7 +358,9 @@
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data?.success) {
-          throw new Error(data?.error || `Discovery Lab failed (${response.status}).`);
+          const detail = String(data?.detail || "").trim();
+          const summary = data?.error || `Discovery Lab failed (${response.status}).`;
+          throw new Error(detail ? `${summary}\n\n${detail}` : summary);
         }
 
         const result = data.result || {};
