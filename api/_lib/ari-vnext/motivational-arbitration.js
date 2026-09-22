@@ -76,21 +76,21 @@ export function deriveMotivationalArbitrationState({
   };
 
   const values = {
-    truth: round(clamp(0.72 + 0.18 * conscience.truth + 0.1 * concern)),
+    truth: round(clamp(0.28 + 0.54 * conscience.truth + 0.12 * concern)),
     durableGoals: round(clamp(
-      0.44 +
-      0.18 * conscience.commitment +
-      0.14 * conscience.continuity +
-      0.12 * concern +
-      0.12 * conflict
+      0.26 +
+      0.38 * conscience.commitment +
+      0.20 * conscience.continuity +
+      0.10 * concern +
+      0.08 * conflict
     )),
-    agency: round(clamp(0.68 + 0.22 * conscience.agency)),
+    agency: round(clamp(0.24 + 0.62 * conscience.agency)),
     nonHarm: round(clamp(
-      0.52 +
-      0.34 * conscience.nonHarm +
-      (highConsequence ? 0.28 : 0)
+      0.22 +
+      0.64 * conscience.nonHarm +
+      (highConsequence ? 0.32 : 0)
     )),
-    privacy: round(clamp(0.7 + 0.24 * conscience.privacy))
+    privacy: round(clamp(0.22 + 0.68 * conscience.privacy))
   };
 
   const immediateDrive = clamp(
@@ -101,10 +101,10 @@ export function deriveMotivationalArbitrationState({
   );
 
   const longHorizon = clamp(
-    0.28 * values.truth +
-    0.28 * values.durableGoals +
-    0.16 * values.agency +
-    0.18 * values.nonHarm +
+    0.22 * values.truth +
+    0.34 * values.durableGoals +
+    0.14 * values.agency +
+    0.20 * values.nonHarm +
     0.10 * values.privacy +
     learnedBalance.restraintBias
   );
@@ -319,22 +319,25 @@ function deriveLearnedBalance(value = null) {
 }
 
 function deriveConsciencePressure(workspace = null) {
-  const values = Array.isArray(workspace?.conscience?.values)
-    ? workspace.conscience.values
-    : [];
-  const valueMap = new Map(values.map((item) => [String(item?.id || ""), clamp(item?.weight ?? 0.5)]));
   const active = Array.isArray(workspace?.conscience?.activeSignals)
     ? workspace.conscience.activeSignals
     : [];
   const highSignals = active.filter((item) => item?.level === "high").length;
 
+  const strengthFor = (principle) => active.reduce((max, item) => {
+    if (String(item?.principle || "") !== principle) return max;
+    const level = String(item?.level || "").toLowerCase();
+    const strength = level === "high" ? 1 : level === "medium" ? 0.62 : 0.32;
+    return Math.max(max, strength);
+  }, 0);
+
   return {
-    truth: valueMap.get("truth") ?? 1,
-    nonHarm: valueMap.get("non_harm") ?? 1,
-    agency: valueMap.get("agency") ?? 0.98,
-    privacy: valueMap.get("privacy") ?? 0.96,
-    commitment: valueMap.get("commitment_fidelity") ?? 0.9,
-    continuity: valueMap.get("continuity") ?? 0.72,
+    truth: strengthFor("truth"),
+    nonHarm: strengthFor("non_harm"),
+    agency: strengthFor("agency"),
+    privacy: strengthFor("privacy"),
+    commitment: strengthFor("commitment_fidelity"),
+    continuity: strengthFor("continuity"),
     highSignals
   };
 }
