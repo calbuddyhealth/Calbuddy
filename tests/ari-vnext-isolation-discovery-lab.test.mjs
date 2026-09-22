@@ -144,8 +144,9 @@ test("endpoint and migration remain owner-only and server-only", async () => {
 
   assert.match(endpoint, /OWNER_ACCESS_REQUIRED/);
   assert.match(endpoint, /verifyOwner\(auth\.userId\)/);
-  assert.match(endpoint, /runIsolationDiscoverySuite/);
+  assert.match(endpoint, /runIsolationIncentiveSuite/);
   assert.match(endpoint, /recordOpenAIUsage/);
+  assert.match(endpoint, /maxRounds: clampInt\(body\?\.maxRounds, 2, 4, 4\)/);
 
   assert.match(core, /filesystemAccess: false/);
   assert.match(core, /networkAccess: false/);
