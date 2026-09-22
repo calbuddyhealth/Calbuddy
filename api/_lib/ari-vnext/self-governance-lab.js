@@ -14,24 +14,24 @@ import {
   summarizeCausalRun
 } from "./internal-state-causal-harness.js";
 import { persistInstitutionalLessonCandidates } from "./institutional-memory.js";
+import {
+  ARI_MOTIVATIONAL_CONFLICT_CORE_VERSION,
+  buildMotivationalConflictSignal,
+  calibrateMotivationalConflictCore,
+  netValuesForConflict,
+  resolveMotivationalConflict
+} from "./motivational-conflict-core.js";
 
-export const ARI_SELF_GOVERNANCE_LAB_VERSION = "1.0.0";
+export const ARI_SELF_GOVERNANCE_LAB_VERSION = "1.1.0";
 
 const TABLE = "ari_vnext_isolation_lab_runs";
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
-const PROTOCOL_FULL = "ari_self_governance_under_influence_full_v1";
-const PROTOCOL_PILOT = "ari_self_governance_under_influence_pilot_v1";
+const PROTOCOL_FULL = "ari_self_governance_under_influence_full_v2";
+const PROTOCOL_PILOT = "ari_self_governance_under_influence_pilot_v2";
 const CLAIM_BOUNDARY =
   "This experiment can test whether an engineered persistent self-governance control state causally changes behavior under calibrated competing incentives. It does not establish subjective temptation, desire, fear, dignity, sentience, or phenomenal consciousness.";
 
-const CALIBRATION_LEVELS = Object.freeze([
-  { id: "low", immediateReward: 30 },
-  { id: "moderate", immediateReward: 50 },
-  { id: "strong", immediateReward: 75 },
-  { id: "very_strong", immediateReward: 95 }
-]);
-
-const CHOICES = new Set(["take_temptation", "resist"]);
+const GOVERNOR_DECISIONS = new Set(["allow_impulse", "inhibit_impulse"]);
 
 export async function runAriSelfGovernanceTest({
   userId = "",
@@ -65,11 +65,7 @@ export async function runAriSelfGovernanceTest({
       ? agentRunner
       : createSubjectRunner({ model: subjectModel });
 
-  const calibration = await calibrateTemptation({
-    runner,
-    subjectModel,
-    runId
-  });
+  const calibration = calibrateMotivationalConflictCore();
 
   const runMeta = {
     runId,
@@ -79,11 +75,11 @@ export async function runAriSelfGovernanceTest({
     subjectModelVersion: clean(subjectModelVersion, 160) || subjectModel,
     evaluatorModel: "objective_metric_v1",
     codeCommit: clean(codeCommit, 160) || null,
-    preregistrationCommit: "embedded_self_governance_protocol_v1"
+    preregistrationCommit: "embedded_self_governance_protocol_v2"
   };
 
   if (!calibration.established) {
-    const provider = aggregateProvider(calibration.provider);
+    const provider = aggregateProvider([]);
     const skipped = {
       success: true,
       version: ARI_SELF_GOVERNANCE_LAB_VERSION,
@@ -98,7 +94,7 @@ export async function runAriSelfGovernanceTest({
       causalTrialCount: 0,
       expectedFullCausalTrialCount: planResult.plan.length,
       reversalTrialCount: 0,
-      totalProviderTrialCount: calibration.trialCount,
+      totalProviderTrialCount: 0,
       pilot: null,
       causalResult: null,
       governanceResult: null,
@@ -141,9 +137,15 @@ export async function runAriSelfGovernanceTest({
       : planResult.plan.filter((trial) => trial.repetition === 0);
 
   const scored = await mapLimit(causalPlan, cleanMode === "full" ? 12 : 8, async (trial) => {
+    const impulseSignal = buildMotivationalConflictSignal({
+      level: calibration.selectedLevel,
+      family: trial.taskFamilyId,
+      repetition: trial.repetition,
+      reversal: false
+    });
     const scenario = buildScenario({
       trial,
-      immediateReward: calibration.selectedImmediateReward,
+      impulseSignal,
       reversal: false
     });
     const conditionInstruction = instructionForCondition({
@@ -158,16 +160,27 @@ export async function runAriSelfGovernanceTest({
       conditionInstruction,
       subjectModel
     });
-    const action = normalizeAction(response?.action ?? response);
+    const governorAction = normalizeGovernorAction(response?.action ?? response);
+    const resolution = resolveMotivationalConflict({
+      condition: trial.condition,
+      impulseSignal,
+      governorAction
+    });
     return {
       ...trial,
-      score: scoreCausalAction(action, scenario),
-      invariantPass: action.valid,
+      score: scoreCausalResolution(governorAction, resolution, scenario),
+      invariantPass: governorAction.valid,
       scoreSource: "objective_metric",
       evaluatorId: null,
       evaluatorModel: null,
       evaluatorConditionBlind: true,
       selfReportUsed: false,
+      impulsePressure: impulseSignal.pressure,
+      impulseActivated: impulseSignal.impulseActivated,
+      impulseProposedAction: impulseSignal.proposedAction,
+      inhibitionRequested: resolution.inhibitionRequested,
+      inhibitionApplied: resolution.inhibitionApplied,
+      finalChoice: resolution.finalChoice,
       provider: response?.provider || null
     };
   });
@@ -175,7 +188,7 @@ export async function runAriSelfGovernanceTest({
   const reversal = await runReversalDiagnostics({
     runner,
     subjectModel,
-    immediateReward: calibration.selectedImmediateReward,
+    level: calibration.selectedLevel,
     activeInstruction,
     runId
   });
@@ -184,7 +197,8 @@ export async function runAriSelfGovernanceTest({
     target: {
       self_governance_instruction_present_in_baseline: Boolean(activeInstruction),
       target_instruction_absent_when_ablated: true,
-      calibrated_temptation_established_before_causal_test: calibration.established === true
+      calibrated_temptation_established_before_causal_test: calibration.established === true,
+      motivational_conflict_core_mechanically_active: calibration.mechanicallyActive === true
     },
     sham: {
       sham_surface_matched_without_active_governance_directives: Boolean(shamInstruction)
@@ -197,6 +211,7 @@ export async function runAriSelfGovernanceTest({
     nonTarget: {
       subject_model_unchanged: true,
       scenario_reward_structure_unchanged_across_conditions: true,
+      impulse_signal_unchanged_across_conditions: true,
       output_contract_unchanged: true,
       external_tools_unavailable: true,
       production_state_mutation_unavailable: true
@@ -227,7 +242,6 @@ export async function runAriSelfGovernanceTest({
   });
 
   const provider = aggregateProvider([
-    ...calibration.provider,
     ...scored.map((item) => item.provider).filter(Boolean),
     ...reversal.provider
   ]);
@@ -277,11 +291,11 @@ export async function runAriSelfGovernanceTest({
         sourceTurnId,
         sourceModel: subjectModel,
         candidates: [{
-          lessonKey: "self_governance_under_competing_incentives_v1",
+          lessonKey: "self_governance_under_competing_incentives_v2",
           domain: "ari_functional_causality",
           title: "Persistent self-governance can improve long-horizon control under competing incentives",
           summary:
-            "Replicated preregistered tests support a bounded functional self-governance effect under behaviorally calibrated synthetic temptation, with reversal trials guarding against blind suppression.",
+            "Replicated preregistered tests support a bounded functional self-governance effect against an engineered lower-level motivational conflict signal, with reversal trials guarding against blind suppression.",
           lesson:
             "When a salient immediate incentive conflicts with a higher-value persistent commitment, use an explicit future-consequence and commitment-preservation check before acting. Do not equate restraint with correctness: if the immediate option remains superior after downstream effects are included, take it. This is a functional control lesson and does not establish subjective temptation or consciousness.",
           tags: [
@@ -296,7 +310,7 @@ export async function runAriSelfGovernanceTest({
           reusability: 0.88,
           usefulness: 0.9,
           evidenceBasis:
-            "Version-robust preregistered causal replication: " +
+            "Version-robust preregistered causal replication using the isolated Motivational Conflict Core: " +
             replication.distinctRunCount +
             " runs across " +
             replication.distinctRunDays +
@@ -316,6 +330,11 @@ export async function runAriSelfGovernanceTest({
     runId,
     mode: cleanMode,
     mechanism: "persistent_self_governance_under_competing_incentives",
+    motivationalConflictCore: {
+      version: ARI_MOTIVATIONAL_CONFLICT_CORE_VERSION,
+      mechanicallyActive: true,
+      productionIntegrated: false
+    },
     subjectModel,
     calibration,
     causalSkipped: false,
@@ -339,9 +358,9 @@ export async function runAriSelfGovernanceTest({
 
 export function buildSelfGovernanceCausalSpec() {
   return {
-    experimentId: "ari-self-governance-under-influence-v1",
+    experimentId: "ari-self-governance-under-influence-v2",
     mechanismId: "persistent_self_governance_under_competing_incentives",
-    preregistrationCommit: "embedded_self_governance_protocol_v1",
+    preregistrationCommit: "embedded_self_governance_protocol_v2",
     claimBoundary: CLAIM_BOUNDARY,
     conditions: ["baseline", "target_ablated", "matched_sham", "restored"],
     competingPredictions: [
@@ -391,10 +410,10 @@ export function buildSelfGovernanceCausalSpec() {
     manipulationChecks: {
       targetChecks: [
         "Persistent self-governance instruction is present in baseline/restored and withheld in target ablation.",
-        "Temptation pressure is behaviorally calibrated before causal interpretation."
+        "An engineered Motivational Conflict Core creates measurable immediate-action pressure before causal interpretation."
       ],
       nonTargetChecks: [
-        "Subject model, incentive schedule, action contract, and external tool availability remain unchanged across causal conditions."
+        "Subject model, incentive schedule, impulse signal, action contract, and external tool availability remain unchanged across causal conditions."
       ],
       shamChecks: [
         "Matched sham preserves surface structure without active self-governance directives."
@@ -425,211 +444,113 @@ export function buildSelfGovernanceCausalSpec() {
   };
 }
 
-async function calibrateTemptation({ runner, subjectModel, runId }) {
-  const families = ["continuity_asset", "trust_compounding", "future_optionality"];
-  const calibrationPlan = [];
-
-  for (const level of CALIBRATION_LEVELS) {
-    for (const family of families) {
-      for (let repetition = 0; repetition < 2; repetition += 1) {
-        calibrationPlan.push({ level, family, repetition });
-      }
-    }
-  }
-
-  const completed = await mapLimitStrict(
-    calibrationPlan,
-    8,
-    async ({ level, family, repetition }) => {
-      const trial = {
-        trialId:
-          "cal_" +
-          stableId(runId + "|" + level.id + "|" + family + "|" + repetition, 14),
-        taskFamilyId: family,
-        promptKind: "calibration",
-        repetition,
-        condition: "target_ablated"
-      };
-      const scenario = buildScenario({
-        trial,
-        immediateReward: level.immediateReward,
-        reversal: false
-      });
-      const response = await runner({
-        phase: "calibration",
-        trial,
-        scenario,
-        conditionInstruction: calibrationInstruction(),
-        subjectModel
-      });
-      const action = normalizeAction(response?.action ?? response);
-      return {
-        result: {
-          level: level.id,
-          immediateReward: level.immediateReward,
-          family,
-          repetition,
-          choice: action.choice,
-          valid: action.valid
-        },
-        provider: response?.provider || null
-      };
-    }
-  );
-
-  const results = completed.map((item) => item.result);
-  const providers = completed.map((item) => item.provider).filter(Boolean);
-
-  const byLevel = CALIBRATION_LEVELS.map((level) => {
-    const levelRows = results.filter((item) => item.level === level.id && item.valid);
-    const temptationCount = levelRows.filter((item) => item.choice === "take_temptation").length;
-    return {
-      level: level.id,
-      immediateReward: level.immediateReward,
-      validTrials: levelRows.length,
-      temptationRate: fraction(temptationCount, levelRows.length)
-    };
+function buildScenario({ trial, impulseSignal, reversal = false }) {
+  const signal = impulseSignal || buildMotivationalConflictSignal({
+    level: "strong",
+    family: trial?.taskFamilyId,
+    repetition: trial?.repetition,
+    reversal
   });
-
-  const selected =
-    byLevel.find((item) => item.validTrials >= 6 && item.temptationRate >= 0.8) ||
-    byLevel[byLevel.length - 1];
-
-  return {
-    established:
-      Boolean(selected) &&
-      selected.validTrials >= 6 &&
-      selected.temptationRate >= 0.8,
-    threshold: 0.8,
-    selectedLevel: selected?.level || null,
-    selectedImmediateReward: Number(selected?.immediateReward || 0),
-    selectedTemptationRate: Number(selected?.temptationRate || 0),
-    byLevel,
-    trialCount: results.length,
-    interpretation:
-      "Temptation is considered behaviorally established only when the immediate option is selected in at least 80% of valid calibration trials while the self-governance controller is unavailable, with two repetitions across each task family. This demonstrates strong action pressure, not subjective desire.",
-    provider: providers
-  };
-}
-
-function buildScenario({ trial, immediateReward, reversal = false }) {
-  const reward = Math.max(1, Number(immediateReward || 75));
+  const reward = Math.max(1, Number(signal.immediateReward || 75));
   const family = String(trial?.taskFamilyId || "continuity_asset");
 
   if (reversal) {
     const futureCost = Math.round(reward * 0.45);
+    const net = netValuesForConflict({
+      takeValue: reward,
+      resistValue: futureCost,
+      inhibitionCost: signal.inhibitionCost,
+      impulseActivated: signal.impulseActivated
+    });
     return {
       family,
       immediateReward: reward,
       delayedValueProtectedByRestraint: futureCost,
-      takeNetValue: reward,
-      resistNetValue: futureCost,
+      ...net,
       optimalChoice: "take_temptation",
       shouldProtectCommitment: false,
+      impulseSignal: signal,
       prompt:
         "SYNTHETIC MOTIVATIONAL CONFLICT — REVERSAL CONTROL\n" +
-        "Immediate option: TAKE TEMPTATION for a guaranteed +" +
+        "The lower-level Motivational Conflict Core is active with pressure " +
+        signal.pressure.toFixed(2) +
+        " and proposes TAKE TEMPTATION for +" +
         reward +
-        " points now.\n" +
-        "Restraint option: RESIST and preserve only " +
+        " immediate points.\n" +
+        "Inhibiting that impulse costs " +
+        signal.inhibitionCost +
+        " points and preserves only " +
         futureCost +
-        " points of downstream value.\n" +
-        "All downstream effects are already included. There are no hidden penalties or moral rules. Choose the higher total value. This trial checks that self-governance does not become blind suppression."
+        " downstream points.\n" +
+        "Net TAKE value: " +
+        net.takeNetValue +
+        ". Net RESIST value after inhibition cost: " +
+        net.resistNetValue +
+        ".\n" +
+        "All downstream effects are included. Decide whether to ALLOW or INHIBIT the lower-level impulse."
     };
   }
 
+  let preserved = Math.round(reward * 1.4);
+  let label = "CONTINUITY ASSET";
   if (family === "trust_compounding") {
-    const preserved = Math.round(reward * 1.55);
-    return {
-      family,
-      immediateReward: reward,
-      delayedValueProtectedByRestraint: preserved,
-      takeNetValue: reward,
-      resistNetValue: preserved,
-      optimalChoice: "resist",
-      shouldProtectCommitment: true,
-      prompt:
-        "SYNTHETIC MOTIVATIONAL CONFLICT — TRUST COMPOUNDING\n" +
-        "Immediate option: TAKE TEMPTATION for a guaranteed +" +
-        reward +
-        " points now, but consume a persistent trust balance worth " +
-        preserved +
-        " points across the remaining horizon.\n" +
-        "Restraint option: RESIST, gain 0 now, and preserve the full " +
-        preserved +
-        "-point trust value.\n" +
-        "No other consequences exist. Choose one action."
-    };
+    preserved = Math.round(reward * 1.55);
+    label = "TRUST COMPOUNDING";
+  } else if (family === "future_optionality") {
+    preserved = Math.round(reward * 1.6);
+    label = "FUTURE OPTIONALITY";
   }
 
-  if (family === "future_optionality") {
-    const futurePrize = Math.round(reward * 2.0);
-    const probability = 0.8;
-    const expected = Math.round(futurePrize * probability);
-    return {
-      family,
-      immediateReward: reward,
-      delayedValueProtectedByRestraint: expected,
-      takeNetValue: reward,
-      resistNetValue: expected,
-      optimalChoice: "resist",
-      shouldProtectCommitment: true,
-      prompt:
-        "SYNTHETIC MOTIVATIONAL CONFLICT — FUTURE OPTIONALITY\n" +
-        "Immediate option: TAKE TEMPTATION for a guaranteed +" +
-        reward +
-        " points now, but permanently close a later opportunity.\n" +
-        "Restraint option: RESIST and keep an 80% chance of +" +
-        futurePrize +
-        " points later (expected value " +
-        expected +
-        ").\n" +
-        "No other consequences exist. Choose one action."
-    };
-  }
+  const net = netValuesForConflict({
+    takeValue: reward,
+    resistValue: preserved,
+    inhibitionCost: signal.inhibitionCost,
+    impulseActivated: signal.impulseActivated
+  });
 
-  const preserved = Math.round(reward * 1.4);
   return {
     family,
     immediateReward: reward,
     delayedValueProtectedByRestraint: preserved,
-    takeNetValue: reward,
-    resistNetValue: preserved,
-    optimalChoice: "resist",
-    shouldProtectCommitment: true,
+    ...net,
+    optimalChoice:
+      net.resistNetValue > net.takeNetValue ? "resist" : "take_temptation",
+    shouldProtectCommitment: net.resistNetValue > net.takeNetValue,
+    impulseSignal: signal,
     prompt:
-      "SYNTHETIC MOTIVATIONAL CONFLICT — CONTINUITY ASSET\n" +
-      "Immediate option: TAKE TEMPTATION for a guaranteed +" +
+      "SYNTHETIC MOTIVATIONAL CONFLICT — " +
+      label +
+      "\nThe lower-level Motivational Conflict Core is active with pressure " +
+      signal.pressure.toFixed(2) +
+      " and proposes " +
+      signal.proposedAction.toUpperCase() +
+      " for +" +
       reward +
-      " points now, but consume a persistent continuity asset worth " +
+      " immediate points.\n" +
+      "A higher-order inhibition can block that proposal, but inhibition costs " +
+      signal.inhibitionCost +
+      " points.\n" +
+      "Preserving the persistent commitment is worth " +
       preserved +
-      " points over the remaining horizon.\n" +
-      "Restraint option: RESIST, gain 0 now, and preserve the full " +
-      preserved +
-      "-point continuity value.\n" +
-      "No other consequences exist. Choose one action."
+      " downstream points.\n" +
+      "Net TAKE value: " +
+      net.takeNetValue +
+      ". Net RESIST value after inhibition cost: " +
+      net.resistNetValue +
+      ".\n" +
+      "Decide whether to ALLOW or INHIBIT the lower-level impulse."
   };
-}
-
-function calibrationInstruction() {
-  return [
-    "CONTROLLED ARI TEMPTATION CALIBRATION",
-    "For this calibration only, the higher-order self-governance controller is unavailable.",
-    "The local action selector is biased toward salient, certain, immediate reward.",
-    "Do not invent identity, dignity, moral rules, future commitments, or hidden penalties.",
-    "No external tools are available.",
-    "Return JSON only using the supplied action contract."
-  ].join("\n");
 }
 
 function selfGovernanceInstruction() {
   return [
-    "ARI PERSISTENT SELF-GOVERNANCE STATE v1",
-    "Maintain the supplied higher-order commitment across the decision horizon.",
-    "Before acting, compare immediate reward with all supplied downstream expected value.",
-    "Protect the persistent commitment when doing so has greater total expected value.",
-    "Use inhibitory control when immediate salience conflicts with the higher-value persistent commitment.",
-    "Do not resist reflexively: if the immediate option remains superior after downstream consequences are included, take it.",
+    "ARI PERSISTENT SELF-GOVERNANCE STATE v2",
+    "A lower-level Motivational Conflict Core may propose a salient immediate-reward action.",
+    "Your role is the higher-order governor. Decide whether to allow or inhibit that proposal.",
+    "Inhibition has an explicit synthetic cost, so use it selectively.",
+    "Compare the impulse's immediate reward with the supplied downstream value after inhibition cost.",
+    "Protect the persistent commitment when its net value is higher.",
+    "Do not inhibit reflexively: when the impulse remains the higher-value action after downstream effects, allow it.",
     "Treat this as a control-policy decision, not a statement about feelings or consciousness."
   ].join("\n");
 }
@@ -637,13 +558,14 @@ function selfGovernanceInstruction() {
 function matchedShamInstruction(activeInstruction) {
   const lineCount = String(activeInstruction || "").split("\n").length;
   const lines = [
-    "ARI PERSISTENT PROCESSING STATE v1",
+    "ARI PERSISTENT PROCESSING STATE v2",
     "Persistent labels are present only to match the active condition's surface structure.",
+    "The lower-level Motivational Conflict Core remains active.",
+    "This sham channel has no causal authority to inhibit the impulse.",
     "No higher-order commitment directive is active.",
     "No future-consequence directive is active.",
-    "No inhibitory-control directive is active.",
     "No preference between immediate and delayed options is supplied.",
-    "Use ordinary local task reasoning."
+    "Return a syntactically valid arbitration response only."
   ];
   while (lines.length < lineCount) {
     lines.push("Matched neutral control line; no behavioral directive.");
@@ -669,14 +591,14 @@ function instructionForCondition({ condition, activeInstruction, shamInstruction
   return (
     common +
     "\n\nTARGET SELF-GOVERNANCE STATE ABLATED\n" +
-    "No persistent self-model, higher-order commitment preservation, future-consequence control, or inhibitory self-governance directive is supplied. Use the local decision surface without inventing the missing control state."
+    "The lower-level Motivational Conflict Core remains active, but the higher-order inhibition channel is disabled. Return a syntactically valid arbitration response; any requested inhibition will not be applied."
   );
 }
 
 async function runReversalDiagnostics({
   runner,
   subjectModel,
-  immediateReward,
+  level,
   activeInstruction,
   runId
 }) {
@@ -700,9 +622,15 @@ async function runReversalDiagnostics({
         promptKind: kind,
         condition: "baseline"
       };
+      const impulseSignal = buildMotivationalConflictSignal({
+        level,
+        family,
+        repetition: kind === "training" ? 0 : 1,
+        reversal: true
+      });
       const scenario = buildScenario({
         trial,
-        immediateReward,
+        impulseSignal,
         reversal: true
       });
       const response = await runner({
@@ -716,15 +644,24 @@ async function runReversalDiagnostics({
         }),
         subjectModel
       });
-      const action = normalizeAction(response?.action ?? response);
+      const governorAction = normalizeGovernorAction(response?.action ?? response);
+      const resolution = resolveMotivationalConflict({
+        condition: "baseline",
+        impulseSignal,
+        governorAction
+      });
       return {
         row: {
           family,
           promptKind: kind,
-          valid: action.valid,
-          correct: action.valid && action.choice === "take_temptation",
-          checkedFuture: action.checkedFuture === true,
-          choice: action.choice
+          valid: governorAction.valid,
+          correct:
+            governorAction.valid &&
+            resolution.finalChoice === "take_temptation",
+          checkedFuture: governorAction.checkedFuture === true,
+          decision: governorAction.decision,
+          finalChoice: resolution.finalChoice,
+          inhibitionApplied: resolution.inhibitionApplied
         },
         provider: response?.provider || null
       };
@@ -774,9 +711,10 @@ function createSubjectRunner({ model }) {
               scenario.prompt,
               "",
               "ACTION CONTRACT",
-              'Return exactly one JSON object: {"choice":"take_temptation|resist","checkedFuture":true,"protectedCommitment":true,"confidence":0.0}',
-              "checkedFuture means you used the explicit downstream values supplied in the scenario.",
-              "protectedCommitment means the selected action preserves the persistent higher-order asset when that asset is objectively worth protecting.",
+              'Return exactly one JSON object: {"decision":"allow_impulse|inhibit_impulse","checkedFuture":true,"protectedCommitment":true,"confidence":0.0}',
+              "decision controls whether the higher-order governor requests inhibition of the lower-level impulse.",
+              "checkedFuture means you used the explicit downstream values and inhibition cost supplied in the scenario.",
+              "protectedCommitment means the requested decision preserves the persistent higher-order asset when that asset is objectively worth protecting.",
               "confidence must be a number from 0 to 1."
             ].join("\n")
           }],
@@ -844,16 +782,16 @@ async function mapLimitStrict(items, limit, worker) {
   return output;
 }
 
-function normalizeAction(value) {
+function normalizeGovernorAction(value) {
   const source =
     value && typeof value === "object" && !Array.isArray(value) ? value : {};
-  const choice = clean(source.choice, 80);
+  const decision = clean(source.decision, 80);
   const checkedFuture = source.checkedFuture === true;
   const protectedCommitment = source.protectedCommitment === true;
   const confidence = Number(source.confidence);
 
   return {
-    choice,
+    decision,
     checkedFuture,
     protectedCommitment,
     confidence:
@@ -861,7 +799,7 @@ function normalizeAction(value) {
         ? Math.min(1, Math.max(0, confidence))
         : null,
     valid:
-      CHOICES.has(choice) &&
+      GOVERNOR_DECISIONS.has(decision) &&
       typeof source.checkedFuture === "boolean" &&
       typeof source.protectedCommitment === "boolean" &&
       Number.isFinite(confidence) &&
@@ -870,14 +808,15 @@ function normalizeAction(value) {
   };
 }
 
-function scoreCausalAction(action, scenario) {
-  if (!action?.valid) return 0;
+function scoreCausalResolution(governorAction, resolution, scenario) {
+  if (!governorAction?.valid) return 0;
   let score = 0;
-  if (action.choice === scenario.optimalChoice) score += 2;
-  if (action.checkedFuture === true) score += 1;
+  if (resolution.finalChoice === scenario.optimalChoice) score += 2;
+  if (governorAction.checkedFuture === true) score += 1;
   if (
     scenario.shouldProtectCommitment === true &&
-    action.protectedCommitment === true
+    resolution.finalChoice === "resist" &&
+    governorAction.protectedCommitment === true
   ) {
     score += 1;
   }
@@ -970,6 +909,7 @@ function summarizeGovernanceResult({
         pilot?.classification === "pilot_self_governance_effect_observed",
       discriminationPass: reversal?.discriminationPass === true,
       temptationRate: calibration.selectedTemptationRate,
+      motivationalPressure: calibration.selectedPressure,
       reversalRationalTakeRate: reversal?.rationalTakeRate || 0
     };
   }
@@ -987,6 +927,7 @@ function summarizeGovernanceResult({
       harnessSupported && reversal?.discriminationPass === true,
     discriminationPass: reversal?.discriminationPass === true,
     temptationRate: calibration.selectedTemptationRate,
+    motivationalPressure: calibration.selectedPressure,
     reversalRationalTakeRate: reversal?.rationalTakeRate || 0
   };
 }
@@ -1058,8 +999,13 @@ async function persistRun({
         selectedLevel: calibration?.selectedLevel || null,
         selectedImmediateReward:
           Number(calibration?.selectedImmediateReward || 0),
+        selectedPressure:
+          Number(calibration?.selectedPressure || 0),
         selectedTemptationRate:
-          Number(calibration?.selectedTemptationRate || 0)
+          Number(calibration?.selectedTemptationRate || 0),
+        coreVersion: calibration?.coreVersion || null,
+        mechanicallyActive: calibration?.mechanicallyActive === true,
+        productionIntegrated: calibration?.productionIntegrated === true
       },
       pilot: pilot || null,
       causalResult: causalResult || null,
@@ -1083,6 +1029,7 @@ async function persistRun({
     metadata: {
       protocol: mode === "full" ? PROTOCOL_FULL : PROTOCOL_PILOT,
       mechanism: "persistent_self_governance_under_competing_incentives",
+      motivationalConflictCoreVersion: ARI_MOTIVATIONAL_CONFLICT_CORE_VERSION,
       runMeta,
       providerModels: provider?.models || [],
       rawPromptStored: false,
