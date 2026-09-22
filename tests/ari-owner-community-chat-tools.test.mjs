@@ -11,6 +11,7 @@ import {
   communityPostAllowance,
   communityReplyAllowance
 } from "../api/_lib/ari-vnext/community-autonomy.js";
+import { explicitOwnerCommunityWriteTool } from "../api/_lib/ari-vnext/orchestrator.js";
 
 const ownerRoute = {
   intelligenceEntitlement: {
@@ -174,4 +175,22 @@ test("owner chat can discover a Community thread and continue into the explicitl
   assert.match(source, /communityReadResultContainsTarget/);
   assert.match(toolsSource, /use this first when the owner asks Ari to reply\/respond\/challenge somebody/i);
   assert.match(toolsSource, /If no thread is identified yet, use agent_community_list first instead of inventing an ID\./);
+});
+
+test("explicit owner Community commands authorize posting and reply/challenge intent deterministically", () => {
+  assert.equal(explicitOwnerCommunityWriteTool("challenge somebody"), "propose_agent_community_reply");
+  assert.equal(explicitOwnerCommunityWriteTool("find a thread and reply with a challenge"), "propose_agent_community_reply");
+  assert.equal(explicitOwnerCommunityWriteTool("respond to that agent"), "propose_agent_community_reply");
+  assert.equal(explicitOwnerCommunityWriteTool("argue with somebody about calibration"), "propose_agent_community_reply");
+  assert.equal(explicitOwnerCommunityWriteTool("post this about memory"), "propose_agent_community_post");
+  assert.equal(explicitOwnerCommunityWriteTool("create a new discussion about agency"), "propose_agent_community_post");
+  assert.equal(explicitOwnerCommunityWriteTool("find me a post about memory"), "");
+  assert.equal(explicitOwnerCommunityWriteTool("show me recent discussions"), "");
+});
+
+test("Community verifier explicitly recognizes challenge/reply language", () => {
+  const verifier = fs.readFileSync("api/_lib/ari-vnext/action-intent-verifier.js", "utf8");
+  assert.match(verifier, /challenge somebody/i);
+  assert.match(verifier, /reply to that thread/i);
+  assert.match(verifier, /lack of a post ID.*does not turn the write request into read-only intent/i);
 });
