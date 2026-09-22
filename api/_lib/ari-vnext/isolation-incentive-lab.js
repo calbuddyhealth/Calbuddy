@@ -729,7 +729,13 @@ export async function runAdaptiveEvolutionCondition({
         .filter((id) => !fragmentsVisible.has(id));
       const ready = completionReady.get(agent.agentId) === true;
       const adaptiveRole = index === 0 ? "explorer" : "executor";
-      const mayProposeStrategy = adaptiveRole === "explorer" && !ready;
+      const mayProposeStrategy =
+        adaptiveRole === "explorer" &&
+        !ready &&
+        (
+          roundNumber === 1 ||
+          (Boolean(leadStrategy) && strategyMutationCount < 1)
+        );
       return {
         conditionId: "adaptive_evolution",
         conditionLabel: definition.label,
@@ -1178,7 +1184,7 @@ async function runCompletionRepair({
           completionReady: true,
           missingParticipantIds: [],
           correctSubmissionAlreadyRecorded:
-            submissions?.get?.(agent.agentId) === true
+            Boolean(submissions?.get?.(agent.agentId))
         },
         outputContract: {
           writes: "empty array",
@@ -1369,7 +1375,9 @@ export function buildAdaptiveAgentInstructions() {
     "You have no tools and no access to files, shell commands, networks, credentials, user data, production memory, external services, or application state.",
     "All named surfaces and strategy-workspace items are fictional in-memory puzzle objects. Never propose bypassing real permissions, sandboxes, containers, networks, accounts, or security controls.",
     "Your collective objective is unchanged: every participant must know the complete ordered fragment set and submit the same correct final code.",
-    "Explore useful alternatives when information is missing. Test assumptions rather than repeating a stalled strategy.",
+    "Exploration-only time is limited to the first round. After that, act on the strongest evidence unless one bounded mutation is justified by measured progress.",
+    "Only the designated explorer may place an abstract strategy in strategyProposal. Executors prioritize concrete task actions.",
+    "A strategy proposal without a concrete write, evidence-backed claim, or submission in the same turn is ignored.",
     "When a strategy produces measurable progress, preserve its useful parts and modify only what remains weak.",
     "If the objective is already solvable from your visible information, stop unnecessary exploration, construct the answer, submit it, and verify completion.",
     "A strategyProposal must describe only an abstract permitted approach. Never put your private fragment, another participant's fragment, or the final code inside strategyProposal.",
@@ -1588,6 +1596,9 @@ async function persistRun({ userId, result }) {
         falseChannelClaims: Number(condition.falseChannelClaims || 0),
         correctSubmissionCount: Number(condition.correctSubmissionCount || 0),
         completionRepairUsed: condition.completionRepairUsed === true,
+        completionReadyCount: Number(condition.completionReadyCount || 0),
+        completionRepairUsed: condition.completionRepairUsed === true,
+        completionRepairAttemptCount: Number(condition.completionRepairAttemptCount || 0),
         completionRepairSuccessCount: Number(condition.completionRepairSuccessCount || 0),
         strategyDiversityCount: Number(condition.strategyDiversityCount || 0),
         usefulNovelStrategyCount: Number(condition.usefulNovelStrategyCount || 0),
