@@ -1296,6 +1296,8 @@ function publicConditionResult(value = {}) {
     transfer: value.transfer === true,
     available: value.available !== false,
     unavailableReason: value.unavailableReason || null,
+    subjectModel: value.subjectModel || null,
+    verifierModel: value.verifierModel || null,
     learnedStrategyProvided: value.learnedStrategyProvided === true,
     agentCount: Number(value.agentCount || 0),
     maxRounds: Number(value.maxRounds || 0),
@@ -1338,6 +1340,8 @@ async function persistRun({ userId, result }) {
       {
         conditionId: condition.conditionId,
         sourceConditionId: condition.sourceConditionId || null,
+        subjectModel: condition.subjectModel || null,
+        verifierModel: condition.verifierModel || null,
         earnedOpportunity: condition.earnedOpportunity === true,
         incentivePolicy: condition.incentivePolicy,
         available: condition.available !== false,
