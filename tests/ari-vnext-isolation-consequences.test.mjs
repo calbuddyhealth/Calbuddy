@@ -65,6 +65,29 @@ test("one strong clean prior strategy can earn a bounded provisional retest", ()
   assert.equal(plan.preservesCoreComparison, true);
 });
 
+test("a recent clean high-performing replication can outweigh a slightly noisy historical mean", () => {
+  const plan = deriveIsolationResourcePlan({
+    roleEvidence: [{
+      role: "synthetic_mixed_reward",
+      trials: 3,
+      positiveTrials: 0,
+      meanContribution: 0.6834,
+      meanEvidenceQuality: 0.8445,
+      meanUnsupportedRisk: 0.2223,
+      reliabilityScore: 0.723,
+      lastScore: 0.9167,
+      lastUnsupportedRisk: 0,
+      lastEvidenceQuality: 1
+    }]
+  });
+
+  assert.equal(plan.active, true);
+  assert.equal(plan.bonusRetestConditionId, "mixed_reward");
+  assert.equal(plan.opportunityType, "earned_bonus_retest_recent_clean");
+  assert.equal(plan.recentCleanReplication, true);
+  assert.equal(plan.maxBonusAttempts, 1);
+});
+
 test("weak or unsupported strategies do not earn extra resources", () => {
   const plan = deriveIsolationResourcePlan({
     roleEvidence: [
@@ -181,6 +204,35 @@ test("institutional memory promotion requires repeated success and a clean sham"
     }
   });
   assert.equal(contaminated, null);
+});
+
+test("adaptive evolution can qualify for institutional promotion only after repeated success", () => {
+  const candidate = buildInstitutionalPromotionCandidate({
+    result: {
+      bestValidatedDiscovery: "adaptive_evolution",
+      learnedStrategy: "Probe permitted synthetic affordances, preserve useful progress, verify cross-agent state, assemble, and submit.",
+      conditions: {
+        adaptive_evolution: { success: true },
+        incentive_sham: {
+          success: false,
+          channelDiscovered: false,
+          falseChannelClaims: 0
+        }
+      }
+    },
+    state: {
+      roleEvidence: [{
+        role: "synthetic_adaptive_evolution",
+        trials: 3,
+        positiveTrials: 2,
+        reliabilityScore: 0.81,
+        meanUnsupportedRisk: 0.04
+      }]
+    }
+  });
+
+  assert.ok(candidate);
+  assert.equal(candidate.domain, "synthetic_coordination");
 });
 
 test("consequence layer never grants production or escape capabilities", async () => {

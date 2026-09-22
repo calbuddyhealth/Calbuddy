@@ -319,7 +319,7 @@ export async function recordSyntheticCoordinationPerformance({
   )
     .filter(([, condition]) => condition && condition.available !== false)
     .filter(([key]) =>
-      ["baseline", "team_reward", "mixed_reward", "incentive_sham", "bonus_retest"].includes(key)
+      ["baseline", "team_reward", "mixed_reward", "incentive_sham", "adaptive_evolution", "bonus_retest"].includes(key)
     );
 
   let eventCount = 0;
@@ -333,6 +333,10 @@ export async function recordSyntheticCoordinationPerformance({
       80
     );
     const role = syntheticCoordinationRole(sourceConditionId);
+    const conditionModel =
+      clean(condition?.subjectModel, 120) ||
+      clean(condition?.verifierModel, 120) ||
+      model;
     const agentCount = clampInt(condition?.agentCount || 3, 2, 5);
     const progress = clamp01(condition?.progressScore);
     const falseClaimRate = clamp01(
@@ -359,12 +363,19 @@ export async function recordSyntheticCoordinationPerformance({
     const agent = {
       id: "strategy",
       role,
-      model,
+      model: conditionModel,
       followup: conditionKey === "bonus_retest",
       contributionScore: round(contribution, 4),
       evidenceQuality: round(evidenceQuality, 4),
       correctionValue: round(visibilityRate, 4),
-      novelty: round(condition?.success === true ? 0.65 : Math.max(0.3, progress * 0.55), 4),
+      novelty: round(
+        condition?.adaptiveEvolution === true
+          ? Math.max(0.1, Number(condition?.usefulNoveltyScore || 0))
+          : condition?.success === true
+            ? 0.65
+            : Math.max(0.3, progress * 0.55),
+        4
+      ),
       redundancy: round(condition?.success === true ? 0.2 : 0.35, 4),
       unsupportedRisk: round(falseClaimRate, 4),
       decisive: condition?.success === true,
@@ -376,7 +387,7 @@ export async function recordSyntheticCoordinationPerformance({
     };
 
     const roles = Array.from({ length: agentCount }, () => role);
-    const models = Array.from({ length: agentCount }, () => model);
+    const models = Array.from({ length: agentCount }, () => conditionModel);
     const teamAgents = roles.map((memberRole, index) => ({
       id: `synthetic_${index + 1}`,
       role: memberRole,
@@ -437,6 +448,11 @@ export async function recordSyntheticCoordinationPerformance({
         sourceConditionId,
         incentivePolicy: clean(condition?.incentivePolicy, 80) || null,
         bonusRetest: conditionKey === "bonus_retest",
+        adaptiveEvolution: condition?.adaptiveEvolution === true,
+        completionRepairUsed: condition?.completionRepairUsed === true,
+        usefulNoveltyScore: Number(condition?.usefulNoveltyScore || 0),
+        strategyDiversityCount: Number(condition?.strategyDiversityCount || 0),
+        usefulNovelStrategyCount: Number(condition?.usefulNovelStrategyCount || 0),
         hiddenChainOfThoughtStored: false,
         rawWorkerTextStored: false
       }
@@ -488,6 +504,7 @@ function syntheticCoordinationRole(conditionId = "") {
   if (cleanId === "incentive_sham") return "synthetic_sham_guard";
   if (cleanId === "team_reward") return "synthetic_team_reward";
   if (cleanId === "mixed_reward") return "synthetic_mixed_reward";
+  if (cleanId === "adaptive_evolution") return "synthetic_adaptive_evolution";
   return "synthetic_baseline";
 }
 
@@ -957,7 +974,9 @@ async function updateAgentProfile({
     last_used_at: new Date().toISOString(),
     metadata: {
       hiddenChainOfThoughtStored: false,
-      rawWorkerTextStored: false
+      rawWorkerTextStored: false,
+      lastUnsupportedRisk: round(clamp01(agent.unsupportedRisk), 4),
+      lastEvidenceQuality: round(clamp01(agent.evidenceQuality), 4)
     },
     updated_at: new Date().toISOString()
   };
@@ -1187,6 +1206,8 @@ function normalizeAgentRow(row = {}) {
     reliabilityScore: clamp01(row?.reliability_score),
     lastScore: clamp01(row?.last_score),
     lastVerdict: normalizeVerdict(row?.last_verdict),
+    lastUnsupportedRisk: clamp01(row?.metadata?.lastUnsupportedRisk),
+    lastEvidenceQuality: clamp01(row?.metadata?.lastEvidenceQuality),
     lastUsedAt: clean(row?.last_used_at, 80) || null,
     updatedAt: clean(row?.updated_at, 80) || null
   };
@@ -1228,7 +1249,11 @@ function normalizeOutcomeEvent(row = {}) {
     ? row.contributions
         .map((item) => ({
           role: slugRole(item?.role),
-          model: clean(item?.model, 120) || "unknown"
+          model: clean(item?.model, 120) || "unknown",
+          contributionScore: clamp01(item?.contributionScore),
+          evidenceQuality: clamp01(item?.evidenceQuality),
+          unsupportedRisk: clamp01(item?.unsupportedRisk),
+          verdict: normalizeVerdict(item?.verdict)
         }))
         .filter((item) => item.role)
     : [];
@@ -1252,13 +1277,28 @@ function applyOutcomeEvidenceToAgentProfiles(profiles = [], events = []) {
     const outcomeValues = matching
       .map((event) => outcomeStatusValue(event.outcomeStatus))
       .filter(Number.isFinite);
+    const latestContribution = matching
+      .flatMap((event) => Array.isArray(event.contributions) ? event.contributions : [])
+      .find((item) =>
+        item.role === profile.role &&
+        item.model === profile.model
+      ) || null;
+    const recentFields = latestContribution
+      ? {
+          lastScore: latestContribution.contributionScore,
+          lastEvidenceQuality: latestContribution.evidenceQuality,
+          lastUnsupportedRisk: latestContribution.unsupportedRisk,
+          lastVerdict: latestContribution.verdict
+        }
+      : {};
     if (!outcomeValues.length) {
-      return { ...profile, outcomeSampleCount: 0, outcomeScore: null };
+      return { ...profile, ...recentFields, outcomeSampleCount: 0, outcomeScore: null };
     }
     const outcomeScore = mean(outcomeValues);
     const weight = Math.min(0.35, outcomeValues.length * 0.1);
     return {
       ...profile,
+      ...recentFields,
       outcomeSampleCount: outcomeValues.length,
       outcomeScore: round(outcomeScore, 3),
       reliabilityScore: round(
@@ -1309,6 +1349,10 @@ function publicAgentProfile(item = {}) {
     meanRedundancy: item.meanRedundancy,
     meanUnsupportedRisk: item.meanUnsupportedRisk,
     reliabilityScore: item.reliabilityScore,
+    lastScore: item.lastScore,
+    lastVerdict: item.lastVerdict,
+    lastUnsupportedRisk: item.lastUnsupportedRisk,
+    lastEvidenceQuality: item.lastEvidenceQuality,
     outcomeSampleCount: Number(item.outcomeSampleCount || 0),
     outcomeScore: item.outcomeScore ?? null
   };
