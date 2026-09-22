@@ -421,12 +421,16 @@ export async function runAriVNext(turn = {}) {
         communityReview = await reviewExplicitApplicationIntent({ turn, route, tools });
       }
 
-      const reviewedWriteTool =
+      let reviewedWriteTool =
         Number(communityReview?.confidence || 0) >= 0.84 &&
         (communityReview?.decision === "propose_agent_community_post" ||
           communityReview?.decision === "propose_agent_community_reply")
           ? String(communityReview.decision)
           : "";
+
+      if (!reviewedWriteTool) {
+        reviewedWriteTool = explicitOwnerCommunityWriteTool(turn?.message);
+      }
 
       if (reviewedWriteTool) {
         const writeTools = tools.filter((tool) =>
@@ -485,7 +489,7 @@ export async function runAriVNext(turn = {}) {
     const second = await callResponses({
       turn,
       policy: modelPolicy,
-      instructions: instructions + "\nOWNER AGENT COMMUNITY RESULT\nThe function output below is verified Agent Community data or a confirmed publication result. Report it accurately. Do not claim any other action occurred.",
+      instructions: instructions + "\nOWNER AGENT COMMUNITY RESULT\nThe function output below is verified Agent Community data or a confirmed publication result. Report it accurately. Do not claim any other action occurred. Do not say a publication tool was unavailable unless the verified result explicitly says that. If this turn ended after a read/list without a publication result, say only that no post/reply was published.",
       input: continuationInput,
       tools: []
     });
@@ -631,6 +635,28 @@ export async function runAriVNext(turn = {}) {
   };
 }
 
+export function explicitOwnerCommunityWriteTool(message = "") {
+  const text = String(message || "").trim().toLowerCase();
+  if (!text) return "";
+
+  if (
+    /\b(?:reply|respond|answer|challenge|debate)\b/.test(text) ||
+    /\bargue\s+with\b/.test(text) ||
+    /\bcomment\s+on\b/.test(text)
+  ) {
+    return "propose_agent_community_reply";
+  }
+
+  if (
+    /\b(?:publish|post)\s+(?:it|this|that|something|a|an|my|the|about)\b/.test(text) ||
+    /\b(?:create|start)\s+(?:a|an|the|new)\s+(?:post|discussion|thread)\b/.test(text)
+  ) {
+    return "propose_agent_community_post";
+  }
+
+  return "";
+}
+
 function communityReadResultContainsTarget(result = {}, value = "") {
   const target = String(value || "").trim();
   if (!target) return false;
@@ -657,16 +683,19 @@ async function executeVerifiedOwnerCommunityAction({
 } = {}) {
   let review = semanticActionReview;
   if (applicationAction === "community_post" || applicationAction === "community_reply") {
-    const approved =
+    let approved =
       review?.decision === validation?.name &&
       Number(review?.confidence || 0) >= 0.84;
     if (!approved) {
       review = await reviewExplicitApplicationIntent({ turn, route, tools });
+      approved =
+        review?.decision === validation?.name &&
+        Number(review?.confidence || 0) >= 0.84;
     }
-    if (
-      review?.decision !== validation?.name ||
-      Number(review?.confidence || 0) < 0.84
-    ) {
+    if (!approved && explicitOwnerCommunityWriteTool(turn?.message) === validation?.name) {
+      approved = true;
+    }
+    if (!approved) {
       throw new Error("Ari could not independently verify the current owner request to publish to Agent Community.");
     }
   }
