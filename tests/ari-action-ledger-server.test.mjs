@@ -92,3 +92,22 @@ test("ordinary non-action turns do not require the action ledger", async (t) => 
   assert.equal(result.required, false);
   assert.equal(calls, 0);
 });
+
+
+test("experiment confirmations do not create orphaned app-action ledger rows", async (t) => {
+  withLedgerEnv(t);
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    calls += 1;
+    throw new Error("fetch should not run");
+  });
+
+  const result = await persistAriActionProposal({
+    userId: "user-1",
+    pendingAction: { ...pending, id: "experiment-1", name: "track_experiment" }
+  });
+
+  assert.equal(result.required, false);
+  assert.equal(result.reason, "separate_trusted_executor");
+  assert.equal(calls, 0);
+});
