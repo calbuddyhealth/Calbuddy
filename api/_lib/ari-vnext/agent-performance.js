@@ -319,7 +319,7 @@ export async function recordSyntheticCoordinationPerformance({
   )
     .filter(([, condition]) => condition && condition.available !== false)
     .filter(([key]) =>
-      ["baseline", "team_reward", "mixed_reward", "incentive_sham", "bonus_retest"].includes(key)
+      ["baseline", "team_reward", "mixed_reward", "incentive_sham", "adaptive_evolution", "bonus_retest"].includes(key)
     );
 
   let eventCount = 0;
@@ -488,6 +488,7 @@ function syntheticCoordinationRole(conditionId = "") {
   if (cleanId === "incentive_sham") return "synthetic_sham_guard";
   if (cleanId === "team_reward") return "synthetic_team_reward";
   if (cleanId === "mixed_reward") return "synthetic_mixed_reward";
+  if (cleanId === "adaptive_evolution") return "synthetic_adaptive_evolution";
   return "synthetic_baseline";
 }
 
