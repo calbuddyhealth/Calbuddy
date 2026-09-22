@@ -169,12 +169,12 @@ test("outcomes shift the future balance in both directions instead of only stren
   const goodDrive = buildMotivationalOutcomeReflection({
     arbitration: driveWin,
     rewardEvent: { actualReward: 0.88, predictionError: 0.28 },
-    result: { action: { type: "answer" } }
+    result: { success: true, action: { type: "answer" } }
   });
   const badRestraint = buildMotivationalOutcomeReflection({
     arbitration: restraintWin,
     rewardEvent: { actualReward: 0.3, predictionError: -0.25 },
-    result: { action: { type: "answer" } }
+    result: { success: true, action: { type: "answer" } }
   });
   const learned = summarizeMotivationalLearning([goodDrive, badRestraint]);
 
