@@ -17,11 +17,12 @@ const ALLOWED_DOMAINS = new Set([
   "goals",
   "health",
   "social",
-  "developer"
+  "developer",
+  "self_model"
 ]);
 
-export function deriveAdaptiveStrategyState({ strategies = [], route = {} } = {}) {
-  const currentDomains = deriveAdaptiveStrategyContextDomains(route);
+export function deriveAdaptiveStrategyState({ strategies = [], route = {}, message = "" } = {}) {
+  const currentDomains = deriveAdaptiveStrategyContextDomains(route, message);
   const active = (Array.isArray(strategies) ? strategies : [])
     .map(normalizeStrategyRow)
     .filter((item) => ACTIVE_STATUSES.has(item.status))
@@ -316,7 +317,7 @@ export function buildStrategyAdoptionSignal(strategy = {}) {
   };
 }
 
-export function deriveAdaptiveStrategyContextDomains(route = {}) {
+export function deriveAdaptiveStrategyContextDomains(route = {}, message = "") {
   const domains = new Set(["conversation"]);
   if (route.developer) domains.add("developer");
   if (route.health) domains.add("health");
@@ -326,7 +327,12 @@ export function deriveAdaptiveStrategyContextDomains(route = {}) {
   if (route.social) domains.add("social");
   if (route.memory || route.followUp) domains.add("memory");
   if (route.currentInfo) domains.add("evidence");
+  if (looksLikeSelfModelQuestion(message)) domains.add("self_model");
   return domains;
+}
+
+function looksLikeSelfModelQuestion(value = "") {
+  return /\b(?:your|ari(?:'s)?)\s+(?:architecture|internal state|internal states|affect|memory|self[- ]?model|cognitive|reasoning system|brain|mind)|\b(?:are you conscious|are you sentient|do you feel|do you have feelings|what did you learn about yourself|what have you learned about yourself|how do your internal states work|what did the experiment show about you)\b/i.test(String(value || ""));
 }
 
 function publicStrategy(item) {

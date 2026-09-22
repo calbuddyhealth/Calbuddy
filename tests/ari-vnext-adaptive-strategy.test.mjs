@@ -76,6 +76,47 @@ test("adaptive strategy state prioritizes practical priors while preserving chal
   assert.match(adaptiveStrategyInstruction(state), /current evidence and explicit current user correction outrank it/i);
 });
 
+test("self-model questions activate only self-model adaptive lessons", () => {
+  const strategies = [
+    {
+      id: "self1",
+      strategy_key: "functional_affect_causal_regulation_v1",
+      title: "Functional affect is a causal regulation signal",
+      instruction: "Use verified affect regulation evidence without treating it as proof of consciousness.",
+      lesson_summary: "Controlled ablation showed a causal regulation effect.",
+      domains: ["self_model"],
+      status: "testing",
+      confidence: 0.82
+    },
+    {
+      id: "nutrition1",
+      strategy_key: "nutrition_only",
+      title: "Nutrition only",
+      instruction: "Use this only for nutrition turns.",
+      domains: ["nutrition"],
+      status: "testing",
+      confidence: 0.9
+    }
+  ];
+
+  const selfState = deriveAdaptiveStrategyState({
+    route: {},
+    message: "What did the experiment show about your affect core?",
+    strategies
+  });
+  assert.equal(selfState.domains.includes("self_model"), true);
+  assert.equal(selfState.active.some((item) => item.strategyKey === "functional_affect_causal_regulation_v1"), true);
+  assert.equal(selfState.active.some((item) => item.strategyKey === "nutrition_only"), false);
+
+  const ordinaryState = deriveAdaptiveStrategyState({
+    route: {},
+    message: "Tell me a funny story.",
+    strategies
+  });
+  assert.equal(ordinaryState.domains.includes("self_model"), false);
+  assert.equal(ordinaryState.active.some((item) => item.strategyKey === "functional_affect_causal_regulation_v1"), false);
+});
+
 test("positive evidence can promote a new testing strategy without displacing an incumbent", () => {
   const evaluated = evaluateStrategyOutcome({
     id: "1",
