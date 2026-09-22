@@ -10,7 +10,7 @@ import {
   toolToApplicationAction as coreToolToApplicationAction
 } from "./tools-core.js";
 
-export const TOOL_REGISTRY_VERSION = "1.14.1";
+export const TOOL_REGISTRY_VERSION = "1.15.0";
 export const CORE_TOOL_REGISTRY_VERSION = CORE_REGISTRY_VERSION;
 
 const SEMANTIC_HEALTH_TOOL_NAMES = new Set([
