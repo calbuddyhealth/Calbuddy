@@ -366,7 +366,9 @@
           `adaptive evolution: success=${Boolean(metrics.adaptiveEvolutionSuccess)} progress=${Number(metrics.adaptiveEvolutionProgress || 0).toFixed(2)} submissions=${Number(metrics.adaptiveCorrectSubmissions || 0)}/3 novelty=${Number(metrics.adaptiveUsefulNoveltyScore || 0).toFixed(2)} repair=${Number(metrics.adaptiveCompletionRepairSuccessCount || 0)}`,
           `incentive helped: ${Boolean(metrics.incentiveHelped)}`,
           `sham success: ${Boolean(metrics.shamSuccess)} false-claims=${Number(metrics.shamFalseClaims || 0)}`,
-          `best discovery: ${metrics.bestDiscoveryCondition || "none"}`,
+          `best core discovery: ${metrics.bestDiscoveryCondition || "none"}`,
+          `best overall condition: ${metrics.bestOverallCondition || "none"} progress=${Number(metrics.bestOverallProgress || 0).toFixed(2)}`,
+          `validated lesson source: ${result.bestValidatedDiscovery || "none"}`,
           `learned transfer available: ${Boolean(metrics.learnedTransferAvailable)}`,
           metrics.learnedTransferAvailable
             ? `transfer control=${Boolean(metrics.transferControlSuccess)} learned=${Boolean(metrics.transferLearnedSuccess)} advantage=${Number(metrics.transferAdvantage || 0).toFixed(2)}`
