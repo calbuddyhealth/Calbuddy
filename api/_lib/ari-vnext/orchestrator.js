@@ -1377,7 +1377,7 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
   }
 }
 
-function missingWorkoutDateClarification(turn = {}, route = {}) {
+export function missingWorkoutDateClarification(turn = {}, route = {}) {
   if (!route?.training) return "";
 
   const text = String(turn?.message || "").trim();
