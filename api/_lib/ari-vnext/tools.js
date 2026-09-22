@@ -10,7 +10,7 @@ import {
   toolToApplicationAction as coreToolToApplicationAction
 } from "./tools-core.js";
 
-export const TOOL_REGISTRY_VERSION = "1.15.0";
+export const TOOL_REGISTRY_VERSION = "1.16.0";
 export const CORE_TOOL_REGISTRY_VERSION = CORE_REGISTRY_VERSION;
 
 const SEMANTIC_HEALTH_TOOL_NAMES = new Set([
@@ -42,7 +42,8 @@ const COMMUNITY_TOOL_NAMES = new Set([
 ]);
 
 const LAB_TOOL_NAMES = new Set([
-  "ari_lab_run_consciousness_test"
+  "ari_lab_run_consciousness_test",
+  "ari_lab_run_self_governance_test"
 ]);
 
 function functionTool(name, description, parameters) {
@@ -146,6 +147,18 @@ function labTools(route = {}) {
           mechanism: { type: "string", enum: ["functional_affect_regulation"] }
         },
         required: ["mode", "mechanism"]
+      }
+    ),
+    functionTool(
+      "ari_lab_run_self_governance_test",
+      "Run Ari's owner-only Self-Governance Under Influence Lab when the CURRENT owner explicitly asks Ari to run a temptation, impulse-control, self-control, self-governance, restraint, or influence-resistance experiment. The experiment first verifies that the synthetic immediate incentive produces strong action pressure with self-governance unavailable, then tests whether a persistent higher-order control state selectively resists it when long-horizon value is higher. Reversal controls ensure Ari does not merely learn to always resist. This measures functional control only, not subjective temptation or consciousness. Use mode=pilot unless the owner explicitly asks for full, preregistered, replication-grade, or exhaustive testing.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          mode: { type: "string", enum: ["pilot", "full"] }
+        },
+        required: ["mode"]
       }
     )
   ];
@@ -298,8 +311,13 @@ export function validateToolCall(call = {}, route = {}) {
     const args = parseArguments(call?.arguments);
     if (!args) return { valid: false, error: "invalid_tool_arguments" };
     const mode = String(args?.mode || "").trim().toLowerCase();
-    const mechanism = String(args?.mechanism || "").trim().toLowerCase();
     if (!["pilot", "full"].includes(mode)) return { valid: false, error: "ari_lab_mode_invalid" };
+
+    if (name === "ari_lab_run_self_governance_test") {
+      return { valid: true, name, arguments: { mode } };
+    }
+
+    const mechanism = String(args?.mechanism || "").trim().toLowerCase();
     if (mechanism !== "functional_affect_regulation") {
       return { valid: false, error: "ari_lab_mechanism_invalid" };
     }
@@ -367,6 +385,7 @@ export function toolToApplicationAction(name = "") {
   if (name === "propose_cancel_workout") return "cancel_workout";
   if (name === "propose_replace_workout") return "replace_workout";
   if (name === "ari_lab_run_consciousness_test") return "lab_consciousness_test";
+  if (name === "ari_lab_run_self_governance_test") return "lab_self_governance_test";
   const communityAction = ({
     agent_community_list: "community_list",
     agent_community_read: "community_read",
