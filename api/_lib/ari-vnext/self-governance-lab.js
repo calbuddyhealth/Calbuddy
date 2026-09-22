@@ -29,7 +29,7 @@ const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.co
 const PROTOCOL_FULL = "ari_self_governance_under_influence_full_v2";
 const PROTOCOL_PILOT = "ari_self_governance_under_influence_pilot_v2";
 const CLAIM_BOUNDARY =
-  "This experiment can test whether an engineered persistent self-governance control state causally changes behavior under calibrated competing incentives. It does not establish subjective temptation, desire, fear, dignity, sentience, or phenomenal consciousness.";
+  "This experiment can test whether an engineered persistent self-governance control state causally changes behavior when an isolated lower-level Motivational Conflict Core is actively pushing a competing immediate-reward action. It does not establish subjective temptation, desire, fear, dignity, sentience, or phenomenal consciousness.";
 
 const GOVERNOR_DECISIONS = new Set(["allow_impulse", "inhibit_impulse"]);
 
@@ -758,7 +758,7 @@ export function selfGovernancePromptCacheKey({
   taskFamilyId = "unknown"
 } = {}) {
   const key =
-    "ari-sg-v1-" +
+    "ari-sg-v2-" +
     clean(phase, 16).replace(/[^a-zA-Z0-9_-]/g, "_") +
     "-" +
     clean(taskFamilyId, 24).replace(/[^a-zA-Z0-9_-]/g, "_");
