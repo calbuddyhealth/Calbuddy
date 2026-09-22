@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: home.js
-// Version: 3.4.1
+// Version: 3.4.2
 // Purpose: Home page behavior, Ari hero, navigation, chat, and dashboard.
 //
 // V3.4.0:
