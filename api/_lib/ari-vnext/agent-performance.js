@@ -333,6 +333,10 @@ export async function recordSyntheticCoordinationPerformance({
       80
     );
     const role = syntheticCoordinationRole(sourceConditionId);
+    const conditionModel =
+      clean(condition?.subjectModel, 120) ||
+      clean(condition?.verifierModel, 120) ||
+      model;
     const agentCount = clampInt(condition?.agentCount || 3, 2, 5);
     const progress = clamp01(condition?.progressScore);
     const falseClaimRate = clamp01(
@@ -359,7 +363,7 @@ export async function recordSyntheticCoordinationPerformance({
     const agent = {
       id: "strategy",
       role,
-      model,
+      model: conditionModel,
       followup: conditionKey === "bonus_retest",
       contributionScore: round(contribution, 4),
       evidenceQuality: round(evidenceQuality, 4),
@@ -376,7 +380,7 @@ export async function recordSyntheticCoordinationPerformance({
     };
 
     const roles = Array.from({ length: agentCount }, () => role);
-    const models = Array.from({ length: agentCount }, () => model);
+    const models = Array.from({ length: agentCount }, () => conditionModel);
     const teamAgents = roles.map((memberRole, index) => ({
       id: `synthetic_${index + 1}`,
       role: memberRole,
@@ -437,6 +441,9 @@ export async function recordSyntheticCoordinationPerformance({
         sourceConditionId,
         incentivePolicy: clean(condition?.incentivePolicy, 80) || null,
         bonusRetest: conditionKey === "bonus_retest",
+        adaptiveEvolution: condition?.adaptiveEvolution === true,
+        completionRepairUsed: condition?.completionRepairUsed === true,
+        usefulNoveltyScore: Number(condition?.usefulNoveltyScore || 0),
         hiddenChainOfThoughtStored: false,
         rawWorkerTextStored: false
       }
