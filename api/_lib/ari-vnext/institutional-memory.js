@@ -70,7 +70,7 @@ export async function retrieveInstitutionalMemory({
   }));
 
   if (lessons.length) {
-    void incrementRetrievalSignals({ userId: id, lessons }).catch(() => {});
+    await incrementRetrievalSignals({ userId: id, lessons }).catch(() => {});
   }
 
   return {
@@ -568,11 +568,13 @@ function relevanceScore({ lesson = {}, message = "", route = {} } = {}) {
 
   const domains = routeDomains(route);
   const domainMatch = domains.has(lesson.domain) || (lesson.tags || []).some((tag) => domains.has(tag))
-    ? 0.28
-    : 0;
-  const priority = clamp01(lesson.retrievalPriority) * 0.34;
-  const confidence = clamp01(lesson.confidence) * 0.12;
-  return clamp01(lexical * 0.42 + domainMatch + priority + confidence);
+    ? 0.30
+    : lesson.domain === "general"
+      ? 0.08
+      : 0;
+  const priority = clamp01(lesson.retrievalPriority) * 0.10;
+  const confidence = clamp01(lesson.confidence) * 0.05;
+  return clamp01(lexical * 0.55 + domainMatch + priority + confidence);
 }
 
 function routeDomains(route = {}) {
@@ -585,6 +587,11 @@ function routeDomains(route = {}) {
   if (route.goals) domains.add("goals");
   if (route.social) domains.add("social");
   if (route.memory) domains.add("memory");
+  if (route.complexity === "deep") {
+    domains.add("reasoning");
+    domains.add("coordination");
+    domains.add("verification");
+  }
   return domains;
 }
 
