@@ -13,7 +13,7 @@
 
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.5.5";
+  const VERSION = "1.5.6";
   const ENDPOINT = "/api/ari-intent-router";
   const CACHE_TTL_MS = 15000;
   const INSTALL_FLAG = "__ariCentralIntentRouterV1";
@@ -49,7 +49,7 @@
   function loadVNextRuntime() {
     appendOrderedScript(
       VNEXT_RUNTIME_CONTROLLER_SCRIPT_ID,
-      "ari/runtime/ari-runtime-controller.js?v=1.3.10"
+      "ari/runtime/ari-runtime-controller.js?v=1.3.11"
     );
   }
 
