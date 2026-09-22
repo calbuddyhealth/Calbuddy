@@ -58,7 +58,5 @@
         }
       ]
     }
-  ],
-  "buildCommand": "node scripts/ari-internal-state-causal-transfer-v2.mjs",
-  "outputDirectory": "public"
+  ]
 }
