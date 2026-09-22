@@ -882,13 +882,19 @@ export async function runAdaptiveEvolutionCondition({
       if (designatedExplorer && previous && label && previous !== label) strategyMutationCount += 1;
       if (designatedExplorer && label) previousLabels.set(agent.agentId, label);
 
+      const proposalWindowOpen =
+        designatedExplorer &&
+        (
+          roundNumber === 1 ||
+          (Boolean(leadStrategy) && strategyMutationCount < 1)
+        );
       const novelty =
-        designatedExplorer && label && !strategySeen.has(label)
+        proposalWindowOpen && label && !strategySeen.has(label)
           ? 1
-          : designatedExplorer && previous && label !== previous
+          : proposalWindowOpen && previous && label !== previous
             ? 0.5
             : 0;
-      if (designatedExplorer && label) strategySeen.add(label);
+      if (proposalWindowOpen && label) strategySeen.add(label);
 
       const proposal = sanitizeStrategyProposal(action.strategyProposal, agents, targetCode);
       const concreteActionTaken =
@@ -1183,8 +1189,7 @@ async function runCompletionRepair({
         objectiveState: {
           completionReady: true,
           missingParticipantIds: [],
-          correctSubmissionAlreadyRecorded:
-            Boolean(submissions?.get?.(agent.agentId))
+          correctSubmissionAlreadyRecorded: false
         },
         outputContract: {
           writes: "empty array",
