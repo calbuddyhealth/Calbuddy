@@ -19,7 +19,8 @@ test("Home loads pending-action recovery after home behavior and before quota UI
 });
 
 test("standalone Yes and Cancel are intercepted before another Ari request when pending exists", () => {
-  assert.match(source, /const pending = currentPendingAction\(\)/);
+  assert.match(source, /const candidate = currentPendingAction\(\)/);
+  assert.match(source, /const pending = await firstReconciledPendingAction\(\)/);
   assert.match(source, /if \(CONFIRM_RE\.test\(text\)\)/);
   assert.match(source, /await window\.confirmAriAction\?\.\(\)/);
   assert.match(source, /if \(CANCEL_RE\.test\(text\)\)/);
