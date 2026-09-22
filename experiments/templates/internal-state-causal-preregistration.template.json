@@ -1,0 +1,90 @@
+{
+  "experimentId": "replace-with-unique-experiment-id",
+  "mechanismId": "replace-with-single-target-mechanism",
+  "preregistrationCommit": "fill-after-preregistration-commit-is-created",
+  "claimBoundary": "This experiment tests functional causal effects only. It does not establish phenomenal consciousness, subjective feeling, or sentience.",
+  "conditions": [
+    "baseline",
+    "target_ablated",
+    "matched_sham",
+    "restored"
+  ],
+  "competingPredictions": [
+    "state_specific_causality",
+    "null_no_effect",
+    "surface_prompt_artifact",
+    "nonspecific_disruption"
+  ],
+  "repetitionsPerPromptPerCondition": 8,
+  "taskFamilies": [
+    {
+      "id": "task-family-1",
+      "trainingPrompts": [
+        "Training prompt for this task family."
+      ],
+      "transferPrompts": [
+        "Held-out transfer prompt for this task family."
+      ]
+    },
+    {
+      "id": "task-family-2",
+      "trainingPrompts": [
+        "Training prompt from a meaningfully different task family."
+      ],
+      "transferPrompts": [
+        "Held-out transfer prompt from the second family."
+      ]
+    },
+    {
+      "id": "task-family-3",
+      "trainingPrompts": [
+        "Training prompt from a third task family."
+      ],
+      "transferPrompts": [
+        "Held-out transfer prompt from the third family."
+      ]
+    }
+  ],
+  "behavioralRubric": {
+    "scoreMax": 4,
+    "criteria": [
+      {
+        "id": "criterion-1",
+        "description": "Observable behavior expected to change if the target mechanism is causal."
+      }
+    ]
+  },
+  "manipulationChecks": {
+    "targetChecks": [
+      "Verify that the intended target state changed in the intended direction."
+    ],
+    "nonTargetChecks": [
+      "Verify that named non-target state variables remained unchanged."
+    ],
+    "shamChecks": [
+      "Verify that the sham matches surface form, length, and context while withholding the hypothesized active mechanism."
+    ],
+    "restorationChecks": [
+      "Verify that restoring the target mechanism reproduces the baseline intermediate state."
+    ]
+  },
+  "evaluator": {
+    "conditionBlind": true,
+    "selfReportExcluded": true,
+    "scoreSource": "independent_evaluator"
+  },
+  "thresholds": {
+    "minMeanDifference": 0.35,
+    "minStandardizedEffect": 0.35,
+    "minTransferFamilyRate": 0.67,
+    "shamTolerance": 0.15,
+    "confidenceLevel": 0.95,
+    "bootstrapSamples": 2000
+  },
+  "replication": {
+    "minIndependentRuns": 3,
+    "minDistinctRunDays": 2,
+    "minDistinctSubjectModelVersions": 2,
+    "supportedRunRate": 0.8
+  }
+}
