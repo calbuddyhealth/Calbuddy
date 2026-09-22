@@ -423,6 +423,10 @@ export async function runAriVNext(turn = {}) {
       action: null,
       provider: providerSummary(first),
       semanticActionReview: publicActionReview(semanticActionReview),
+      requestUnderstanding: publicRequestUnderstanding({
+        functionCall,
+        semanticActionReview
+      }),
       source: "ari_vnext"
     }, multiAgentCouncil);
   }
@@ -745,6 +749,11 @@ export async function runAriVNext(turn = {}) {
       },
       provider: providerSummary(first),
       semanticActionReview: publicActionReview(semanticActionReview),
+      requestUnderstanding: publicRequestUnderstanding({
+        functionCall,
+        applicationAction,
+        semanticActionReview
+      }),
       source: "ari_vnext_action_proposal"
     }, multiAgentCouncil);
   }
@@ -803,6 +812,11 @@ export async function runAriVNext(turn = {}) {
     },
     provider: providerSummary(second),
     semanticActionReview: publicActionReview(semanticActionReview),
+    requestUnderstanding: publicRequestUnderstanding({
+      functionCall,
+      applicationAction,
+      semanticActionReview
+    }),
     source: "ari_vnext_action_proposal"
   }, multiAgentCouncil);
 }
@@ -1237,6 +1251,7 @@ function buildInstructions({
     "\nARI XP PRODUCT BOUNDARIES\nMeal Plan is strictly today-only. Never generate, schedule, or imply support for a future Meal Plan. If the user asks for tomorrow or another future day, state that Meal Plan only tracks today. Planned food is not consumed food. Calories burned do not increase the Nutrition food allowance unless the product contract explicitly changes. Never invent a missing Daily Calorie Goal.",
     "\nDATA FIDELITY\nFor any proposed write, preserve every explicit quantity and named item from the CURRENT user request. Do not silently drop components. If a user asks to log multiple foods as one meal, the single meal record must represent all of those foods with combined nutrition and clear serving details.",
     "\nRELEVANT ARI XP CONTEXT\nUse only what is relevant to the current question. Treat missing fields as unknown.\n" + contextToText(relevantContext),
+    "\nREQUEST INTERPRETATION\nInterpret the CURRENT user message semantically before deciding whether it is conversation, a question, contextual information, or a request to change application state. Do not require magic keywords or exact feature names. Natural phrasing, references, and paraphrases count when the current message makes the requested operation clear. Separate understanding from execution: first determine what the user is asking for, then use the matching application function when one exists. Trusted code will validate, persist, confirm, and execute the proposal. If essential details are genuinely missing, ask one concise clarification instead of guessing. Never expose hidden chain-of-thought; only the selected action or clarification is externally observable.",
     "\nACTION RULE\nOnly call an application function when the CURRENT user message explicitly requests that mutation. Never infer a write from an old turn. A statement like 'I ate eggs' or 'I ate the breakfast you planned' is not permission to log food. When the current message DOES explicitly request a supported app mutation, use the matching function instead of only describing what you could do. Natural phrasing counts; the user does not need to name the feature or tool. Never start, finish, or cancel an experiment without an explicit current-turn request and confirmation. Cancelling a proposal cancels only that proposal; a later explicit request must create a fresh proposal. Normal ARI XP application functions prepare changes for confirmation and this model pass never executes those writes. OWNER AGENT COMMUNITY post/reply functions are the explicit exception: after a current-turn owner publication request passes trusted validation, the server executes that public action immediately and returns verified publication evidence. Never claim any other change was logged or saved, and never ask the user to confirm a normal app change without returning the application function that prepares it."
   );
 
@@ -1503,6 +1518,25 @@ function publicActionReview(review = null) {
     reason: String(review?.reason || "").slice(0, 500),
     dailyGoalKnown: typeof review?.dailyGoalKnown === "boolean" ? review.dailyGoalKnown : null,
     model: review?.model || null
+  };
+}
+
+function publicRequestUnderstanding({
+  functionCall = null,
+  applicationAction = null,
+  semanticActionReview = null
+} = {}) {
+  const selectedTool = String(functionCall?.name || "").trim() || null;
+  return {
+    version: "1.0.0",
+    authority: "ari_vnext_primary_model",
+    mode: selectedTool ? "application_action" : "conversation",
+    selectedTool,
+    applicationAction: String(applicationAction || "").trim() || null,
+    verifierUsed: Boolean(semanticActionReview),
+    verifierDecision: semanticActionReview?.decision || null,
+    verifierConfidence: semanticActionReview ? Number(semanticActionReview?.confidence || 0) : null,
+    hiddenChainOfThoughtStored: false
   };
 }
 

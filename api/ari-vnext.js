@@ -538,7 +538,11 @@ export default async function handler(req, res) {
     // If the durable proposal cannot be recorded, do not expose a dead "Yes"
     // prompt that a later navigation or retry could misinterpret.
     if (actionLedgerProposal.required && !actionLedgerProposal.stored) {
-      result.reply = "I couldn't prepare that change for confirmation, so nothing was saved. Please ask me to try it again.";
+      console.warn("[ARI Action Ledger] durable proposal unavailable", {
+        reason: actionLedgerProposal.reason || "ledger_write_failed",
+        action: result?.pendingAction?.name || result?.action?.applicationAction || null
+      });
+      result.reply = "I understood the requested change, but I couldn't store its confirmation safely, so nothing was saved. Please try it again.";
       result.pendingAction = null;
       result.action = null;
       result.actionPreparation = {

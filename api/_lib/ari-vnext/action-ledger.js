@@ -62,6 +62,12 @@ export async function persistAriActionProposal({
     }
 
     if (response.status !== 409) {
+      const detail = await response.json().catch(() => null);
+      console.warn("[ARI Action Ledger] proposal insert rejected", {
+        status: response.status,
+        code: clean(detail?.code, 120) || null,
+        message: clean(detail?.message, 240) || null
+      });
       return { stored: false, required: true, reason: `ledger_insert_${response.status}` };
     }
 
@@ -83,10 +89,15 @@ export async function persistAriActionProposal({
         }
       : { stored: false, required: true, reason: "ledger_conflict_unresolved" };
   } catch (error) {
+    const reason = error?.name === "AbortError" ? "ledger_write_timeout" : "ledger_write_failed";
+    console.warn("[ARI Action Ledger] proposal persistence failed", {
+      reason,
+      errorName: clean(error?.name, 120) || "Error"
+    });
     return {
       stored: false,
       required: true,
-      reason: error?.name === "AbortError" ? "ledger_write_timeout" : "ledger_write_failed"
+      reason
     };
   }
 }
@@ -135,7 +146,10 @@ async function timedFetch(url, options = {}, timeoutMs = 1000) {
 
 function supabaseConfig() {
   const url = clean(process.env.SUPABASE_URL, 1200).replace(/\/+$/, "");
-  const key = clean(process.env.SUPABASE_SERVICE_ROLE_KEY, 6000);
+  const key = clean(
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY,
+    8000
+  );
   return url && key ? { url, key } : null;
 }
 

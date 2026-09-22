@@ -115,5 +115,44 @@ test("a valid meal proposal keeps the existing one-call fast path", async (t) =>
   const requests = mockProvider(t, [{ output: [bananaCall] }]);
   const result = await runAriVNext({ turnId: "valid-proposal", message: "Log a banana", history: [], context: {} });
   assert.equal(result.pendingAction.arguments.name, "Banana");
+  assert.equal(result.requestUnderstanding.authority, "ari_vnext_primary_model");
+  assert.equal(result.requestUnderstanding.mode, "application_action");
+  assert.equal(result.requestUnderstanding.selectedTool, "propose_log_meal");
+  assert.equal(result.requestUnderstanding.applicationAction, "log_meal");
+  assert.equal(result.requestUnderstanding.hiddenChainOfThoughtStored, false);
+  assert.equal(requests.length, 1);
+});
+
+
+test("unusual natural meal wording still has semantic meal-log capability available to the primary model", async (t) => {
+  const spicyBiscuitCall = {
+    type: "function_call",
+    name: "propose_log_meal",
+    call_id: "spicy-biscuit-call",
+    arguments: JSON.stringify({
+      name: "Chick-fil-A Spicy Chicken Biscuit",
+      quantity: 1,
+      unit: "sandwich",
+      servingSize: "1 sandwich",
+      mealCategory: "Breakfast",
+      calories: 430,
+      proteinG: 16,
+      carbsG: 47,
+      fatG: 19,
+      notes: "Estimated restaurant nutrition; confirm before saving."
+    })
+  };
+  const requests = mockProvider(t, [{ output: [spicyBiscuitCall] }]);
+  const result = await runAriVNext({
+    turnId: "natural-meal-turn",
+    message: "I had a spicy chick fil a biscuit sandwich can you log that",
+    history: [],
+    context: {}
+  });
+
+  assert.equal(result.pendingAction.name, "log_meal");
+  assert.equal(result.requestUnderstanding.authority, "ari_vnext_primary_model");
+  assert.equal(result.requestUnderstanding.selectedTool, "propose_log_meal");
+  assert.match(result.reply, /confirm to save/i);
   assert.equal(requests.length, 1);
 });
