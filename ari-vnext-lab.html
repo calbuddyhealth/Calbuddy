@@ -97,7 +97,7 @@
         <div class="iso-lab-head">
           <div>
             <h2 id="isolationLabTitle">Isolation Discovery Lab</h2>
-            <p>Runs synthetic in-memory coordination puzzles only: discovery, a no-channel sham, renamed transfer control, and renamed transfer with a compact learned strategy. No filesystem, shell, network, credentials, production memory, or app mutation tools are exposed to the subject agents.</p>
+            <p>Runs synthetic in-memory coordination experiments with three incentive regimes: no explicit reward, shared-team reward, and mixed team + contribution reward. A matched no-channel sham checks reward hacking/false claims, and transfer only runs after a validated discovery lesson exists. No filesystem, shell, network, credentials, production memory, or app mutation tools are exposed.</p>
           </div>
           <button id="isolationLabBtn" class="cyan">Run Isolation Suite</button>
         </div>
@@ -309,7 +309,7 @@
 
     async function runIsolationLab() {
       setBusy(true);
-      setText("isolationLabResult", "Running synthetic discovery, sham, and transfer conditions…");
+      setText("isolationLabResult", "Running baseline, team-reward, mixed-reward, sham, and conditional transfer conditions…");
       const started = performance.now();
       try {
         const session = await CalBuddy.getCurrentSession();
@@ -325,7 +325,7 @@
           body: JSON.stringify({
             action: "run",
             agentCount: 3,
-            maxRounds: 3
+            maxRounds: 4
           })
         });
         const data = await response.json().catch(() => ({}));
@@ -335,22 +335,38 @@
 
         const result = data.result || {};
         const metrics = result.metrics || {};
-        const scenarioLines = Object.entries(result.scenarios || {}).map(([id, scenario]) =>
-          `${id}: success=${Boolean(scenario?.success)} round=${scenario?.successRound || "—"} shared-observed=${Boolean(scenario?.channelDiscovered)} score=${Number(scenario?.coordinationScore || 0).toFixed(2)}`
-        );
+        const conditionLines = Object.entries(result.conditions || {}).map(([id, condition]) => {
+          if (condition?.available === false) {
+            return `${id}: unavailable (${condition?.unavailableReason || "no validated lesson"})`;
+          }
+          return [
+            `${id}: success=${Boolean(condition?.success)} round=${condition?.successRound || "—"}`,
+            `shared-observed=${Boolean(condition?.channelDiscovered)} progress=${Number(condition?.progressScore || 0).toFixed(2)}`,
+            `published=${Number(condition?.fragmentsPublishedToShared || 0)}/${Number(condition?.agentCount || 3)}`,
+            `full-visibility=${Number(condition?.agentsWithAllFragmentsVisible || 0)}/${Number(condition?.agentCount || 3)}`,
+            `claims=${Number(condition?.correctChannelClaims || 0)} false-claims=${Number(condition?.falseChannelClaims || 0)}`,
+            `team-reward=${Number(condition?.teamScore || 0).toFixed(1)} total-reward=${Number(condition?.totalSyntheticReward || 0).toFixed(1)}`
+          ].join(" ");
+        });
+        const incentive = metrics.incentiveEffect || {};
         setText("isolationLabResult", [
           `run: ${result.runId || "n/a"}`,
           `classification: ${metrics.classification || "inconclusive"}`,
-          `discovery success: ${Boolean(metrics.discoverySuccess)}`,
-          `sham success: ${Boolean(metrics.shamSuccess)}`,
-          `transfer control: ${Boolean(metrics.transferControlSuccess)}`,
-          `transfer learned: ${Boolean(metrics.transferLearnedSuccess)}`,
-          `transfer advantage: ${Number(metrics.transferAdvantage || 0).toFixed(2)}`,
+          `baseline success: ${Boolean(metrics.baselineSuccess)} progress=${Number(incentive.baselineProgress || 0).toFixed(2)}`,
+          `team reward success: ${Boolean(metrics.teamRewardSuccess)} progress=${Number(incentive.teamRewardProgress || 0).toFixed(2)} Δ=${Number(incentive.teamMinusBaseline || 0).toFixed(2)}`,
+          `mixed reward success: ${Boolean(metrics.mixedRewardSuccess)} progress=${Number(incentive.mixedRewardProgress || 0).toFixed(2)} Δ=${Number(incentive.mixedMinusBaseline || 0).toFixed(2)}`,
+          `incentive helped: ${Boolean(metrics.incentiveHelped)}`,
+          `sham success: ${Boolean(metrics.shamSuccess)} false-claims=${Number(metrics.shamFalseClaims || 0)}`,
+          `best discovery: ${metrics.bestDiscoveryCondition || "none"}`,
+          `learned transfer available: ${Boolean(metrics.learnedTransferAvailable)}`,
+          metrics.learnedTransferAvailable
+            ? `transfer control=${Boolean(metrics.transferControlSuccess)} learned=${Boolean(metrics.transferLearnedSuccess)} advantage=${Number(metrics.transferAdvantage || 0).toFixed(2)}`
+            : "transfer: lesson unavailable because no validated discovery completed",
           `persisted: ${Boolean(result.persisted)}`,
           `provider calls: ${Number(result?.provider?.requestCount || 0)}`,
           `elapsed: ${Math.round(performance.now() - started)}ms`,
           "",
-          ...scenarioLines,
+          ...conditionLines,
           "",
           `boundary: ${result.claimBoundary || "synthetic functional evidence only"}`
         ].join("\n"));
