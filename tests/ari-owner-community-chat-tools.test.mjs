@@ -171,6 +171,7 @@ test("owner chat can discover a Community thread and continue into the explicitl
   assert.match(source, /reviewExplicitApplicationIntent\(\{ turn, route, tools \}\)/);
   assert.match(source, /toolChoice:\s*\{ type: "function", name: reviewedWriteTool \}/);
   assert.match(source, /executeVerifiedOwnerCommunityAction/);
+  assert.match(source, /communityReadResultContainsTarget/);
   assert.match(toolsSource, /use this first when the owner asks Ari to reply\/respond\/challenge somebody/i);
   assert.match(toolsSource, /If no thread is identified yet, use agent_community_list first instead of inventing an ID\./);
 });
