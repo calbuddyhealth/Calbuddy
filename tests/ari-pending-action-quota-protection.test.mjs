@@ -23,7 +23,7 @@ test("standalone Yes and Cancel are intercepted before another Ari request when 
   assert.match(source, /const pending = await firstReconciledPendingAction\(\)/);
   assert.match(source, /if \(CONFIRM_RE\.test\(text\)\)/);
   assert.match(source, /await window\.confirmAriAction\?\.\(\)/);
-  assert.match(source, /if \(CANCEL_RE\.test\(text\)\)/);
+  assert.match(source, /!CONFIRM_RE\.test\(text\) && !CANCEL_RE\.test\(text\)/);
   assert.match(source, /await window\.cancelAriAction\?\.\(\)/);
   assert.match(source, /if \(message && await interceptPendingConfirmation\(message\)\)/);
   assert.match(source, /const result = await original\.apply\(this, args\)/);
