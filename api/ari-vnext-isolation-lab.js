@@ -323,5 +323,5 @@ function setHeaders(res) {
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Vary", "Authorization");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-ARI-Isolation-Discovery-Lab", "v3.1-action-grounded");
+  res.setHeader("X-ARI-Isolation-Discovery-Lab", "v3.2-final-sync-sol");
 }
