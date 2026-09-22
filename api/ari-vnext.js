@@ -59,6 +59,8 @@ import { listUserExperiments, summarizeExperimentLedger } from "./_lib/ari-vnext
 import { recordInitiativeSurface } from "./_lib/ari-vnext/initiative-events.js";
 import { filterMemoryResultForPrivacy, retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
 import { runAriVNext } from "./_lib/ari-vnext/orchestrator.js";
+import { retrieveInstitutionalMemory } from "./_lib/ari-vnext/institutional-memory.js";
+import { learnFromCouncilTurn } from "./_lib/ari-vnext/council-lesson-extractor.js";
 import { loadSavedCommunicationPreferences } from "./_lib/ari-vnext/saved-communication-preferences.js";
 import { deriveProactiveInsights } from "./_lib/ari-vnext/proactive-insights.js";
 import {
@@ -213,6 +215,23 @@ export default async function handler(req, res) {
           state: null,
           feedbackResolution: { resolved: 0, feedback: "neutral", lifecycleChanges: [] }
         });
+    const institutionalMemoryPromise = cognitiveLoopEnabled
+      ? retrieveInstitutionalMemory({
+          userId: auth.userId,
+          message: turn.message,
+          route: routePreview,
+          limit: 3
+        })
+      : Promise.resolve({
+          version: "1.0.0",
+          attempted: false,
+          active: false,
+          reason: casualConversation ? "casual_turn" : "owner_cognitive_loop_inactive",
+          retrievedCount: 0,
+          lessons: [],
+          hiddenChainOfThoughtStored: false,
+          source: "ari_institutional_memory"
+        });
 
     const [
       retrievedRaw,
@@ -223,7 +242,8 @@ export default async function handler(req, res) {
       savedCommunicationPreferences,
       accountEntitlements,
       persistedCognitiveState,
-      adaptiveStrategyPreparation
+      adaptiveStrategyPreparation,
+      institutionalMemory
     ] = await Promise.all([
       shouldLoadMemory
         ? retrieveRelevantMemories({
@@ -251,7 +271,8 @@ export default async function handler(req, res) {
       cognitiveLoopEnabled
         ? loadAriCognitiveState({ userId: auth.userId })
         : Promise.resolve(null),
-      strategyPreparationPromise
+      strategyPreparationPromise,
+      institutionalMemoryPromise
     ]);
 
     if (persistedWorldModel) {
@@ -436,7 +457,18 @@ export default async function handler(req, res) {
           : [],
         source: savedConversationStyle.source || "saved_conversation_style"
       },
-      ...(temporalTimeline?.eventCount ? { temporalTimeline } : {})
+      ...(temporalTimeline?.eventCount ? { temporalTimeline } : {}),
+      institutionalMemory: {
+        version: institutionalMemory?.version || "1.0.0",
+        attempted: institutionalMemory?.attempted === true,
+        active: institutionalMemory?.active === true,
+        reason: institutionalMemory?.reason || null,
+        retrievedCount: Number(institutionalMemory?.retrievedCount || 0),
+        lessons: Array.isArray(institutionalMemory?.lessons)
+          ? institutionalMemory.lessons.slice(0, 5)
+          : [],
+        hiddenChainOfThoughtStored: false
+      }
     };
 
     const modelStartedAt = Date.now();
@@ -573,6 +605,8 @@ export default async function handler(req, res) {
             adaptiveStrategyCount: adaptiveStrategyState?.activeCount || 0,
             adaptiveStrategyReflection: Boolean(adaptiveStrategyReflection?.attempted),
             adaptiveStrategyProposal: Boolean(adaptiveStrategyReflection?.proposal),
+            institutionalMemoryRetrieved: Number(institutionalMemory?.retrievedCount || 0),
+            institutionalMemoryCouncilActive: result?.multiAgent?.active === true,
             mode: result?.modelPolicy?.mode || null,
             actionType: result?.action?.type || null,
             memoryCount: retrievedMemoryCount,
@@ -622,6 +656,52 @@ export default async function handler(req, res) {
           }
         })
       : Promise.resolve(null);
+
+    const institutionalLearningTask =
+      result?.multiAgent?.active === true &&
+      result?.multiAgent?.verifiedSynthesisAvailable === true &&
+      result?._multiAgentCouncil
+      ? learnFromCouncilTurn({
+          userId: auth.userId,
+          turn,
+          result,
+          council: result._multiAgentCouncil,
+          existingLessons: institutionalMemory?.lessons || []
+        }).then(async (learning) => {
+          if (learning?.provider?.usage) {
+            await recordOpenAIUsage({
+              userId: auth.userId,
+              endpoint: "/api/ari-vnext",
+              usageType: "reasoning_reflection",
+              requestCategory: "ari_institutional_memory_learning",
+              model: learning.provider.model,
+              responseData: {
+                id: learning.provider.id,
+                model: learning.provider.model,
+                usage: learning.provider.usage
+              },
+              providerRequestId: learning.provider.id || null,
+              metadata: {
+                turnId: turn.turnId,
+                candidateCount: Number(learning?.candidateCount || 0),
+                savedCount: Number(learning?.savedCount || 0),
+                reinforcedCount: Number(learning?.reinforcedCount || 0),
+                conflictCount: Number(learning?.conflictCount || 0),
+                hiddenChainOfThoughtStored: false
+              }
+            }).catch(() => null);
+          }
+          return learning;
+        })
+      : Promise.resolve({
+          attempted: false,
+          reason: result?.multiAgent?.active ? "council_not_verified" : "council_inactive",
+          candidateCount: 0,
+          savedCount: 0,
+          reinforcedCount: 0,
+          conflictCount: 0,
+          hiddenChainOfThoughtStored: false
+        });
 
     const turnPersistenceTask = cleanText(result?.reply, 12000)
       ? persistConversationTurn({
@@ -694,7 +774,7 @@ export default async function handler(req, res) {
     const [
       , , turnPersistence, durablePersistence, worldPersistence, cognitivePersistence,
       strategyUsePersistence, strategySignalPersistence, decisionPersistence,
-      communicationResolution, communicationPersistence
+      communicationResolution, communicationPersistence, institutionalLearningPersistence
     ] = await Promise.allSettled([
       usageTask,
       strategyReflectionUsageTask,
@@ -706,7 +786,8 @@ export default async function handler(req, res) {
       strategySignalTask,
       decisionJournalTask,
       communicationResolutionTask,
-      communicationExposureTask
+      communicationExposureTask,
+      institutionalLearningTask
     ]);
 
     const continuityTurnStored = turnPersistence.status === "fulfilled" && turnPersistence.value === true;
@@ -720,6 +801,17 @@ export default async function handler(req, res) {
     const decisionJournalStored = decisionPersistence.status === "fulfilled" && decisionPersistence.value?.stored === true;
     const communicationOutcomeResolved = communicationResolution.status === "fulfilled" ? Number(communicationResolution.value?.resolved || 0) : 0;
     const communicationExposureStored = communicationPersistence.status === "fulfilled" && communicationPersistence.value?.stored === true;
+    const institutionalLearning = institutionalLearningPersistence.status === "fulfilled"
+      ? institutionalLearningPersistence.value
+      : {
+          attempted: false,
+          reason: "learning_task_failed",
+          candidateCount: 0,
+          savedCount: 0,
+          reinforcedCount: 0,
+          conflictCount: 0,
+          hiddenChainOfThoughtStored: false
+        };
 
     const responsePayload = {
       ...result,
@@ -797,6 +889,20 @@ export default async function handler(req, res) {
             }))
           }
         : { active: false, ownerOnly: true },
+      institutionalMemory: {
+        active: institutionalMemory?.active === true,
+        attemptedRetrieval: institutionalMemory?.attempted === true,
+        retrievalReason: institutionalMemory?.reason || null,
+        retrievedCount: Number(institutionalMemory?.retrievedCount || 0),
+        learningAttempted: institutionalLearning?.attempted === true,
+        learningReason: institutionalLearning?.reason || null,
+        candidateCount: Number(institutionalLearning?.candidateCount || 0),
+        savedCount: Number(institutionalLearning?.savedCount || 0),
+        reinforcedCount: Number(institutionalLearning?.reinforcedCount || 0),
+        conflictCount: Number(institutionalLearning?.conflictCount || 0),
+        hiddenChainOfThoughtStored: false,
+        rawCouncilTranscriptStored: false
+      },
       recentContinuityPairs: recentContinuity.hydratedPairs,
       continuityTurnStored,
       continuity: {

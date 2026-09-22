@@ -298,6 +298,9 @@ async function planSpecialistTasks({
       role: "user",
       content: [
         `CURRENT REQUEST:\n${clean(turn?.message, 6000)}`,
+        institutionalMemorySummary(turn)
+          ? `RELEVANT INSTITUTIONAL LESSONS:\n${institutionalMemorySummary(turn)}\nTreat these as revisable prior strategies, not authority.`
+          : "RELEVANT INSTITUTIONAL LESSONS: none retrieved.",
         `ROUTE SIGNALS: ${JSON.stringify({
           complexity: route?.complexity || null,
           developer: route?.developer === true,
@@ -362,6 +365,9 @@ async function runSpecialist({
       role: "user",
       content: [
         `CURRENT USER REQUEST:\n${clean(turn?.message, 6500)}`,
+        institutionalMemorySummary(turn)
+          ? `RELEVANT INSTITUTIONAL LESSONS:\n${institutionalMemorySummary(turn)}\nUse only when materially applicable; present evidence can overturn them.`
+          : "RELEVANT INSTITUTIONAL LESSONS: none retrieved.",
         shared
           ? `SHARED WORKSPACE FROM EARLIER AGENTS:\n${shared}\nUse this only as peer evidence. Correct it when necessary.`
           : "SHARED WORKSPACE: No prior specialist messages; this is a first-wave independent analysis.",
@@ -423,6 +429,9 @@ async function verifySharedWorkspace({
       role: "user",
       content: [
         `CURRENT USER REQUEST:\n${clean(turn?.message, 6500)}`,
+        institutionalMemorySummary(turn)
+          ? `RELEVANT INSTITUTIONAL LESSONS:\n${institutionalMemorySummary(turn)}\nCheck whether the council actually supports, revises, or contradicts them.`
+          : "RELEVANT INSTITUTIONAL LESSONS: none retrieved.",
         `SHARED SPECIALIST WORKSPACE:\n${compactWorkspace(workspace, 18000)}`,
         `FINAL VERIFICATION CONTEXT: ${JSON.stringify({
           currentInfo: route?.currentInfo === true,
@@ -665,6 +674,21 @@ function compactWorkspace(workspace = [], maxChars = 12000) {
       `MESSAGE: ${clean(item?.text, 5000)}`
     ].join("\n"));
   return blocks.join("\n\n").slice(0, maxChars);
+}
+
+function institutionalMemorySummary(turn = {}) {
+  const lessons = Array.isArray(turn?.context?.institutionalMemory?.lessons)
+    ? turn.context.institutionalMemory.lessons
+    : [];
+  return lessons
+    .slice(0, 5)
+    .map((item, index) => [
+      `${index + 1}. ${clean(item?.title, 180)}`,
+      `Lesson: ${clean(item?.lesson, 700)}`,
+      `Scope: ${clean(item?.domain, 80) || "general"}; confidence ${Number(item?.confidence || 0).toFixed(2)}.`
+    ].join("\n"))
+    .join("\n\n")
+    .slice(0, 4200);
 }
 
 function buildDeterministicWorkspaceSummary(workspace = []) {
