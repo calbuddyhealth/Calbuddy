@@ -656,6 +656,18 @@ export default async function handler(req, res) {
             adaptiveStrategyCount: adaptiveStrategyState?.activeCount || 0,
             adaptiveStrategyReflection: Boolean(adaptiveStrategyReflection?.attempted),
             adaptiveStrategyProposal: Boolean(adaptiveStrategyReflection?.proposal),
+            motivationalArbitrationActive:
+              result?.metacognition?.motivationalArbitration?.functionalControlSystem === true,
+            motivationalPosture:
+              result?.metacognition?.motivationalArbitration?.arbitration?.posture || null,
+            motivationalSelectedSide:
+              result?.metacognition?.motivationalArbitration?.arbitration?.selectedSide || null,
+            motivationalDriveNet:
+              result?.metacognition?.motivationalArbitration?.scores?.driveNet ?? null,
+            motivationalRestraintNet:
+              result?.metacognition?.motivationalArbitration?.scores?.restraintNet ?? null,
+            motivationalLearningSamples:
+              Number(nextCognitiveState?.motivationalLearning?.sampleSize || 0),
             institutionalMemoryRetrieved: Number(institutionalMemory?.retrievedCount || 0),
             institutionalMemoryCouncilActive: result?.multiAgent?.active === true,
             agentPerformanceTeamTrials: Number(agentPerformance?.teamTrialCount || 0),
