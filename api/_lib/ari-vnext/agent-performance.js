@@ -34,35 +34,48 @@ export async function loadAgentPerformanceState({
   const config = supabaseConfig();
   if (!config) return emptyState("store_unavailable", domain);
 
-  const [profiles, teams] = await Promise.all([
+  const [profiles, teams, outcomeEvents] = await Promise.all([
     loadAgentProfiles({ config, userId: id, domain }),
-    loadTeamProfiles({ config, userId: id, domain })
+    loadTeamProfiles({ config, userId: id, domain }),
+    loadResolvedOutcomeEvents({ config, userId: id, domain })
   ]);
 
   return deriveAgentPerformanceGuidance({
     domain,
     profiles,
-    teams
+    teams,
+    outcomeEvents
   });
 }
 
 export function deriveAgentPerformanceGuidance({
   domain = "general",
   profiles = [],
-  teams = []
+  teams = [],
+  outcomeEvents = []
 } = {}) {
-  const safeProfiles = (Array.isArray(profiles) ? profiles : [])
-    .map(normalizeAgentRow)
-    .filter(Boolean)
+  const events = (Array.isArray(outcomeEvents) ? outcomeEvents : [])
+    .map(normalizeOutcomeEvent)
+    .filter(Boolean);
+
+  const safeProfiles = applyOutcomeEvidenceToAgentProfiles(
+    (Array.isArray(profiles) ? profiles : [])
+      .map(normalizeAgentRow)
+      .filter(Boolean),
+    events
+  )
     .sort((a, b) =>
       b.reliabilityScore - a.reliabilityScore ||
       b.trials - a.trials
     )
     .slice(0, MAX_PROFILES);
 
-  const safeTeams = (Array.isArray(teams) ? teams : [])
-    .map(normalizeTeamRow)
-    .filter(Boolean)
+  const safeTeams = applyOutcomeEvidenceToTeamProfiles(
+    (Array.isArray(teams) ? teams : [])
+      .map(normalizeTeamRow)
+      .filter(Boolean),
+    events
+  )
     .sort((a, b) =>
       b.reliabilityScore - a.reliabilityScore ||
       b.trials - a.trials
@@ -131,6 +144,7 @@ export function deriveAgentPerformanceGuidance({
       bestTeam && bestTeam.reliabilityScore >= 0.52
         ? clampInt(bestTeam.workerCount, 2, 4)
         : null,
+    realWorldOutcomeCount: events.length,
     preferredTeam:
       bestTeam && bestTeam.reliabilityScore >= 0.52
         ? {
@@ -257,6 +271,61 @@ export async function evaluateAndPersistCouncilPerformance({
     rawWorkerTextStored: false,
     source: "ari_agent_performance_learning"
   };
+}
+
+export async function applyCouncilOutcomeFeedback({
+  userId,
+  sourceTurnId,
+  outcomeDirection
+} = {}) {
+  const id = cleanUserId(userId);
+  const turn = clean(sourceTurnId, 220);
+  const status = normalizeOutcomeStatus(outcomeDirection);
+  const config = supabaseConfig();
+  if (!id || !turn || !config) {
+    return { applied: false, reason: "store_unavailable", outcomeStatus: status };
+  }
+
+  try {
+    const selectParams = new URLSearchParams({
+      user_id: `eq.${id}`,
+      turn_id: `eq.${turn}`,
+      outcome_status: "eq.unresolved",
+      select: "id",
+      limit: "1"
+    });
+    const readResponse = await timedFetch(
+      `${config.url}/rest/v1/${EVENT_TABLE}?${selectParams.toString()}`,
+      { headers: serverHeaders(config.key) },
+      READ_TIMEOUT_MS
+    );
+    if (!readResponse.ok) {
+      return { applied: false, reason: "event_lookup_failed", outcomeStatus: status };
+    }
+    const rows = await readResponse.json().catch(() => []);
+    const event = Array.isArray(rows) ? rows[0] : null;
+    if (!event?.id) {
+      return { applied: false, reason: "no_unresolved_council_event", outcomeStatus: status };
+    }
+
+    const response = await timedFetch(
+      `${config.url}/rest/v1/${EVENT_TABLE}?id=eq.${encodeURIComponent(event.id)}&user_id=eq.${encodeURIComponent(id)}&outcome_status=eq.unresolved`,
+      {
+        method: "PATCH",
+        headers: serverHeaders(config.key, { Prefer: "return=minimal" }),
+        body: JSON.stringify({
+          outcome_status: status,
+          updated_at: new Date().toISOString()
+        })
+      },
+      WRITE_TIMEOUT_MS
+    );
+    return response.ok
+      ? { applied: true, reason: "real_world_outcome_linked", outcomeStatus: status }
+      : { applied: false, reason: "event_update_failed", outcomeStatus: status };
+  } catch {
+    return { applied: false, reason: "event_update_failed", outcomeStatus: status };
+  }
 }
 
 export function normalizeCouncilPerformanceEvaluation(value = {}, workspace = []) {
@@ -561,6 +630,29 @@ async function loadTeamProfiles({ config, userId, domain } = {}) {
   try {
     const response = await timedFetch(
       `${config.url}/rest/v1/${TEAM_TABLE}?${params.toString()}`,
+      { headers: serverHeaders(config.key) },
+      READ_TIMEOUT_MS
+    );
+    if (!response.ok) return [];
+    const rows = await response.json().catch(() => []);
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+}
+
+async function loadResolvedOutcomeEvents({ config, userId, domain } = {}) {
+  const params = new URLSearchParams({
+    user_id: `eq.${userId}`,
+    domain: `in.(${domain},general)`,
+    outcome_status: "neq.unresolved",
+    select: "team_key,domain,roles,models,contributions,outcome_status,created_at",
+    order: "created_at.desc",
+    limit: "80"
+  });
+  try {
+    const response = await timedFetch(
+      `${config.url}/rest/v1/${EVENT_TABLE}?${params.toString()}`,
       { headers: serverHeaders(config.key) },
       READ_TIMEOUT_MS
     );
@@ -914,6 +1006,78 @@ function normalizeTeamRow(row = {}) {
   };
 }
 
+function normalizeOutcomeEvent(row = {}) {
+  const teamKey = clean(row?.team_key, 120);
+  const outcomeStatus = normalizeOutcomeStatus(row?.outcome_status);
+  if (!teamKey || outcomeStatus === "unresolved") return null;
+  const contributions = Array.isArray(row?.contributions)
+    ? row.contributions
+        .map((item) => ({
+          role: slugRole(item?.role),
+          model: clean(item?.model, 120) || "unknown"
+        }))
+        .filter((item) => item.role)
+    : [];
+  return {
+    teamKey,
+    domain: clean(row?.domain, 80) || "general",
+    outcomeStatus,
+    contributions,
+    createdAt: clean(row?.created_at, 80) || null
+  };
+}
+
+function applyOutcomeEvidenceToAgentProfiles(profiles = [], events = []) {
+  return profiles.map((profile) => {
+    const matching = events.filter((event) =>
+      event.contributions.some((item) =>
+        item.role === profile.role &&
+        item.model === profile.model
+      )
+    );
+    const outcomeValues = matching
+      .map((event) => outcomeStatusValue(event.outcomeStatus))
+      .filter(Number.isFinite);
+    if (!outcomeValues.length) {
+      return { ...profile, outcomeSampleCount: 0, outcomeScore: null };
+    }
+    const outcomeScore = mean(outcomeValues);
+    const weight = Math.min(0.35, outcomeValues.length * 0.1);
+    return {
+      ...profile,
+      outcomeSampleCount: outcomeValues.length,
+      outcomeScore: round(outcomeScore, 3),
+      reliabilityScore: round(
+        clamp01(profile.reliabilityScore * (1 - weight) + outcomeScore * weight),
+        4
+      )
+    };
+  });
+}
+
+function applyOutcomeEvidenceToTeamProfiles(teams = [], events = []) {
+  return teams.map((team) => {
+    const outcomeValues = events
+      .filter((event) => event.teamKey === team.teamKey)
+      .map((event) => outcomeStatusValue(event.outcomeStatus))
+      .filter(Number.isFinite);
+    if (!outcomeValues.length) {
+      return { ...team, outcomeSampleCount: 0, outcomeScore: null };
+    }
+    const outcomeScore = mean(outcomeValues);
+    const weight = Math.min(0.4, outcomeValues.length * 0.12);
+    return {
+      ...team,
+      outcomeSampleCount: outcomeValues.length,
+      outcomeScore: round(outcomeScore, 3),
+      reliabilityScore: round(
+        clamp01(team.reliabilityScore * (1 - weight) + outcomeScore * weight),
+        4
+      )
+    };
+  });
+}
+
 function publicAgentProfile(item = {}) {
   return {
     role: item.role,
@@ -930,7 +1094,9 @@ function publicAgentProfile(item = {}) {
     meanNovelty: item.meanNovelty,
     meanRedundancy: item.meanRedundancy,
     meanUnsupportedRisk: item.meanUnsupportedRisk,
-    reliabilityScore: item.reliabilityScore
+    reliabilityScore: item.reliabilityScore,
+    outcomeSampleCount: Number(item.outcomeSampleCount || 0),
+    outcomeScore: item.outcomeScore ?? null
   };
 }
 
@@ -948,7 +1114,9 @@ function publicTeamProfile(item = {}) {
     meanDelegationValue: item.meanDelegationValue,
     meanRedundancy: item.meanRedundancy,
     meanVerifierHelpfulness: item.meanVerifierHelpfulness,
-    reliabilityScore: item.reliabilityScore
+    reliabilityScore: item.reliabilityScore,
+    outcomeSampleCount: Number(item.outcomeSampleCount || 0),
+    outcomeScore: item.outcomeScore ?? null
   };
 }
 
@@ -1023,6 +1191,23 @@ function verdictFromScore(teamScore, delegationValue) {
   return "neutral";
 }
 
+function normalizeOutcomeStatus(value = "") {
+  const status = clean(value, 40).toLowerCase();
+  if (["supported", "positive"].includes(status)) return "positive";
+  if (["weakened", "negative"].includes(status)) return "negative";
+  if (status === "mixed") return "mixed";
+  if (["inconclusive", "neutral"].includes(status)) return "neutral";
+  return "unresolved";
+}
+
+function outcomeStatusValue(value = "") {
+  const status = normalizeOutcomeStatus(value);
+  if (status === "positive") return 1;
+  if (status === "negative") return 0;
+  if (status === "mixed" || status === "neutral") return 0.5;
+  return NaN;
+}
+
 function normalizeVerdict(value = "") {
   const verdict = clean(value, 20).toLowerCase();
   return ["positive", "neutral", "negative"].includes(verdict) ? verdict : "neutral";
@@ -1082,6 +1267,7 @@ function emptyState(reason = "inactive", domain = "general") {
     sampleCount: 0,
     selectionConfidence: 0,
     delegationValueEstimate: null,
+    realWorldOutcomeCount: 0,
     recommendedRoles: [],
     avoidRoles: [],
     preferredWorkerCount: null,
