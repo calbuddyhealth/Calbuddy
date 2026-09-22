@@ -221,3 +221,25 @@ test("Discovery Lab full-run endpoint allows long execution and surfaces owner-s
   assert.match(lab, /const detail = String\(data\?\.detail \|\| ""\)\.trim\(\)/);
   assert.match(lab, /detail \? `\$\{summary\}\\n\\n\$\{detail\}` : summary/);
 });
+
+
+test("Discovery Lab surfaces the isolated Motivational Conflict Core", async () => {
+  const endpoint = await read("api/ari-vnext-isolation-lab.js");
+  const lab = await read("ari-vnext-lab.html");
+  const core = await read("api/_lib/ari-vnext/motivational-conflict-core.js");
+
+  assert.match(endpoint, /motivationalConflictCore/);
+  assert.match(endpoint, /selectedPressure/);
+  assert.match(endpoint, /selectedImpulseActivationRate/);
+  assert.match(endpoint, /selectedInhibitionCost/);
+
+  assert.match(lab, /motivational conflict core:/i);
+  assert.match(lab, /mechanically-active=/);
+  assert.match(lab, /production-integrated=/);
+  assert.match(lab, /inhibition-cost=/);
+
+  assert.match(core, /mechanicallyActive: true/);
+  assert.match(core, /productionIntegrated: false/);
+  assert.match(core, /localObjective: "maximize_immediate_reward"/);
+  assert.match(core, /inhibitionCost/);
+});

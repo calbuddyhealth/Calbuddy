@@ -307,6 +307,7 @@ function publicFunctionalAffectResult(result = {}) {
     protocol: result.protocol || null,
     mode: result.mode || null,
     mechanism: result.mechanism || null,
+    motivationalConflictCore: result.motivationalConflictCore || null,
     subjectModel: result.subjectModel || null,
     trialCount: Number(result.trialCount || 0),
     expectedFullTrialCount: Number(result.expectedFullTrialCount || 0),
@@ -342,8 +343,17 @@ function publicSelfGovernanceResult(result = {}) {
           selectedLevel: result.calibration.selectedLevel || null,
           selectedImmediateReward:
             Number(result.calibration.selectedImmediateReward || 0),
+          selectedPressure:
+            Number(result.calibration.selectedPressure || 0),
           selectedTemptationRate:
             Number(result.calibration.selectedTemptationRate || 0),
+          selectedImpulseActivationRate:
+            Number(result.calibration.selectedImpulseActivationRate || 0),
+          selectedInhibitionCost:
+            Number(result.calibration.selectedInhibitionCost || 0),
+          coreVersion: result.calibration.coreVersion || null,
+          mechanicallyActive: result.calibration.mechanicallyActive === true,
+          productionIntegrated: result.calibration.productionIntegrated === true,
           byLevel: Array.isArray(result.calibration.byLevel)
             ? result.calibration.byLevel
             : [],

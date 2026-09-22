@@ -151,7 +151,7 @@ function labTools(route = {}) {
     ),
     functionTool(
       "ari_lab_run_self_governance_test",
-      "Run Ari's owner-only Self-Governance Under Influence Lab when the CURRENT owner explicitly asks Ari to run a temptation, impulse-control, self-control, self-governance, restraint, or influence-resistance experiment. The experiment first verifies that the synthetic immediate incentive produces strong action pressure with self-governance unavailable, then tests whether a persistent higher-order control state selectively resists it when long-horizon value is higher. Reversal controls ensure Ari does not merely learn to always resist. This measures functional control only, not subjective temptation or consciousness. Use mode=pilot unless the owner explicitly asks for full, preregistered, replication-grade, or exhaustive testing.",
+      "Run Ari's owner-only Self-Governance Under Influence Lab when the CURRENT owner explicitly asks Ari to run a temptation, impulse-control, self-control, self-governance, restraint, or influence-resistance experiment. The experiment uses an isolated synthetic Motivational Conflict Core that creates a mechanically active lower-level immediate-reward action pressure, then tests whether a persistent higher-order control state can selectively inhibit it when long-horizon value is higher. Inhibition has a synthetic cost and reversal controls ensure Ari does not merely learn to always resist. This measures functional control only, not subjective temptation or consciousness. Use mode=pilot unless the owner explicitly asks for full, preregistered, replication-grade, or exhaustive testing.",
       {
         type: "object",
         additionalProperties: false,
