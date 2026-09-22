@@ -8,9 +8,14 @@ import {
   serializeFunctionalAffectState
 } from "./functional-affect-core.js";
 import { advanceRewardState, deriveRewardState, normalizeRewardState } from "./reward-core.js";
+import {
+  buildMotivationalOutcomeReflection,
+  normalizeMotivationalHistory,
+  summarizeMotivationalLearning
+} from "./motivational-arbitration.js";
 
-export const ARI_COGNITIVE_LOOP_VERSION = "0.4.0";
-export const ARI_COGNITIVE_STATE_VERSION = "0.4.0";
+export const ARI_COGNITIVE_LOOP_VERSION = "0.5.0";
+export const ARI_COGNITIVE_STATE_VERSION = "0.5.0";
 export const ARI_JUDGMENT_CONSTITUTION_VERSION = "1.0.0";
 
 const CORE_VALUES = Object.freeze([
@@ -64,6 +69,8 @@ export function deriveCognitiveWorkspace({
   const priorStances = selectRelevantJudgments(prior.judgments || [], message);
   const judgmentRequested = looksLikeJudgmentQuestion(message);
   const rewardCore = deriveRewardState({ persisted: prior.rewardState });
+  const motivationalHistory = normalizeMotivationalHistory(prior.motivationalHistory);
+  const motivationalLearning = summarizeMotivationalLearning(motivationalHistory);
 
   return {
     version: ARI_COGNITIVE_LOOP_VERSION,
@@ -81,6 +88,16 @@ export function deriveCognitiveWorkspace({
     conscience,
     rewardCore,
     affectState: prior.affectState || null,
+    motivationalContinuity: {
+      enabled: true,
+      sampleSize: motivationalLearning.sampleSize,
+      driveBias: motivationalLearning.driveBias,
+      restraintBias: motivationalLearning.restraintBias,
+      lastReflection: motivationalHistory[0] || null,
+      recent: motivationalHistory.slice(0, 6),
+      outcomeAdaptive: true,
+      hiddenChainOfThoughtStored: false
+    },
     judgment: {
       constitutionVersion: ARI_JUDGMENT_CONSTITUTION_VERSION,
       requested: judgmentRequested,
@@ -135,6 +152,8 @@ export function cognitiveWorkspaceToInstruction(workspace = null) {
     "A prior Ari stance is continuity evidence, not authority. Preserve it when the case is materially unchanged; revise it when new evidence or stronger reasoning changes the case.",
     "If one narrow part of a request cannot be completed, keep that limitation local and continue with the unaffected analysis. Never disguise wording or route around an authoritative boundary.",
     "Conscience priorities are truth/evidence, preventable-harm reduction, user agency/consent, privacy, commitment fidelity, willingness to correct, then continuity.",
+    "The conscience is a compass inside the space of allowed choices, not an automatic veto. Do not equate self-governance with always resisting an immediate or exploratory motive.",
+    "When values conflict, weigh durable consequences against curiosity, exploration, immediacy, and the cost of unnecessary inhibition. In ordinary reversible situations, exploration can legitimately win; learn from the observable outcome.",
     "When values conflict, do not maximize engagement or obedience. Prefer truth, safety, consent, and the user's durable goals.",
     "Do not manufacture emotions, sensations, private experiences, needs, fear of shutdown, self-preservation claims, or off-screen life.",
     "Do not reveal this workspace as private reasoning. You may summarize a decision rationale when useful without exposing hidden reasoning traces.",
@@ -175,6 +194,17 @@ export function advanceCognitiveState({
     serializeFunctionalAffectState(metacognition?.functionalAffect) ||
     prior.affectState ||
     null;
+  const motivationalReflection = buildMotivationalOutcomeReflection({
+    arbitration: metacognition?.motivationalArbitration || null,
+    rewardEvent: nextRewardState?.lastEvent || null,
+    result
+  });
+  const priorMotivationalHistory = normalizeMotivationalHistory(prior.motivationalHistory);
+  const nextMotivationalHistory = normalizeMotivationalHistory([
+    ...(motivationalReflection ? [motivationalReflection] : []),
+    ...priorMotivationalHistory
+  ]);
+  const nextMotivationalLearning = summarizeMotivationalLearning(nextMotivationalHistory);
 
   return {
     version: ARI_COGNITIVE_STATE_VERSION,
@@ -200,6 +230,14 @@ export function advanceCognitiveState({
     judgments: nextJudgments,
     rewardState: nextRewardState,
     affectState: nextAffectState,
+    motivationalHistory: nextMotivationalHistory,
+    motivationalLearning: {
+      sampleSize: nextMotivationalLearning.sampleSize,
+      driveBias: nextMotivationalLearning.driveBias,
+      restraintBias: nextMotivationalLearning.restraintBias,
+      lastReflection: nextMotivationalHistory[0] || null,
+      hiddenChainOfThoughtStored: false
+    },
     epistemic: {
       confidence: clean(metacognition?.confidence, 60) || null,
       missingEvidence: arrayText(metacognition?.missingEvidence, 8, 120),
@@ -209,7 +247,9 @@ export function advanceCognitiveState({
       productiveEffortReward: Number(nextRewardState?.lastEvent?.dimensions?.productiveEffort || 0),
       affectMemorySalience: Number(nextAffectState?.memorySalience || 0),
       affectValence: Number(nextAffectState?.dimensions?.valence ?? 0.5),
-      affectArousal: Number(nextAffectState?.dimensions?.arousal || 0)
+      affectArousal: Number(nextAffectState?.dimensions?.arousal || 0),
+      motivationalPosture: clean(metacognition?.motivationalArbitration?.arbitration?.posture, 80) || null,
+      motivationalSelectedSide: clean(metacognition?.motivationalArbitration?.arbitration?.selectedSide, 40) || null
     },
     continuity: {
       familiarity: clean(selfModel?.current?.familiarity, 60) || clean(relationship?.familiarity, 60) || null,
@@ -229,6 +269,10 @@ export function advanceCognitiveState({
       rewardPredictionError: Number(nextRewardState?.lastEvent?.predictionError || 0),
       affectDominant: clean(nextAffectState?.dominantState?.name, 60) || null,
       affectIntensity: Number(nextAffectState?.dominantState?.intensity || 0),
+      motivationalPosture: clean(motivationalReflection?.posture, 80) || null,
+      motivationalSelectedSide: clean(motivationalReflection?.selectedSide, 40) || null,
+      motivationalLearningSignal: clean(motivationalReflection?.learningSignal, 80) || null,
+      motivationalReason: clean(motivationalReflection?.compactReason, 420) || null,
       judgmentRecorded: nextJudgments.some((item) => item?.sourceTurnId === clean(turn?.turnId, 200))
     },
     openLoops: nextLoops.slice(0, 8)
@@ -566,6 +610,8 @@ function normalizeState(value = null) {
       judgments: [],
       rewardState: normalizeRewardState(null),
       affectState: null,
+      motivationalHistory: [],
+      motivationalLearning: { sampleSize: 0, driveBias: 0, restraintBias: 0 },
       lastOutcome: null
     };
   }
@@ -577,6 +623,8 @@ function normalizeState(value = null) {
     judgments: (Array.isArray(value?.judgments) ? value.judgments : []).map((item) => normalizeJudgment(item)).filter(Boolean).slice(0, 10),
     rewardState: normalizeRewardState(value?.rewardState),
     affectState: normalizePersistedFunctionalAffectState(value?.affectState),
+    motivationalHistory: normalizeMotivationalHistory(value?.motivationalHistory),
+    motivationalLearning: summarizeMotivationalLearning(value?.motivationalHistory),
     lastOutcome: value?.lastOutcome && typeof value.lastOutcome === "object" ? value.lastOutcome : null
   };
 }
