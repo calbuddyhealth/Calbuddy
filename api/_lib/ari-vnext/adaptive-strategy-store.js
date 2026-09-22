@@ -25,7 +25,7 @@ export async function prepareAdaptiveStrategiesForTurn({ userId, route = {}, mes
     loadStrategyRows({ userId: id }),
     loadRecentBlindReasoningArenaResults({ userId: id, limit: 80 })
   ]);
-  const activeState = deriveAdaptiveStrategyState({ strategies: rows, route });
+  const activeState = deriveAdaptiveStrategyState({ strategies: rows, route, message });
   return {
     state: {
       ...activeState,
@@ -35,7 +35,7 @@ export async function prepareAdaptiveStrategiesForTurn({ userId, route = {}, mes
   };
 }
 
-export async function recordAdaptiveStrategyUses({ userId, strategies = [], turnId, route = {} } = {}) {
+export async function recordAdaptiveStrategyUses({ userId, strategies = [], turnId, route = {}, message = "" } = {}) {
   const id = cleanUserId(userId);
   const turn = clean(turnId, 220);
   const config = supabaseConfig();
@@ -44,7 +44,7 @@ export async function recordAdaptiveStrategyUses({ userId, strategies = [], turn
     .slice(0, 6);
   if (!id || !turn || !config || !active.length) return { stored: 0 };
 
-  const contextDomains = [...deriveAdaptiveStrategyContextDomains(route)].slice(0, 8);
+  const contextDomains = [...deriveAdaptiveStrategyContextDomains(route, message)].slice(0, 8);
   const rows = active.map((item) => ({
     user_id: id,
     strategy_id: clean(item.id, 120),
