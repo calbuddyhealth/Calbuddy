@@ -78,7 +78,7 @@ function ownerContext() {
 }
 
 test("runtime constitution is short, canonical, and contains the permanent authority set once", () => {
-  assert.equal(ARI_EXECUTIVE_VERSION, "1.0.0");
+  assert.equal(ARI_EXECUTIVE_VERSION, "1.1.0");
   assert.ok(ARI_RUNTIME_CONSTITUTION.length < 3600);
   for (const id of Object.values(ARI_RULE_IDS)) {
     assert.equal(ARI_RUNTIME_CONSTITUTION.split(id).length - 1, 1, `${id} should appear once`);
@@ -153,9 +153,9 @@ test("Executive resolves specialist signals into one compact turn policy", () =>
   assert.equal(policy.directives.countercase, true);
   assert.equal(policy.directives.autonomousInternalLearning, true);
   assert.equal(policy.directives.resolveAvailableResourcesBeforeAbstention, true);
-  assert.ok(instruction.length <= 3600);
+  assert.ok(instruction.length <= 4400);
   assert.match(instruction, /SINGLE RUNTIME DECISION AUTHORITY/);
-  assert.match(instruction, /Curiosity, Reward, Functional Affect, Self-Adaptation, Cortex, and Ω-RCT are advisory/i);
+  assert.match(instruction, /Curiosity, Reward, Functional Affect, Motivational Arbitration, Self-Adaptation, Cortex, and Ω-RCT are advisory/i);
   assert.match(instruction, /Useful failure is learning/i);
   assert.match(instruction, /cannot deploy to production, mutate production user\/app state/i);
   assert.match(instruction, /Before saying needed information is unavailable/i);
