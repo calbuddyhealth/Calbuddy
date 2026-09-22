@@ -210,3 +210,14 @@ test("Discovery Lab inline JavaScript compiles before deployment", async () => {
   assert.ok(inline?.[1], "expected Discovery Lab inline script");
   assert.doesNotThrow(() => new Function(inline[1]));
 });
+
+test("Discovery Lab full-run endpoint allows long execution and surfaces owner-safe details", async () => {
+  const endpoint = await read("api/ari-vnext-isolation-lab.js");
+  const lab = await read("ari-vnext-lab.html");
+
+  assert.match(endpoint, /export const maxDuration = 300/);
+  assert.match(endpoint, /detail: authenticatedOwner \? publicErrorDetail\(error\) : undefined/);
+  assert.match(endpoint, /publicErrorDetail/);
+  assert.match(lab, /const detail = String\(data\?\.detail \|\| ""\)\.trim\(\)/);
+  assert.match(lab, /detail \? `\$\{summary\}\\n\\n\$\{detail\}` : summary/);
+});
