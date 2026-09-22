@@ -15,7 +15,7 @@ test("log_meal confirmation is rendered deterministically from the pending paylo
 
   assert.equal(
     reply,
-    "Ready to log High Noon Raspberry Vodka Seltzer (1 can) — 100 calories. Confirm to save it."
+    "Ready to log High Noon Raspberry Vodka Seltzer (1 can) — 100 calories · 0g protein · 2.6g carbs · 0g fat. Confirm to save it."
   );
 });
 
