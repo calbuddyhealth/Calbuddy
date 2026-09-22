@@ -245,6 +245,7 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
     "ari-vnext-expert.js",
     "ari-vnext-growth.js",
     "ari-vnext-initiative.js",
+    "ari-vnext-isolation-lab.js",
     "ari-vnext-knowledge.js",
     "ari-vnext-peer.js",
     "ari-vnext-runtime-self-test.js",
@@ -270,6 +271,7 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
   assert.equal(names.has("ari-daily-chat-quota.js"), true, "daily chat quota must remain an explicit reviewed server API surface");
   assert.equal(names.has("ari-autonomy-cycle.js"), true, "owner autonomy cycle must remain an explicit reviewed server API surface");
   assert.equal(names.has("ari-community-cycle.js"), true, "Agent Community autonomy must remain an explicit reviewed server API surface");
+  assert.equal(names.has("ari-vnext-isolation-lab.js"), true, "owner isolation lab must remain an explicit reviewed server API surface");
 
   for (const removed of [
     "actions.js",

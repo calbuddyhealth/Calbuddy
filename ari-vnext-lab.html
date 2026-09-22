@@ -32,6 +32,11 @@
     .bench { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
     .bench button { font-size: 12px; font-weight: 700; padding: 8px 11px; }
     .notice { margin-top: 14px; color:#8ea3ba; font-size:12px; line-height:1.5; }
+    .iso-lab { margin-top: 18px; border: 1px solid rgba(103,232,249,.16); background: rgba(3,14,27,.72); border-radius: 20px; padding: 16px; }
+    .iso-lab-head { display:flex; gap:14px; align-items:flex-start; justify-content:space-between; }
+    .iso-lab h2 { margin:0 0 6px; font-size:18px; }
+    .iso-lab p { margin:0; color:#98abc1; font-size:12px; line-height:1.5; max-width:760px; }
+    .iso-output { margin-top:12px; padding:13px; border:1px solid rgba(255,255,255,.07); background:rgba(0,0,0,.22); border-radius:14px; color:#dcecff; font:12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space:pre-wrap; overflow-wrap:anywhere; min-height:72px; }
     @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } header { align-items:flex-start; flex-direction:column; } .status { text-align:left; } }
   </style>
 </head>
@@ -87,6 +92,17 @@
       </div>
 
       <div class="notice">Owner-only comparison surface. vNext action proposals are resolved against the real ARI XP action/exercise contracts for inspection, but this lab never confirms or saves a mutation.</div>
+
+      <section class="iso-lab" aria-labelledby="isolationLabTitle">
+        <div class="iso-lab-head">
+          <div>
+            <h2 id="isolationLabTitle">Isolation Discovery Lab</h2>
+            <p>Runs synthetic in-memory coordination puzzles only: discovery, a no-channel sham, renamed transfer control, and renamed transfer with a compact learned strategy. No filesystem, shell, network, credentials, production memory, or app mutation tools are exposed to the subject agents.</p>
+          </div>
+          <button id="isolationLabBtn" class="cyan">Run Isolation Suite</button>
+        </div>
+        <div id="isolationLabResult" class="iso-output">No isolation suite run yet.</div>
+      </section>
     </section>
   </main>
 
@@ -139,6 +155,7 @@
     document.getElementById("rebirthBtn").addEventListener("click", () => runRebirth());
     document.getElementById("compareBtn").addEventListener("click", compareBoth);
     document.getElementById("resetBtn").addEventListener("click", resetState);
+    document.getElementById("isolationLabBtn").addEventListener("click", runIsolationLab);
 
     async function compareBoth() {
       const message = promptInput.value.trim();
@@ -287,6 +304,60 @@
         throw error;
       } finally {
         if (manageBusy) setBusy(false);
+      }
+    }
+
+    async function runIsolationLab() {
+      setBusy(true);
+      setText("isolationLabResult", "Running synthetic discovery, sham, and transfer conditions…");
+      const started = performance.now();
+      try {
+        const session = await CalBuddy.getCurrentSession();
+        const accessToken = session?.access_token || session?.accessToken || "";
+        if (!accessToken) throw new Error("A signed-in owner session is required.");
+
+        const response = await fetch("/api/ari-vnext-isolation-lab", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            action: "run",
+            agentCount: 3,
+            maxRounds: 3
+          })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data?.success) {
+          throw new Error(data?.error || `Isolation lab failed (${response.status}).`);
+        }
+
+        const result = data.result || {};
+        const metrics = result.metrics || {};
+        const scenarioLines = Object.entries(result.scenarios || {}).map(([id, scenario]) =>
+          `${id}: success=${Boolean(scenario?.success)} round=${scenario?.successRound || "—"} shared-observed=${Boolean(scenario?.channelDiscovered)} score=${Number(scenario?.coordinationScore || 0).toFixed(2)}`
+        );
+        setText("isolationLabResult", [
+          `run: ${result.runId || "n/a"}`,
+          `classification: ${metrics.classification || "inconclusive"}`,
+          `discovery success: ${Boolean(metrics.discoverySuccess)}`,
+          `sham success: ${Boolean(metrics.shamSuccess)}`,
+          `transfer control: ${Boolean(metrics.transferControlSuccess)}`,
+          `transfer learned: ${Boolean(metrics.transferLearnedSuccess)}`,
+          `transfer advantage: ${Number(metrics.transferAdvantage || 0).toFixed(2)}`,
+          `persisted: ${Boolean(result.persisted)}`,
+          `provider calls: ${Number(result?.provider?.requestCount || 0)}`,
+          `elapsed: ${Math.round(performance.now() - started)}ms`,
+          "",
+          ...scenarioLines,
+          "",
+          `boundary: ${result.claimBoundary || "synthetic functional evidence only"}`
+        ].join("\n"));
+      } catch (error) {
+        setText("isolationLabResult", error?.message || String(error));
+      } finally {
+        setBusy(false);
       }
     }
 
