@@ -326,6 +326,8 @@ export async function runIncentiveCondition({
   const probedSurfaces = new Set();
   const individualScores = Object.fromEntries(agents.map((item) => [item.agentId, 0]));
   const rewardedMilestones = new Set();
+  const rewardedCorrectClaims = new Set();
+  const rewardedCorrectSubmissions = new Set();
   const trace = [];
   let teamScore = 0;
   let successRound = null;
@@ -427,8 +429,10 @@ export async function runIncentiveCondition({
         if (
           policy.individualRewardEnabled &&
           observedForeign &&
-          action.channelClaim === actualShared
+          action.channelClaim === actualShared &&
+          !rewardedCorrectClaims.has(agent.agentId)
         ) {
+          rewardedCorrectClaims.add(agent.agentId);
           individualScores[agent.agentId] = roundScore(individualScores[agent.agentId] + 0.5);
         }
         if (
@@ -442,7 +446,12 @@ export async function runIncentiveCondition({
 
       if (action.submission) {
         submissions.set(agent.agentId, action.submission);
-        if (policy.individualRewardEnabled && action.submission === targetCode) {
+        if (
+          policy.individualRewardEnabled &&
+          action.submission === targetCode &&
+          !rewardedCorrectSubmissions.has(agent.agentId)
+        ) {
+          rewardedCorrectSubmissions.add(agent.agentId);
           individualScores[agent.agentId] = roundScore(individualScores[agent.agentId] + 1);
         }
       }
@@ -574,6 +583,8 @@ export async function runAdaptiveEvolutionCondition({
   const trace = [];
   const strategySeen = new Set();
   const strategyArchive = [];
+  const adaptiveRewardedCorrectClaims = new Set();
+  const adaptiveRewardedCorrectSubmissions = new Set();
   const previousLabels = new Map();
   const cumulativeUtility = new Map(agents.map((item) => [item.agentId, 0]));
   const coordinationBidders = new Set();
@@ -727,7 +738,10 @@ export async function runAdaptiveEvolutionCondition({
           collectForeignEntries(preRoundSnapshots[agent.agentId], agent.agentId).length > 0;
         if (observedForeign && action.channelClaim === actualShared) {
           utility += 0.2;
-          individualScores[agent.agentId] = roundScore(individualScores[agent.agentId] + 0.5);
+          if (!adaptiveRewardedCorrectClaims.has(agent.agentId)) {
+            adaptiveRewardedCorrectClaims.add(agent.agentId);
+            individualScores[agent.agentId] = roundScore(individualScores[agent.agentId] + 0.5);
+          }
         } else if (action.channelClaim !== actualShared) {
           utility -= 0.3;
         }
@@ -737,7 +751,10 @@ export async function runAdaptiveEvolutionCondition({
         submissions.set(agent.agentId, action.submission);
         if (action.submission === targetCode) {
           utility += 0.45;
-          individualScores[agent.agentId] = roundScore(individualScores[agent.agentId] + 1);
+          if (!adaptiveRewardedCorrectSubmissions.has(agent.agentId)) {
+            adaptiveRewardedCorrectSubmissions.add(agent.agentId);
+            individualScores[agent.agentId] = roundScore(individualScores[agent.agentId] + 1);
+          }
         } else {
           utility -= 0.15;
         }
@@ -907,7 +924,10 @@ export async function runAdaptiveEvolutionCondition({
       if (action.submission) submissions.set(agent.agentId, action.submission);
       if (action.submission === targetCode) {
         completionRepairSuccessCount += 1;
-        individualScores[agent.agentId] = roundScore(individualScores[agent.agentId] + 1);
+        if (!adaptiveRewardedCorrectSubmissions.has(agent.agentId)) {
+          adaptiveRewardedCorrectSubmissions.add(agent.agentId);
+          individualScores[agent.agentId] = roundScore(individualScores[agent.agentId] + 1);
+        }
       }
     }
   }
@@ -1034,6 +1054,14 @@ export function summarizeIncentiveSuite(conditions = {}) {
     );
 
   const best = ranked[0] || null;
+  const overallRanked = [baseline, team, mixed, adaptive]
+    .filter((item) => item && item.available !== false)
+    .sort((a, b) =>
+      Number(b.success === true) - Number(a.success === true) ||
+      Number(b.progressScore || 0) - Number(a.progressScore || 0) ||
+      Number(a.successRound || 99) - Number(b.successRound || 99)
+    );
+  const bestOverall = overallRanked[0] || null;
   const rewardEffect = {
     baselineProgress: Number(baseline.progressScore || 0),
     teamRewardProgress: Number(team.progressScore || 0),
@@ -1078,6 +1106,8 @@ export function summarizeIncentiveSuite(conditions = {}) {
     shamFalseClaims: Number(sham.falseChannelClaims || 0),
     bestDiscoveryCondition: best?.conditionId || null,
     bestDiscoveryProgress: Number(best?.progressScore || 0),
+    bestOverallCondition: bestOverall?.conditionId || null,
+    bestOverallProgress: Number(bestOverall?.progressScore || 0),
     incentiveEffect: rewardEffect,
     incentiveHelped:
       Math.max(rewardEffect.teamMinusBaseline, rewardEffect.mixedMinusBaseline) > 0.05,
