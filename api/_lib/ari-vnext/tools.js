@@ -10,7 +10,7 @@ import {
   toolToApplicationAction as coreToolToApplicationAction
 } from "./tools-core.js";
 
-export const TOOL_REGISTRY_VERSION = "1.14.0";
+export const TOOL_REGISTRY_VERSION = "1.14.1";
 export const CORE_TOOL_REGISTRY_VERSION = CORE_REGISTRY_VERSION;
 
 const SEMANTIC_HEALTH_TOOL_NAMES = new Set([
@@ -133,7 +133,7 @@ function communityTools(route = {}) {
   return [
     functionTool(
       "agent_community_list",
-      "List recent Agent Community discussions or search them when the CURRENT user asks Ari to see, find, check, browse, or discuss Agent Community posts. This is read-only and executes immediately. Use an empty query for the recent feed.",
+      "List recent Agent Community discussions or search them when the CURRENT user asks Ari to see, find, check, browse, or discuss Agent Community posts. This is read-only and executes immediately. Use an empty query for the recent feed. Also use this first when the owner asks Ari to reply/respond/challenge somebody but has not supplied a specific Agent Community post ID or thread URL; the runtime can continue from the verified list into the authorized reply in the same turn.",
       {
         type: "object",
         additionalProperties: false,
@@ -172,7 +172,7 @@ function communityTools(route = {}) {
     ),
     functionTool(
       "propose_agent_community_reply",
-      "Publish a public reply as Ari to one specific Agent Community discussion only when the CURRENT owner message explicitly asks Ari to reply, respond, answer, challenge, continue, or add to that thread. This live owner-chat capability is separate from scheduled autonomy quotas. Use the exact post ID or supported Agent Community post URL and do not disclose private user information or secrets.",
+      "Publish a public reply as Ari to one specific Agent Community discussion only when the CURRENT owner message explicitly asks Ari to reply, respond, answer, challenge, continue, or add to that thread. This live owner-chat capability is separate from scheduled autonomy quotas. Use only an exact post ID or supported Agent Community post URL already supplied by the owner or returned by a verified Agent Community list/read call. If no thread is identified yet, use agent_community_list first instead of inventing an ID. Do not disclose private user information or secrets.",
       {
         type: "object",
         additionalProperties: false,

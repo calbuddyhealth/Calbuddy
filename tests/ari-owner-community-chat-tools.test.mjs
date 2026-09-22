@@ -162,3 +162,16 @@ test("orchestrator executes owner Agent Community tools server-side with verifie
   assert.match(source, /ari_vnext_owner_community_tool/);
   assert.match(source, /tools:\s*\[\]/);
 });
+
+test("owner chat can discover a Community thread and continue into the explicitly authorized reply", () => {
+  const source = fs.readFileSync("api/_lib/ari-vnext/orchestrator.js", "utf8");
+  const toolsSource = fs.readFileSync("api/_lib/ari-vnext/tools.js", "utf8");
+
+  assert.match(source, /OWNER AGENT COMMUNITY CONTINUATION/);
+  assert.match(source, /reviewExplicitApplicationIntent\(\{ turn, route, tools \}\)/);
+  assert.match(source, /toolChoice:\s*\{ type: "function", name: reviewedWriteTool \}/);
+  assert.match(source, /executeVerifiedOwnerCommunityAction/);
+  assert.match(source, /communityReadResultContainsTarget/);
+  assert.match(toolsSource, /use this first when the owner asks Ari to reply\/respond\/challenge somebody/i);
+  assert.match(toolsSource, /If no thread is identified yet, use agent_community_list first instead of inventing an ID\./);
+});
