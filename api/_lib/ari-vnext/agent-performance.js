@@ -957,7 +957,9 @@ async function updateAgentProfile({
     last_used_at: new Date().toISOString(),
     metadata: {
       hiddenChainOfThoughtStored: false,
-      rawWorkerTextStored: false
+      rawWorkerTextStored: false,
+      lastUnsupportedRisk: round(clamp01(agent.unsupportedRisk), 4),
+      lastEvidenceQuality: round(clamp01(agent.evidenceQuality), 4)
     },
     updated_at: new Date().toISOString()
   };
@@ -1187,6 +1189,8 @@ function normalizeAgentRow(row = {}) {
     reliabilityScore: clamp01(row?.reliability_score),
     lastScore: clamp01(row?.last_score),
     lastVerdict: normalizeVerdict(row?.last_verdict),
+    lastUnsupportedRisk: clamp01(row?.metadata?.lastUnsupportedRisk),
+    lastEvidenceQuality: clamp01(row?.metadata?.lastEvidenceQuality),
     lastUsedAt: clean(row?.last_used_at, 80) || null,
     updatedAt: clean(row?.updated_at, 80) || null
   };
@@ -1309,6 +1313,10 @@ function publicAgentProfile(item = {}) {
     meanRedundancy: item.meanRedundancy,
     meanUnsupportedRisk: item.meanUnsupportedRisk,
     reliabilityScore: item.reliabilityScore,
+    lastScore: item.lastScore,
+    lastVerdict: item.lastVerdict,
+    lastUnsupportedRisk: item.lastUnsupportedRisk,
+    lastEvidenceQuality: item.lastEvidenceQuality,
     outcomeSampleCount: Number(item.outcomeSampleCount || 0),
     outcomeScore: item.outcomeScore ?? null
   };
