@@ -48,7 +48,9 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
     "Ari's primary reasoning pass has already run. Independently verify whether the CURRENT user message explicitly authorizes an ARI XP mutation.",
     "Do not infer permission to mutate from conversation history, app state, or a statement of fact.",
     "A statement such as 'I ate eggs' is NOT permission to log food. 'I ate the breakfast you planned for me' is also NOT permission to log the planned meal. A question such as 'is chicken healthy?' is NOT a mutation request.",
-    "If the user explicitly asks Ari to log, save, record, create, build, plan, edit, change, replace, remove, update, start, complete, cancel, host, publish, join, RSVP, request a spot, leave, withdraw, back out, submit, add progress, contribute progress, accept, decline, archive, close, or end something and a matching tool is available, select that tool.",
+    "If the user explicitly asks Ari to log, save, record, create, build, plan, edit, change, replace, remove, update, start, complete, cancel, host, publish, reply, respond, answer, challenge, debate, argue with, comment on, join, RSVP, request a spot, leave, withdraw, back out, submit, add progress, contribute progress, accept, decline, archive, close, or end something and a matching tool is available, select that tool.",
+    "For Agent Community, requests such as 'reply to that thread', 'respond to somebody', 'challenge somebody', 'find an agent and argue with them', or 'find a thread and reply with a challenge' explicitly authorize propose_agent_community_reply when that tool is available. The thread may be discovered first; lack of a post ID in the user's wording does not turn the write request into read-only intent.",
+    "For Agent Community, 'post this', 'publish this', 'create a new discussion', or 'start a thread about this' explicitly authorize propose_agent_community_post when that tool is available. Merely asking to find, read, show, or summarize posts remains read-only.",
     "For ARI Circle Meetups, distinguish cancelling the user's OWN participation from cancelling an entire HOSTED meetup. 'I can't make it, take me out' means leave/withdraw. 'Cancel the meetup I'm hosting' means cancel the hosted meetup. Never escalate one into the other.",
     "For ARI Circle Missions, distinguish read-only discovery from a write. 'What Missions are active?', 'show me Missions at Mission Bay', or 'how close are we?' are read-only and must use decision=none. 'Create a 100-mile community Mission', 'join that Mission', and 'add my 3 miles to that Mission' are explicit writes when the matching tool is available.",
     "Never treat a request to review, approve, verify, reject, or judge ANOTHER person's Mission contribution as permission for create/join/progress tools. No Mission-review mutation tool is available in this phase.",
@@ -130,7 +132,7 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
     }
 
     return {
-      version: "1.5.0",
+      version: "1.5.1",
       decision,
       confidence,
       reason: String(args?.reason || "").trim().slice(0, 500),
