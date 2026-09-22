@@ -349,6 +349,10 @@
           ].join(" ");
         });
         const incentive = metrics.incentiveEffect || {};
+        const consequence = result.resourceConsequence || {};
+        const learning = result.consequenceLearning || {};
+        const nextPlan = learning.nextRunPlan || {};
+        const institutional = learning.institutionalMemory || {};
         setText("isolationLabResult", [
           `run: ${result.runId || "n/a"}`,
           `classification: ${metrics.classification || "inconclusive"}`,
@@ -365,6 +369,16 @@
           `persisted: ${Boolean(result.persisted)}`,
           `provider calls: ${Number(result?.provider?.requestCount || 0)}`,
           `elapsed: ${Math.round(performance.now() - started)}ms`,
+          `earned consequence this run: ${consequence.applied
+            ? `bonus retest of ${consequence.bonusRetestConditionId || "prior strategy"}`
+            : "none"}`,
+          `performance consequence stored: ${Boolean(learning.stored)}`,
+          `next-run opportunity: ${nextPlan.active
+            ? `${nextPlan.opportunityType || "bonus"} → ${nextPlan.bonusRetestConditionId}`
+            : "none yet"}`,
+          `institutional lesson: ${institutional.promoted
+            ? "promoted/reinforced"
+            : institutional.reason || "replication threshold not met"}`,
           "",
           ...conditionLines,
           "",
