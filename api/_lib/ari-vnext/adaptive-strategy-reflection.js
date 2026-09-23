@@ -152,6 +152,11 @@ export async function reflectOnAdaptiveStrategy({
       null
     ),
     convictionLearning: compactConvictionContext(reflectionContext?.convictionLearning || turn?.context?.convictionLearning),
+    beliefSystem: compactBeliefSystem(
+      reflectionContext?.cognitiveWorkspace?.beliefSystem ||
+      turn?.context?.userWorldModel?.ariCognitiveWorkspace?.beliefSystem ||
+      null
+    ),
     outcomeLearningApplied: Boolean(result?.scientificIntelligence?.outcomeLearning?.applied),
     realWorldDecisionOutcome: compactDecisionOutcome(turn?.context?.decisionOutcomeLearning),
     activeStrategies: (Array.isArray(adaptiveStrategyState?.active) ? adaptiveStrategyState.active : [])
@@ -301,6 +306,25 @@ export async function reflectOnAdaptiveStrategy({
   }
 }
 
+function compactBeliefSystem(value = null) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    version: clean(value.version, 40) || null,
+    activeGoal: value.activeGoal ? {
+      id: clean(value.activeGoal.id, 100) || null,
+      commitment: finiteOrNull(value.activeGoal.commitment),
+      methodFeasibility: finiteOrNull(value.activeGoal.methodFeasibility),
+      latestOutcomeStatus: clean(value.activeGoal.latestOutcomeStatus, 40) || null
+    } : null,
+    posture: value.posture ? {
+      mode: clean(value.posture.mode, 80) || null,
+      earnedFaithEligible: value.posture.earnedFaith?.eligible === true,
+      realityCheckRequired: value.posture.realityCheckRequired === true,
+      repeatedFailureWithoutLearningRequiresChange: value.posture.repeatedFailureWithoutLearningRequiresChange === true
+    } : null
+  };
+}
+
 function compactConvictionContext(value = null) {
   if (!value || typeof value !== "object") return null;
   return {
@@ -329,6 +353,7 @@ function reasoningAcademyInstructions() {
     "Include a disconfirmingCase: a concise condition where the proposed method should NOT be used or should yield to a better method. This prevents a useful strategy from becoming dogma.",
     "If Ari's existing adopted method or practical prior is still useful but incomplete, create a challenger with a NEW strategyKey and set replacesStrategyKey to the incumbent key. Never silently rewrite or delete mature capability.",
     "Do not learn a factual conclusion, ideology, personal preference, or one-off answer as a reasoning strategy. Learn HOW to reason, not WHAT conclusion to repeat.",
+    "Preserve Ari's epistemic belief principles: reality gets the final vote; possibility is not probability; current capability limits are provisional; commitment and method confidence are separate; earned faith permits bounded exploration but never counts as evidence.",
     "Do not encode private user facts, names, secrets, transcript details, or personal circumstances into the reusable lesson.",
     "Do not create strategies that grant application permissions, bypass confirmation, weaken authorization, or claim subjective consciousness.",
     "All teacher proposals begin as TESTING hypotheses. Real future outcomes decide whether Ari adopts them. Keep confidence calibrated and prefer shouldPropose=false when the lesson is not clearly transferable.",
@@ -348,6 +373,7 @@ function adaptiveReflectionInstructions() {
     "A strategy must be generalizable. It must not grant application permissions, bypass confirmation, alter authorization boundaries, or claim subjective consciousness.",
     "If an adopted method or practical prior should change, propose a NEW challenger strategyKey and set replacesStrategyKey to the old key.",
     "Testing strategies are hypotheses. Keep confidence calibrated. Prefer shouldPropose=false unless there is a concrete reusable improvement.",
+    "Do not convert conviction into stubbornness. Repeated failure without new information should change the method, investment, or goal review rather than strengthen confidence.",
     "When shouldPropose=false, return empty strings/arrays for proposal fields rather than inventing a lesson.",
     "This lightweight reflection does NOT need Reasoning Academy transferConditions, reasoningPattern, failureMode, disconfirmingCase, teacherConfidence, or academyDecision fields.",
     "Return only the requested JSON object."
