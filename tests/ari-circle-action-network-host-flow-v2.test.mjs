@@ -4,13 +4,14 @@ import test from "node:test";
 
 const meetupHtml = await readFile(new URL("../ari-circle-meetup.html", import.meta.url), "utf8");
 const connectController = await readFile(new URL("../js/ari-circle/connect/connect-v1.js", import.meta.url), "utf8");
+const connectCss = await readFile(new URL("../assets/css/ari-circle-connect-v1.css", import.meta.url), "utf8");
 const migration = await readFile(new URL("../supabase/migrations/20260826050000_ari_circle_host_flow_v2.sql", import.meta.url), "utf8");
 const retirement = await readFile(new URL("../supabase/migrations/20260923160837_ari_circle_retire_xp_completion.sql", import.meta.url), "utf8");
 
 test("simplified Connect controller remains valid browser JavaScript", () => {
   assert.doesNotThrow(() => new Function(connectController));
-  assert.match(connectController, /const VERSION = "1\.1\.0"/);
-  assert.match(meetupHtml, /connect-v1\.js\?v=1\.1\.0/);
+  assert.match(connectController, /const VERSION = "1\.2\.0"/);
+  assert.match(meetupHtml, /connect-v1\.js\?v=1\.2\.0/);
   assert.doesNotMatch(meetupHtml, /meetups-v5\.js/);
 });
 
@@ -51,4 +52,16 @@ test("Connect hides empty discovery groups and gives live instant meetups a Jump
   assert.doesNotMatch(meetupHtml, /id="meetupNowEmpty"/);
   assert.doesNotMatch(meetupHtml, /id="meetupTodayEmpty"/);
   assert.doesNotMatch(meetupHtml, /id="meetupWeekendEmpty"/);
+});
+
+
+test("Connect premium cards keep one Host CTA and hide empty-state UI correctly", () => {
+  assert.equal((meetupHtml.match(/id="hostMeetupButton"/g) || []).length, 1);
+  assert.doesNotMatch(meetupHtml, /id="emptyHostMeetupButton"/);
+  assert.match(connectCss, /\.circle-connect-all-empty\[hidden\]\s*\{\s*display:none\s*!important/);
+  assert.match(connectController, /circle-connect-card-menu/);
+  assert.match(connectController, /Cancel meetup/);
+  assert.match(connectController, /circle-connect-facts/);
+  assert.doesNotMatch(connectController, /circle-connect-timing/);
+  assert.match(meetupHtml, /ari-circle-connect-v1\.css\?v=1\.2\.0/);
 });
