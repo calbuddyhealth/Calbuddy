@@ -12,7 +12,7 @@ body.circle-connect-next {
 .circle-connect-main {
   width:min(100%,760px);
   margin:0 auto;
-  padding:8px 14px 34px !important;
+  padding:8px 14px calc(150px + env(safe-area-inset-bottom)) !important;
 }
 
 .circle-connect-heading {
@@ -94,15 +94,22 @@ body.circle-connect-next {
 }
 
 .circle-connect-status {
+  display:inline-flex;
+  align-items:center;
   min-height:16px;
-  margin:5px 2px 13px;
-  color:#7c899d;
-  font:700 .68rem/1.35 Inter,sans-serif;
+  margin:5px 2px 7px;
+  padding:7px 10px;
+  color:#65758c;
+  border:1px solid #e2e8f1;
+  border-radius:999px;
+  background:rgba(255,255,255,.72);
+  box-shadow:0 4px 14px rgba(31,45,70,.035);
+  font:800 .66rem/1 Inter,sans-serif;
 }
 .circle-connect-status:empty{display:none}
 
 .circle-connect-section {
-  margin:18px 0 0;
+  margin:15px 0 0;
 }
 .circle-connect-section[hidden]{display:none!important}
 
@@ -333,4 +340,63 @@ body.circle-connect-next {
   .circle-connect-timing{width:100%;margin-left:0}
   .circle-connect-request{grid-template-columns:40px minmax(0,1fr)}
   .circle-connect-request__state{grid-column:2}
+}
+
+
+/* Connect V1.1 — denser discovery, live emphasis, and mobile nav clearance */
+.circle-connect-live-strip {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin:-2px 0 11px;
+  color:#24845d;
+  font:900 .58rem/1 Inter,sans-serif;
+  letter-spacing:.08em;
+}
+.circle-connect-live-strip span {
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+}
+.circle-connect-live-strip i {
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:#39c781;
+  box-shadow:0 0 0 5px rgba(57,199,129,.10);
+}
+.circle-connect-live-strip strong {
+  color:#61738f;
+  font:850 .58rem/1 Inter,sans-serif;
+  letter-spacing:0;
+  text-transform:none;
+}
+
+.circle-connect-card.is-live {
+  border-color:#cfe9df;
+  background:
+    linear-gradient(145deg,rgba(242,255,250,.98),rgba(255,255,255,.98) 48%,rgba(246,248,255,.98));
+  box-shadow:0 12px 30px rgba(31,85,66,.08);
+}
+.circle-connect-card.is-live .circle-connect-card__body h3 {
+  margin-top:12px;
+}
+.circle-connect-card.is-live .circle-connect-card__actions .circle-v5-button-primary {
+  flex:1 1 150px;
+  justify-content:center;
+  min-height:42px !important;
+}
+.circle-connect-card.is-live .circle-connect-timing {
+  color:#65758c;
+}
+
+@media (max-width:560px) {
+  .circle-connect-main{
+    padding-inline:12px!important;
+    padding-bottom:calc(154px + env(safe-area-inset-bottom))!important;
+  }
+  .circle-connect-section{margin-top:14px}
+  .circle-connect-card{padding:13px}
+  .circle-connect-card__actions .circle-v5-button-primary{flex:1 1 145px;justify-content:center}
 }
