@@ -72,3 +72,13 @@ test("client moderation exposes provider outage metadata to retry-capable surfac
   assert.match(client, /moderationError\.status = response\.status/);
   assert.match(client, /moderationError\.retryAfterSeconds/);
 });
+
+
+test("provider 429s are returned as cooldowns instead of immediate retry storms", () => {
+  assert.match(source, /if \(response\.status === 429 \|\| !error\.retryable/);
+  assert.match(source, /error\.retryAfterSeconds/);
+  assert.match(source, /res\.setHeader\("Retry-After"/);
+  assert.match(source, /retry_after_seconds: retryAfterSeconds/);
+  assert.match(source, /provider_code:/);
+  assert.match(source, /provider_type:/);
+});
