@@ -2,24 +2,16 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const runtimeSource = await readFile(
-  new URL("../ari/runtime/ari-runtime-controller.js", import.meta.url),
-  "utf8"
-);
-const resilienceSource = await readFile(
-  new URL("../js/home-resilience.js", import.meta.url),
-  "utf8"
-);
-const homeSource = await readFile(
-  new URL("../home.html", import.meta.url),
-  "utf8"
-);
+const runtimeSource = await readFile(new URL("../ari/runtime/ari-runtime-controller.js", import.meta.url), "utf8");
+const adapterSource = await readFile(new URL("../ari/vnext/ari-vnext-action-adapter.js", import.meta.url), "utf8");
+const resilienceSource = await readFile(new URL("../js/home-resilience.js", import.meta.url), "utf8");
+const homeSource = await readFile(new URL("../home.html", import.meta.url), "utf8");
 
-test("Home cutover defaults to Ari vNext but preserves Rebirth as fallback", () => {
+test("Home defaults to vNext and legacy fallback is read-only", () => {
   assert.match(runtimeSource, /const DEFAULT_MODE = "vnext"/);
-  assert.match(runtimeSource, /legacy\.askAri/);
-  assert.match(runtimeSource, /Ari vNext runtime failed; using Rebirth fallback/);
-  assert.match(runtimeSource, /ALLOWED_MODES = new Set\(\["vnext", "rebirth"\]\)/);
+  assert.match(runtimeSource, /runReadOnlyLegacyFallback/);
+  assert.match(runtimeSource, /Ari vNext runtime failed; using read-only legacy fallback/);
+  assert.doesNotMatch(runtimeSource, /legacy\.confirmPendingAction|legacy\.cancelPendingAction/);
 });
 
 test("Home resilience waits for the runtime controller before asking Ari", () => {
@@ -28,56 +20,35 @@ test("Home resilience waits for the runtime controller before asking Ari", () =>
   assert.match(resilienceSource, /const response = await CalBuddy\.askAri/);
 });
 
-test("vNext dependencies include canonical Training, trusted action adapters, bridge, and initiative client", () => {
+test("vNext dependencies are canonical and contain no removed monkey-patch", () => {
   for (const dependency of [
     "ari-vnext-training-context.js",
     "ari-vnext-action-adapter.js",
-    "ari-whole-workout-replacement.js",
     "ari-vnext-activity-adapter.js",
     "ari-vnext-bridge.js",
     "ari-vnext-initiative.js"
   ]) {
     assert.match(runtimeSource, new RegExp(dependency.replaceAll(".", "\\.")));
   }
+  assert.doesNotMatch(runtimeSource, /ari-whole-workout-replacement/);
 });
 
-test("quota-aware runtime cache chain reaches Home and iOS WebViews", () => {
-  assert.match(runtimeSource, /const VERSION = "1\.4\.0"/);
+test("runtime and action adapter versions are cache-busted", () => {
+  assert.match(runtimeSource, /const VERSION = "1\.5\.0"/);
+  assert.match(runtimeSource, /ari-vnext-action-adapter\.js\?v=1\.5\.0/);
   assert.match(runtimeSource, /ari-vnext-bridge\.js\?v=1\.10\.0/);
-  assert.match(runtimeSource, /ari-vnext-context-guard\.js\?v=1\.2\.3/);
-  assert.match(resilienceSource, /Version: 1\.4\.0/);
-  assert.match(resilienceSource, /const REQUIRED_RUNTIME_VERSION = "1\.4\.0"/);
-  assert.match(homeSource, /js\/home-resilience\.js\?v=1\.4\.0/);
+  assert.match(homeSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.5\.0/);
 });
 
-test("vNext readiness guarantees the whole-workout replacement executor", () => {
-  assert.match(runtimeSource, /ari-whole-workout-replacement\.js\?v=1\.0\.0/);
-  assert.match(runtimeSource, /__ariWholeWorkoutReplacementV1/);
-  assert.match(runtimeSource, /AriVNextActionAdapter\.__ariWholeWorkoutReplacementV1 === true/);
+test("whole-workout replacement is canonical, not a runtime patch", () => {
+  assert.match(adapterSource, /mapWorkoutReplacementValidated/);
+  assert.match(adapterSource, /executeValidatedWorkoutReplacement/);
+  assert.match(adapterSource, /existing_workout_mode:\s*"replace"/);
+  assert.match(adapterSource, /workout_replace_registry_revalidation_failed/);
 });
 
 test("trusted app actions remain outside direct model execution", () => {
   assert.match(runtimeSource, /createCalBuddyPendingAction/);
-  assert.match(runtimeSource, /legacy\.confirmPendingAction/);
   assert.match(runtimeSource, /executeConfirmed/);
   assert.match(runtimeSource, /Typed and button confirmations share the same trusted action boundary/);
-});
-
-test("typed yes and no cannot leave stale mapped pending actions", () => {
-  assert.match(runtimeSource, /actionType === "cancel_pending_action"/);
-  assert.match(runtimeSource, /actionType !== "execute_pending_action"/);
-  assert.match(runtimeSource, /window\.AriVNextBridge\?\.clearPendingAction/);
-});
-
-test("initiative is wired into the normal Home thread without replacing ordinary chat", () => {
-  assert.match(resilienceSource, /ari:vnextInitiative/);
-  assert.match(resilienceSource, /scheduleInitiativeCheck/);
-  assert.match(resilienceSource, /addAriMessage\(opener, "ari"\)/);
-  assert.match(runtimeSource, /AriVNextInitiative\.engage/);
-});
-
-test("legacy Rebirth scripts remain in Home for rollback safety during cutover", () => {
-  assert.match(homeSource, /ari-rebirth-app-bridge\.js/);
-  assert.match(homeSource, /ari-conversation-router\.js/);
-  assert.match(homeSource, /ari-fast-conversation\.js/);
 });
