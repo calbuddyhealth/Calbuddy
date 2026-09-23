@@ -16,7 +16,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "4.3.1";
+  const VERSION = "4.4.0";
   const MEDIA_BUCKET = "ari-circle-post-media";
   const SIGNED_URL_SECONDS = 60 * 60;
   const AGE_CACHE_KEY = "ari_circle_profile_verified_age_v1";
@@ -455,21 +455,17 @@
 
       injectMainNav();
       ensureSafetyAnchor();
-      injectProfileTabs();
-      selectInitialTab();
 
       const cachedAge = readVerifiedAgeCache();
       if (cachedAge) {
         state.age = cachedAge;
         renderAgeGate();
-        void loadPosts();
         void loadAgeState({ preserveVerifiedOnError: true });
         return;
       }
 
       await loadAgeState();
-      if (state.age?.verified) void loadPosts();
-      else if (!state.isOwner) renderUnavailableSocial();
+      if (!state.age?.verified && !state.isOwner) renderUnavailableSocial();
     } catch (error) {
       console.error("ARI Circle V4 profile enhancement failed:", error);
     }
@@ -494,7 +490,7 @@
 
   window.AriCircleProfileV4 = Object.freeze({
     version: VERSION,
-    refresh: loadPosts
+    refresh: renderAgeGate
   });
 
   bootWhenReady();
