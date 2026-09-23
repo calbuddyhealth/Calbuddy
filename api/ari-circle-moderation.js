@@ -14,6 +14,9 @@ const MAX_IMAGE_URL_LENGTH = 1_500_000;
 const AI_CONSENT_KEY = "ari_ai_processing_consent";
 const AI_CONSENT_VERSION_KEY = "ari_ai_processing_consent_version";
 const REQUIRED_AI_CONSENT_VERSION = "2";
+const MODERATION_RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+const MODERATION_MAX_ATTEMPTS = 3;
+const MODERATION_RETRY_CAP_MS = 1400;
 
 function clean(value, max = 1000) {
   return String(value ?? "").trim().slice(0, max);
@@ -145,38 +148,67 @@ function normalizeImages(values) {
     .slice(0, MAX_IMAGES);
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+}
+
+function retryDelayMs(response, attempt) {
+  const retryAfter = Number(response?.headers?.get?.("retry-after"));
+  if (Number.isFinite(retryAfter) && retryAfter > 0) {
+    return Math.min(MODERATION_RETRY_CAP_MS, retryAfter * 1000);
+  }
+  return Math.min(MODERATION_RETRY_CAP_MS, 250 * (2 ** Math.max(0, attempt - 1)));
+}
+
 async function moderateOne({ apiKey, input }) {
-  const response = await fetch(OPENAI_MODERATION_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODERATION_MODEL,
-      input
-    })
-  });
+  let lastError = null;
 
-  const data = await readJson(response);
-  if (!response.ok) {
-    const error = new Error(data?.error?.message || "Moderation request failed.");
+  for (let attempt = 1; attempt <= MODERATION_MAX_ATTEMPTS; attempt += 1) {
+    const response = await fetch(OPENAI_MODERATION_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: OPENAI_MODERATION_MODEL,
+        input
+      })
+    });
+
+    const data = await readJson(response);
+    if (response.ok) {
+      const result = data?.results?.[0];
+      if (!result || typeof result.flagged !== "boolean") {
+        throw new Error("Moderation returned an invalid result.");
+      }
+
+      return {
+        model: data?.model || OPENAI_MODERATION_MODEL,
+        flagged: result.flagged === true,
+        categories: result?.categories || {},
+        categoryScores: result?.category_scores || {},
+        appliedInputTypes: result?.category_applied_input_types || {}
+      };
+    }
+
+    const error = new Error(
+      data?.error?.message ||
+      response.statusText ||
+      "Moderation request failed."
+    );
     error.status = response.status;
-    throw error;
+    error.retryable = MODERATION_RETRYABLE_STATUS.has(response.status);
+    lastError = error;
+
+    if (!error.retryable || attempt >= MODERATION_MAX_ATTEMPTS) {
+      throw error;
+    }
+
+    await sleep(retryDelayMs(response, attempt));
   }
 
-  const result = data?.results?.[0];
-  if (!result || typeof result.flagged !== "boolean") {
-    throw new Error("Moderation returned an invalid result.");
-  }
-
-  return {
-    model: data?.model || OPENAI_MODERATION_MODEL,
-    flagged: result.flagged === true,
-    categories: result?.categories || {},
-    categoryScores: result?.category_scores || {},
-    appliedInputTypes: result?.category_applied_input_types || {}
-  };
+  throw lastError || new Error("Moderation request failed.");
 }
 
 function blockedCategories(result) {
@@ -273,12 +305,19 @@ export default async function handler(req, res) {
   const checks = [];
 
   const finish = async (body, status = 200) => {
-    await recordRequest({
-      userId: user.id,
-      scope,
-      checks,
-      decision: body?.decision || (status >= 400 ? "provider_error" : "unknown")
-    });
+    try {
+      await recordRequest({
+        userId: user.id,
+        scope,
+        checks,
+        decision: body?.decision || (status >= 400 ? "provider_error" : "unknown")
+      });
+    } catch (usageError) {
+      console.warn("[ARI Circle Moderation] usage logging skipped", {
+        scope,
+        error: usageError?.message || usageError
+      });
+    }
     return res.status(status).json(body);
   };
 
@@ -340,13 +379,46 @@ export default async function handler(req, res) {
       paid_classifier_used: false
     });
   } catch (error) {
+    const providerStatus = Number(error?.status) || null;
+    const transientProviderFailure = MODERATION_RETRYABLE_STATUS.has(providerStatus);
+    const canDegradeTextOnlyFeed =
+      scope === "feed_post" &&
+      Boolean(text) &&
+      images.length === 0 &&
+      transientProviderFailure;
+
+    if (canDegradeTextOnlyFeed) {
+      console.warn("[ARI Circle Moderation Degraded]", {
+        scope,
+        status: providerStatus,
+        decision: "allow_degraded_text_only"
+      });
+
+      return await finish({
+        success: true,
+        allowed: true,
+        scope,
+        age_band: ageBand,
+        model: OPENAI_MODERATION_MODEL,
+        decision: "allow_degraded_text_only",
+        moderation_degraded: true,
+        blocked_categories: [],
+        check_count: checks.length,
+        paid_classifier_used: false
+      });
+    }
+
     console.error("[ARI Circle Moderation Error]", {
       scope,
-      status: error?.status || null,
+      status: providerStatus,
       error: error?.message || error
     });
     return await finish(
-      { error: "ARI Circle safety screening is temporarily unavailable.", decision: "provider_error" },
+      {
+        error: "ARI Circle safety screening is temporarily unavailable.",
+        decision: "provider_error",
+        code: "ARI_CIRCLE_MODERATION_PROVIDER_UNAVAILABLE"
+      },
       503
     );
   }
