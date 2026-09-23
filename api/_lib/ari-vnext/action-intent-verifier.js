@@ -112,7 +112,7 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
 
     if (!decisions.includes(decision)) return null;
 
-    return {    return {
+    return {
       version: "1.6.0",
       decision,
       confidence,
