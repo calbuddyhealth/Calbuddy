@@ -12,7 +12,6 @@ import { routeContext } from "../api/_lib/ari-vnext/context-router.js";
 const root = process.cwd();
 const verifier = fs.readFileSync(path.join(root, "api/_lib/ari-vnext/action-intent-verifier.js"), "utf8");
 const orchestrator = fs.readFileSync(path.join(root, "api/_lib/ari-vnext/orchestrator.js"), "utf8");
-const routerHandler = fs.readFileSync(path.join(root, "api/_lib/gateway/ari-intent-router-handler.js"), "utf8");
 
 {
   const route = routeContext({
@@ -54,6 +53,6 @@ const routerHandler = fs.readFileSync(path.join(root, "api/_lib/gateway/ari-inte
 
 assert.doesNotMatch(verifier, /blocked_future_meal_plan|blocked_missing_daily_goal/);
 assert.doesNotMatch(orchestrator, /Meal Plan only tracks today|blocked_future_meal_plan|blocked_missing_daily_goal/);
-assert.doesNotMatch(routerHandler, /\bplan_meal\b|\blog_planned_meal\b|\bmeal_plan\b/);
+assert.match(verifier, /Meal Plan is not an Ari application capability/);
 
 console.log("ari-vnext-meal-plan-tool.test.mjs passed");
