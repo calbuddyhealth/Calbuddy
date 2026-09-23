@@ -96,4 +96,4 @@
     getFoodIds: () => FOODS.map((food) => food.id),
     getRecord(foodId) { const found = FOODS.find((food) => food.id === foodId); return found ? JSON.parse(JSON.stringify(found)) : null; }
   });
-})(window);
+})(typeof window !== "undefined" ? window : globalThis);
