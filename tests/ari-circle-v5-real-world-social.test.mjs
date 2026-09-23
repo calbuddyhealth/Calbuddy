@@ -40,7 +40,7 @@ test("Feed is event-first while preserving compact friend text updates", () => {
   assert.match(feedHtml, /Share an update/);
   assert.match(feedHtml, /Friends only · text update/);
   assert.match(feedHtml, /Updates from your people/);
-  assert.match(feedHtml, /feed\/happening-v5\.js\?v=6\.1\.0/);
+  assert.match(feedHtml, /feed\/happening-v5\.js\?v=6\.2\.0/);
   assert.match(feedHtml, /feed\/feed\.js\?v=2\.2\.0/);
   assert.match(feedHtml, /id="feedComposerEditor" hidden/);
   assert.match(feedHtml, /id="publishPostButton" type="submit" disabled/);
@@ -48,7 +48,14 @@ test("Feed is event-first while preserving compact friend text updates", () => {
   assert.doesNotMatch(feedHtml, /Camera \/ Library/);
   assert.doesNotMatch(feedHtml, /Make it a Moment/);
 
-  assert.match(happening, /const VERSION = "6\.1\.0"/);
+  assert.match(happening, /const VERSION = "6\.2\.0"/);
+  assert.match(happening, /const FEED_PREVIEW_LIMIT = 2/);
+  assert.match(happening, /const CANDIDATE_LIMIT = 24/);
+  assert.match(happening, /function selectFeedMeetups\(rows, limit=FEED_PREVIEW_LIMIT/);
+  assert.match(happening, /const usedHosts=new Set\(\)/);
+  assert.match(happening, /result_limit:CANDIDATE_LIMIT/);
+  assert.match(happening, /selectFeedMeetups\(data,FEED_PREVIEW_LIMIT\)/);
+  assert.doesNotMatch(happening, /\.slice\(0,6\)/);
   assert.match(happening, /insertAdjacentElement\("beforebegin",section\)/);
   assert.match(happening, /ari_circle_list_meetups/);
   assert.match(happening, /ari_circle_join_meetup/);
@@ -64,6 +71,10 @@ test("Feed is event-first while preserving compact friend text updates", () => {
 
 test("Circle primary shell is Feed and Connect only", () => {
   assert.match(shell, /const VERSION = "5\.4\.0"/);
+  assert.match(shell, /window\.AriCircleHappeningV5\?\.version/);
+  assert.match(shell, /happening-v5\.js\?v=6\.2\.0/);
+  assert.match(feedHtml, /v5-real-world\.js\?v=5\.4\.1/);
+  assert.match(feedHtml, /circle-menu-v5\.js\?v=2\.6\.1/);
   assert.match(shell, /navLink\("feed", "ari-circle-feed\.html", "Feed"\)/);
   assert.match(shell, /navLink\("connect", "ari-circle-meetup\.html", "Connect"\)/);
   assert.doesNotMatch(shell, /navLink\("arinext"/);
@@ -87,4 +98,14 @@ test("profile relationship action is explicitly friendship", () => {
   assert.match(connections, /"Requested"/);
   assert.match(connections, /"Friends"/);
   assert.doesNotMatch(connections, /"Add to Circle"/);
+});
+
+
+test("Feed Happening remains a two-card preview at scale", () => {
+  assert.match(happening, /FEED_PREVIEW_LIMIT = 2/);
+  assert.match(happening, /CANDIDATE_LIMIT = 24/);
+  assert.match(happening, /usedHosts\.has\(host\)/);
+  assert.match(happening, /selected\.length>=limit/);
+  assert.match(happening, /stableMeetupCompare/);
+  assert.match(happening, /eventScore/);
 });
