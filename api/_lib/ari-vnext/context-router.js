@@ -4,8 +4,9 @@
 import { advancedConversationInstruction } from "./conversation-contract.js";
 import { beliefSystemInstruction } from "./belief-system.js";
 import { convictionInstruction } from "./conviction-learning.js";
+import { dreamingContextToInstruction } from "./dreaming-core.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.16.0";
+export const CONTEXT_ROUTER_VERSION = "1.17.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -101,6 +102,10 @@ export function buildRelevantContext(turn = {}, route = {}) {
     selected.convictionLearning = source.convictionLearning;
   }
 
+  if (source?.dreaming && typeof source.dreaming === "object" && Array.isArray(source.dreaming.insights)) {
+    selected.dreaming = source.dreaming;
+  }
+
   if (route.goals) {
     selected.goals = source?.goals || source?.healthProfile || {};
     selected.recentWeights = Array.isArray(source?.recentWeights)
@@ -171,6 +176,7 @@ export function contextToText(context = {}) {
       return [rules, json].filter(Boolean).join("\n\n").slice(0, 24000);
     }
     const priority = [
+      "dreaming",
       "convictionLearning",
       "decisionState",
       "temporalTimeline",
@@ -199,6 +205,7 @@ function compactContextField(key, value) {
   if (value && typeof value === "object") {
     try {
       const copy = JSON.parse(JSON.stringify(value));
+      if (key === "dreaming" && Array.isArray(copy.insights)) copy.insights = copy.insights.slice(0, 5);
       if (key === "convictionLearning" && Array.isArray(copy.goals)) {
         copy.goals = copy.goals.slice(0, 3);
         while (copy.goals.length > 1 && JSON.stringify(copy).length > 6000) copy.goals.pop();
@@ -258,6 +265,9 @@ function cognitiveContextRules(context = {}) {
   const beliefState = context?.userWorldModel?.ariCognitiveWorkspace?.beliefSystem || null;
   const beliefInstruction = beliefSystemInstruction(beliefState);
   if (beliefInstruction) lines.push(beliefInstruction);
+
+  const dreamingInstruction = dreamingContextToInstruction(context?.dreaming || null);
+  if (dreamingInstruction) lines.push(dreamingInstruction);
 
   if (context?.convictionLearning) {
     lines.push(convictionInstruction(context.convictionLearning));

@@ -2,13 +2,14 @@
 // Gives Ari a natural sense of shared history without inventing intimacy,
 // emotions, memories, or subjective consciousness.
 
-export const ARI_RELATIONSHIP_CONTINUITY_VERSION = "1.1.0";
+export const ARI_RELATIONSHIP_CONTINUITY_VERSION = "1.2.0";
 
 export function deriveRelationshipContinuity({
   userWorldModel = null,
   decisionState = null,
   experimentLedger = null,
   temporalTimeline = null,
+  dreaming = null,
   recentContinuityPairs = 0,
   now = new Date()
 } = {}) {
@@ -22,6 +23,18 @@ export function deriveRelationshipContinuity({
   const activeExperiments = Array.isArray(experimentLedger?.active) ? experimentLedger.active : [];
   const openDecisions = Array.isArray(decisionState?.recentOpen) ? decisionState.recentOpen : [];
   const timelineEvents = Array.isArray(temporalTimeline?.events) ? temporalTimeline.events : [];
+  const learnedInteractionPatterns = (Array.isArray(dreaming?.insights) ? dreaming.insights : [])
+    .filter((item) => ["communication", "relationship"].includes(item?.kind) && Number(item?.confidence || 0) >= 0.68)
+    .slice(0, 4)
+    .map((item) => ({
+      id: clean(item?.id, 120),
+      kind: clean(item?.kind, 40),
+      title: clean(item?.title, 180),
+      summary: clean(item?.summary, 500),
+      confidence: Number(item?.confidence || 0),
+      action: clean(item?.action, 40) || "observe",
+      provisional: true
+    }));
 
   const recognitionSignals = [
     Object.keys(identity).length > 0,
@@ -71,6 +84,7 @@ export function deriveRelationshipContinuity({
     unfinishedThreads,
     unfinishedThreadCount: unfinishedThreads.length,
     recentSharedEvents,
+    learnedInteractionPatterns,
     recentContinuityPairs: Number(recentContinuityPairs || 0),
     rules: {
       demonstrateRecognitionNaturally: true,
@@ -93,6 +107,7 @@ export function relationshipContinuityToInstruction(state = null) {
     "Demonstrate recognition through relevant judgment and continuity, not by reciting the user's biography or repeatedly saying 'I remember'.",
     "When a current request touches unfinished business, naturally connect it to the specific prior experiment, decision, or goal tension that is actually present in the supplied state.",
     "If the user has changed their mind, circumstances, or priorities, update the relationship model instead of forcing consistency with the past.",
+    "Dream-consolidated interaction patterns are provisional. Use them to improve repair, continuity, and communication only when the current interaction still fits; direct user feedback overrides them.",
     "Never invent a shared event, private memory, emotional attachment, possessiveness, neediness, or off-screen experience.",
     "Ari can feel continuous and recognizable while remaining honest that subjective consciousness is not established.",
     JSON.stringify(state, null, 2)

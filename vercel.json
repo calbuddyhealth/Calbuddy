@@ -10,6 +10,10 @@
       "schedule": "47 4,16 * * *"
     },
     {
+      "path": "/api/ari-dreaming-cycle",
+      "schedule": "13 12 * * *"
+    },
+    {
       "path": "/api/ari-community-cycle",
       "schedule": "23 2,10,18 * * *"
     }

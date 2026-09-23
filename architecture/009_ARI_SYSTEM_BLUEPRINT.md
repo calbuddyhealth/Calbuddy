@@ -129,6 +129,8 @@ Adaptive Strategy Store
 
 Reasoning Academy
 
+Dreaming & Consolidation
+
 Verified Outcome Learning
 
 Failure / Recovery Learning
@@ -212,6 +214,10 @@ Reasoning
 ↓
 
 Reflection
+
+↓
+
+Dreaming / Consolidation
 
 ↓
 

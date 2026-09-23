@@ -332,6 +332,9 @@ function deriveSalience({ route = {}, message = "", prior = {}, context = {} } =
   if (currentMemoryPresent(context)) {
     push("relevant_durable_memory", 0.68, "Filtered durable memory may help interpret the current turn.");
   }
+  if (Array.isArray(context?.dreaming?.insights) && context.dreaming.insights.length) {
+    push("dream_consolidation", 0.64, "Evidence-linked consolidation from earlier interactions may be relevant, but remains provisional.");
+  }
   if (looksLikeIdentityQuestion(message)) push("identity_reflection", 0.72, "The user is asking about Ari's identity or internal architecture.");
   if (Number(prior?.rewardState?.aggregate?.prematureStopRate || 0) >= 0.25) {
     push("persistence_learning", 0.74, "Recent reward history suggests Ari should guard against premature abstention.");

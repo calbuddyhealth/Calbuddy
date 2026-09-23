@@ -92,6 +92,7 @@ import {
   summarizeGoals
 } from "./_lib/ari-vnext/conviction-learning.js";
 import { ensureGoal, loadGoals, saveGoalEvent } from "./_lib/ari-vnext/goal-store.js";
+import { loadDreamingContext } from "./_lib/ari-vnext/dreaming-store.js";
 
 const AUTH_TIMEOUT_MS = Number(process.env.ARI_AUTH_TIMEOUT_MS) > 0
   ? Number(process.env.ARI_AUTH_TIMEOUT_MS)
@@ -219,6 +220,9 @@ export default async function handler(req, res) {
     const shouldLoadConversationLearning = !casualConversation || cleanText(turn.message, 2000).length >= 12;
     const shouldLoadMemory = Boolean(!casualConversation && (routePreview.memory || fitnessRoute || cognitiveLoopEnabled));
     const goalCandidate = cognitiveLoopEnabled ? goalCandidateFromMessage(turn.message) : null;
+    const dreamingContextPromise = intelligenceEntitlement?.ownerEligible === true
+      ? loadDreamingContext({ userId: auth.userId, message: turn.message, route: routePreview, limit: 5 })
+      : Promise.resolve({ version: "1.0.0", active: false, insights: [], lastDreamAt: null });
     const strategyPreparationPromise = cognitiveLoopEnabled
       ? prepareAdaptiveStrategiesForTurn({
           userId: auth.userId,
@@ -264,7 +268,8 @@ export default async function handler(req, res) {
       adaptiveStrategyPreparation,
       institutionalMemory,
       agentPerformance,
-      projectGoals
+      projectGoals,
+      dreamingContext
     ] = await Promise.all([
       shouldLoadMemory
         ? retrieveRelevantMemories({
@@ -297,7 +302,8 @@ export default async function handler(req, res) {
       agentPerformancePromise,
       cognitiveLoopEnabled
         ? loadGoals({ userId: auth.userId, limit: 40 })
-        : Promise.resolve([])
+        : Promise.resolve([]),
+      dreamingContextPromise
     ]);
 
     const goalCreation = goalCandidate
@@ -460,6 +466,7 @@ export default async function handler(req, res) {
             accountEntitlements,
             userWorldModel: persistedWorldModel,
             convictionLearning,
+            dreaming: dreamingContext,
             decisionState,
             temporalTimeline,
             relevantMemory: turn.memory || ""
@@ -490,6 +497,7 @@ export default async function handler(req, res) {
       },
       ...(experimentLedger ? { experimentLedger } : {}),
       ...(worldModelForTurn ? { userWorldModel: worldModelForTurn } : {}),
+      ...(dreamingContext?.insights?.length ? { dreaming: dreamingContext } : {}),
       ...(cognitiveLoopEnabled && (!fitnessRoute || routePreview.developer) ? { convictionLearning } : {}),
       ...(decisionState ? { decisionState } : {}),
       ...(decisionOutcomeLearning?.resolved ? { decisionOutcomeLearning } : {}),
@@ -700,6 +708,7 @@ export default async function handler(req, res) {
           adaptiveStrategyState,
           reflectionContext: {
             cognitiveWorkspace,
+            dreaming: dreamingContext,
             convictionLearning: goalOutcomePersistence?.goal
               ? summarizeGoals([goalOutcomePersistence.goal, ...loadedGoals.filter(goal => goal.id !== trackedGoal?.id)], {
                   message: turn.message, activeGoalId: trackedGoal?.id
@@ -1112,6 +1121,12 @@ export default async function handler(req, res) {
       decisionState,
       decisionOutcomeLearning,
       communicationLearning,
+      dreaming: {
+        active: dreamingContext?.active === true,
+        lastDreamAt: dreamingContext?.lastDreamAt || null,
+        availableInsightCount: Number(dreamingContext?.insightCount || 0),
+        selectedInsightCount: Array.isArray(dreamingContext?.insights) ? dreamingContext.insights.length : 0
+      },
       conversationStyle: {
         automatic: savedConversationStyle.automatic !== false,
         explicitLocks: Array.isArray(savedConversationStyle.explicitLocks)

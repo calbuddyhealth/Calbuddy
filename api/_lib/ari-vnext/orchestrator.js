@@ -80,6 +80,7 @@ export async function runAriVNext(turn = {}) {
     decisionState: turn?.context?.decisionState || null,
     experimentLedger: turn?.context?.experimentLedger || null,
     temporalTimeline: turn?.context?.temporalTimeline || null,
+    dreaming: turn?.context?.dreaming || null,
     recentContinuityPairs: Number(turn?.context?.recentContinuityPairs || 0)
   });
   const selfModel = deriveSelfModel({ turn: { ...turn, relationshipContinuity }, route, safety });

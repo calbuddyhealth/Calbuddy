@@ -183,6 +183,8 @@ Research recommendations
 
 Confidence calibration
 
+Cross-interaction dreaming and consolidation
+
 Knowledge verification scheduling
 
 Learning prioritization
@@ -234,6 +236,8 @@ Refine Ari into a lifelong learning system.
 Objectives
 
 Continuous knowledge refinement
+
+Dream-driven memory consolidation
 
 Relationship optimization
 
