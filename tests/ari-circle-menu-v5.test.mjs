@@ -74,7 +74,7 @@ test("Profile compatibility stays Profile-only and gallery-aware", () => {
   assert.match(profileCompat, /const REAL_WORLD_VERSION = "5\.4\.0"/);
   assert.match(profileCompat, /brand\.href = "ari-circle-feed\.html"/);
   assert.match(profileCompat, /circleV3PostsPanel/);
-  assert.match(profileLoader, /profile-gallery-v1\.js\?v=1\.0\.0/);
+  assert.match(profileLoader, /profile-gallery-v1\.js\?v=1\.1\.0/);
   assert.doesNotMatch(profileLoader, /ari-circle-xp\.css/);
   assert.match(visitorControls, /PROFILE VISITOR CONTROLS/);
 });

@@ -59,3 +59,16 @@ test("moderation telemetry cannot become a posting outage", () => {
   assert.match(source, /usage logging skipped/);
   assert.match(source, /try \{[\s\S]*await recordRequest\([\s\S]*catch \(usageError\)/);
 });
+
+
+test("client moderation exposes provider outage metadata to retry-capable surfaces", () => {
+  const client = fs.readFileSync(
+    new URL("../js/ari-circle/content-moderation.js", import.meta.url),
+    "utf8"
+  );
+  assert.match(client, /const VERSION = "1\.5\.1"/);
+  assert.match(client, /moderationError\.code = clean\(data\?\.code\)/);
+  assert.match(client, /ARI_CIRCLE_MODERATION_PROVIDER_UNAVAILABLE/);
+  assert.match(client, /moderationError\.status = response\.status/);
+  assert.match(client, /moderationError\.retryAfterSeconds/);
+});

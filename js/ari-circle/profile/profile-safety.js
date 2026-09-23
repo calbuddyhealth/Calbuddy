@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — PROFILE SAFETY BRIDGE
-   Version: 1.1.0
+   Version: 1.2.0
 
    Extends the shared ARI Circle safety layer to profile-only paths that
    use direct table/storage calls instead of the RPC moderation wrapper:
@@ -17,9 +17,9 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const MODERATION_SCRIPT_ID = "ariCircleProfileSafetyModeration";
-  const MODERATION_SCRIPT_SRC = "js/ari-circle/content-moderation.js?v=1.4.0";
+  const MODERATION_SCRIPT_SRC = "js/ari-circle/content-moderation.js?v=1.5.1";
   const PRIVATE_BUCKET = "ari-circle-teen-media";
   const PRIVATE_PREFIX = `ari-private://${PRIVATE_BUCKET}/`;
   const MAX_IMAGE_EDGE = 768;

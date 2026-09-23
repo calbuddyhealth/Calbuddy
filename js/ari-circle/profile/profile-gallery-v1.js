@@ -1,11 +1,11 @@
 /* =============================================================
-   ARI CIRCLE — PROFILE GALLERY V1
+   ARI CIRCLE — PROFILE GALLERY V1.1
    Avatar + four supporting photos = five-photo maximum.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const BUCKET = "ari-circle-post-media";
   const MAX_BYTES = 8 * 1024 * 1024;
   const SIGNED_SECONDS = 60 * 60;
@@ -18,7 +18,9 @@
     subjectId: null,
     owner: false,
     rows: new Map(),
-    busy: false
+    busy: false,
+    pending: null,
+    retryTimer: 0
   };
 
   function client() {
@@ -64,7 +66,7 @@
     const link = document.createElement("link");
     link.id = "ariCircleProfileGalleryStyle";
     link.rel = "stylesheet";
-    link.href = "assets/css/ari-circle-profile-gallery-v1.css?v=1.0.0";
+    link.href = "assets/css/ari-circle-profile-gallery-v1.css?v=1.1.0";
     document.head.append(link);
   }
 
@@ -85,19 +87,66 @@
         </div>
         ${state.owner ? '<span>4 supporting photos</span>' : ""}
       </div>
+      <div class="circle-profile-gallery__notice" id="circleProfileGalleryNotice" hidden>
+        <span id="circleProfileGalleryStatus" role="status" aria-live="polite"></span>
+        <button id="circleProfileGalleryRetry" type="button" hidden>Try again</button>
+      </div>
       <div class="circle-profile-gallery__grid" id="circleProfileGalleryGrid" aria-live="polite"></div>
       <input id="circleProfileGalleryInput" type="file" accept="image/*" hidden />
-      <p class="circle-profile-gallery__status" id="circleProfileGalleryStatus" role="status" aria-live="polite"></p>
     `;
 
     profile.insertAdjacentElement("afterend", section);
     $("circleProfileGalleryInput")?.addEventListener("change", onFileSelected);
+    $("circleProfileGalleryRetry")?.addEventListener("click", () => retryPendingUpload({ immediate: true }));
     return section;
   }
 
-  function status(message) {
+  function status(message, { tone = "", retry = false } = {}) {
+    const notice = $("circleProfileGalleryNotice");
     const node = $("circleProfileGalleryStatus");
-    if (node) node.textContent = clean(message);
+    const button = $("circleProfileGalleryRetry");
+    const text = clean(message);
+
+    if (node) node.textContent = text;
+    if (notice) {
+      notice.hidden = !text;
+      notice.dataset.tone = clean(tone);
+    }
+    if (button) button.hidden = !retry;
+  }
+
+  function clearRetryTimer() {
+    if (state.retryTimer) {
+      window.clearTimeout(state.retryTimer);
+      state.retryTimer = 0;
+    }
+  }
+
+  function isTransientSafetyFailure(error) {
+    const code = clean(error?.code).toUpperCase();
+    const message = clean(error?.message).toLowerCase();
+    return (
+      code === "ARI_CIRCLE_MODERATION_PROVIDER_UNAVAILABLE" ||
+      code === "ARI_MODERATION_UNAVAILABLE" ||
+      Number(error?.status) >= 500 ||
+      message.includes("temporarily unavailable") ||
+      message.includes("too many requests") ||
+      message.includes("could not run its safety check")
+    );
+  }
+
+  function scheduleRetry(delayMs = 30000) {
+    clearRetryTimer();
+    state.retryTimer = window.setTimeout(() => {
+      state.retryTimer = 0;
+      void retryPendingUpload({ immediate: false });
+    }, Math.max(5000, delayMs));
+  }
+
+  async function retryPendingUpload({ immediate = false } = {}) {
+    if (!state.pending || state.busy) return;
+    if (immediate) clearRetryTimer();
+    await attemptPendingUpload();
   }
 
   function fileExtension(file) {
@@ -111,7 +160,7 @@
   async function screenPhoto(file) {
     if (!window.AriCircleProfileSafety?.screen) {
       try {
-        await import("./profile-safety.js?v=1.1.0");
+        await import("./profile-safety.js?v=1.2.0");
       } catch {}
     }
     if (!window.AriCircleProfileSafety?.screen) {
@@ -211,35 +260,55 @@
     if (!file || !position) return;
 
     if (!clean(file.type).startsWith("image/")) {
-      status("Choose an image.");
+      status("Choose an image.", { tone: "error" });
       return;
     }
     if (file.size > MAX_BYTES) {
-      status("Profile photos can be up to 8 MB.");
+      status("Profile photos can be up to 8 MB.", { tone: "error" });
       return;
     }
 
-    state.busy = true;
-    status("Checking photo…");
-    let uploadedPath = "";
+    clearRetryTimer();
+    state.pending = {
+      file,
+      position,
+      safetyAttempts: 0
+    };
+    await attemptPendingUpload();
+  }
 
+  async function attemptPendingUpload() {
+    const pending = state.pending;
+    if (!pending || state.busy) return;
+
+    state.busy = true;
+    pending.safetyAttempts += 1;
+    status(
+      pending.safetyAttempts > 1
+        ? `Safety check is busy. Retrying photo… (${pending.safetyAttempts}/4)`
+        : "Checking photo…",
+      { tone: "progress" }
+    );
+
+    let uploadedPath = "";
     try {
-      await screenPhoto(file);
-      const ext = fileExtension(file);
+      await screenPhoto(pending.file);
+
+      const ext = fileExtension(pending.file);
       uploadedPath = `${state.viewer.id}/profile-gallery/${crypto.randomUUID()}.${ext}`;
 
-      status("Uploading photo…");
+      status("Uploading photo…", { tone: "progress" });
       const { error: uploadError } = await state.client.storage
         .from(BUCKET)
-        .upload(uploadedPath, file, {
+        .upload(uploadedPath, pending.file, {
           cacheControl: "3600",
-          contentType: file.type || "image/jpeg",
+          contentType: pending.file.type || "image/jpeg",
           upsert: false
         });
       if (uploadError) throw uploadError;
 
       const result = await rpc("ari_circle_profile_photo_set", {
-        requested_position: position,
+        requested_position: pending.position,
         requested_media_path: uploadedPath
       });
 
@@ -248,13 +317,37 @@
         state.client.storage.from(BUCKET).remove([replaced]).catch(() => {});
       }
 
-      status("");
+      state.pending = null;
+      clearRetryTimer();
+      status("Photo added.", { tone: "success" });
       await load();
+      window.setTimeout(() => {
+        if (!state.pending) status("");
+      }, 1800);
     } catch (error) {
       if (uploadedPath) {
         state.client.storage.from(BUCKET).remove([uploadedPath]).catch(() => {});
       }
-      status(error.message || "Could not update that photo.");
+
+      if (isTransientSafetyFailure(error) && pending.safetyAttempts < 4) {
+        const delayMs = [0, 8000, 20000, 45000][pending.safetyAttempts] || 45000;
+        status(
+          "The photo safety service is temporarily busy. Your photo is still selected and will retry automatically.",
+          { tone: "warning", retry: true }
+        );
+        scheduleRetry(delayMs);
+      } else if (isTransientSafetyFailure(error)) {
+        status(
+          "The photo safety service is still busy. Your photo has not been published. Tap Try again without reselecting it.",
+          { tone: "error", retry: true }
+        );
+      } else if (clean(error?.code).toUpperCase() === "ARI_CONTENT_BLOCKED") {
+        state.pending = null;
+        clearRetryTimer();
+        status(error.message || "That photo can’t be shared in ARI Circle.", { tone: "error" });
+      } else {
+        status(error.message || "Could not update that photo.", { tone: "error", retry: true });
+      }
     } finally {
       state.busy = false;
     }
@@ -263,7 +356,7 @@
   async function removePhoto(position) {
     if (!state.owner || state.busy || !position) return;
     state.busy = true;
-    status("Removing photo…");
+    status("Removing photo…", { tone: "progress" });
     try {
       const result = await rpc("ari_circle_profile_photo_remove", {
         requested_position: position
@@ -273,7 +366,7 @@
       status("");
       await load();
     } catch (error) {
-      status(error.message || "Could not remove that photo.");
+      status(error.message || "Could not remove that photo.", { tone: "error" });
     } finally {
       state.busy = false;
     }
