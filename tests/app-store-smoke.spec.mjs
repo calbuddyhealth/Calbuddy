@@ -352,7 +352,7 @@ test.describe("ARI XP App Store browser smoke", () => {
     await expect(page.locator("#publishPostButton")).toHaveCount(1);
     await expect(page.locator('script[src*="js/ari-circle/content-moderation.js"]')).toHaveCount(1);
     await expect(page.locator('a.feed-brand[href="ari-circle-feed.html"]')).toHaveCount(1);
-    await expect(page.locator('script[src*="js/ari-circle/v5-real-world.js?v=5.4.0"]')).toHaveCount(1);
+    await expect(page.locator('script[src*="js/ari-circle/v5-real-world.js?v=5.4.1"]')).toHaveCount(1);
     await expect(page.locator('#feedPostBody')).toHaveCount(1);
     await expect(page.locator('#feedMediaButton')).toHaveCount(0);
 
