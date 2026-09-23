@@ -21,10 +21,10 @@ assert.doesNotMatch(runtime, /AriVNextMealPlanAdapter/, "runtime must not wait o
 assert.match(runtime, /AriVNextContextGuard\?\.ready === true/, "runtime must wait for canonical context guard readiness");
 assert.match(runtime, /ari-vnext-initiative\.js\?v=1\.2\.1/, "runtime must cache-bust the simplified initiative loader");
 
-assert.match(router, /ari-runtime-controller\.js\?v=1\.3\.14/, "shared Home/Nutrition router must boot the simplified unified runtime controller");
-assert.doesNotMatch(router, /appendOrderedScript\([\s\S]{0,120}ari-vnext-context-guard\.js/, "router should not independently race the runtime controller for vNext brain dependencies");
+assert.match(router, /ari-runtime-controller\.js\?v=1\.4\.0/, "legacy cached router path may only bootstrap the canonical vNext runtime");
+assert.doesNotMatch(router, /CalBuddy\.askAri\s*=/, "legacy router must never wrap the canonical runtime");
 assert.doesNotMatch(router, /ari-meal-plan-action-v2|ari-meal-plan-goal-guard/, "router must not load legacy Meal Plan services");
-assert.match(auth, /ari-central-intent-router\.js\?v=1\.5\.8/, "auth bootstrap must request the simplified shared router version");
+assert.doesNotMatch(auth, /ari-central-intent-router\.js/, "auth must not bootstrap a second semantic router");
 assert.match(auth, /ari-nutrition-action-ui\.js\?v=1\.3\.0/, "auth bootstrap must cache-bust the simplified nutrition action UI");
 
 assert.match(contextGuard, /window\.AriVNextContextGuard =/, "context guard must expose readiness state");
