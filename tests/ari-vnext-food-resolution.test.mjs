@@ -230,3 +230,31 @@ test("default vNext meal resolution uses canonical banana serving macros before 
   assert.match(result.arguments.notes, /canonical food registry/i);
   assert.match(result.servingResolution, /registry_serving/i);
 });
+
+
+test("canonical food resolution handles one slice of pepperoni pizza without asking for unnecessary detail", async () => {
+  const result = await resolveMealNutritionFromFoodSearch({
+    arguments: {
+      name: "Pepperoni Pizza",
+      quantity: 1,
+      unit: "slice",
+      servingSize: "1 slice",
+      mealCategory: "Meal",
+      calories: 0,
+      proteinG: 0,
+      carbsG: 0,
+      fatG: 0,
+      notes: "Estimated by model."
+    },
+    message: "I had a slice of pepperoni pizza. Log that."
+  });
+
+  assert.equal(result.resolved, true);
+  assert.equal(result.source, "ari_canonical_food_registry");
+  assert.equal(result.match.id, "prepared-pepperoni-pizza-slice");
+  assert.equal(result.arguments.calories, 300);
+  assert.equal(result.arguments.proteinG, 13);
+  assert.equal(result.arguments.carbsG, 34);
+  assert.equal(result.arguments.fatG, 13);
+  assert.match(result.servingResolution, /registry_(?:serving|unit)/i);
+});
