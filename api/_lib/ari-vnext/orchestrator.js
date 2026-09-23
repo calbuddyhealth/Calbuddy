@@ -274,7 +274,7 @@ export async function runAriVNext(turn = {}) {
     ? await reviewExplicitApplicationIntent({ turn, route, tools })
     : null;
 
-  const reviewConfidence = Number(semanticActionReview?.confidence || 0);  const reviewConfidence = Number(semanticActionReview?.confidence || 0);
+  const reviewConfidence = Number(semanticActionReview?.confidence || 0);
   const reviewedDecision = String(semanticActionReview?.decision || "");
   const reviewedToolName =
     reviewConfidence >= 0.84 && functionNames.has(reviewedDecision)
