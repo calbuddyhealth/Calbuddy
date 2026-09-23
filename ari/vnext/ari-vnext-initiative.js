@@ -7,8 +7,8 @@ window.Ari = window.Ari || {};
 (() => {
   "use strict";
 
-  const VERSION = "1.2.0";
-  const OPERATION_REGISTRY_SRC = "ari/vnext/ari-vnext-operation-registry.js?v=1.8.0";
+  const VERSION = "1.2.1";
+  const OPERATION_REGISTRY_SRC = "ari/vnext/ari-vnext-operation-registry.js?v=1.9.0";
 
   function registryReady() {
     return window.AriVNextOperationRegistry?.ready === true;

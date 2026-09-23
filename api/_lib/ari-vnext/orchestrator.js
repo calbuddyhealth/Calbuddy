@@ -274,56 +274,6 @@ export async function runAriVNext(turn = {}) {
     ? await reviewExplicitApplicationIntent({ turn, route, tools })
     : null;
 
-  if (
-    semanticActionReview?.decision === "blocked_future_meal_plan" &&
-    Number(semanticActionReview?.confidence || 0) >= 0.78
-  ) {
-    return productBoundaryResult({
-      reply: "Meal Plan only tracks today, so I won't create or schedule a future Meal Plan. When that day arrives, I can build it from your current calorie goal and what you've actually eaten.",
-      source: "ari_vnext_product_boundary",
-      first,
-      semanticActionReview,
-      route,
-      safety,
-      communication,
-      selfModel,
-      relationshipContinuity,
-      goalHierarchy,
-      metacognition,
-      scientificIntelligence,
-      experimentReviewState,
-      temporalContext,
-      modelPolicy,
-      coachingState,
-      longitudinalState
-    });
-  }
-
-  if (
-    semanticActionReview?.decision === "blocked_missing_daily_goal" &&
-    Number(semanticActionReview?.confidence || 0) >= 0.78
-  ) {
-    return productBoundaryResult({
-      reply: "Your Daily Calorie Goal isn't set, so I won't invent a calorie budget. Set the goal in Goals or give me an explicit calorie target, and I can build today's Meal Plan from that.",
-      source: "ari_vnext_product_boundary",
-      first,
-      semanticActionReview,
-      route,
-      safety,
-      communication,
-      selfModel,
-      relationshipContinuity,
-      goalHierarchy,
-      metacognition,
-      scientificIntelligence,
-      experimentReviewState,
-      temporalContext,
-      modelPolicy,
-      coachingState,
-      longitudinalState
-    });
-  }
-
   const reviewConfidence = Number(semanticActionReview?.confidence || 0);
   const reviewedDecision = String(semanticActionReview?.decision || "");
   const reviewedToolName =
@@ -1289,7 +1239,7 @@ function buildInstructions({
   }
 
   sections.push(
-    "\nARI XP PRODUCT BOUNDARIES\nMeal Plan is strictly today-only. Never generate, schedule, or imply support for a future Meal Plan. If the user asks for tomorrow or another future day, state that Meal Plan only tracks today. Planned food is not consumed food. Calories burned do not increase the Nutrition food allowance unless the product contract explicitly changes. Never invent a missing Daily Calorie Goal.",
+    "\nARI XP PRODUCT BOUNDARIES\nCalories burned do not increase the Nutrition food allowance unless the product contract explicitly changes. Never invent a missing Daily Calorie Goal. Meal planning is advisory conversation only; Ari does not create or schedule Meal Plan application state.",
     "\nDATA FIDELITY\nFor any proposed write, preserve every explicit quantity and named item from the CURRENT user request. Do not silently drop components. If a user asks to log multiple foods as one meal, the single meal record must represent all of those foods with combined nutrition and clear serving details.",
     "\nRELEVANT ARI XP CONTEXT\nUse only what is relevant to the current question. Treat missing fields as unknown.\n" + contextToText(relevantContext),
     "\nREQUEST INTERPRETATION\nInterpret the CURRENT user message semantically before deciding whether it is conversation, a question, contextual information, or a request to change application state. Do not require magic keywords or exact feature names. Natural phrasing, references, and paraphrases count when the current message makes the requested operation clear. Separate understanding from execution: first determine what the user is asking for, then use the matching application function when one exists. Trusted code will validate, persist, confirm, and execute the proposal. If essential details are genuinely missing, ask one concise clarification instead of guessing. Never expose hidden chain-of-thought; only the selected action or clarification is externally observable.",
@@ -1674,49 +1624,5 @@ function providerSummary(data = {}) {
     id: data?.id || null,
     model: data?.model || null,
     usage: data?.usage || null
-  };
-}
-
-function productBoundaryResult({
-  reply,
-  source,
-  first,
-  semanticActionReview,
-  route,
-  safety,
-  communication,
-  selfModel,
-  relationshipContinuity,
-  goalHierarchy,
-  metacognition,
-  scientificIntelligence,
-  experimentReviewState,
-  temporalContext,
-  modelPolicy,
-  coachingState,
-  longitudinalState
-} = {}) {
-  return {
-    success: true,
-    ready: true,
-    reply,
-    route,
-    safety,
-    communication,
-    selfModel,
-    relationshipContinuity,
-    goalHierarchy,
-    metacognition,
-    scientificIntelligence,
-    experimentReviewState,
-    temporalContext,
-    modelPolicy,
-    coachingState,
-    longitudinalState,
-    pendingAction: null,
-    action: null,
-    provider: providerSummary(first),
-    semanticActionReview: publicActionReview(semanticActionReview),
-    source
   };
 }

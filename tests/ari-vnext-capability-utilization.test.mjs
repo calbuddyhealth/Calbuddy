@@ -27,7 +27,7 @@ function capabilityNames() {
 
 test("every advertised Ari application tool maps to a concrete application action", () => {
   const names = capabilityNames();
-  assert.equal(names.length, 25);
+  assert.equal(names.length, 23);
 
   for (const name of names) {
     const action = toolToApplicationAction(name);
@@ -63,8 +63,8 @@ test("runtime readiness guarantees optional executor layers instead of merely ad
   assert.match(contextGuard, /AriVNextCircleActionAdapter\?\.ready === true/);
   assert.match(contextGuard, /ari-vnext-circle-action-adapter\.js\?v=1\.1\.1/);
 
-  assert.match(runtime, /ari-vnext-initiative\.js\?v=1\.2\.0/);
-  assert.match(initiative, /ari-vnext-operation-registry\.js\?v=1\.8\.0/);
+  assert.match(runtime, /ari-vnext-initiative\.js\?v=1\.2\.1/);
+  assert.match(initiative, /ari-vnext-operation-registry\.js\?v=1\.9\.0/);
   assert.match(initiative, /window\.AriVNextInitiative = createClient\(\)/);
   assert.match(initiative, /ensureRegistry\(\)/);
 });

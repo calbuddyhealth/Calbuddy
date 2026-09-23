@@ -10,13 +10,11 @@ import {
   toolToApplicationAction as coreToolToApplicationAction
 } from "./tools-core.js";
 
-export const TOOL_REGISTRY_VERSION = "1.16.0";
+export const TOOL_REGISTRY_VERSION = "1.17.0";
 export const CORE_TOOL_REGISTRY_VERSION = CORE_REGISTRY_VERSION;
 
 const SEMANTIC_HEALTH_TOOL_NAMES = new Set([
   "propose_log_meal",
-  "propose_today_meal_plan",
-  "propose_log_planned_meal",
   "propose_log_activity",
   "propose_workout_plan",
   "propose_edit_workout",

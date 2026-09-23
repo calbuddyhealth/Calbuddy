@@ -201,7 +201,7 @@ test("registry owns log_activity while preserving the canonical Training prepare
   const harness = makeHarness();
   const registry = harness.window.AriVNextOperationRegistry;
 
-  assert.equal(registry.version, "1.8.0");
+  assert.equal(registry.version, "1.9.0");
   assert.equal(registry.hasOperation("log_activity"), true);
 
   const pending = makeActivityPending();

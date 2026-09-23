@@ -1,7 +1,7 @@
 // =====================================================
 // ARI EXPERIENCE
 // File: ari/actions/ari-nutrition-action-ui.js
-// Version: 1.2.0
+// Version: 1.3.0
 // Purpose:
 //   Nutrition-page presentation for nutrition-only CalBuddy pending actions.
 //   Training/activity/goal/developer actions are rejected on this surface.
@@ -11,13 +11,7 @@
   "use strict";
 
   const CARD_ID = "ariNutritionPendingAction";
-  const NUTRITION_ACTION_TYPES = new Set([
-    "log_meal",
-    "plan_meal",
-    "log_planned_meal",
-    "consume_meal_plan",
-    "consume_meal_plan_items"
-  ]);
+  const NUTRITION_ACTION_TYPES = new Set(["log_meal"]);
 
   const clean = (value = "") => String(value ?? "").trim();
 
@@ -75,22 +69,15 @@
   }
 
   function fallbackConfirmation(type) {
-    if (type === "log_meal" || type === "log_planned_meal") return "Log this meal?";
-    if (type === "plan_meal") return "Add this to today's Meal Plan?";
-    if (type === "consume_meal_plan" || type === "consume_meal_plan_items") return "Log this planned food as eaten?";
-    return "Apply this nutrition change?";
+    return type === "log_meal" ? "Log this meal?" : "Apply this nutrition change?";
   }
 
   function fallbackSuccess(type) {
-    if (type === "log_meal" || type === "log_planned_meal") return "Done — I logged that meal.";
-    if (type === "plan_meal") return "Done — I updated today's Meal Plan.";
-    return "Done — I updated Nutrition.";
+    return type === "log_meal" ? "Done — I logged that meal." : "Done — I updated Nutrition.";
   }
 
   function fallbackFailure(type) {
-    if (type === "log_meal" || type === "log_planned_meal") return "I couldn't log that meal. Try again.";
-    if (type === "plan_meal") return "I couldn't update that Meal Plan. Try again.";
-    return "I couldn't apply that nutrition change. Try again.";
+    return type === "log_meal" ? "I couldn't log that meal. Try again." : "I couldn't apply that nutrition change. Try again.";
   }
 
   function isNutritionAction(action) {

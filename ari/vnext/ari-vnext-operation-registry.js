@@ -8,10 +8,10 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.8.0";
+  const VERSION = "1.9.0";
   const SOURCE = "ari_vnext_operation_registry";
   const INSTALL_FLAG = "__ariOperationRegistryV1";
-  const OWNED_OPERATIONS = new Set(["log_meal", "log_weight", "log_activity", "update_goal", "log_planned_meal", "plan_meal", "plan_workout", "cancel_workout"]);
+  const OWNED_OPERATIONS = new Set(["log_meal", "log_weight", "log_activity", "update_goal", "plan_workout", "cancel_workout"]);
 
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
@@ -287,64 +287,6 @@
     };
   }
 
-  async function prepareLogPlannedMeal(pending = {}) {
-    if (!validPendingIdentity(pending)) {
-      return failure("invalid_pending_action", "The planned meal action is missing its turn-bound identity.");
-    }
-
-    const adapter = window.AriVNextActionAdapter;
-    const preparer = adapter?.prepareCalBuddyAction;
-    if (typeof preparer !== "function") {
-      return failure("meal_plan_preparer_unavailable", "The canonical Meal Plan preparer is unavailable.");
-    }
-
-    const prepared = await preparer.call(adapter, pending);
-    if (!prepared?.success || prepared?.action?.action_type !== "log_planned_meal") {
-      return failure(
-        prepared?.code || "planned_meal_prepare_failed",
-        prepared?.message || "That planned meal could not be prepared safely."
-      );
-    }
-
-    return {
-      ...prepared,
-      resolution: {
-        ...(prepared?.resolution || {}),
-        operation: "log_planned_meal",
-        source: SOURCE
-      }
-    };
-  }
-
-  async function preparePlanMeal(pending = {}) {
-    if (!validPendingIdentity(pending)) {
-      return failure("invalid_pending_action", "The Meal Plan action is missing its turn-bound identity.");
-    }
-
-    const adapter = window.AriVNextActionAdapter;
-    const preparer = adapter?.prepareCalBuddyAction;
-    if (typeof preparer !== "function") {
-      return failure("meal_plan_preparer_unavailable", "The canonical Meal Plan preparer is unavailable.");
-    }
-
-    const prepared = await preparer.call(adapter, pending);
-    if (!prepared?.success || prepared?.action?.action_type !== "plan_meal") {
-      return failure(
-        prepared?.code || "meal_plan_prepare_failed",
-        prepared?.message || "That Meal Plan could not be prepared safely."
-      );
-    }
-
-    return {
-      ...prepared,
-      resolution: {
-        ...(prepared?.resolution || {}),
-        operation: "plan_meal",
-        source: SOURCE
-      }
-    };
-  }
-
   async function preparePlanWorkout(pending = {}) {
     if (!validPendingIdentity(pending)) {
       return failure("invalid_pending_action", "The workout plan is missing its turn-bound identity.");
@@ -445,12 +387,6 @@
     if (name === "log_activity") {
       return failure("activity_requires_async_preparation", "Activity logging requires the canonical Training activity preparer.");
     }
-    if (name === "log_planned_meal") {
-      return failure("planned_meal_requires_async_preparation", "Planned meal logging requires the canonical Meal Plan preparer.");
-    }
-    if (name === "plan_meal") {
-      return failure("meal_plan_requires_async_preparation", "Meal Plan creation requires the canonical Meal Plan preparer.");
-    }
     if (name === "plan_workout") {
       return failure("workout_requires_async_preparation", "Workout planning requires the canonical Training workout preparer.");
     }
@@ -463,8 +399,6 @@
   async function prepareOperationAsync(pending = {}) {
     const name = clean(pending?.name, 120);
     if (name === "log_activity") return await prepareLogActivity(pending);
-    if (name === "log_planned_meal") return await prepareLogPlannedMeal(pending);
-    if (name === "plan_meal") return await preparePlanMeal(pending);
     if (name === "plan_workout") return await preparePlanWorkout(pending);
     if (name === "cancel_workout") return await prepareCancelWorkout(pending);
     return prepareOperation(pending);

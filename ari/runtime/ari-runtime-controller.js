@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.3.12
+// Version: 1.3.13
 // Purpose:
 //   Make Ari vNext the default Home + Nutrition intelligence runtime while
 //   preserving Rebirth as a deterministic emergency fallback during cutover.
@@ -16,7 +16,6 @@
 //   - Successful vNext confirmations clear both vNext and legacy pending mirrors.
 //   - vNext experiment actions keep their authenticated ledger lifecycle.
 //   - vNext manual activity logs use the shared Training activity writer.
-//   - vNext Meal Plan proposals use the trusted today-only Meal Plan adapter.
 //   - Initiative checks are deterministic and do not spend an LLM call.
 //   - ask() accepts both legacy object input and message/options input without
 //     ever stringifying the request object into "[object Object]".
@@ -35,7 +34,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.3.12";
+  const VERSION = "1.3.13";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
@@ -44,10 +43,9 @@
     "ari/vnext/ari-vnext-action-adapter.js?v=1.4.0",
     "js/training/ari-whole-workout-replacement.js?v=1.0.0",
     "ari/vnext/ari-vnext-activity-adapter.js?v=1.0.1",
-    "ari/vnext/ari-vnext-meal-plan-adapter.js?v=1.0.1",
     "ari/vnext/ari-vnext-bridge.js?v=1.10.0",
     "ari/vnext/ari-vnext-context-guard.js?v=1.2.2",
-    "ari/vnext/ari-vnext-initiative.js?v=1.2.0"
+    "ari/vnext/ari-vnext-initiative.js?v=1.2.1"
   ];
 
   const legacy = {
@@ -189,7 +187,6 @@
       return Boolean(window.AriVNextActionAdapter?.__ariWholeWorkoutReplacementV1);
     }
     if (base.endsWith("ari-vnext-activity-adapter.js")) return Boolean(window.AriVNextActivityAdapter);
-    if (base.endsWith("ari-vnext-meal-plan-adapter.js")) return window.AriVNextMealPlanAdapter?.ready === true;
     if (base.endsWith("ari-vnext-bridge.js")) {
       return typeof window.AriVNextBridge?.ask === "function" &&
         versionAtLeast(window.AriVNextBridge?.version, "1.10.0");
@@ -198,9 +195,9 @@
     if (base.endsWith("ari-vnext-initiative.js")) {
       return Boolean(
         window.AriVNextInitiative &&
-        versionAtLeast(window.AriVNextInitiative?.version, "1.2.0") &&
+        versionAtLeast(window.AriVNextInitiative?.version, "1.2.1") &&
         window.AriVNextOperationRegistry?.ready === true &&
-        versionAtLeast(window.AriVNextOperationRegistry?.version, "1.8.0")
+        versionAtLeast(window.AriVNextOperationRegistry?.version, "1.9.0")
       );
     }
     return true;
@@ -247,12 +244,11 @@
       window.AriVNextActionAdapter &&
       window.AriVNextActionAdapter.__ariWholeWorkoutReplacementV1 === true &&
       window.AriVNextActivityAdapter &&
-      window.AriVNextMealPlanAdapter?.ready === true &&
       window.AriVNextContextGuard?.ready === true &&
       window.AriVNextInitiative &&
-      versionAtLeast(window.AriVNextInitiative?.version, "1.2.0") &&
+      versionAtLeast(window.AriVNextInitiative?.version, "1.2.1") &&
       window.AriVNextOperationRegistry?.ready === true &&
-      versionAtLeast(window.AriVNextOperationRegistry?.version, "1.8.0")
+      versionAtLeast(window.AriVNextOperationRegistry?.version, "1.9.0")
     );
   }
 
