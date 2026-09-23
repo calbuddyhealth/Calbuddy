@@ -14,7 +14,7 @@ test("primary log_meal proposals bypass the semantic verifier through the shared
 });
 
 test("missed command-like requests still retain semantic verifier fallback", () => {
-  assert.match(orchestrator, /Boolean\(functionCall\) \|\| shouldReviewNoToolTurn\(turn\) \|\| actionContinuation\?\.active === true/);
+  assert.match(orchestrator, /actionContinuation\?\.active === true/);\n  assert.match(orchestrator, /shouldReviewNoToolTurn\(turn, actionContinuation\)/);
   assert.match(orchestrator, /reviewExplicitApplicationIntent\(\{ turn, route, tools \}\)/);
 });
 
