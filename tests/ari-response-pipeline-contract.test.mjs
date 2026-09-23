@@ -114,11 +114,11 @@ function bridgeSandbox(fetchImpl) {
 
 test("Home cache chain points at current quota-aware runtime and bridge assets", () => {
   assert.match(homeSource, /js\/auth\.js\?v=1\.10\.20/);
-  assert.match(homeSource, /js\/home-resilience\.js\?v=1\.5\.0/);
+  assert.match(homeSource, /js\/home-resilience\.js\?v=1\.6\.0/);
   assert.match(authSource, /account-isolation-guard\.js\?v=1\.0\.0/);
   assert.doesNotMatch(authSource, /ari-central-intent-router|ari-meal-action/);
-  assert.match(homeSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.5\.0/);
-  assert.match(runtimeSource, /const VERSION = "1\.5\.0"/);
+  assert.match(homeSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.6\.0/);
+  assert.match(runtimeSource, /const VERSION = "1\.6\.0"/);
   assert.match(runtimeSource, /ari-vnext-bridge\.js\?v=1\.10\.0/);
   assert.match(runtimeSource, /ari-vnext-context-guard\.js\?v=1\.2\.3/);
 });
@@ -185,7 +185,7 @@ test("bridge syncs quota timezone then forwards Home AbortSignal to /api/ari-vne
 
 test("Home loader is version-aware, dual-namespace aware, and bounded", () => {
   assert.match(resilienceSource, /window\.AriRuntime, window\.Ari\?\.Runtime/);
-  assert.match(resilienceSource, /REQUIRED_RUNTIME_VERSION\s*=\s*"1\.5\.0"/);
+  assert.match(resilienceSource, /REQUIRED_RUNTIME_VERSION\s*=\s*"1\.6\.0"/);
   assert.match(resilienceSource, /RUNTIME_LOAD_TIMEOUT_MS\s*=\s*5000/);
   assert.match(resilienceSource, /loadRuntimeController\(\{ signal \}\)/);
   assert.match(resilienceSource, /ARI_TURN_IN_PROGRESS/);
