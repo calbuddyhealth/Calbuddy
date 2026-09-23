@@ -42,11 +42,11 @@ test("vNext pending actions are discarded after expiry in the browser boundary",
   assert.match(bridge, /this\.clearPendingAction\(\)/);
 });
 
-test("expired vNext-linked legacy actions cannot execute through fallback confirmation", () => {
-  assert.match(runtime, /function isExpiredVNextLegacyPending/);
-  assert.match(runtime, /action\?\.vnext_expires_at/);
-  assert.match(runtime, /isExpiredVNextLegacyPending\(legacyPending\)/);
-  assert.match(runtime, /legacy\.cancelPendingAction\?\.\(\)/);
+test("legacy pending actions cannot execute and durable vNext actions still expire safely", () => {
+  assert.doesNotMatch(runtime, /legacy\.confirmPendingAction|legacy\.cancelPendingAction/);
+  assert.match(runtime, /storedPending\?\.vnext_pending_action/);
+  assert.match(runtime, /Date\.parse\(String\(pending\?\.expiresAt \|\| ""\)\)/);
+  assert.match(runtime, /That older pending change is no longer executable/);
   assert.match(runtime, /That pending change expired/);
 });
 
