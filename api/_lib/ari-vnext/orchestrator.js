@@ -1469,7 +1469,7 @@ function findFunctionCall(output = []) {
   return output.find((item) => item?.type === "function_call" && item?.name && item?.call_id) || null;
 }
 
-async function enrichMealFunctionCall({ functionCall = null, turn = {} } = {}) {
+export async function enrichMealFunctionCall({ functionCall = null, turn = {}, nutritionResolver = resolveMealNutritionFromFoodSearch } = {}) {
   if (String(functionCall?.name || "") !== "propose_log_meal") {
     return { functionCall, nutritionResolution: null };
   }
@@ -1493,9 +1493,11 @@ async function enrichMealFunctionCall({ functionCall = null, turn = {} } = {}) {
     ? markModelEstimateWhenNeeded(args, message)
     : args;
 
-  const resolution = await resolveMealNutritionFromFoodSearch({
+  const resolution = await nutritionResolver({
     arguments: modelArgs,
-    message
+    message,
+    canonicalOnly: modelNutritionComplete,
+    allowExternal: !modelNutritionComplete
   }).catch(() => null);
 
   if (modelNutritionComplete) {
@@ -1550,7 +1552,7 @@ async function enrichMealFunctionCall({ functionCall = null, turn = {} } = {}) {
   };
 }
 
-function hasCompleteMealNutrition(args = {}) {
+export function hasCompleteMealNutrition(args = {}) {
   const calories = Number(args?.calories);
   if (!Number.isFinite(calories) || calories <= 0 || calories > 10000) return false;
 
@@ -1561,7 +1563,7 @@ function hasCompleteMealNutrition(args = {}) {
   return true;
 }
 
-function markModelEstimateWhenNeeded(args = {}, message = "") {
+export function markModelEstimateWhenNeeded(args = {}, message = "") {
   const explicit = explicitNutritionFields(message);
   if (explicit.size >= 4) return { ...args };
 
