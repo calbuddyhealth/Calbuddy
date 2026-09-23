@@ -3,13 +3,13 @@ import { recordOpenAIUsage } from "../ai-provider-usage.js";
 // =====================================================
 // ARI XP
 // Internal handler formerly exposed as api/ari-intent-router.js
-// Version: 1.3.0
+// Version: 1.4.0
 // Purpose:
 //   OpenAI semantic intent router for legacy Ari surfaces.
 //   Public /api/ari-intent-router remains routed through secure-ai-gateway.
 // =====================================================
 
-const ROUTER_VERSION = "1.3.0";
+const ROUTER_VERSION = "1.4.0";
 
 const ROUTER_SCHEMA = {
   type: "object",
@@ -17,8 +17,8 @@ const ROUTER_SCHEMA = {
   properties: {
     domain: { type: "string", enum: ["conversation", "nutrition", "training", "health", "goals", "social", "developer", "navigation", "unknown"] },
     intent: { type: "string", enum: ["conversation", "question", "create", "log", "edit", "delete", "view", "navigate", "update", "clarify"] },
-    target: { type: "string", enum: ["none", "meal", "meal_plan", "recipe", "workout_plan", "workout_exercise", "weight", "profile", "calorie_goal", "goal", "social", "developer_task", "page", "unknown"] },
-    action: { type: "string", enum: ["none", "log_meal", "plan_meal", "log_planned_meal", "create_recipe", "plan_workout", "edit_workout", "delete_workout", "log_weight", "update_profile", "update_goal", "developer_action", "navigate"] },
+    target: { type: "string", enum: ["none", "meal", "recipe", "workout_plan", "workout_exercise", "weight", "profile", "calorie_goal", "goal", "social", "developer_task", "page", "unknown"] },
+    action: { type: "string", enum: ["none", "log_meal", "create_recipe", "plan_workout", "edit_workout", "delete_workout", "log_weight", "update_profile", "update_goal", "developer_action", "navigate"] },
     confidence: { type: "number", minimum: 0, maximum: 1 },
     requires_confirmation: { type: "boolean" },
     needs_clarification: { type: "boolean" },
@@ -82,80 +82,7 @@ function emptyEntities() {
   };
 }
 
-function extractMealSlot(text = "") {
-  if (/\bbreakfast\b/.test(text)) return "Breakfast";
-  if (/\blunch\b/.test(text)) return "Lunch";
-  if (/\b(?:dinner|supper)\b/.test(text)) return "Dinner";
-  if (/\bsnack\b/.test(text)) return "Snack";
-  return "";
-}
-
-function extractMealDateText(text = "") {
-  if (/\btoday\b/.test(text) || /\bremaining daily calories?\b/.test(text) || /\bcalories? (?:remaining|left)\b/.test(text)) return "today";
-  if (/\btomorrow\b/.test(text)) return "tomorrow";
-
-  const weekday = text.match(/\b(?:(?:next|this)\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i);
-  if (weekday) return weekday[0];
-
-  const iso = text.match(/\b20\d{2}-\d{1,2}-\d{1,2}\b/);
-  return iso ? iso[0] : "";
-}
-
-function extractExplicitMealCalorieTarget(text = "", slot = "") {
-  const slotWord = slot ? slot.toLowerCase() : "";
-
-  if (slotWord) {
-    const beforeSlot = text.match(new RegExp(`\\b(\\d{2,4})\\s*(?:calorie|calories|kcal)\\s+${slotWord}\\b`, "i"));
-    if (beforeSlot) return Number(beforeSlot[1]);
-
-    const afterSlot = text.match(new RegExp(`\\b${slotWord}\\b.{0,28}?\\b(\\d{2,4})\\s*(?:calorie|calories|kcal)\\b`, "i"));
-    if (afterSlot) return Number(afterSlot[1]);
-  }
-
-  if (!/\b(?:remaining|left|budget|balance|daily calorie goal|daily calories?)\b/i.test(text)) {
-    const wholeDay = text.match(/\b(?:meal\s*plan|plan\s+(?:my\s+)?meals?).{0,30}?\b(\d{3,4})\s*(?:calorie|calories|kcal)\b/i);
-    if (wholeDay) return Number(wholeDay[1]);
-  }
-
-  return null;
-}
-
-function deterministicMealPlanDecision(message = "") {
-  const text = String(message || "").trim().toLowerCase();
-  if (!text) return null;
-
-  const explicitPlanRequest =
-    /\bmeal\s*plan\b/.test(text) ||
-    /\bplan\s+(?:my\s+|the\s+|our\s+)?meals?\b/.test(text) ||
-    /\bplan\s+(?:the\s+)?rest\s+of\s+(?:my\s+)?(?:day|today)\b/.test(text);
-
-  if (!explicitPlanRequest) return null;
-  if (/\b(?:log|ate|eaten)\b/.test(text) && /\b(?:planned|meal\s*plan)\b/.test(text)) return null;
-
-  const slot = extractMealSlot(text);
-  const dateText = extractMealDateText(text);
-  const calorieTarget = extractExplicitMealCalorieTarget(text, slot);
-
-  return {
-    domain: "nutrition",
-    intent: "create",
-    target: "meal_plan",
-    action: "plan_meal",
-    confidence: 0.99,
-    requires_confirmation: true,
-    needs_clarification: false,
-    clarification_question: "",
-    reason: "Explicit Meal Plan request. Calorie budget, remaining calories, and Daily Calorie Goal are application context and do not require the user to restate them.",
-    entities: {
-      ...emptyEntities(),
-      meal_category: slot,
-      meal_date_text: dateText,
-      calorie_target: calorieTarget
-    }
-  };
-}
-
-export default async function handler(req, res) {
+export default async function handler(req, res) {export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   if (!process.env.OPENAI_API_KEY) return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
 
@@ -163,16 +90,7 @@ export default async function handler(req, res) {
   const appContext = req.body?.appContext && typeof req.body.appContext === "object" ? req.body.appContext : {};
   if (!message) return res.status(400).json({ error: "Message is required" });
 
-  const deterministicDecision = deterministicMealPlanDecision(message);
-  if (deterministicDecision) {
-    return res.status(200).json({
-      routerVersion: ROUTER_VERSION,
-      routeSource: "deterministic_meal_plan",
-      decision: deterministicDecision
-    });
-  }
-
-  const system = `
+  const system = `  const system = `
 You are ARI XP's CENTRAL INTENT ROUTER.
 Your only job is to interpret the CURRENT user message into the supplied schema.
 Do not answer the user. Do not execute anything. Do not claim anything was saved.
@@ -183,12 +101,8 @@ CRITICAL RULES:
 - A clear first-person consumption statement such as "I ate an egg roll", "I had chicken and rice", or "I drank two beers" routes to nutrition / log / meal / log_meal. The app will still require confirmation before saving.
 - "Log an egg roll", "add an egg roll", "record 2 beers", and "I ate an egg roll, log it" are also nutrition log_meal actions.
 - "How many calories are in an egg roll?" is a nutrition question with action="none".
-- A request to create food for a FUTURE meal or day using phrases such as "meal plan", "plan my meals", "make me a 500 calorie lunch", or "plan the rest of today" routes to nutrition / create / meal_plan / plan_meal.
-- An explicit Meal Plan request that says "within my calorie budget", "based on my remaining calories", "based on my daily calorie goal/intake", or equivalent MUST NOT ask the user for a calorie number. The Meal Plan action reads the app's Daily Calorie Goal and today's consumed calories itself. Route directly to plan_meal with calorie_target=null unless the user explicitly gives a target for the new meal/plan.
-- "Make me a 500 calorie lunch" => nutrition / create / meal_plan / plan_meal, meal_category="Lunch", calorie_target=500.
-- "Make me a meal plan for today" => nutrition / create / meal_plan / plan_meal, meal_date_text="today".
-- If the user refers to a planned slot instead of naming foods, such as "log that I ate today's breakfast" or "I ate my planned lunch", route to nutrition / log / meal_plan / log_planned_meal. Preserve meal_category and meal_date_text.
-- Recipe/cooking requests that emphasize a dish, cooking instructions, delicious/tasty food, "recipe", taco night, pasta dinner, salmon dinner, carne asada, etc. route to nutrition / create / recipe / create_recipe unless the user explicitly asks for a meal plan instead.
+- Meal planning is advisory conversation only. Requests such as "make me a meal plan", "plan my meals tomorrow", or "make me a 500 calorie lunch" stay nutrition questions with action="none"; never create or schedule Meal Plan application state.
+- Recipe/cooking requests that emphasize a dish, cooking instructions, delicious/tasty food, "recipe", taco night, pasta dinner, salmon dinner, carne asada, etc. route to nutrition / create / recipe / create_recipe.
 - If a recipe request explicitly includes a meal slot and day, preserve both so the recipe can be scheduled after confirmation. Example: "Give me a tasty salmon dinner Tuesday" => create_recipe with meal_category="Dinner" and meal_date_text="Tuesday".
 - "How do I cook salmon?" can remain a nutrition question with action="none" unless the user asks Ari to create/save a reusable recipe.
 - Workout creation/editing must route to training, never nutrition, even if the user says "log" colloquially.
