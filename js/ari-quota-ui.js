@@ -1,4 +1,4 @@
-// ARI XP — Home composer daily question quota UI v1.0.1
+// ARI XP — Home composer daily question quota UI v1.0.2
 (() => {
   "use strict";
 
@@ -11,6 +11,9 @@
   let quota = null;
   let detailTimer = null;
   let enforcingButtonState = false;
+  const defaultPlaceholder = input.getAttribute("placeholder") || "What are you working on?";
+  const CONFIRM_RE = /^(?:(?:yes|yep|yeah)(?:[,\s]+(?:please|(?:log|save|add|do) it))?|(?:i )?confirm(?:ed| it| that)?|do it|go ahead|save it|log it|add it|make it|update it|that's right|correct)[.!\s]*$/i;
+  const CANCEL_RE = /^(?:no|nope|(?:please )?cancel(?: it| that| this)?|never mind|nevermind|(?:don't|do not)(?: (?:log|save|add|do) (?:it|that|this))?|stop)[.!\s]*$/i;
 
   function finite(value) {
     const number = Number(value);
@@ -31,19 +34,49 @@
     if (text) detailTimer = setTimeout(() => { detail.hidden = true; }, 3200);
   }
 
+  function currentPendingAction() {
+    return (
+      window.CalBuddy?.getPendingAction?.() ||
+      window.AriVNextBridge?.getPendingAction?.() ||
+      null
+    );
+  }
+
+  function isPendingResolutionText(value = input.value) {
+    const text = String(value || "").replace(/’/g, "'").trim();
+    return Boolean(currentPendingAction() && (CONFIRM_RE.test(text) || CANCEL_RE.test(text)));
+  }
+
+  function refreshComposerPresentation() {
+    if (!isExhausted()) {
+      input.placeholder = defaultPlaceholder;
+      return;
+    }
+    input.placeholder = currentPendingAction()
+      ? "Daily limit reached — use YES/CANCEL above"
+      : "Daily limit reached — resets at midnight";
+  }
+
   function enforceSendState() {
     if (enforcingButtonState || send.classList.contains("ari-stop-btn")) return;
     enforcingButtonState = true;
     try {
-      if (isExhausted()) {
-        send.dataset.ariQuotaDisabled = "true";
-        send.disabled = true;
-        send.setAttribute("aria-disabled", "true");
+      const allowPendingResolution = isExhausted() && isPendingResolutionText();
+      const shouldDisable = isExhausted() && !allowPendingResolution;
+
+      if (shouldDisable) {
+        if (send.dataset.ariQuotaDisabled !== "true") {
+          send.dataset.ariQuotaDisabled = "true";
+          send.disabled = true;
+          send.setAttribute("aria-disabled", "true");
+        }
       } else if (send.dataset.ariQuotaDisabled === "true") {
         send.disabled = false;
         send.removeAttribute("aria-disabled");
         delete send.dataset.ariQuotaDisabled;
       }
+
+      refreshComposerPresentation();
     } finally {
       enforcingButtonState = false;
     }
@@ -127,10 +160,12 @@
     attributeFilter: ["class", "disabled"]
   });
 
-  // Disabled buttons block taps, but Home also supports Enter-to-send directly
-  // from the textarea. Block that keyboard path when the daily quota is empty.
+  // At zero quota, a brand-new AI question is blocked. Resolving an already
+  // prepared action is different: YES/CANCEL is local and must remain free.
+  input.addEventListener("input", enforceSendState);
   input.addEventListener("keydown", (event) => {
     if (!isExhausted() || event.key !== "Enter" || event.shiftKey) return;
+    if (isPendingResolutionText()) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     const limit = finite(quota?.dailyLimit) || 10;
@@ -138,6 +173,14 @@
   }, true);
 
   window.addEventListener("ari:dailyQuota", (event) => applyQuota(event?.detail?.quota));
+  for (const eventName of [
+    "calbuddy:pendingAction",
+    "ari:vnextPendingAction",
+    "calbuddy:pendingActionCleared",
+    "ari:vnextPendingActionCleared"
+  ]) {
+    window.addEventListener(eventName, () => queueMicrotask(enforceSendState));
+  }
 
   // Supabase config loads before this file, but auth restoration can finish a
   // moment later on mobile Safari. Load now and once more after auth settles.
