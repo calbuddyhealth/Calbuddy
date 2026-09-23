@@ -51,12 +51,33 @@ function makeHarness({ executeSuccess = true } = {}) {
   let bridgePending = makePending();
   let legacyPending = null;
   const executed = [];
+  const createCalls = [];
+  const claims = [];
+  const receipts = [];
+  const failures = [];
   let fallbackCreates = 0;
   let fallbackExecutes = 0;
 
   const CalBuddy = {
-    async createPendingAction(action) {
-      return { id: "legacy-pending", ...action };
+    async createPendingAction(action = {}) {
+      createCalls.push(structuredClone(action));
+      if (!action.vnext_action_id || !action.source_turn_id) {
+        return {
+          ...action,
+          id: "invalid-legacy-row",
+          _ledger_persisted: false,
+          _ledger_error: "missing_vnext_identity"
+        };
+      }
+      const stored = {
+        ...action,
+        id: `ledger-${action.vnext_action_id}`,
+        user_id: "user-1",
+        status: "pending",
+        _ledger_persisted: true
+      };
+      legacyPending = stored;
+      return stored;
     },
     setPendingAction(action) {
       legacyPending = action;
@@ -66,6 +87,32 @@ function makeHarness({ executeSuccess = true } = {}) {
     },
     clearPendingAction() {
       legacyPending = null;
+    },
+    async beginPendingActionExecution(action) {
+      claims.push(structuredClone(action));
+      if (action?.status === "completed") {
+        return { success: true, durable: true, alreadyCompleted: true, action, result: action.result || {} };
+      }
+      const executing = { ...action, status: "executing", _ledger_persisted: true };
+      legacyPending = executing;
+      return { success: true, durable: true, action: executing };
+    },
+    async completePendingAction(action, result = {}, options = {}) {
+      receipts.push({ action: structuredClone(action), result: structuredClone(result), options: structuredClone(options) });
+      const completed = { ...action, status: "completed", result, _ledger_persisted: true };
+      return { success: true, durable: true, action: completed, result };
+    },
+    async failPendingAction(action, failure = {}) {
+      failures.push({ action: structuredClone(action), failure: structuredClone(failure) });
+      const failed = {
+        ...action,
+        status: "failed",
+        error_code: failure?.code || "execution_failed",
+        error_message: failure?.message || null,
+        _ledger_persisted: true
+      };
+      legacyPending = failed;
+      return { success: true, durable: true, action: failed };
     },
     async executeAction(action) {
       executed.push(action);
@@ -115,6 +162,7 @@ function makeHarness({ executeSuccess = true } = {}) {
         this.detail = init.detail;
       }
     },
+    structuredClone,
     Date,
     Number,
     String,
@@ -133,6 +181,10 @@ function makeHarness({ executeSuccess = true } = {}) {
     window,
     adapter,
     executed,
+    createCalls,
+    claims,
+    receipts,
+    failures,
     setBridgePending(value) {
       bridgePending = value;
     },
@@ -165,6 +217,10 @@ test("registry owns migrated logging operations while preserving fallback for un
   assert.equal(meal.action.payload.calories, 540);
   assert.equal(meal.action.payload.protein_g, 48);
   assert.equal(meal.action.vnext_action_id, "meal-action-1");
+  assert.equal(meal.action.id, "ledger-meal-action-1");
+  assert.equal(harness.createCalls[0].vnext_action_id, "meal-action-1");
+  assert.equal(harness.createCalls[0].source_turn_id, "turn-meal-action-1");
+  assert.equal(harness.createCalls[0].vnext_pending_action.id, "meal-action-1");
 
   const weight = await harness.adapter.createCalBuddyPendingAction(makeWeightPending());
   assert.equal(weight.success, true);
@@ -180,6 +236,21 @@ test("registry owns migrated logging operations while preserving fallback for un
     arguments: { dateText: "today", editType: "move" }
   });
   assert.equal(harness.fallbackCreates, 1);
+});
+
+test("registry never creates an orphan legacy row for a vNext meal proposal", async () => {
+  const harness = makeHarness();
+  const pending = makePending("single-row");
+
+  const result = await harness.adapter.createCalBuddyPendingAction(pending);
+
+  assert.equal(result.success, true);
+  assert.equal(harness.createCalls.length, 1);
+  assert.equal(harness.createCalls[0].vnext_action_id, "single-row");
+  assert.equal(harness.createCalls[0].source_turn_id, "turn-single-row");
+  assert.equal(harness.createCalls[0].vnext_pending_action.id, "single-row");
+  assert.equal(result.action.id, "ledger-single-row");
+  assert.equal(result.action.vnext_action_id, "single-row");
 });
 
 test("unresolved meal nutrition is rejected before a pending action is created", async () => {
@@ -239,6 +310,13 @@ test("successful meal execution writes once and clears only matching pending cop
   assert.equal(harness.executed[0].action_type, "log_meal");
   assert.equal(harness.executed[0].vnext_action_id, "meal-success");
   assert.equal(harness.executed[0].vnext_confirmation_turn_id, "confirm-turn");
+  assert.equal(harness.claims.length, 1);
+  assert.equal(harness.claims[0].id, "ledger-meal-success");
+  assert.equal(harness.claims[0].vnext_action_id, "meal-success");
+  assert.equal(harness.receipts.length, 1);
+  assert.equal(harness.receipts[0].action.id, "ledger-meal-success");
+  assert.equal(harness.receipts[0].action.status, "executing");
+  assert.equal(harness.receipts[0].options.confirmationTurnId, "confirm-turn");
   assert.equal(harness.bridgePending, null);
   assert.equal(harness.legacyPending, null);
   assert.equal(harness.fallbackExecutes, 0);
@@ -261,6 +339,9 @@ test("successful weight execution uses the registry lifecycle and keeps exact ac
   assert.equal(harness.executed[0].payload.weight, 185.6);
   assert.equal(harness.executed[0].vnext_action_id, "weight-success");
   assert.equal(harness.executed[0].vnext_confirmation_turn_id, "confirm-weight");
+  assert.equal(harness.claims.length, 1);
+  assert.equal(harness.receipts.length, 1);
+  assert.equal(harness.receipts[0].action.vnext_action_id, "weight-success");
   assert.equal(harness.bridgePending, null);
   assert.equal(harness.legacyPending, null);
   assert.equal(harness.fallbackExecutes, 0);
@@ -288,7 +369,15 @@ test("completed meal does not block a new meal with a new action identity", asyn
 
   assert.equal(mapped.success, true);
   assert.equal(mapped.action.vnext_action_id, "meal-second");
+  assert.equal(mapped.action.id, "ledger-meal-second");
   assert.equal(mapped.action.payload.name, "Banana");
+  assert.equal(harness.createCalls.length, 2);
+  assert.deepEqual(
+    harness.createCalls.map((call) => call.vnext_action_id),
+    ["meal-first", "meal-second"]
+  );
+  assert.equal(harness.receipts.length, 1);
+  assert.equal(harness.receipts[0].action.vnext_action_id, "meal-first");
   assert.equal(harness.executed.length, 1);
 });
 
@@ -302,7 +391,11 @@ test("failed execution preserves pending state inside the operation registry", a
 
     assert.equal(execution.success, false);
     assert.equal(harness.executed.length, 1);
+    assert.equal(harness.claims.length, 1);
+    assert.equal(harness.receipts.length, 0);
+    assert.equal(harness.failures.length, 1);
     assert.equal(harness.bridgePending.id, pending.id);
     assert.equal(harness.legacyPending.vnext_action_id, pending.id);
+    assert.equal(harness.legacyPending.status, "failed");
   }
 });
