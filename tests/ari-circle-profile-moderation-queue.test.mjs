@@ -43,9 +43,12 @@ test("queue consumer functions are service-role only", () => {
 test("controlled worker stops a batch on provider 429 and schedules queue retry", () => {
   assert.match(worker, /QUEUE_BATCH_DEFAULT = 8/);
   assert.match(worker, /SPACING_MS_DEFAULT = 750/);
+  assert.match(worker, /ari_circle_profile_moderation_worker_gate/);
   assert.match(worker, /ari_circle_profile_moderation_claim/);
   assert.match(worker, /ari_circle_profile_moderation_retry/);
   assert.match(worker, /ari_circle_profile_moderation_complete/);
+  assert.match(worker, /ari_circle_profile_moderation_provider_limited/);
+  assert.match(worker, /ari_circle_profile_moderation_provider_healthy/);
   assert.match(worker, /if \(Number\(error\?\.status\) === 429\)/);
   assert.match(worker, /summary\.stoppedForRateLimit = true/);
   assert.match(worker, /break;/);
@@ -60,4 +63,16 @@ test("worker remains cron-secret protected", () => {
     path: "/api/ari-circle-moderation-worker",
     schedule: "* * * * *"
   });
+});
+
+
+test("provider circuit breaker prevents every cron run from probing a known 429 window", () => {
+  assert.match(migration, /ari_circle_moderation_worker_state/);
+  assert.match(migration, /cooldown_until/);
+  assert.match(migration, /consecutive_429s/);
+  assert.match(migration, /ari_circle_profile_moderation_worker_gate/);
+  assert.match(migration, /ari_circle_profile_moderation_provider_limited/);
+  assert.match(migration, /ari_circle_profile_moderation_provider_healthy/);
+  assert.match(worker, /gate\?\.allowed === false/);
+  assert.match(worker, /skippedForProviderCooldown: true/);
 });
