@@ -976,7 +976,7 @@
         return;
       }
 
-      await Promise.all([refreshFeed(), loadMoments()]);
+      await refreshFeed();
     } catch (error) {
       console.error("ARI Circle feed failed to start:", error);
       $("feedLoading").innerHTML = `
