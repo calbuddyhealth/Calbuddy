@@ -17,6 +17,7 @@ test("Connect prioritizes people doing things over configuration", () => {
   assert.match(meetupHtml, /Find something to do\./);
   assert.match(meetupHtml, /HAPPENING NOW/);
   assert.match(meetupHtml, /TODAY/);
+  assert.match(meetupHtml, /TOMORROW/);
   assert.match(meetupHtml, /THIS WEEKEND/);
   assert.match(meetupHtml, /COMING UP/);
   assert.match(meetupHtml, /Anything/);
