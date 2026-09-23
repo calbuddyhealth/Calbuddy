@@ -22,7 +22,7 @@ revoke all on table public.ari_circle_profile_photos from public, anon, authenti
 grant select, insert, update, delete on table public.ari_circle_profile_photos to service_role;
 
 create or replace function public.ari_circle_profile_photos_list(requested_user_id uuid)
-returns table(position smallint, media_path text, updated_at timestamptz)
+returns table("position" smallint, media_path text, updated_at timestamptz)
 language plpgsql
 stable
 security definer
