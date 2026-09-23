@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — FEED POLISH
-   Version: 1.0.2
+   Version: 1.0.3
 
    - Cleaner composer copy
    - Inline recent comments without extra taps
@@ -11,7 +11,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.2";
+  const VERSION = "1.0.3";
   const STYLE_ID = "ari-circle-feed-polish-style";
 
   const state = {
@@ -66,10 +66,7 @@
 
   function simplifyComposer() {
     const title = $("composerTitle");
-    if (title && title.textContent.trim() !== "Share something") title.textContent = "Share something";
-
-    const helper = document.querySelector(".feed-composer__top p");
-    if (helper) helper.hidden = true;
+    if (title && title.textContent.trim() !== "Share an update") title.textContent = "Share an update";
 
     const textarea = $("feedPostBody");
     if (textarea && textarea.placeholder !== "What are you up to?") textarea.placeholder = "What are you up to?";
