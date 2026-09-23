@@ -1,7 +1,7 @@
 /* =====================================================
    ARI REBIRTH
    File: assets/css/ari-training.css
-   Version: 4.7.0
+   Version: 4.8.0
    Purpose:
      Premium futuristic ARI Training interface for:
      - date / calendar planning
@@ -1854,35 +1854,149 @@ svg {
 }
 
 .ari-training-exercise-preview-row {
+  -webkit-appearance:
+    none;
+
+  appearance:
+    none;
+
+  width:
+    100%;
+
+  min-height:
+    64px;
+
+  display:
+    grid;
+
+  grid-template-columns:
+    34px minmax(0, 1fr) auto;
+
+  align-items:
+    center;
+
+  gap:
+    11px;
+
   padding:
-    12px 13px;
+    10px 12px;
 
   border:
     1px solid
-    rgba(103, 227, 255, 0.10);
+    rgba(103, 227, 255, 0.16);
 
   border-radius:
     14px;
 
+  color:
+    inherit;
+
   background:
     rgba(255, 255, 255, 0.025);
+
+  text-align:
+    left;
+
+  cursor:
+    pointer;
+
+  touch-action:
+    manipulation;
+
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    background 150ms ease,
+    box-shadow 150ms ease;
 }
 
-.ari-training-exercise-preview-row strong,
-.ari-training-exercise-preview-row span {
+.ari-training-exercise-preview-row:hover {
+  border-color:
+    rgba(103, 227, 255, 0.34);
+}
+
+.ari-training-exercise-preview-row:active {
+  transform:
+    scale(0.988);
+}
+
+.ari-training-exercise-preview-row:disabled {
+  cursor:
+    default;
+
+  opacity:
+    0.58;
+}
+
+.ari-training-exercise-preview-row__index {
+  width:
+    32px;
+
+  height:
+    32px;
+
+  display:
+    grid;
+
+  place-items:
+    center;
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.24);
+
+  border-radius:
+    50%;
+
+  color:
+    var(--ari-training-cyan);
+
+  background:
+    rgba(103, 227, 255, 0.07);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    11px;
+
+  font-weight:
+    800;
+}
+
+.ari-training-exercise-preview-row__copy {
+  min-width:
+    0;
+
   display:
     block;
 }
 
-.ari-training-exercise-preview-row strong {
+.ari-training-exercise-preview-row__name,
+.ari-training-exercise-preview-row__prescription {
+  display:
+    block;
+}
+
+.ari-training-exercise-preview-row__name {
+  overflow:
+    hidden;
+
   color:
     var(--ari-training-white);
 
   font-size:
     14px;
+
+  text-overflow:
+    ellipsis;
+
+  white-space:
+    nowrap;
 }
 
-.ari-training-exercise-preview-row span {
+.ari-training-exercise-preview-row__prescription {
   margin-top:
     4px;
 
@@ -1891,6 +2005,46 @@ svg {
 
   font-size:
     12px;
+}
+
+.ari-training-exercise-preview-row__view {
+  display:
+    inline-flex;
+
+  align-items:
+    center;
+
+  gap:
+    4px;
+
+  color:
+    var(--ari-training-cyan);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    9px;
+
+  font-weight:
+    800;
+
+  letter-spacing:
+    0.04em;
+}
+
+.ari-training-exercise-preview-row__view span {
+  margin:
+    0;
+}
+
+.ari-training-exercise-preview-row__view svg {
+  width:
+    17px;
+
+  height:
+    17px;
 }
 
 
@@ -3399,6 +3553,178 @@ svg {
 
   cursor:
     pointer;
+}
+
+
+/* =====================================================
+   PLANNED EXERCISE DETAIL
+===================================================== */
+
+.ari-exercise-detail-dialog__surface {
+  padding-bottom:
+    22px;
+}
+
+.ari-exercise-detail-visuals {
+  display:
+    grid;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap:
+    10px;
+
+  margin:
+    4px 0 18px;
+}
+
+.ari-exercise-detail-figure,
+.ari-exercise-detail-placeholder {
+  min-width:
+    0;
+
+  margin:
+    0;
+
+  border:
+    1px solid
+    rgba(103, 227, 255, 0.14);
+
+  border-radius:
+    18px;
+
+  background:
+    rgba(255, 255, 255, 0.025);
+
+  overflow:
+    hidden;
+}
+
+.ari-exercise-detail-figure img {
+  width:
+    100%;
+
+  aspect-ratio:
+    1 / 1;
+
+  object-fit:
+    contain;
+
+  background:
+    rgba(5, 13, 21, 0.34);
+}
+
+.ari-exercise-detail-figure figcaption {
+  padding:
+    8px 10px;
+
+  color:
+    var(--ari-training-muted);
+
+  font-size:
+    10px;
+
+  font-weight:
+    800;
+
+  text-align:
+    center;
+
+  text-transform:
+    uppercase;
+
+  letter-spacing:
+    0.08em;
+}
+
+.ari-exercise-detail-placeholder {
+  grid-column:
+    1 / -1;
+
+  min-height:
+    150px;
+
+  display:
+    grid;
+
+  place-items:
+    center;
+
+  padding:
+    20px;
+
+  color:
+    var(--ari-training-muted);
+
+  font-size:
+    12px;
+
+  text-align:
+    center;
+}
+
+.ari-exercise-detail-section {
+  padding:
+    14px 0;
+
+  border-top:
+    1px solid
+    rgba(103, 227, 255, 0.10);
+}
+
+.ari-exercise-detail-section h3 {
+  margin:
+    0 0 9px;
+
+  color:
+    var(--ari-training-white);
+
+  font-family:
+    "Orbitron",
+    sans-serif;
+
+  font-size:
+    13px;
+}
+
+.ari-exercise-detail-section ol,
+.ari-exercise-detail-section ul {
+  margin:
+    0;
+
+  padding-left:
+    22px;
+
+  color:
+    var(--ari-training-soft);
+}
+
+.ari-exercise-detail-section li {
+  margin:
+    7px 0;
+
+  line-height:
+    1.55;
+}
+
+.ari-exercise-detail-copy {
+  margin:
+    0;
+
+  color:
+    var(--ari-training-soft);
+
+  font-size:
+    13px;
+
+  line-height:
+    1.55;
+}
+
+.ari-exercise-detail-copy p {
+  margin:
+    5px 0;
 }
 
 
@@ -5339,6 +5665,84 @@ body.ari-training-page::before {
 .ari-live-workout__stats strong {
   color:
     #071326;
+}
+
+.ari-training-exercise-preview-row {
+  color:
+    #071326;
+}
+
+.ari-training-exercise-preview-row:hover {
+  border-color:
+    rgba(40, 201, 232, 0.34);
+
+  background:
+    #f3fbff;
+
+  box-shadow:
+    0 8px 20px rgba(47, 84, 128, 0.08);
+}
+
+.ari-training-exercise-preview-row__index {
+  border-color:
+    rgba(63, 124, 255, 0.18);
+
+  color:
+    var(--ari-training-blue-deep);
+
+  background:
+    rgba(63, 124, 255, 0.06);
+}
+
+.ari-training-exercise-preview-row__prescription {
+  color:
+    #697b94;
+}
+
+.ari-training-exercise-preview-row__view {
+  color:
+    var(--ari-training-blue-deep);
+}
+
+.ari-exercise-detail-figure,
+.ari-exercise-detail-placeholder {
+  border-color:
+    rgba(69, 116, 168, 0.13);
+
+  background:
+    linear-gradient(
+      145deg,
+      #ffffff,
+      #f4f8fd
+    );
+}
+
+.ari-exercise-detail-figure img {
+  background:
+    #ffffff;
+}
+
+.ari-exercise-detail-figure figcaption,
+.ari-exercise-detail-placeholder {
+  color:
+    #697b94;
+}
+
+.ari-exercise-detail-section {
+  border-top-color:
+    rgba(67, 113, 164, 0.13);
+}
+
+.ari-exercise-detail-section h3 {
+  color:
+    #071326;
+}
+
+.ari-exercise-detail-section ol,
+.ari-exercise-detail-section ul,
+.ari-exercise-detail-copy {
+  color:
+    #40546f;
 }
 
 .ari-live-workout__progress {
