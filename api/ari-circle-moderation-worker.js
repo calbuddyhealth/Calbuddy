@@ -254,6 +254,16 @@ export default async function handler(req, res) {
   };
 
   try {
+    const gate = await supabaseRpc("ari_circle_profile_moderation_worker_gate", {});
+    if (gate?.allowed === false) {
+      return res.status(200).json({
+        ...summary,
+        skippedForProviderCooldown: true,
+        cooldownUntil: gate?.cooldown_until || null,
+        consecutive429s: Number(gate?.consecutive_429s) || 0
+      });
+    }
+
     const claimed = await supabaseRpc("ari_circle_profile_moderation_claim", {
       requested_limit: batchSize,
       requested_visibility_seconds: VISIBILITY_SECONDS
@@ -292,6 +302,20 @@ export default async function handler(req, res) {
 
         if (Number(error?.status) === 429) {
           summary.stoppedForRateLimit = true;
+          try {
+            const limited = await supabaseRpc("ari_circle_profile_moderation_provider_limited", {
+              requested_retry_seconds: retryIn || 60,
+              requested_error: clean(error?.message || error, 500)
+            });
+            summary.providerCooldownSeconds = Number(limited?.cooldown_seconds) || retryIn || 60;
+            summary.providerCooldownUntil = limited?.cooldown_until || null;
+          } catch (gateError) {
+            summary.failures.push({
+              photo_id: job?.photo_id || null,
+              stage: "provider_circuit_breaker",
+              error: clean(gateError?.message || gateError, 240)
+            });
+          }
           break;
         }
 
@@ -303,6 +327,17 @@ export default async function handler(req, res) {
       }
 
       if (index < jobs.length - 1) await sleep(spacingMs);
+    }
+
+    if ((summary.approved + summary.rejected) > 0 && !summary.stoppedForRateLimit) {
+      try {
+        await supabaseRpc("ari_circle_profile_moderation_provider_healthy", {});
+      } catch (healthError) {
+        summary.failures.push({
+          stage: "provider_health_reset",
+          error: clean(healthError?.message || healthError, 240)
+        });
+      }
     }
 
     console.info("[ARI Circle Moderation Worker Complete]", summary);
