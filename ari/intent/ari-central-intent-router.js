@@ -33,7 +33,7 @@
     document.head.appendChild(script);
   }
 
-  function loadVNextRuntime() {  function loadVNextRuntime() {
+  function loadVNextRuntime() {
     appendOrderedScript(
       VNEXT_RUNTIME_CONTROLLER_SCRIPT_ID,
       "ari/runtime/ari-runtime-controller.js?v=1.3.13"
