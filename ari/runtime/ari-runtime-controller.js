@@ -170,6 +170,13 @@
     return String(src || "").split("?")[0];
   }
 
+  function contextGuardReady() {
+    const guard = window.AriVNextContextGuard;
+    if (guard?.ready !== true) return false;
+    const version = clean(guard?.version);
+    return !version || versionAtLeast(version, "1.2.4");
+  }
+
   function dependencyReady(src = "") {
     const base = dependencyBase(src);
     if (base.endsWith("ari-vnext-training-context.js")) return Boolean(window.AriVNextTrainingContext);
@@ -181,7 +188,7 @@
       return typeof window.AriVNextBridge?.ask === "function" &&
         versionAtLeast(window.AriVNextBridge?.version, "1.10.0");
     }
-    if (base.endsWith("ari-vnext-context-guard.js")) return window.AriVNextContextGuard?.ready === true && versionAtLeast(window.AriVNextContextGuard?.version, "1.2.4");
+    if (base.endsWith("ari-vnext-context-guard.js")) return contextGuardReady();
     if (base.endsWith("ari-vnext-initiative.js")) {
       return Boolean(
         window.AriVNextInitiative &&
@@ -234,8 +241,7 @@
       window.AriVNextActionAdapter &&
       versionAtLeast(window.AriVNextActionAdapter?.version, "1.5.0") &&
       window.AriVNextActivityAdapter &&
-      window.AriVNextContextGuard?.ready === true &&
-      versionAtLeast(window.AriVNextContextGuard?.version, "1.2.4") &&
+      contextGuardReady() &&
       window.AriVNextInitiative &&
       versionAtLeast(window.AriVNextInitiative?.version, "1.2.1") &&
       window.AriVNextOperationRegistry?.ready === true &&
