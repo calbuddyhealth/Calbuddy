@@ -23,3 +23,14 @@
 .ari-circle-location-panel__form input,.ari-circle-location-panel__form select{min-height:40px;padding:0 10px;border:1px solid #d7e0eb;border-radius:11px;color:#17243c;background:#fff;font:750 .72rem Inter,sans-serif}
 .ari-circle-location-panel__form button{min-height:40px;padding:0 13px;border:0;border-radius:11px;color:#fff;background:#4268f3;font:850 .7rem/1 Inter,sans-serif}
 @media(max-width:560px){.ari-circle-location-panel__form{grid-template-columns:1fr 110px}.ari-circle-location-panel__form button{grid-column:1/-1}.ari-circle-location-current{right:6px}}
+
+
+/* iOS focus zoom guard */
+@media (max-width: 560px) {
+  .ari-circle-location-panel__form input,
+  .ari-circle-location-panel__form select,
+  .ari-circle-location-card__editor input,
+  .ari-circle-location-card__radius select {
+    font-size:16px !important;
+  }
+}
