@@ -2,6 +2,8 @@
 (() => {
   "use strict";
   const VERSION = "6.2.0";
+  if (window.AriCircleHappeningV5?.version === VERSION) return;
+
   const FEED_PREVIEW_LIMIT = 2;
   const CANDIDATE_LIMIT = 24;
   const clean = (value) => String(value ?? "").trim();
@@ -102,8 +104,9 @@
   function selectFeedMeetups(rows, limit=FEED_PREVIEW_LIMIT, now=Date.now()) {
     const ranked=(Array.isArray(rows)?rows:[])
       .filter((row)=>{
+        const start=new Date(row?.starts_at).getTime();
         const end=new Date(row?.ends_at).getTime();
-        if(!Number.isFinite(end) || end<=now) return false;
+        if(!Number.isFinite(start) || !Number.isFinite(end) || end<=now) return false;
         const count=Math.max(0,Number(row?.participant_count)||0);
         const capacity=Math.max(0,Number(row?.max_participants)||0);
         const full=capacity>0 && count>=capacity;
