@@ -178,9 +178,7 @@
     }
     if (base.endsWith("ari-vnext-activity-adapter.js")) return Boolean(window.AriVNextActivityAdapter && versionAtLeast(window.AriVNextActivityAdapter?.version, "1.1.0"));
     if (base.endsWith("ari-vnext-bridge.js")) {
-      return window.AriVNextTrainingContext &&
-      versionAtLeast(window.AriVNextTrainingContext?.version, "1.3.0") &&
-      typeof window.AriVNextBridge?.ask === "function" &&
+      return typeof window.AriVNextBridge?.ask === "function" &&
         versionAtLeast(window.AriVNextBridge?.version, "1.10.0");
     }
     if (base.endsWith("ari-vnext-context-guard.js")) return window.AriVNextContextGuard?.ready === true && versionAtLeast(window.AriVNextContextGuard?.version, "1.2.4");
@@ -231,6 +229,8 @@
 
   function vNextReady() {
     return Boolean(
+      window.AriVNextTrainingContext &&
+      versionAtLeast(window.AriVNextTrainingContext?.version, "1.3.0") &&
       typeof window.AriVNextBridge?.ask === "function" &&
       versionAtLeast(window.AriVNextBridge?.version, "1.10.0") &&
       window.AriVNextActionAdapter &&
