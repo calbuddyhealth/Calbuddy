@@ -472,7 +472,7 @@
     return { success: true, reply: payload?.reply || "Experiment updated." };
   }
 
-  function shouldPropagateTransportError(error) {  function shouldPropagateTransportError(error) {
+  function shouldPropagateTransportError(error) {
     return Boolean(
       error?.name === "AbortError" ||
       error?.code === "ARI_REQUEST_ABORTED" ||
@@ -614,7 +614,9 @@
       vnextPendingAction: pending,
       currentTurnId: null
     });
-    if (execution?.success) clearMatchingPendingAction(pending);
+    if (execution?.success) {
+      clearMatchingPendingAction(pending);
+    }
     return execution;
   }
 
