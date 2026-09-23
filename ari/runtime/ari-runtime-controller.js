@@ -46,7 +46,7 @@
     "ari/vnext/ari-vnext-activity-adapter.js?v=1.0.1",
     "ari/vnext/ari-vnext-bridge.js?v=1.10.0",
     "ari/vnext/ari-vnext-context-guard.js?v=1.2.2",
-    "ari/vnext/ari-vnext-initiative.js?v=1.2.0"
+    "ari/vnext/ari-vnext-initiative.js?v=1.2.1"
   ];
 
   const legacy = {
