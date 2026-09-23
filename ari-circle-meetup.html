@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
   <link rel="stylesheet" href="assets/css/ari-circle-search-location-v1.css?v=1.1.0" />
-  <link rel="stylesheet" href="assets/css/ari-circle-connect-v1.css?v=1.0.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-connect-v1.css?v=1.1.0" />
 </head>
 <body class="circle-v5-real-world circle-connect-next">
   <main class="circle-v5-page" id="meetupPage" hidden>
@@ -56,37 +56,40 @@
       <p id="meetupStatus" class="circle-connect-status" role="status" aria-live="polite">Finding things happening nearby…</p>
       <button id="refreshMeetups" type="button" hidden aria-hidden="true" tabindex="-1">Refresh</button>
 
-      <section class="circle-connect-section" id="meetupNowSection" aria-labelledby="meetupNowTitle">
+      <section class="circle-connect-section" id="meetupNowSection" aria-labelledby="meetupNowTitle" hidden>
         <div class="circle-connect-section-head">
           <div><p>HAPPENING NOW</p><h2 id="meetupNowTitle">Jump in</h2></div>
           <span class="circle-live-dot" aria-hidden="true"></span>
         </div>
         <div class="circle-connect-list" id="meetupNowList"></div>
-        <div class="circle-connect-empty" id="meetupNowEmpty" hidden>No meetups are live right now.</div>
       </section>
 
-      <section class="circle-connect-section" id="meetupTodaySection" aria-labelledby="meetupTodayTitle">
+      <section class="circle-connect-section" id="meetupTodaySection" aria-labelledby="meetupTodayTitle" hidden>
         <div class="circle-connect-section-head">
           <div><p>TODAY</p><h2 id="meetupTodayTitle">Later today</h2></div>
         </div>
         <div class="circle-connect-list" id="meetupTodayList"></div>
-        <div class="circle-connect-empty" id="meetupTodayEmpty" hidden>Nothing else is scheduled today.</div>
       </section>
 
-      <section class="circle-connect-section" id="meetupWeekendSection" aria-labelledby="meetupWeekendTitle">
+      <section class="circle-connect-section" id="meetupTomorrowSection" aria-labelledby="meetupTomorrowTitle" hidden>
+        <div class="circle-connect-section-head">
+          <div><p>TOMORROW</p><h2 id="meetupTomorrowTitle">Tomorrow</h2></div>
+        </div>
+        <div class="circle-connect-list" id="meetupTomorrowList"></div>
+      </section>
+
+      <section class="circle-connect-section" id="meetupWeekendSection" aria-labelledby="meetupWeekendTitle" hidden>
         <div class="circle-connect-section-head">
           <div><p>THIS WEEKEND</p><h2 id="meetupWeekendTitle">Make a plan</h2></div>
         </div>
         <div class="circle-connect-list" id="meetupWeekendList"></div>
-        <div class="circle-connect-empty" id="meetupWeekendEmpty" hidden>No weekend plans yet.</div>
       </section>
 
-      <section class="circle-connect-section" id="meetupLaterSection" aria-labelledby="meetupLaterTitle">
+      <section class="circle-connect-section" id="meetupLaterSection" aria-labelledby="meetupLaterTitle" hidden>
         <div class="circle-connect-section-head">
           <div><p>COMING UP</p><h2 id="meetupLaterTitle">More to explore</h2></div>
         </div>
         <div class="circle-connect-list" id="meetupLaterList"></div>
-        <div class="circle-connect-empty" id="meetupLaterEmpty" hidden>Nothing else is scheduled yet.</div>
       </section>
 
       <div class="circle-connect-all-empty" id="meetupEmpty" hidden>
@@ -200,6 +203,6 @@
   <script src="js/ari-circle/location/search-location-v1.js?v=1.1.0" defer></script>
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.0" defer></script>
   <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.4.0" defer></script>
-  <script src="js/ari-circle/connect/connect-v1.js?v=1.0.0" defer></script>
+  <script src="js/ari-circle/connect/connect-v1.js?v=1.1.0" defer></script>
 </body>
 </html>
