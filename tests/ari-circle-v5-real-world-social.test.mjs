@@ -37,6 +37,7 @@ test("Connect reuses canonical meetup joins, requests, waitlists, rooms, and hos
 test("Feed is event-first while preserving friend text updates", () => {
   assert.match(feedHtml, /Share an update/);
   assert.match(feedHtml, /Updates from your people/);
+  assert.match(feedHtml, /feed\/happening-v5\.js\?v=6\.0\.0/);
   assert.doesNotMatch(feedHtml, /Camera \/ Library/);
   assert.doesNotMatch(feedHtml, /Make it a Moment/);
   assert.match(happening, /Join something/);
