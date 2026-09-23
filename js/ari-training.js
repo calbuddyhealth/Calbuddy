@@ -1,9 +1,15 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/ari-training.js
-// Version: 4.6.0
+// Version: 4.8.0
 // Purpose:
 //   Fault-isolated calendar-first ARI Training controller.
+//
+// V4.8.0:
+//   - Renders every exercise in a planned workout before the session starts.
+//   - Makes planned exercise rows open canonical Exercise Library details.
+//   - Reuses Exercise Registry instructions, cues, muscles, equipment, and illustrations.
+//   - Repairs the planned-exercise template/controller class mismatch.
 //
 // V4.6.0:
 //   - Repairs the live Complete Set template/class mismatch.
@@ -50,7 +56,7 @@
 //   - Fixes malformed symbols.
 // =====================================================
 
-const VERSION = "4.6.0";
+const VERSION = "4.8.0";
 const SOURCE = "js/ari-training";
 
 
@@ -701,6 +707,21 @@ function cacheElements() {
     "todaysTrainingActions",
     "startTodayWorkoutButton",
 
+    "exerciseDetailDialog",
+    "closeExerciseDetailButton",
+    "exerciseDetailType",
+    "exerciseDetailName",
+    "exerciseAnatomyFigure",
+    "exerciseAnatomyImage",
+    "exerciseMovementFigure",
+    "exerciseMovementImage",
+    "exerciseVisualPlaceholder",
+    "exerciseInstructionList",
+    "exerciseMuscleList",
+    "exerciseMovementSummary",
+    "exerciseEquipmentSummary",
+    "exerciseFormCueList",
+
     "todaysTrainingEmpty",
     "startUnplannedWorkoutButton",
 
@@ -888,6 +909,34 @@ function bindEvents() {
     ?.addEventListener(
       "click",
       () => void startSelectedPlannedWorkout()
+    );
+
+
+  elements.todaysTrainingExercisePreview
+    ?.addEventListener(
+      "click",
+      handlePlannedExercisePreviewClick
+    );
+
+
+  elements.closeExerciseDetailButton
+    ?.addEventListener(
+      "click",
+      closePlannedExerciseDetail
+    );
+
+
+  elements.exerciseDetailDialog
+    ?.addEventListener(
+      "click",
+      event => {
+        if (
+          event.target ===
+          elements.exerciseDetailDialog
+        ) {
+          closePlannedExerciseDetail();
+        }
+      }
     );
 
 
@@ -2571,8 +2620,14 @@ function renderSelectedDayExercisePreview(
 
 
   for (
-    const entry
-    of exerciseEntries
+    const [
+      index,
+      entry
+    ]
+    of (
+      exerciseEntries ||
+      []
+    ).entries()
   ) {
     let exercise =
       null;
@@ -2605,7 +2660,7 @@ function renderSelectedDayExercisePreview(
 
     const root =
       fragment.querySelector(
-        ".ari-training-day-exercise-preview"
+        ".ari-training-exercise-preview-row"
       );
 
 
@@ -2614,22 +2669,60 @@ function renderSelectedDayExercisePreview(
     }
 
 
-    setTextWithin(
-      root,
+    const exerciseId =
+      exercise?.id ||
+      entry.exerciseId ||
+      "";
 
-      ".ari-training-day-exercise-preview__name",
 
+    const exerciseName =
       exercise?.name ||
-        titleFromId(
-          entry.exerciseId
-        )
+      titleFromId(
+        exerciseId
+      ) ||
+      "Exercise";
+
+
+    root.dataset.exerciseId =
+      exerciseId;
+
+
+    root.disabled =
+      !exercise;
+
+
+    root.setAttribute(
+      "aria-label",
+      exercise
+        ? `View ${exerciseName} instructions`
+        : `${exerciseName} details unavailable`
     );
 
 
     setTextWithin(
       root,
 
-      ".ari-training-day-exercise-preview__prescription",
+      ".ari-training-exercise-preview-row__index",
+
+      String(
+        index + 1
+      )
+    );
+
+
+    setTextWithin(
+      root,
+
+      ".ari-training-exercise-preview-row__name",
+
+      exerciseName
+    );
+
+
+    setTextWithin(
+      root,
+
+      ".ari-training-exercise-preview-row__prescription",
 
       getShortPrescription(
         entry
@@ -2641,6 +2734,404 @@ function renderSelectedDayExercisePreview(
       fragment
     );
   }
+}
+
+
+function handlePlannedExercisePreviewClick(
+  event
+) {
+  const button =
+    event.target.closest(
+      ".ari-training-exercise-preview-row[data-exercise-id]"
+    );
+
+
+  if (
+    !button ||
+    button.disabled
+  ) {
+    return;
+  }
+
+
+  openPlannedExerciseDetail(
+    button.dataset.exerciseId
+  );
+}
+
+
+function openPlannedExerciseDetail(
+  exerciseId
+) {
+  let exercise =
+    null;
+
+
+  try {
+    exercise =
+      ExerciseRegistry?.get?.(
+        exerciseId
+      ) ||
+      null;
+  } catch {
+    exercise = null;
+  }
+
+
+  if (
+    !exercise ||
+    !elements.exerciseDetailDialog
+  ) {
+    showTrainingMessage(
+      "Exercise details are unavailable right now.",
+      "warning"
+    );
+
+    return;
+  }
+
+
+  setText(
+    elements.exerciseDetailType,
+
+    (
+      exercise.exerciseTypes ||
+      []
+    )
+      .slice(
+        0,
+        2
+      )
+      .map(
+        titleFromId
+      )
+      .join(
+        " · "
+      ) ||
+      getExerciseTypeLabel(
+        exercise
+      )
+  );
+
+
+  setText(
+    elements.exerciseDetailName,
+    exercise.name
+  );
+
+
+  renderExerciseDetailVisuals(
+    exercise
+  );
+
+
+  replaceTextList(
+    elements.exerciseInstructionList,
+    exercise.instructions?.length
+      ? exercise.instructions
+      : [
+          exercise.summary
+        ].filter(
+          Boolean
+        )
+  );
+
+
+  renderExerciseDetailMuscles(
+    exercise
+  );
+
+
+  setText(
+    elements.exerciseMovementSummary,
+
+    (
+      exercise.movementPatterns ||
+      []
+    )
+      .map(
+        titleFromId
+      )
+      .join(
+        " · "
+      ) ||
+      "Movement classification not listed."
+  );
+
+
+  setText(
+    elements.exerciseEquipmentSummary,
+
+    (
+      exercise.equipment ||
+      []
+    )
+      .map(
+        titleFromId
+      )
+      .join(
+        " · "
+      ) ||
+      "No equipment required."
+  );
+
+
+  replaceTextList(
+    elements.exerciseFormCueList,
+    exercise.cues ||
+      []
+  );
+
+
+  openTrainingModal(
+    elements.exerciseDetailDialog
+  );
+}
+
+
+function renderExerciseDetailVisuals(
+  exercise
+) {
+  const anatomyPath =
+    exercise.illustration?.anatomy ||
+    null;
+
+
+  const movementPath =
+    exercise.illustration?.movement ||
+    null;
+
+
+  if (
+    elements.exerciseAnatomyFigure &&
+    elements.exerciseAnatomyImage
+  ) {
+    elements.exerciseAnatomyFigure.hidden =
+      !anatomyPath;
+
+
+    elements.exerciseAnatomyImage
+      .removeAttribute(
+        "src"
+      );
+
+
+    if (anatomyPath) {
+      elements.exerciseAnatomyImage.src =
+        anatomyPath;
+
+
+      elements.exerciseAnatomyImage.alt =
+        `${exercise.name} muscle illustration`;
+    }
+  }
+
+
+  if (
+    elements.exerciseMovementFigure &&
+    elements.exerciseMovementImage
+  ) {
+    elements.exerciseMovementFigure.hidden =
+      !movementPath;
+
+
+    elements.exerciseMovementImage
+      .removeAttribute(
+        "src"
+      );
+
+
+    if (movementPath) {
+      elements.exerciseMovementImage.src =
+        movementPath;
+
+
+      elements.exerciseMovementImage.alt =
+        `${exercise.name} movement illustration`;
+    }
+  }
+
+
+  if (
+    elements.exerciseVisualPlaceholder
+  ) {
+    elements.exerciseVisualPlaceholder.hidden =
+      Boolean(
+        anatomyPath ||
+        movementPath
+      );
+  }
+}
+
+
+function renderExerciseDetailMuscles(
+  exercise
+) {
+  const container =
+    elements.exerciseMuscleList;
+
+
+  if (!container) {
+    return;
+  }
+
+
+  container.replaceChildren();
+
+
+  const primary =
+    document.createElement(
+      "p"
+    );
+
+
+  primary.textContent =
+    `Primary: ${
+      (
+        exercise.primaryMuscles ||
+        []
+      )
+        .map(
+          titleFromId
+        )
+        .join(
+          ", "
+        ) ||
+      "Not specified"
+    }`;
+
+
+  const secondary =
+    document.createElement(
+      "p"
+    );
+
+
+  secondary.textContent =
+    `Secondary: ${
+      (
+        exercise.secondaryMuscles ||
+        []
+      )
+        .map(
+          titleFromId
+        )
+        .join(
+          ", "
+        ) ||
+      "None listed"
+    }`;
+
+
+  container.append(
+    primary,
+    secondary
+  );
+}
+
+
+function replaceTextList(
+  container,
+  items
+) {
+  if (!container) {
+    return;
+  }
+
+
+  container.replaceChildren();
+
+
+  for (
+    const value
+    of items ||
+    []
+  ) {
+    if (!value) {
+      continue;
+    }
+
+
+    const item =
+      document.createElement(
+        "li"
+      );
+
+
+    item.textContent =
+      String(
+        value
+      );
+
+
+    container.appendChild(
+      item
+    );
+  }
+}
+
+
+function openTrainingModal(
+  dialog
+) {
+  if (!dialog) {
+    return;
+  }
+
+
+  try {
+    if (
+      typeof dialog.showModal ===
+        "function" &&
+      !dialog.open
+    ) {
+      dialog.showModal();
+
+      return;
+    }
+  } catch (error) {
+    console.warn(
+      "[ARI Training] Native exercise detail dialog failed; using fallback.",
+      error
+    );
+  }
+
+
+  dialog.setAttribute(
+    "open",
+    ""
+  );
+}
+
+
+function closePlannedExerciseDetail() {
+  const dialog =
+    elements.exerciseDetailDialog;
+
+
+  if (!dialog) {
+    return;
+  }
+
+
+  try {
+    if (
+      dialog.open &&
+      typeof dialog.close ===
+        "function"
+    ) {
+      dialog.close();
+
+      return;
+    }
+  } catch {
+    // Fall through to attribute cleanup.
+  }
+
+
+  dialog.removeAttribute(
+    "open"
+  );
 }
 
 
