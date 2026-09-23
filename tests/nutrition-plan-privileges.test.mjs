@@ -42,10 +42,10 @@ test("Meal Plan sync uses a dedicated stable identity instead of semantic source
   assert.doesNotMatch(syncIdentity, /plan_date = v_date\s+and source_ref = v_source_ref/is);
 });
 
-test("browser adapter routes only nutrition_plan_items through the scoped bridge", () => {
-  assert.match(client, /const TABLE = "nutrition_plan_items"/);
-  assert.match(client, /ari_sync_nutrition_plans/);
-  assert.match(client, /ari_list_today_nutrition_plans/);
-  assert.match(client, /if \(clean\(tableName\) === TABLE\) return new PlanQuery\(\)/);
-  assert.match(client, /return nativeFrom\(tableName\)/);
+test("browser client no longer exposes a Meal Plan synchronization bridge", () => {
+  assert.doesNotMatch(client, /const TABLE = "nutrition_plan_items"/);
+  assert.doesNotMatch(client, /ari_sync_nutrition_plans/);
+  assert.doesNotMatch(client, /ari_list_today_nutrition_plans/);
+  assert.doesNotMatch(client, /PlanQuery/);
+  assert.doesNotMatch(client, /AriNutritionPlanSync/);
 });

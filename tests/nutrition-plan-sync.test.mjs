@@ -10,41 +10,13 @@ const migration = fs.readFileSync(
   "utf8"
 );
 
-test("nutrition trust client remains syntactically valid after plan sync bridge", () => {
+test("Meal Plan synchronization is decommissioned from the active browser client", () => {
   assert.doesNotThrow(() => new Function(client));
+  assert.doesNotMatch(client, /AriNutritionPlanSync|ariNutritionMealPlanV1|ari_sync_nutrition_plans|synchronizeLocal|nutrition_plan_items/);
 });
 
-test("legacy local plans are migrated before cloud plans are listed", () => {
-  const syncStart = client.indexOf("async function synchronizeLocal()");
-  const localRead = client.indexOf("const localToday = readLocal()", syncStart);
-  const localPush = client.indexOf("await pushRecords(localToday)", syncStart);
-  const cloudRead = client.indexOf("await listCloud()", syncStart);
-  assert.ok(syncStart >= 0 && localRead > syncStart && localPush > localRead && cloudRead > localPush);
-});
-
-test("cloud snapshots are mirrored locally for resilient cross-device reads", () => {
-  assert.match(client, /function mirrorCloud\(rows = \[\]\)/);
-  assert.match(client, /writeLocal\(\[\.\.\.existing, \.\.\.mirrored\]\)/);
-  assert.match(client, /cloud_id: clean\(row\?\.id\) \|\| null/);
-});
-
-test("new plan inserts use unique sync keys instead of shared Ari source labels", () => {
-  assert.match(client, /const localId = makeLocalId\(\)/);
-  assert.match(client, /client_sync_key: `local:\$\{localId\}`/);
-  assert.match(migration, /and client_sync_key = v_sync_key/);
-});
-
-test("stale device snapshots cannot overwrite newer cloud plan state", () => {
-  assert.match(migration, /v_client_updated_at >= coalesce\(v_existing_updated_at, '-infinity'::timestamptz\)/);
-  assert.match(migration, /v_stale := v_stale \+ 1/);
-  assert.match(migration, /'staleCount', v_stale/);
-});
-
-test("future-dated records remain outside the today-only synchronization boundary", () => {
-  assert.match(migration, /if v_date <> current_date then\s+continue;/is);
-});
-
-test("the adapter preserves the native Supabase client for every other table", () => {
-  assert.match(client, /const nativeFrom = client\.from\.bind\(client\)/);
-  assert.match(client, /return nativeFrom\(tableName\)/);
+test("historical plan migration remains in schema history without an active client entry point", () => {
+  assert.match(migration, /nutrition_plan_items/);
+  assert.match(migration, /ari_sync_nutrition_plans/);
+  assert.doesNotMatch(client, /ari_sync_nutrition_plans/);
 });

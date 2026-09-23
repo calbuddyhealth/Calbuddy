@@ -242,7 +242,6 @@ function cognitiveContextRules(context = {}) {
     lines.push(
       "NUTRITION BUDGET RULES:",
       "- Daily food allowance is the saved Daily Calorie Goal minus calories consumed. Exercise calories do not increase food allowance.",
-      "- Planned food is not consumed food. Active Meal Plan calories reduce what remains unallocated for planning, but do not count as eaten.",
       "- If Daily Calorie Goal is unknown, keep it unknown. Never substitute a plausible default calorie target."
     );
   }
