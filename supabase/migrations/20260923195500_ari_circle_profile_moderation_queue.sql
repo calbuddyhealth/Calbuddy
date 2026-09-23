@@ -452,7 +452,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = 'public', 'pg_temp'
-as $
+as $$
 declare
   s public.ari_circle_moderation_worker_state%rowtype;
 begin
@@ -467,7 +467,7 @@ begin
     'last_provider_status', s.last_provider_status
   );
 end;
-$;
+$$;
 
 revoke all on function public.ari_circle_profile_moderation_worker_gate() from public, anon, authenticated;
 grant execute on function public.ari_circle_profile_moderation_worker_gate() to service_role;
@@ -480,7 +480,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = 'public', 'pg_temp'
-as $
+as $$
 declare
   current_429s integer := 0;
   provider_delay integer := greatest(30, least(coalesce(requested_retry_seconds, 60), 3600));
@@ -510,7 +510,7 @@ begin
     'cooldown_until', now() + make_interval(secs => final_delay)
   );
 end;
-$;
+$$;
 
 revoke all on function public.ari_circle_profile_moderation_provider_limited(integer,text) from public, anon, authenticated;
 grant execute on function public.ari_circle_profile_moderation_provider_limited(integer,text) to service_role;
@@ -520,7 +520,7 @@ returns void
 language sql
 security definer
 set search_path = 'public', 'pg_temp'
-as $
+as $$
   update public.ari_circle_moderation_worker_state
   set cooldown_until = null,
       consecutive_429s = 0,
@@ -528,7 +528,7 @@ as $
       last_error = null,
       updated_at = now()
   where singleton = true;
-$;
+$$;
 
 revoke all on function public.ari_circle_profile_moderation_provider_healthy() from public, anon, authenticated;
 grant execute on function public.ari_circle_profile_moderation_provider_healthy() to service_role;
