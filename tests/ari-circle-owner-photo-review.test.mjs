@@ -69,8 +69,9 @@ test("queued worker still respects the member's AI-processing consent", () => {
   assert.match(worker, /ari_ai_processing_consent_version/);
   assert.match(worker, /userHasCurrentAiConsent\(job\.user_id\)/);
   assert.match(worker, /AI_PROCESSING_CONSENT_REQUIRED/);
+  const processJob = worker.slice(worker.indexOf("async function processJob(job)"));
   assert.ok(
-    worker.indexOf("userHasCurrentAiConsent(job.user_id)") <
-      worker.indexOf("moderateProfileImage(imageUrl)")
+    processJob.indexOf("userHasCurrentAiConsent(job.user_id)") <
+      processJob.indexOf("moderateProfileImage(imageUrl)")
   );
 });
