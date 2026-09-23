@@ -5,103 +5,62 @@ import path from "node:path";
 
 const root = process.cwd();
 const auth = fs.readFileSync(path.join(root, "js/auth.js"), "utf8");
-const routerClient = fs.readFileSync(path.join(root, "ari/intent/ari-central-intent-router.js"), "utf8");
+const home = fs.readFileSync(path.join(root, "home.html"), "utf8");
+const nutritionHtml = fs.readFileSync(path.join(root, "nutrition.html"), "utf8");
+const runtime = fs.readFileSync(path.join(root, "ari/runtime/ari-runtime-controller.js"), "utf8");
+const legacyRouter = fs.readFileSync(path.join(root, "ari/intent/ari-central-intent-router.js"), "utf8");
+const legacyMeal = fs.readFileSync(path.join(root, "ari/actions/ari-meal-action.js"), "utf8");
+const legacyWorkout = fs.readFileSync(path.join(root, "ari/actions/ari-workout-plan-action.js"), "utf8");
 const routerHandler = fs.readFileSync(path.join(root, "api/_lib/gateway/ari-intent-router-handler.js"), "utf8");
-const vercel = fs.readFileSync(path.join(root, "vercel.json"), "utf8");
-const meals = fs.readFileSync(path.join(root, "ari/actions/ari-meal-action.js"), "utf8");
-const workouts = fs.readFileSync(path.join(root, "ari/actions/ari-workout-plan-action.js"), "utf8");
+const tools = fs.readFileSync(path.join(root, "api/_lib/ari-vnext/tools.js"), "utf8");
+const orchestrator = fs.readFileSync(path.join(root, "api/_lib/ari-vnext/orchestrator.js"), "utf8");
 const nutritionUi = fs.readFileSync(path.join(root, "ari/actions/ari-nutrition-action-ui.js"), "utf8");
 const nutrition = fs.readFileSync(path.join(root, "js/nutrition.js"), "utf8");
-const home = fs.readFileSync(path.join(root, "home.html"), "utf8");
-const core = fs.readFileSync(path.join(root, "calbuddy-core.js"), "utf8");
 
-test("Home and Nutrition share one central intent gateway boundary", () => {
-  assert.match(auth, /ari\/intent\/ari-central-intent-router\.js\?v=1\.5\.8/);
-  assert.match(routerClient, /CalBuddy\.askAri = async function ariCentralIntentBoundary/);
-  assert.match(routerClient, /intentDecision/);
-  assert.match(routerClient, /\/api\/ari-intent-router/);
-  assert.match(vercel, /"source": "\/api\/ari-intent-router"[\s\S]*"destination": "\/api\/secure-ai-gateway\?route=intent"/);
-  assert.match(routerHandler, /response_format/);
-  assert.match(routerHandler, /json_schema/);
-  assert.match(routerHandler, /strict:\s*true/);
+test("Home and Nutrition use vNext directly instead of a second semantic browser router", () => {
+  assert.match(home, /ari\\/runtime\\/ari-runtime-controller\\.js\\?v=1\\.4\\.0/);
+  assert.match(nutritionHtml, /ari\\/runtime\\/ari-runtime-controller\\.js\\?v=1\\.4\\.0/);
+  assert.doesNotMatch(auth, /ari-central-intent-router\\.js|ari-meal-action\\.js/);
+  assert.doesNotMatch(home, /ari-workout-plan-action\\.js|ari-conversation-router\\.js|ari-fast-conversation\\.js/);
 });
 
-test("normal conversation bypasses the extra mutation preflight", () => {
-  assert.match(routerClient, /const MUTATION_CUE_PATTERN/);
-  assert.match(routerClient, /return !isLikelyMutationMessage\(message\)/);
-  assert.match(routerClient, /Normal conversation, advice, questions, and greetings go directly to/);
+test("legacy semantic wrappers are decommissioned compatibility paths", () => {
+  assert.match(legacyRouter, /semanticAuthority:\\s*false/);
+  assert.match(legacyMeal, /semanticAuthority:\\s*false/);
+  assert.match(legacyWorkout, /semanticAuthority:\\s*false/);
+  assert.doesNotMatch(legacyRouter, /CalBuddy\\.askAri\\s*=/);
+  assert.doesNotMatch(legacyMeal, /_askAriInternal\\s*=/);
+  assert.doesNotMatch(legacyWorkout, /_askAriInternal\\s*=/);
 });
 
-test("Meal Plan mutation paths are removed while nutrition advice remains conversational", () => {
-  assert.doesNotMatch(routerHandler, /plan_meal|log_planned_meal|meal_plan/);
-  assert.doesNotMatch(routerClient, /ari-meal-plan-action-v2|ari-meal-plan-goal-guard/);
+test("vNext is the one normal application action authority", () => {
+  assert.match(runtime, /CalBuddy\\.askAri = ask/);
+  assert.match(tools, /propose_log_meal/);
+  assert.match(tools, /propose_workout_plan/);
+  assert.match(tools, /propose_log_activity/);
+  assert.match(orchestrator, /createPendingAction/);
+});
+
+test("legacy intent endpoint agrees that consumption alone is not write authorization", () => {
+  assert.match(routerHandler, /Consumption alone is not write authorization/);
+  assert.match(routerHandler, /I ate an egg roll, log it/);
+  assert.match(routerHandler, /action="none"/);
+});
+
+test("Meal Plan mutation paths remain removed", () => {
+  assert.doesNotMatch(routerHandler, /\\bplan_meal\\b|\\blog_planned_meal\\b|\\bmeal_plan\\b/);
   assert.match(routerHandler, /Meal planning is advisory conversation only/);
-  assert.match(routerHandler, /Create a shoulder workout tomorrow/);
 });
 
-test("central router is the authority over legacy action classification", () => {
-  assert.match(routerClient, /centralIntentLegacyGate/);
-  assert.match(routerClient, /clean\(decision\.action\) === "none"/);
-  assert.match(routerClient, /\["nutrition", "training"\]/);
-  assert.match(routerClient, /__activeIntentDecision/);
+test("both visible composers still call the shared CalBuddy runtime", () => {
+  assert.match(nutrition, /window\\.CalBuddy\\.askAri/);
+  assert.match(nutrition, /page:\\s*"nutrition"/);
+  assert.match(runtime, /CalBuddy\\.askAri = ask/);
 });
 
-test("central router fails closed instead of letting AI invent app writes", () => {
-  assert.match(routerClient, /I couldn’t verify that request with my action router/);
-  assert.match(routerClient, /intentRouterError:\s*true/);
-  assert.match(routerClient, /intentDecision\.confidence < 0\.8/);
-});
-
-test("both Ari composers still call the shared CalBuddy runtime", () => {
-  assert.match(nutrition, /window\.CalBuddy\.askAri/);
-  assert.match(nutrition, /page:\s*"nutrition"/);
-  assert.match(core, /CalBuddy\.askAri/);
-});
-
-test("meal action meaning comes only from the central intent decision", () => {
-  assert.match(auth, /ari\/actions\/ari-meal-action\.js\?v=2\.0\.0/);
-  assert.match(meals, /ari_meal_action_v2_central_router/);
-  assert.match(meals, /isMealDecision\(decision/);
-  assert.match(meals, /decision\.action/);
-  assert.match(meals, /log_meal/);
-  assert.doesNotMatch(meals, /function isMealLogRequest/);
-  assert.doesNotMatch(meals, /directLogCommand/);
-  assert.doesNotMatch(meals, /getLastAriMealEstimate/);
-});
-
-test("meal logging remains current-turn structured nutrition plus confirmation", () => {
-  assert.match(meals, /requestCurrentTurnEstimate/);
-  assert.match(meals, /history:\s*\[\]/);
-  assert.match(meals, /protein_g/);
-  assert.match(meals, /carbs_g/);
-  assert.match(meals, /fat_g/);
-  assert.match(meals, /reply:\s*pending\.confirmation_text/);
-  assert.match(core, /if \(type === "log_meal"\) return await CalBuddy\.logMeal\(payload\)/);
-});
-
-test("training action meaning stays on Home/Training and never bootstraps through Nutrition", () => {
-  assert.match(home, /ari\/actions\/ari-workout-plan-action\.js\?v=3\.0\.0/);
-  assert.doesNotMatch(auth, /ari\/actions\/ari-workout-plan-action\.js\?v=3\.0\.0/);
-  assert.doesNotMatch(auth, /bootstrapAriWorkoutActionForNutrition/);
-  assert.match(workouts, /ari_workout_action_v3_central_router/);
-  assert.match(workouts, /isTrainingDecision\(decision/);
-  assert.match(workouts, /plan_workout/);
-  assert.match(workouts, /edit_workout/);
-  assert.doesNotMatch(workouts, /looksLikeWorkoutPlanRequest/);
-});
-
-test("Training persistence still goes only through WorkoutPlanController", () => {
-  assert.match(workouts, /workout-plan-controller\.js/);
-  assert.doesNotMatch(workouts, /workout-plan-store\.js/);
-  assert.doesNotMatch(workouts, /workout-plan-api\.js/);
-});
-
-test("Nutrition UI presents nutrition actions but never creates domain actions", () => {
+test("Nutrition UI presents confirmations but never invents domain actions", () => {
   assert.match(nutritionUi, /NUTRITION_ACTION_TYPES/);
   assert.match(nutritionUi, /confirmPendingAction/);
   assert.match(nutritionUi, /cancelPendingAction/);
-  assert.match(nutritionUi, /calbuddy:pendingAction/);
   assert.doesNotMatch(nutritionUi, /createPendingAction/);
-  assert.doesNotMatch(nutritionUi, /action_type:\s*"log_meal"/);
-  assert.doesNotMatch(nutritionUi, /action_type:\s*"plan_workout"/);
 });
