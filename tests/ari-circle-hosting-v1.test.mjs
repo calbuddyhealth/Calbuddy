@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const migration = fs.readFileSync("supabase/migrations/20260824131500_ari_circle_hosting_v1.sql", "utf8");
-const retirement = fs.readFileSync("supabase/migrations/20260923121000_ari_circle_retire_xp_completion.sql", "utf8");
+const retirement = fs.readFileSync("supabase/migrations/20260923151000_ari_circle_retire_xp_completion.sql", "utf8");
 const meetupHtml = fs.readFileSync("ari-circle-meetup.html", "utf8");
 const connect = fs.readFileSync("js/ari-circle/connect/connect-v1.js", "utf8");
 
