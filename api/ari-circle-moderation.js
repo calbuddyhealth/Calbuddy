@@ -4,6 +4,10 @@
 
 import { enforceAiRateLimit } from "./_lib/ai-rate-limit.js";
 import { recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
+import {
+  evaluateAdultProfileImage,
+  isAdultProfileImageScope
+} from "./_lib/ari-circle-profile-image-policy.js";
 
 const OPENAI_MODERATION_URL = "https://api.openai.com/v1/moderations";
 const OPENAI_MODERATION_MODEL = "omni-moderation-latest";
@@ -357,8 +361,49 @@ export default async function handler(req, res) {
         apiKey,
         input: [{ type: "image_url", image_url: { url: images[index] } }]
       });
-      checks.push({ kind: "image", index, ...result });
 
+      if (isAdultProfileImageScope(scope)) {
+        const policy = evaluateAdultProfileImage(result);
+        checks.push({
+          kind: "image",
+          index,
+          ...result,
+          profilePolicy: policy
+        });
+
+        if (!policy.allowed) {
+          return await finish({
+            success: true,
+            allowed: false,
+            scope,
+            age_band: ageBand,
+            model: result.model,
+            decision: policy.decision,
+            policy_version: policy.policyVersion,
+            blocked_categories: policy.blockedCategories,
+            blocked_frame_index: index,
+            review_recommended: false,
+            review_categories: [],
+            check_count: checks.length,
+            paid_classifier_used: false
+          });
+        }
+
+        // Borderline adult-profile imagery is allowed by Circle's own policy,
+        // but the recommendation is retained for telemetry and future queue-
+        // based review. A generic provider "flagged" bit is not itself a block.
+        if (policy.reviewRecommended) {
+          console.info("[ARI Circle Profile Image Policy]", {
+            scope,
+            decision: policy.decision,
+            policy_version: policy.policyVersion,
+            review_categories: policy.reviewCategories
+          });
+        }
+        continue;
+      }
+
+      checks.push({ kind: "image", index, ...result });
       if (result.flagged) {
         return await finish({
           success: true,
@@ -375,13 +420,26 @@ export default async function handler(req, res) {
       }
     }
 
+    const profilePolicyChecks = checks
+      .map((check) => check?.profilePolicy)
+      .filter(Boolean);
+    const profileReviewCategories = [
+      ...new Set(profilePolicyChecks.flatMap((policy) => policy.reviewCategories || []))
+    ];
+    const profilePolicyVersion = profilePolicyChecks[0]?.policyVersion || null;
+
     return await finish({
       success: true,
       allowed: true,
       scope,
       age_band: ageBand,
       model: checks[0]?.model || OPENAI_MODERATION_MODEL,
-      decision: checks.length ? "allow" : "allow_empty",
+      decision: profilePolicyChecks.length
+        ? (profileReviewCategories.length ? "allow_profile_image_borderline" : "allow_profile_image")
+        : (checks.length ? "allow" : "allow_empty"),
+      policy_version: profilePolicyVersion,
+      review_recommended: profileReviewCategories.length > 0,
+      review_categories: profileReviewCategories,
       blocked_categories: [],
       check_count: checks.length,
       paid_classifier_used: false

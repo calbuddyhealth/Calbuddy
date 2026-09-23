@@ -82,3 +82,21 @@ test("provider 429s are returned as cooldowns instead of immediate retry storms"
   assert.match(source, /provider_code:/);
   assert.match(source, /provider_type:/);
 });
+
+
+test("adult profile photos use Circle thresholds instead of the provider top-level flagged bit", () => {
+  assert.match(source, /isAdultProfileImageScope\(scope\)/);
+  assert.match(source, /evaluateAdultProfileImage\(result\)/);
+  assert.match(source, /allow_profile_image_borderline/);
+  assert.match(source, /policy_version:/);
+  assert.match(source, /review_recommended:/);
+  assert.match(source, /A generic provider "flagged" bit is not itself a block/);
+});
+
+test("non-profile image surfaces keep the stricter provider flagged behavior", () => {
+  const profilePolicyIndex = source.indexOf("if (isAdultProfileImageScope(scope))");
+  const strictFlaggedIndex = source.indexOf("if (result.flagged)", profilePolicyIndex);
+  assert.ok(profilePolicyIndex > 0);
+  assert.ok(strictFlaggedIndex > profilePolicyIndex);
+  assert.match(source.slice(strictFlaggedIndex, strictFlaggedIndex + 900), /decision: "block_media"/);
+});
