@@ -1,4 +1,4 @@
-/* ARI Circle Profile Gallery V1 */
+/* ARI Circle Profile Gallery V1.1 */
 .circle-profile-gallery{
   width:min(100%,720px);
   margin:12px auto;
@@ -90,13 +90,50 @@
 .circle-profile-gallery__empty strong{
   font:800 .64rem/1 Inter,sans-serif;
 }
-.circle-profile-gallery__status{
-  min-height:0;
-  margin:9px 0 0;
-  color:#687791;
-  font:700 .64rem/1.35 Inter,sans-serif;
+.circle-profile-gallery__notice{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin:0 0 10px;
+  padding:10px 11px;
+  border:1px solid #dfe7f2;
+  border-radius:13px;
+  color:#5f6f86;
+  background:#f8fbff;
+  font:750 .64rem/1.35 Inter,sans-serif;
 }
-.circle-profile-gallery__status:empty{display:none}
+.circle-profile-gallery__notice[hidden]{display:none!important}
+.circle-profile-gallery__notice[data-tone="progress"]{
+  color:#47639a;
+  border-color:#d9e4fa;
+  background:#f4f7ff;
+}
+.circle-profile-gallery__notice[data-tone="warning"]{
+  color:#7b5d18;
+  border-color:#eadcae;
+  background:#fffaf0;
+}
+.circle-profile-gallery__notice[data-tone="error"]{
+  color:#a93f50;
+  border-color:#efcbd2;
+  background:#fff6f8;
+}
+.circle-profile-gallery__notice[data-tone="success"]{
+  color:#257452;
+  border-color:#cce9dd;
+  background:#f3fbf7;
+}
+.circle-profile-gallery__notice button{
+  flex:0 0 auto;
+  min-height:32px;
+  padding:0 10px;
+  border:1px solid #cfd9e7;
+  border-radius:9px;
+  color:#3159be;
+  background:#fff;
+  font:850 .61rem/1 Inter,sans-serif;
+}
 @media(max-width:520px){
   .circle-profile-gallery{margin:10px 0;padding:12px;border-radius:19px}
   .circle-profile-gallery__grid{gap:7px}
