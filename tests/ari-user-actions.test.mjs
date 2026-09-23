@@ -18,8 +18,8 @@ const nutritionUi = read("ari/actions/ari-nutrition-action-ui.js");
 const nutrition = read("js/nutrition.js");
 
 test("Home and Nutrition use vNext directly instead of browser semantic wrappers", () => {
-  assert.match(home, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.5\.0/);
-  assert.match(nutritionHtml, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.5\.0/);
+  assert.match(home, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.6\.0/);
+  assert.match(nutritionHtml, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.6\.0/);
   assert.doesNotMatch(auth, /ari-central-intent-router\.js|ari-meal-action\.js/);
   assert.doesNotMatch(home, /ari-workout-plan-action\.js|ari-conversation-router\.js|ari-fast-conversation\.js/);
 });
