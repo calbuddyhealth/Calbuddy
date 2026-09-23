@@ -6,7 +6,7 @@ const supabaseConfig = fs.readFileSync("supabase-config.js", "utf8");
 const profileV4 = fs.readFileSync("js/ari-circle/profile/profile-v4.js", "utf8");
 const profileLoader = fs.readFileSync("js/ari-circle/profile/profile-v3-loader.js", "utf8");
 const profileGallery = fs.readFileSync("js/ari-circle/profile/profile-gallery-v1.js", "utf8");
-const galleryMigration = fs.readFileSync("supabase/migrations/20260923120000_ari_circle_profile_gallery_v1.sql", "utf8");
+const galleryMigration = fs.readFileSync("supabase/migrations/20260923150000_ari_circle_profile_gallery_v1.sql", "utf8");
 const connectionsController = fs.readFileSync("js/ari-circle/connections/connections-controller.js", "utf8");
 const messagesController = fs.readFileSync("js/ari-circle/messaging/messages-controller.js", "utf8");
 
