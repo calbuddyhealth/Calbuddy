@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.3.11
+// Version: 1.3.12
 // Purpose:
 //   Make Ari vNext the default Home + Nutrition intelligence runtime while
 //   preserving Rebirth as a deterministic emergency fallback during cutover.
@@ -35,7 +35,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.3.11";
+  const VERSION = "1.3.12";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
@@ -47,7 +47,7 @@
     "ari/vnext/ari-vnext-meal-plan-adapter.js?v=1.0.1",
     "ari/vnext/ari-vnext-bridge.js?v=1.10.0",
     "ari/vnext/ari-vnext-context-guard.js?v=1.2.2",
-    "ari/vnext/ari-vnext-initiative.js?v=1.0.0"
+    "ari/vnext/ari-vnext-initiative.js?v=1.2.0"
   ];
 
   const legacy = {
@@ -195,7 +195,14 @@
         versionAtLeast(window.AriVNextBridge?.version, "1.10.0");
     }
     if (base.endsWith("ari-vnext-context-guard.js")) return window.AriVNextContextGuard?.ready === true;
-    if (base.endsWith("ari-vnext-initiative.js")) return Boolean(window.AriVNextInitiative);
+    if (base.endsWith("ari-vnext-initiative.js")) {
+      return Boolean(
+        window.AriVNextInitiative &&
+        versionAtLeast(window.AriVNextInitiative?.version, "1.2.0") &&
+        window.AriVNextOperationRegistry?.ready === true &&
+        versionAtLeast(window.AriVNextOperationRegistry?.version, "1.8.0")
+      );
+    }
     return true;
   }
 
@@ -241,7 +248,11 @@
       window.AriVNextActionAdapter.__ariWholeWorkoutReplacementV1 === true &&
       window.AriVNextActivityAdapter &&
       window.AriVNextMealPlanAdapter?.ready === true &&
-      window.AriVNextContextGuard?.ready === true
+      window.AriVNextContextGuard?.ready === true &&
+      window.AriVNextInitiative &&
+      versionAtLeast(window.AriVNextInitiative?.version, "1.2.0") &&
+      window.AriVNextOperationRegistry?.ready === true &&
+      versionAtLeast(window.AriVNextOperationRegistry?.version, "1.8.0")
     );
   }
 
@@ -574,8 +585,9 @@
       currentTurnId: null
     });
     if (execution?.success) {
-      window.AriVNextBridge?.clearPendingAction?.();
-      CalBuddy.clearPendingAction?.();
+      // Retire only the action that just completed. A newer proposal may already
+      // exist in the same conversation and must not be erased by this receipt.
+      clearMatchingPendingAction(pending);
     }
     return execution;
   }

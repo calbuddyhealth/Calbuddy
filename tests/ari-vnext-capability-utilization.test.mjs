@@ -63,8 +63,8 @@ test("runtime readiness guarantees optional executor layers instead of merely ad
   assert.match(contextGuard, /AriVNextCircleActionAdapter\?\.ready === true/);
   assert.match(contextGuard, /ari-vnext-circle-action-adapter\.js\?v=1\.1\.1/);
 
-  assert.match(runtime, /ari-vnext-initiative\.js\?v=1\.0\.0/);
-  assert.match(initiative, /ari-vnext-operation-registry\.js\?v=1\.0\.0/);
+  assert.match(runtime, /ari-vnext-initiative\.js\?v=1\.2\.0/);
+  assert.match(initiative, /ari-vnext-operation-registry\.js\?v=1\.8\.0/);
   assert.match(initiative, /window\.AriVNextInitiative = createClient\(\)/);
   assert.match(initiative, /ensureRegistry\(\)/);
 });

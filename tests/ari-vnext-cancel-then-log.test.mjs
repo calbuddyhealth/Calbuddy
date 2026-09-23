@@ -112,6 +112,7 @@ function harness() {
       context.AriVNextActivityAdapter = {};
       context.AriVNextMealPlanAdapter = { ready: true };
       context.AriVNextContextGuard = { ready: true };
+      context.AriVNextInitiative = { version: "1.2.0" };
       context.AriVNextBridge.schedulePeerReflection = () => {};
     }
     vm.runInContext(sources.get(path), context, { filename: path });

@@ -8,7 +8,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.7.0";
+  const VERSION = "1.8.0";
   const SOURCE = "ari_vnext_operation_registry";
   const INSTALL_FLAG = "__ariOperationRegistryV1";
   const OWNED_OPERATIONS = new Set(["log_meal", "log_weight", "log_activity", "update_goal", "log_planned_meal", "plan_meal", "plan_workout", "cancel_workout"]);
@@ -478,7 +478,34 @@
       return failure("pending_action_service_unavailable", "CalBuddy pending action service is unavailable.");
     }
 
-    const stored = await window.CalBuddy.createPendingAction(prepared.action);
+    // One vNext proposal owns exactly one durable ledger row for its entire
+    // lifecycle. Never create a second legacy row and add the identity later.
+    const stored = await window.CalBuddy.createPendingAction({
+      ...prepared.action,
+      source_turn_id: pending.sourceTurnId,
+      vnext_action_id: pending.id,
+      vnext_pending_action: pending,
+      expires_at: pending.expiresAt || null
+    });
+
+    if (!stored?.id || stored?._ledger_persisted !== true) {
+      return failure(
+        stored?._ledger_error || "durable_action_ledger_required",
+        "Ari could not prepare a durable confirmation for that change. Nothing was saved."
+      );
+    }
+
+    if (stored?._ledger_already_completed === true || stored?.status === "completed") {
+      clearMatchingPendingCopies(pending);
+      return {
+        success: true,
+        alreadyCompleted: true,
+        action: stored,
+        result: stored?.result || {},
+        resolution: prepared.resolution
+      };
+    }
+
     const wrapped = {
       ...stored,
       vnext_action_id: pending.id,
@@ -492,19 +519,36 @@
   }
 
   function clearMatchingPendingCopies(pending = {}) {
-    const pendingId = clean(pending?.id, 220);
+    const pendingId = clean(
+      pending?.vnext_action_id ||
+      pending?.vnextActionId ||
+      pending?.vnext_pending_action?.id ||
+      pending?.vnextPendingAction?.id ||
+      pending?.id,
+      220
+    );
     if (!pendingId) return false;
 
+    let cleared = false;
     const bridgePending = window.AriVNextBridge?.getPendingAction?.() || null;
     if (clean(bridgePending?.id, 220) === pendingId) {
       window.AriVNextBridge?.clearPendingAction?.();
+      cleared = true;
     }
 
     const legacyPending = window.CalBuddy?.getPendingAction?.() || null;
-    if (clean(legacyPending?.vnext_action_id, 220) === pendingId) {
+    const legacyId = clean(
+      legacyPending?.vnext_action_id ||
+      legacyPending?.vnextActionId ||
+      legacyPending?.vnext_pending_action?.id ||
+      legacyPending?.vnextPendingAction?.id,
+      220
+    );
+    if (legacyId === pendingId) {
       window.CalBuddy?.clearPendingAction?.();
+      cleared = true;
     }
-    return true;
+    return cleared;
   }
 
   function reconcileOrphanedLegacyPending() {
@@ -588,6 +632,29 @@
     };
   }
 
+  async function materializedLedgerAction(pending = {}) {
+    const current = window.CalBuddy?.getPendingAction?.() || null;
+    if (
+      current?.id &&
+      clean(current?.vnext_action_id, 220) === clean(pending?.id, 220) &&
+      current?._ledger_persisted === true
+    ) {
+      return { success: true, action: current };
+    }
+
+    const materialized = await createOperationPending(pending);
+    if (!materialized?.success) return materialized;
+    if (materialized?.alreadyCompleted) {
+      return {
+        success: true,
+        alreadyCompleted: true,
+        action: materialized.action,
+        result: materialized.result || {}
+      };
+    }
+    return { success: true, action: materialized.action };
+  }
+
   async function executeOwnedOperation(input = {}) {
     const pending = input?.vnextPendingAction || null;
     const operationName = clean(pending?.name, 120);
@@ -604,75 +671,106 @@
       return failure("vnext_action_expired", `That pending ${operationName.replaceAll("_", " ")} expired. Ask Ari to prepare it again.`);
     }
 
-    let prepared;
-    if (operationName === "cancel_workout") {
-      const stored = window.CalBuddy?.getPendingAction?.() || null;
-      if (
-        clean(stored?.vnext_action_id, 220) !== clean(pending?.id, 220) ||
-        clean(stored?.action_type, 120) !== "cancel_workout"
-      ) {
-        return failure(
-          "workout_cancel_prepared_snapshot_missing",
-          "The prepared workout cancellation is no longer available. Ask Ari to prepare it again."
-        );
-      }
-      prepared = {
+    const materialized = await materializedLedgerAction(pending);
+    if (!materialized?.success) return materialized;
+    if (materialized?.alreadyCompleted) {
+      clearMatchingPendingCopies(pending);
+      return {
         success: true,
-        action: stored,
-        resolution: {
-          operation: "cancel_workout",
-          source: SOURCE
-        }
+        alreadyCompleted: true,
+        result: materialized.result || {},
+        receipt: materialized.action || null
       };
-    } else {
-      prepared = await prepareOperationAsync(pending);
-      if (!prepared.success) return prepared;
     }
 
-    if (operationName === "plan_workout") {
-      const adapter = window.AriVNextActionAdapter;
-      const executor = adapter?.executeValidatedWorkout;
-      if (typeof executor !== "function") {
-        return failure("workout_executor_unavailable", "The canonical Training workout executor is unavailable.");
-      }
-
-      const execution = await executor.call(adapter, {
-        action: prepared.action,
-        pending,
-        currentTurnId: clean(input?.currentTurnId, 220) || null
-      });
-      if (execution?.success !== false) clearMatchingPendingCopies(pending);
-      return execution;
+    if (typeof window.CalBuddy?.beginPendingActionExecution !== "function") {
+      return failure("action_ledger_executor_unavailable", "The durable action ledger is unavailable.");
     }
 
-    if (operationName === "cancel_workout") {
-      const execution = await executeCancelWorkout({
-        pending,
-        prepared,
-        currentTurnId: clean(input?.currentTurnId, 220) || null
-      });
-      if (execution?.success !== false) clearMatchingPendingCopies(pending);
-      return execution;
+    const claim = await window.CalBuddy.beginPendingActionExecution(materialized.action);
+    if (!claim?.success) {
+      return failure(
+        claim?.code || "action_execution_claim_failed",
+        claim?.message || "That action could not be claimed safely."
+      );
+    }
+    if (claim?.alreadyCompleted) {
+      clearMatchingPendingCopies(pending);
+      return {
+        success: true,
+        alreadyCompleted: true,
+        result: claim.result || {},
+        receipt: claim.action || null
+      };
     }
 
-    if (typeof window.CalBuddy?.executeAction !== "function") {
-      return failure("action_executor_unavailable", "CalBuddy action executor is unavailable.");
-    }
-
-    const action = {
-      ...prepared.action,
+    const executingLedgerAction = claim.action || materialized.action;
+    const executionAction = {
+      ...executingLedgerAction,
       vnext_action_id: pending.id,
       vnext_source_turn_id: pending.sourceTurnId,
       vnext_confirmation_turn_id: clean(input?.currentTurnId, 220) || null,
       vnext_source: SOURCE
     };
 
-    const result = await window.CalBuddy.executeAction(action);
-    const success = result?.success !== false;
-    const execution = { success, result, action };
+    let execution;
+    try {
+      if (operationName === "plan_workout") {
+        const adapter = window.AriVNextActionAdapter;
+        const executor = adapter?.executeValidatedWorkout;
+        if (typeof executor !== "function") {
+          execution = failure("workout_executor_unavailable", "The canonical Training workout executor is unavailable.");
+        } else {
+          execution = await executor.call(adapter, {
+            action: executionAction,
+            pending,
+            currentTurnId: clean(input?.currentTurnId, 220) || null
+          });
+        }
+      } else if (operationName === "cancel_workout") {
+        execution = await executeCancelWorkout({
+          pending,
+          prepared: { success: true, action: executionAction },
+          currentTurnId: clean(input?.currentTurnId, 220) || null
+        });
+      } else if (typeof window.CalBuddy?.executeAction !== "function") {
+        execution = failure("action_executor_unavailable", "CalBuddy action executor is unavailable.");
+      } else {
+        const result = await window.CalBuddy.executeAction(executionAction);
+        execution = { success: result?.success !== false, result, action: executionAction };
+      }
+    } catch (error) {
+      execution = failure("action_executor_exception", error?.message || "That change could not be completed.");
+    }
 
-    if (success) clearMatchingPendingCopies(pending);
-    return execution;
+    if (!execution?.success) {
+      await window.CalBuddy?.failPendingAction?.(executingLedgerAction, execution);
+      return execution;
+    }
+
+    if (typeof window.CalBuddy?.completePendingAction !== "function") {
+      return failure("action_ledger_receipt_unavailable", "Ari could not verify the completed action.");
+    }
+
+    const receipt = await window.CalBuddy.completePendingAction(
+      executingLedgerAction,
+      execution?.result || execution,
+      { confirmationTurnId: clean(input?.currentTurnId, 220) || null }
+    );
+
+    if (!receipt?.success) {
+      return failure(
+        receipt?.code || "action_receipt_write_failed",
+        receipt?.message || "The app change may have completed, but Ari could not verify its completion receipt. Refresh before retrying."
+      );
+    }
+
+    clearMatchingPendingCopies(receipt.action || pending);
+    return {
+      ...execution,
+      success: true,
+      receipt: receipt.action || null
+    };
   }
 
   function install() {

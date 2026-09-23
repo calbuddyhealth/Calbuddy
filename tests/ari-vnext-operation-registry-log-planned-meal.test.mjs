@@ -34,7 +34,18 @@ function makeHarness({ executeSuccess = true, prepareSuccess = true } = {}) {
 
   const CalBuddy = {
     async createPendingAction(action) {
-      return { id: "legacy-planned-meal", ...action };
+      if (!action?.vnext_action_id || !action?.source_turn_id) {
+        return { ...action, _ledger_persisted: false, _ledger_error: "missing_vnext_identity" };
+      }
+      const stored = {
+        ...action,
+        id: `ledger-${action.vnext_action_id || "planned-meal"}`,
+        user_id: "user-1",
+        status: "pending",
+        _ledger_persisted: true
+      };
+      legacyPending = stored;
+      return stored;
     },
     setPendingAction(action) {
       legacyPending = action;
@@ -44,6 +55,29 @@ function makeHarness({ executeSuccess = true, prepareSuccess = true } = {}) {
     },
     clearPendingAction() {
       legacyPending = null;
+    },
+    async beginPendingActionExecution(action) {
+      if (action?.status === "completed") {
+        return { success: true, durable: true, alreadyCompleted: true, action, result: action.result || {} };
+      }
+      const executing = { ...action, status: "executing", _ledger_persisted: true };
+      legacyPending = executing;
+      return { success: true, durable: true, action: executing };
+    },
+    async completePendingAction(action, result = {}) {
+      const completed = { ...action, status: "completed", result, _ledger_persisted: true };
+      return { success: true, durable: true, action: completed, result };
+    },
+    async failPendingAction(action, failure = {}) {
+      const failed = {
+        ...action,
+        status: "failed",
+        error_code: failure?.code || "execution_failed",
+        error_message: failure?.message || null,
+        _ledger_persisted: true
+      };
+      legacyPending = failed;
+      return { success: true, durable: true, action: failed };
     },
     async executeAction(action) {
       executed.push(action);
@@ -160,7 +194,7 @@ test("registry owns log_planned_meal while preserving the canonical Meal Plan pr
   const harness = makeHarness();
   const registry = harness.window.AriVNextOperationRegistry;
 
-  assert.equal(registry.version, "1.7.0");
+  assert.equal(registry.version, "1.8.0");
   assert.equal(registry.hasOperation("log_planned_meal"), true);
   assert.equal(registry.hasOperation("plan_meal"), true);
 
