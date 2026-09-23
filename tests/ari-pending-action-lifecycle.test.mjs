@@ -7,7 +7,7 @@ const resilience = await readFile(new URL("../js/home-resilience.js", import.met
 const home = await readFile(new URL("../home.html", import.meta.url), "utf8");
 
 test("successful vNext confirmations clear the legacy pending-action mirror", () => {
-  assert.match(runtime, /const VERSION = "1\.3\.13"/);
+  assert.match(runtime, /const VERSION = "1\.3\.14"/);
 
   const buttonConfirm = runtime.match(
     /async function confirmPendingAction\(\)[\s\S]*?function cancelPendingAction\(\)/
