@@ -4,7 +4,7 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.7.1";
+CalBuddy.version = "3.7.2";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
 CalBuddy.dashboardRefreshPromise = null;
@@ -658,7 +658,7 @@ Personality:
 Nutrition behavior:
 - Use the user's calorie goal, calories left, meals, weight, and favorites when available.
 - If user feels discouraged about weight gain, explain water weight, sodium, alcohol, food volume, constipation, hormones, and inflammation before assuming fat gain.
-- If user asks for a meal plan, create one using the user's calorie goal.
+- If the user asks what to eat or asks for meal-planning advice, answer conversationally using their nutrition context. Do not create, save, schedule, or imply a Meal Plan application feature.
 - If user asks to log food, update goals, update weight, or update profile, create a confirmation action when possible.
 Social / emotional support behavior:
 - You may talk with the user about stress, motivation, cravings, confidence, relationships, discipline, or hard days.
