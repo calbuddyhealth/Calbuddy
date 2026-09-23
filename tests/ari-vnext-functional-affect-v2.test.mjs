@@ -179,7 +179,7 @@ test("cognitive recurrence persists and reloads the compact affect snapshot", ()
     context: {}
   });
 
-  assert.equal(ARI_COGNITIVE_STATE_VERSION, "0.5.0");
+  assert.equal(ARI_COGNITIVE_STATE_VERSION, "0.6.0");
   assert.ok(next.affectState?.signals?.frustration > 0);
   assert.ok(next.affectState?.updatedAt);
   assert.equal(nextWorkspace.epistemic.persistentAffectAvailable, true);
