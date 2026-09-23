@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — CONTROL DRAWER
-   Version: 2.6.0
+   Version: 2.6.1
    Adults-only shared controls for the simplified Circle shell.
    The drawer panel is portaled to <body> so iOS Safari cannot clip it
    inside the sticky/backdrop-filtered header.
@@ -9,7 +9,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "2.6.0";
+  const VERSION = "2.6.1";
   const STYLE_ID = "ariCircleMenuV5Style";
   const STYLE_HREF = "assets/css/ari-circle-menu-v5.css?v=1.1.0";
   const AUTHORITY_STYLE_ID = "ariCircleMenuV5AuthorityStyle";
@@ -83,7 +83,7 @@
       window.AriCircleV5RealWorld.refresh?.();
       return;
     }
-    if (document.querySelector(`script[src*="v5-real-world.js?v=5.4.0"]`)) return;
+    if (document.getElementById(REAL_WORLD_SCRIPT_ID) || document.querySelector('script[src*="v5-real-world.js"]')) return;
     const script = document.createElement("script");
     script.id = REAL_WORLD_SCRIPT_ID;
     script.src = REAL_WORLD_SCRIPT_SRC;
