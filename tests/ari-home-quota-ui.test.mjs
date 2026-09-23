@@ -11,7 +11,7 @@ test("Home surfaces daily Ari usage beside ASK ARI", () => {
   assert.match(home, /id="ariDailyQuotaPill"/);
   assert.match(home, /id="ariDailyQuotaDetail"/);
   assert.match(home, /ari-quota-ui\.css\?v=1\.0\.0/);
-  assert.match(home, /ari-quota-ui\.js\?v=1\.0\.0/);
+  assert.match(home, /ari-quota-ui\.js\?v=1\.0\.2/);
 });
 
 test("quota UI loads authenticated status before the first question", () => {
@@ -30,8 +30,11 @@ test("regular users see compact remaining state and a midnight explanation", () 
   assert.match(css, /body\.ari-home-page #ariDailyQuotaStatus/);
 });
 
-test("zero quota blocks both SEND and Enter while owner remains unlimited", () => {
-  assert.match(ui, /send\.disabled = true/);
+test("zero quota blocks new questions but leaves an existing pending action resolvable", () => {
+  assert.match(ui, /const allowPendingResolution = isExhausted\(\) && isPendingResolutionText\(\)/);
+  assert.match(ui, /const shouldDisable = isExhausted\(\) && !allowPendingResolution/);
+  assert.match(ui, /if \(isPendingResolutionText\(\)\) return/);
+  assert.match(ui, /Daily limit reached — use YES\/CANCEL above/);
   assert.match(ui, /event\.stopImmediatePropagation\(\)/);
   assert.match(ui, /new MutationObserver/);
   assert.match(ui, /next\.unlimited === true/);
