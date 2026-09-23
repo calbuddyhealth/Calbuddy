@@ -2,6 +2,7 @@
 // This is intentionally small. The primary model still owns semantic judgment.
 
 import { advancedConversationInstruction } from "./conversation-contract.js";
+import { beliefSystemInstruction } from "./belief-system.js";
 import { convictionInstruction } from "./conviction-learning.js";
 
 export const CONTEXT_ROUTER_VERSION = "1.16.0";
@@ -253,6 +254,10 @@ function cognitiveContextRules(context = {}) {
       "- Never invent missing identity, preferences, constraints, or physiological responses."
     );
   }
+
+  const beliefState = context?.userWorldModel?.ariCognitiveWorkspace?.beliefSystem || null;
+  const beliefInstruction = beliefSystemInstruction(beliefState);
+  if (beliefInstruction) lines.push(beliefInstruction);
 
   if (context?.convictionLearning) {
     lines.push(convictionInstruction(context.convictionLearning));
