@@ -48,15 +48,7 @@
   ];
 
   const legacy = {
-    askAri: typeof CalBuddy.askAri === "function" ? CalBuddy.askAri.bind(CalBuddy) : null,
-    confirmPendingAction:
-      typeof CalBuddy.confirmPendingAction === "function"
-        ? CalBuddy.confirmPendingAction.bind(CalBuddy)
-        : null,
-    cancelPendingAction:
-      typeof CalBuddy.cancelPendingAction === "function"
-        ? CalBuddy.cancelPendingAction.bind(CalBuddy)
-        : null
+    askAri: typeof CalBuddy.askAri === "function" ? CalBuddy.askAri.bind(CalBuddy) : null
   };
 
   let dependencyPromise = null;
@@ -367,6 +359,7 @@
 
     return {
       ...result,
+      reply: clean(mapped.action?.confirmation_text) || result?.reply || "Confirm this change?",
       pendingAction: mapped.action,
       vnextPendingAction: pending,
       actionMapping: {
@@ -392,10 +385,8 @@
     const pending = result?.vnextPendingAction || result?.pendingAction || null;
 
     if (actionType === "cancel_pending_action") {
-      if (legacy.cancelPendingAction && CalBuddy.getPendingAction?.()) {
-        legacy.cancelPendingAction();
-      }
       window.AriVNextBridge?.clearPendingAction?.();
+      CalBuddy.clearPendingAction?.();
       return { ...result, pendingAction: null };
     }
 
@@ -481,20 +472,7 @@
     return { success: true, reply: payload?.reply || "Experiment updated." };
   }
 
-  function isExpiredVNextLegacyPending(action = null) {
-    if (!action || typeof action !== "object") return false;
-    const linked = Boolean(
-      action?.vnext_action_id ||
-      action?.vnext_source_turn_id ||
-      clean(action?.vnext_source) === "ari_vnext_action_adapter"
-    );
-    if (!linked) return false;
-
-    const expiresAt = Date.parse(String(action?.vnext_expires_at || ""));
-    return Number.isFinite(expiresAt) && expiresAt <= Date.now();
-  }
-
-  function shouldPropagateTransportError(error) {
+  function shouldPropagateTransportError(error) {  function shouldPropagateTransportError(error) {
     return Boolean(
       error?.name === "AbortError" ||
       error?.code === "ARI_REQUEST_ABORTED" ||
@@ -578,11 +556,40 @@
   }
 
   async function confirmPendingAction() {
-    const pending = window.AriVNextBridge?.getPendingAction?.();
-    const legacyPending = CalBuddy.getPendingAction?.() || null;
+    if (getMode() !== "vnext") {
+      return {
+        success: false,
+        readOnlyFallback: true,
+        reply: "App changes are available only through the primary Ari runtime. Ask Ari to prepare the change again."
+      };
+    }
 
-    if (getMode() === "vnext" && !pending?.id && isExpiredVNextLegacyPending(legacyPending)) {
-      legacy.cancelPendingAction?.();
+    await ensureVNext();
+
+    const bridgePending = window.AriVNextBridge?.getPendingAction?.() || null;
+    const storedPending = CalBuddy.getPendingAction?.() || null;
+    const restoredVNext =
+      storedPending?.vnext_pending_action &&
+      typeof storedPending.vnext_pending_action === "object"
+        ? storedPending.vnext_pending_action
+        : null;
+    const pending = bridgePending?.id ? bridgePending : restoredVNext;
+
+    if (!pending?.id) {
+      if (storedPending) CalBuddy.clearPendingAction?.();
+      return {
+        success: false,
+        expired: true,
+        reply: storedPending
+          ? "That older pending change is no longer executable. Ask Ari to prepare it again."
+          : "There is no pending Ari change to confirm."
+      };
+    }
+
+    const expiresAt = Date.parse(String(pending?.expiresAt || ""));
+    if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) {
+      window.AriVNextBridge?.clearPendingAction?.();
+      CalBuddy.clearPendingAction?.();
       return {
         success: false,
         expired: true,
@@ -590,13 +597,16 @@
       };
     }
 
-    if (getMode() !== "vnext" || !pending?.id) {
-      return legacy.confirmPendingAction ? await legacy.confirmPendingAction() : null;
+    if (!bridgePending?.id) {
+      window.AriVNextBridge?.setPendingAction?.(pending);
     }
 
     if (isExperimentAction(pending.name)) {
       const response = await executeExperimentAction(pending);
-      if (response?.success) window.AriVNextBridge?.clearPendingAction?.();
+      if (response?.success) {
+        window.AriVNextBridge?.clearPendingAction?.();
+        CalBuddy.clearPendingAction?.();
+      }
       return response;
     }
 
@@ -604,18 +614,13 @@
       vnextPendingAction: pending,
       currentTurnId: null
     });
-    if (execution?.success) {
-      // Retire only the action that just completed. A newer proposal may already
-      // exist in the same conversation and must not be erased by this receipt.
-      clearMatchingPendingAction(pending);
-    }
+    if (execution?.success) clearMatchingPendingAction(pending);
     return execution;
   }
 
   function cancelPendingAction() {
-    if (getMode() !== "vnext") return legacy.cancelPendingAction?.();
     window.AriVNextBridge?.clearPendingAction?.();
-    if (CalBuddy.getPendingAction?.()) legacy.cancelPendingAction?.();
+    CalBuddy.clearPendingAction?.();
     return { success: true, cancelled: true, reply: "Cancelled. That pending change was not saved." };
   }
 
