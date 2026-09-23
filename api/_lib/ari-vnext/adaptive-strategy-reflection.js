@@ -12,7 +12,7 @@ import { persistBlindReasoningArenaResult } from "./reasoning-arena-store.js";
 
 export const ARI_REASONING_ACADEMY_VERSION = "1.1.1";
 
-const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
+const RESPONSES_URL = process.env.ARI_RESPONSES_URL || process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 const TIMEOUT_MS = Number(process.env.ARI_REASONING_ACADEMY_TIMEOUT_MS) > 0
   ? Number(process.env.ARI_REASONING_ACADEMY_TIMEOUT_MS)
   : Number(process.env.ARI_ADAPTIVE_STRATEGY_TIMEOUT_MS) > 0
@@ -108,9 +108,10 @@ export function normalizeAdaptiveReflectionProposal(raw = null) {
 export async function reflectOnAdaptiveStrategy({
   turn = {},
   result = {},
-  adaptiveStrategyState = null
+  adaptiveStrategyState = null,
+  reflectionContext = null
 } = {}) {
-  const apiKey = clean(process.env.OPENAI_API_KEY, 8000);
+  const apiKey = clean(process.env.ARI_PROVIDER_API_KEY || process.env.OPENAI_API_KEY, 8000);
   if (!apiKey) return { attempted: false, reason: "missing_openai_key", proposal: null };
 
   const academyMode = shouldUseReasoningAcademy({ turn, result });
@@ -143,7 +144,14 @@ export async function reflectOnAdaptiveStrategy({
       missingEvidence: compactArray(result?.metacognition?.missingEvidence, 6, 140),
       evidenceSignals: compactArray(result?.metacognition?.evidenceSignals, 6, 140)
     },
-    judgment: compactJudgment(result?.cognitiveWorkspace || result?.userWorldModel?.ariCognitiveWorkspace || null),
+    judgment: compactJudgment(
+      reflectionContext?.cognitiveWorkspace ||
+      result?.cognitiveWorkspace ||
+      result?.userWorldModel?.ariCognitiveWorkspace ||
+      turn?.context?.userWorldModel?.ariCognitiveWorkspace ||
+      null
+    ),
+    convictionLearning: compactConvictionContext(reflectionContext?.convictionLearning || turn?.context?.convictionLearning),
     outcomeLearningApplied: Boolean(result?.scientificIntelligence?.outcomeLearning?.applied),
     realWorldDecisionOutcome: compactDecisionOutcome(turn?.context?.decisionOutcomeLearning),
     activeStrategies: (Array.isArray(adaptiveStrategyState?.active) ? adaptiveStrategyState.active : [])
@@ -291,6 +299,23 @@ export async function reflectOnAdaptiveStrategy({
   } finally {
     clearTimeout(timer);
   }
+}
+
+function compactConvictionContext(value = null) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    activeGoalId: clean(value.activeGoalId, 100) || null,
+    goals: (Array.isArray(value.goals) ? value.goals : []).slice(0, 3).map(goal => ({
+      id: clean(goal?.id, 100),
+      purpose: clean(goal?.purpose, 500),
+      status: clean(goal?.status, 30),
+      commitment: finiteOrNull(goal?.commitment?.strength),
+      latestOutcome: goal?.latestOutcome ? {
+        status: clean(goal.latestOutcome.status, 30),
+        newLearning: goal.latestOutcome.newLearning === true
+      } : null
+    }))
+  };
 }
 
 function reasoningAcademyInstructions() {

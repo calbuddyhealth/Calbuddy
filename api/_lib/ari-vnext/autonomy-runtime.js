@@ -12,10 +12,12 @@
 import { normalizeCuriosityState } from "./curiosity-core.js";
 import { recordInitiativeSurface } from "./initiative-events.js";
 import { loadUserWorldModel, persistUserWorldModel } from "./user-world-model.js";
+import { loadGoals, saveGoalEvent } from "./goal-store.js";
+import { summarizeGoals } from "./conviction-learning.js";
 
-export const ARI_AUTONOMY_RUNTIME_VERSION = "1.0.1";
+export const ARI_AUTONOMY_RUNTIME_VERSION = "1.1.0";
 
-const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
+const RESPONSES_URL = process.env.ARI_RESPONSES_URL || process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 const MAX_FIND_CHARS = 12000;
 const MAX_REPLACE_CHARS = 12000;
 const MAX_FILE_CONTEXT_CHARS = 24000;
@@ -44,6 +46,33 @@ const PROTECTED_PREFIXES = [
   ".env.",
   "supabase/"
 ];
+
+// Only this repository's test workflow for the exact committed revision counts
+// as CI evidence. Deployment status, skipped runs, and other commits do not.
+export function classifyAutonomyCiState(value = {}, commitSha = "", branch = "") {
+  const pending = { ciStatus: "pending", outcomeStatus: "pending", terminal: false };
+  if (!commitSha || !branch) return pending;
+  const runs = (Array.isArray(value.workflow_runs) ? value.workflow_runs : []).filter(run =>
+    run.head_sha === commitSha && run.head_branch === branch &&
+    run.path === ".github/workflows/ari-vnext-tests.yml" && run.id
+  ).sort((a, b) => Number(b.run_number || b.id) - Number(a.run_number || a.id) || Number(b.run_attempt || 1) - Number(a.run_attempt || 1));
+  const run = runs[0];
+  if (!run || run.status !== "completed") return pending;
+  const result = { runId: String(run.id), runAttempt: Number(run.run_attempt || 1) };
+  if (run.conclusion === "success") return { ...result, ciStatus: "passed", outcomeStatus: "succeeded", terminal: true };
+  if (["failure", "timed_out"].includes(run.conclusion)) return { ...result, ciStatus: "failed", outcomeStatus: "failed", terminal: true };
+  if (["cancelled", "action_required"].includes(run.conclusion)) return { ...result, ciStatus: "blocked", outcomeStatus: "blocked", terminal: true };
+  return pending;
+}
+
+export function derivePersistentAutonomyGoals(goals = []) {
+  return goals.filter(goal => goal.autonomy === true && goal.status === "active" &&
+    goal.budget?.used < goal.budget?.attempts &&
+    (goal.domain === "ari_independence" || ELIGIBLE_TOPICS.has(goal.domain))
+  ).map(goal => ({ id: goal.id, label: goal.nextAction || goal.title, topic: goal.domain,
+    status: "open", priority: goal.commitment?.strength || 0.5, informationGain: 0,
+    source: "conviction_learning", conviction: summarizeGoals([goal]).goals[0] }));
+}
 
 export function deriveAriOwnedAutonomyGoals(worldModel = null) {
   const curiosity = normalizeCuriosityState(worldModel?.sourceSummary?.curiosityState);
@@ -190,13 +219,34 @@ export async function runAriAutonomyCycle({ userId, now = new Date() } = {}) {
   const worldModel = await loadUserWorldModel({ userId: id });
   if (!worldModel) return { success: false, code: "WORLD_MODEL_UNAVAILABLE" };
 
-  const priorState = normalizeAutonomyRuntimeState(worldModel?.sourceSummary?.autonomyRuntime, now);
+  let priorState = normalizeAutonomyRuntimeState(worldModel?.sourceSummary?.autonomyRuntime, now);
+  if (!envTrue(process.env.ARI_AUTONOMY_RUNTIME_ENABLED)) {
+    return { success: true, acted: false, reason: "autonomy_runtime_disabled" };
+  }
+  const configuredRepo = clean(process.env.GITHUB_REPO, 300);
+  const configuredToken = clean(process.env.GITHUB_TOKEN, 8000);
+  const ciResolution = await resolvePendingCi({
+    userId: id,
+    worldModel,
+    state: priorState,
+    repo: configuredRepo,
+    token: configuredToken,
+    now
+  });
+  priorState = ciResolution.state;
   const eligibility = evaluateAutonomyCycleEligibility({ state: priorState, now });
   if (!eligibility.allowed) {
-    return { success: true, acted: false, reason: eligibility.reason, retryAfterMinutes: eligibility.retryAfterMinutes || null };
+    return {
+      success: true,
+      acted: false,
+      reason: eligibility.reason,
+      retryAfterMinutes: eligibility.retryAfterMinutes || null,
+      ciUpdate: ciResolution.update || null
+    };
   }
 
-  const goals = deriveAriOwnedAutonomyGoals(worldModel);
+  const projectGoals = await loadGoals({ userId: id, limit: 60 });
+  const goals = [...derivePersistentAutonomyGoals(projectGoals), ...deriveAriOwnedAutonomyGoals(worldModel)];
   const goal = selectAutonomyGoal(goals, priorState, now);
   if (!goal) {
     const nextState = finalizeState(priorState, { now, action: null });
@@ -204,13 +254,15 @@ export async function runAriAutonomyCycle({ userId, now = new Date() } = {}) {
     return { success: true, acted: false, reason: "no_eligible_ari_owned_goal", openGoalCount: 0 };
   }
 
-  const repo = clean(process.env.GITHUB_REPO, 300);
-  const token = clean(process.env.GITHUB_TOKEN, 8000);
+  const repo = configuredRepo;
+  const token = configuredToken;
   const productionBranch = clean(process.env.GITHUB_BRANCH, 240) || "main";
   const autonomousBranch = clean(process.env.ARI_AUTONOMOUS_DEV_BRANCH, 240);
   const codeAuthorityEnabled = envTrue(process.env.ARI_AUTONOMOUS_DEV_ENABLED) && Boolean(repo && token) && isSafeAutonomyBranch(autonomousBranch, productionBranch);
   const dailyLimit = positiveInt(process.env.ARI_AUTONOMY_DAILY_COMMIT_LIMIT, DEFAULT_DAILY_COMMIT_LIMIT, 1, 12);
   const allowCodeCommit = codeAuthorityEnabled && priorState.commitsToday < dailyLimit;
+
+  goal.convictionAttempt = await startAutonomyGoalAttempt({ userId: id, goal, projectGoals, now });
 
   const planning = await createInvestigationPlan({ goal, userId: id });
   if (!planning?.searchQueries?.length) {
@@ -354,8 +406,26 @@ export async function runAriAutonomyCycle({ userId, now = new Date() } = {}) {
     branch: autonomousBranch,
     commitSha: commit.sha,
     commitUrl: commit.url,
+    ciStatus: "pending",
     confidence: round(clamp(finite(proposal.confidence, 0.5)))
   };
+  const conviction = await recordAutonomyGoalOutcome({
+    userId: id,
+    autonomyGoal: goal,
+    status: "partial",
+    evidence: `Verified isolated branch commit ${commit.sha} changed ${proposal.filePath}. CI remains pending.`,
+    learning: "A bounded repository change was produced; the next evidence is the test and CI result.",
+    receipt: { id: commit.sha, attemptId: null, verified: true }
+  });
+  if (conviction?.stored) {
+    action.convictionLearning = {
+      goalId: conviction.goalId,
+      attemptId: conviction.attemptId,
+      outcomeEventId: conviction.outcomeEventId,
+      verified: true
+    };
+    action.convictionGoalId = conviction.goalId;
+  }
   const nextState = finalizeState(priorState, { now, action, incrementCommit: true });
   await persistAutonomyState({ userId: id, worldModel, state: nextState });
   const surfaced = await surfaceDevelopmentUpdate({ userId: id, goal, action });
@@ -370,6 +440,7 @@ export async function runAriAutonomyCycle({ userId, now = new Date() } = {}) {
     commitSha: commit.sha,
     commitUrl: commit.url,
     ciStatus: "pending",
+    ciUpdate: ciResolution.update || null,
     productionChanged: false,
     ownerSignalCreated: Boolean(surfaced?.stored)
   };
@@ -386,6 +457,18 @@ async function finishResearchOnly({
   reason,
   confidence = 0.5
 }) {
+  const status = /(?:unavailable|failed|rejected|blocked|limit|outside_verified)/i.test(String(reason || ""))
+    ? "blocked"
+    : "partial";
+  const conviction = await recordAutonomyGoalOutcome({
+    userId,
+    autonomyGoal: goal,
+    status,
+    evidence,
+    learning: status === "partial"
+      ? "The investigation produced bounded evidence without a code change; the next attempt can use that evidence."
+      : "The autonomous path identified a local execution obstacle; the goal purpose remains open."
+  });
   const action = {
     at: now.toISOString(),
     goalId: goal.id,
@@ -395,7 +478,15 @@ async function finishResearchOnly({
     reason: clean(reason, 120),
     summary: clean(summary, 700),
     evidence: clean(evidence, 900),
-    confidence: round(clamp(finite(confidence, 0.5)))
+    confidence: round(clamp(finite(confidence, 0.5))),
+    ...(conviction?.stored ? {
+      convictionLearning: {
+        goalId: conviction.goalId,
+        attemptId: conviction.attemptId,
+        outcomeEventId: conviction.outcomeEventId,
+        verified: conviction.verified === true
+      }
+    } : {})
   };
   const nextState = finalizeState(priorState, { now, action });
   await persistAutonomyState({ userId, worldModel, state: nextState });
@@ -409,6 +500,95 @@ async function finishResearchOnly({
     productionChanged: false,
     ownerSignalCreated: Boolean(surfaced?.stored)
   };
+}
+
+async function startAutonomyGoalAttempt({ userId, goal, projectGoals, now }) {
+  const projectGoal = projectGoals.find(item => item.id === goal.id);
+  if (!projectGoal) return null;
+  const attemptId = `autonomy:${projectGoal.id}:${now.toISOString()}`;
+  const started = await saveGoalEvent({ userId, goalId: projectGoal.id, event: {
+    id: `attempt:${attemptId}`, type: "attempt_started", at: now.toISOString(),
+    source: "ari_autonomy_runtime", sourceId: goal.id,
+    payload: {
+      attemptId, method: goal.label,
+      prediction: "The cycle will obtain repository evidence or a bounded change that can be checked by CI.",
+      successCriteria: "The bounded change passes the configured repository tests.",
+      expectedLearning: "Determine whether this repository approach advances the persistent purpose.",
+      feasibility: null, assumptions: "The configured repository and provider are available.",
+      disconfirmer: "Repository evidence is unavailable or the proposed change fails its tests."
+    }
+  } });
+  return started.stored ? { goalId: projectGoal.id, attemptId } : null;
+}
+
+async function recordAutonomyGoalOutcome({ userId, autonomyGoal, status, evidence, learning, receipt = null, eventId = null }) {
+  const tracking = autonomyGoal?.convictionAttempt;
+  if (!tracking?.goalId || !tracking?.attemptId) return { stored: false, reason: "no_tracked_attempt" };
+  try {
+    const { goalId, attemptId } = tracking;
+    const effectiveReceipt = receipt ? { ...receipt, attemptId, verified: receipt.verified === true } : null;
+    const outcomeEventId = eventId || `outcome:${attemptId}`;
+    const outcome = await saveGoalEvent({ userId, goalId, event: {
+      id: outcomeEventId, type: "outcome_observed", source: "ari_autonomy_runtime", sourceId: attemptId,
+      receipt: effectiveReceipt,
+      payload: {
+        attemptId, status, evidence, learning,
+        learningKind: ["blocked", "failed"].includes(status) ? "recovery" : "knowledge",
+        beliefUpdate: "This observation tests the selected method; it does not determine whether the broader purpose is achievable.",
+        nextAction: ["failed", "blocked"].includes(status)
+          ? `Investigate the observed obstacle before retrying: ${clean(evidence, 700)}`
+          : "Review the attributable result and choose the next useful experiment."
+      }
+    } });
+    return { stored: Boolean(outcome.stored), verified: effectiveReceipt?.verified === true,
+      goalId, attemptId, outcomeEventId, reason: outcome.reason || null };
+  } catch {
+    return { stored: false, reason: "conviction_persistence_failed" };
+  }
+}
+
+export async function resolvePendingCi({ userId, worldModel, state, repo, token, now = new Date(),
+  read = githubFetch, save = persistAutonomyState, record = recordAutonomyGoalOutcome }) {
+  const normalized = normalizeAutonomyRuntimeState(state, now);
+  const pending = [...normalized.recent].reverse().find(item => item.action === "branch_commit" &&
+    item.commitSha && !item.ciObservedAt &&
+    ["pending", "pending_ci", "ci_requested", "ci_pending"].includes(item.ciStatus || item.status));
+  if (!pending || !repo || !token) return { state: normalized, update: null };
+  try {
+    const query = new URLSearchParams({ head_sha: pending.commitSha, branch: pending.branch, per_page: "100" });
+    const data = await read(`https://api.github.com/repos/${repo}/actions/workflows/ari-vnext-tests.yml/runs?${query}`, token);
+    const observation = classifyAutonomyCiState(data, pending.commitSha, pending.branch);
+    const update = { commitSha: pending.commitSha, ...observation };
+    if (!observation.terminal) return { state: normalized, update };
+
+    const receiptId = `ci:${pending.commitSha}:${observation.runId}:${observation.runAttempt}`;
+    const evidence = `Repository test run ${observation.runId} for commit ${pending.commitSha}: ${observation.ciStatus}.`;
+    const tracking = pending.convictionLearning;
+    const conviction = tracking?.goalId && tracking?.attemptId ? await record({
+      userId,
+      autonomyGoal: { convictionAttempt: tracking },
+      status: observation.outcomeStatus,
+      evidence,
+      learning: observation.ciStatus === "passed"
+        ? "The bounded branch change passed the configured test suite. Transfer to other situations remains untested."
+        : `The test run was ${observation.ciStatus}; inspect its evidence and revise the method before repeating it.`,
+      receipt: { id: receiptId, verified: true, kind: "github_workflow", commitSha: pending.commitSha },
+      eventId: receiptId
+    }) : { stored: false, reason: "no_tracked_attempt" };
+    // Keep the observation retryable if the learning store was temporarily unavailable.
+    if (tracking?.attemptId && !conviction.stored) {
+      return { state: normalized, update: { ...update, learningStored: false, reason: conviction.reason } };
+    }
+    const action = { ...pending, status: `ci_${observation.ciStatus}`, ciStatus: observation.ciStatus,
+      ciObservedAt: now.toISOString(), ciEvidence: evidence,
+      ...(conviction.stored ? { convictionLearning: conviction } : {}) };
+    const nextState = { ...normalized, recent: normalized.recent.map(item => item === pending ? action : item) };
+    const saved = await save({ userId, worldModel, state: nextState });
+    return { state: nextState, update: { ...update, learningStored: conviction.stored, stateStored: saved === true } };
+  } catch (error) {
+    return { state: normalized, update: { commitSha: pending.commitSha, ciStatus: "unavailable", terminal: false,
+      reason: clean(error?.message, 180) || "ci_status_unavailable" } };
+  }
 }
 
 async function persistAutonomyState({ userId, worldModel, state }) {
@@ -529,7 +709,7 @@ async function createPatchProposal({ goal, planning, files, allowCodeCommit, use
 }
 
 async function callStructuredModel({ userId, schemaName, schema, instructions, input, maxOutputTokens }) {
-  const apiKey = clean(process.env.OPENAI_API_KEY, 8000);
+  const apiKey = clean(process.env.ARI_PROVIDER_API_KEY || process.env.OPENAI_API_KEY, 8000);
   const model = clean(
     process.env.ARI_AUTONOMY_MODEL ||
     process.env.OPENAI_ARI_ADVANCED_MODEL ||
@@ -660,6 +840,7 @@ async function commitExactReplacement({ repo, token, branch, filePath, find, rep
 
 async function githubFetch(url, token, options = {}) {
   const response = await fetch(url, {
+    signal: AbortSignal.timeout(8000),
     ...options,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -707,11 +888,24 @@ function normalizeRecentAction(value = null) {
     branch: clean(value.branch, 240) || null,
     commitSha: clean(value.commitSha, 120) || null,
     commitUrl: clean(value.commitUrl, 1000) || null,
+    convictionGoalId: clean(value.convictionGoalId, 200) || null,
+    ciStatus: clean(value.ciStatus, 40) || null,
+    ciObservedAt: clean(value.ciObservedAt, 80) || null,
+    ciEvidence: clean(value.ciEvidence, 900) || null,
+    convictionLearning: value.convictionLearning && typeof value.convictionLearning === "object"
+      ? {
+        goalId: clean(value.convictionLearning.goalId, 200) || null,
+        attemptId: clean(value.convictionLearning.attemptId, 200) || null,
+        outcomeEventId: clean(value.convictionLearning.outcomeEventId, 240) || null,
+        verified: value.convictionLearning.verified === true
+      }
+      : null,
     confidence: round(clamp(finite(value.confidence, 0.5)))
   };
 }
 
 function goalScore(goal = {}) {
+  if (goal.conviction) return 0.7 * finite(goal.priority, 0.5) + (goal.conviction.nextAction ? 0.15 : 0);
   return 0.68 * finite(goal.informationGain, 0) +
     0.32 * finite(goal.priority, 0) +
     Math.min(0.08, finite(goal.encounters, 0) * 0.01) +

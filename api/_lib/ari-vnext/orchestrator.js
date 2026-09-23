@@ -28,6 +28,7 @@ import { getAriTools, toolToApplicationAction, validateToolCall } from "./tools.
 import { runAriConsciousnessTest } from "./consciousness-lab.js";
 import { runAriSelfGovernanceTest } from "./self-governance-lab.js";
 import { recordCommunityInteraction } from "./community-autonomy-store.js";
+import { ensureGoal, readGoalRecords, saveGoalEvent } from "./goal-store.js";
 import {
   listCommunityThreads,
   readCommunityThread,
@@ -35,13 +36,14 @@ import {
   publishCommunityReply
 } from "../../../server/ari-agent-community.js";
 
-const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
+const RESPONSES_URL = process.env.ARI_RESPONSES_URL || process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 const LOW_RISK_PRIMARY_FAST_PATHS = new Set([
   "propose_log_meal",
   "propose_log_weight",
   "propose_log_activity",
   "agent_community_list",
   "agent_community_read",
+  "ari_goal_manage",
   "ari_lab_run_consciousness_test",
   "ari_lab_run_self_governance_test"
 ]);
@@ -465,6 +467,60 @@ export async function runAriVNext(turn = {}) {
   }
 
   const applicationAction = toolToApplicationAction(validation.name);
+
+  if (applicationAction === "goal_manage") {
+    const goalResult = await executeOwnerGoalManagement({
+      userId: turn?.userId,
+      turnId: turn?.turnId,
+      arguments: validation.arguments
+    });
+    const continuationInput = [
+      ...input,
+      ...(Array.isArray(first?.output) ? first.output : []),
+      {
+        type: "function_call_output",
+        call_id: functionCall.call_id,
+        output: JSON.stringify(compactGoalManagementResult(goalResult))
+      }
+    ];
+    const second = await callResponses({
+      turn,
+      policy: modelPolicy,
+      instructions: instructions + "\nOWNER CONVICTION GOAL RESULT\nThe function output is the verified result of Ari's owner-scoped goal store. Explain the stored purpose, prediction, observation, or review accurately. A failed method is local evidence and does not erase the purpose. Do not claim persistence, verified success, or goal completion unless the result explicitly says so.",
+      input: continuationInput,
+      tools: []
+    });
+    return withInternalCouncil({
+      success: true,
+      ready: true,
+      reply: extractOutputText(second) || goalManagementFallbackReply(goalResult),
+      route,
+      safety,
+      communication,
+      selfModel,
+      relationshipContinuity,
+      goalHierarchy,
+      metacognition,
+      cortexAdviser: publicCortexAdviser(cortexAdviser),
+      multiAgent: publicMultiAgentCouncil(multiAgentCouncil),
+      scientificIntelligence,
+      experimentReviewState,
+      temporalContext,
+      modelPolicy,
+      coachingState,
+      longitudinalState,
+      pendingAction: null,
+      action: {
+        type: "executed_owner_action",
+        applicationAction,
+        verified: goalResult?.stored === true
+      },
+      provider: providerSummary(second),
+      semanticActionReview: publicActionReview(semanticActionReview),
+      convictionLearning: compactGoalManagementResult(goalResult),
+      source: "ari_vnext_owner_conviction_goal"
+    }, multiAgentCouncil);
+  }
 
   if (OWNER_LAB_ACTIONS.has(applicationAction)) {
     const explicitLabTool = explicitOwnerLabRunTool(turn?.message);
@@ -1340,8 +1396,8 @@ function buildInput(turn = {}) {
 }
 
 async function callResponses({ turn, policy, instructions, input, tools = [], toolChoice = "auto" } = {}) {
-  const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
-  if (!apiKey) throw new Error("OPENAI_API_KEY is not configured.");
+  const apiKey = String(process.env.ARI_PROVIDER_API_KEY || process.env.OPENAI_API_KEY || "").trim();
+  if (!apiKey) throw new Error("Ari model provider key is not configured.");
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), policy?.timeoutMs || 25000);
@@ -1384,7 +1440,7 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
 
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const error = new Error(data?.error?.message || "OpenAI Responses request failed.");
+      const error = new Error(data?.error?.message || "ARI model provider request failed.");
       error.status = response.status;
       throw error;
     }
@@ -1423,6 +1479,45 @@ export function missingWorkoutDateClarification(turn = {}, route = {}) {
   return focus
     ? `What day do you want the ${focus.toLowerCase()} workout for?`
     : "What day do you want the workout for?";
+}
+
+export async function executeOwnerGoalManagement({ userId, turnId, arguments: args = {} }) {
+  if (!userId) return { stored: false, reason: "user_missing" };
+  if (args.action === "list") {
+    const result = await readGoalRecords({ userId, limit: 20 });
+    return { stored: false, read: result.ok, goals: result.goals, reason: result.reason };
+  }
+  if (args.action === "create") return ensureGoal({ userId, input: args, actor: "ari", sourceId: turnId });
+  const eventId = `goal:${turnId}:${args.action}:${args.goalId}`;
+  const type = { start_attempt: "attempt_started", observe_outcome: "outcome_observed", review: "goal_review" }[args.action];
+  if (!type) return { stored: false, reason: "goal_action_invalid" };
+  const payload = { ...args };
+  if (payload.commitment == null) delete payload.commitment;
+  if (!payload.nextAction) delete payload.nextAction;
+  if (type === "attempt_started") payload.attemptId = args.attemptId || `${turnId}:goal`;
+  if (type === "outcome_observed") payload.status = args.outcomeStatus;
+  // Model-supplied observations carry no trusted executor receipt.
+  return saveGoalEvent({ userId, goalId: args.goalId, event: {
+    id: eventId, type, source: "owner_goal_tool", sourceId: turnId, payload
+  } });
+}
+
+function compactGoalManagementResult(result = {}) {
+  const compact = goal => goal ? {
+    id: goal.id, title: goal.title, purpose: goal.purpose, status: goal.status,
+    successCriteria: goal.successCriteria, commitment: goal.commitment,
+    nextAction: goal.nextAction, budget: goal.budget,
+    attempts: (goal.attempts || []).slice(-3), lessons: (goal.lessons || []).slice(-3)
+  } : null;
+  return { stored: result.stored === true, read: result.read === true,
+    reason: result.reason || null, goal: compact(result.goal),
+    goals: (result.goals || []).slice(0, 10).map(compact) };
+}
+
+function goalManagementFallbackReply(result = {}) {
+  if (result.stored) return "The goal record was saved. Its purpose and observed outcomes are available for the next review.";
+  if (result.read) return `I retrieved ${result.goals?.length || 0} goal records.`;
+  return "I couldn't save that goal update. The existing record is unchanged.";
 }
 
 function shouldReviewNoToolTurn(turn = {}, continuation = null) {

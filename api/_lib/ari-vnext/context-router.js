@@ -2,6 +2,7 @@
 // This is intentionally small. The primary model still owns semantic judgment.
 
 import { advancedConversationInstruction } from "./conversation-contract.js";
+import { convictionInstruction } from "./conviction-learning.js";
 
 export const CONTEXT_ROUTER_VERSION = "1.16.0";
 
@@ -15,7 +16,7 @@ const PATTERNS = {
   liveInfo: /\b(news|weather|forecast|price|prices|score|scores|standings|stock price|market price|exchange rate|release date|availability|president|vice president|prime minister|governor|mayor|senator|representative|congress|supreme court|ceo|cfo|chairman|officeholder|administration|cabinet|election|elections|poll|polls|in office|who is .* president|who's .* president)\b/i,
   recency: /\b(latest|current|currently|today(?:'s)?|tonight|this week|this month|this year|right now|as of now|newest|recent)\b/i,
   changingReference: /\b(research|study|studies|guideline|guidelines|recommendation|recommendations|evidence|software|version|release)\b/i,
-  developer: /\b(github|repo|repository|branch|commit|deploy|vercel|supabase|pipeline|runtime|debug|code|javascript|html|css|sql|api)\b/i
+  developer: /\b(github|repo|repository|branch|commit|deploy|vercel|supabase|pipeline|runtime|debug|code|javascript|html|css|sql|api|ari(?:'s|\s+(?:xp|rebirth))|reasoning|autonom(?:y|ous)|sentien(?:ce|t)|conviction|learning loop|independent intelligence)\b/i
 };
 
 export function routeContext(turn = {}) {
@@ -95,6 +96,10 @@ export function buildRelevantContext(turn = {}, route = {}) {
     selected.userWorldModel = source.userWorldModel;
   }
 
+  if (source?.convictionLearning && typeof source.convictionLearning === "object") {
+    selected.convictionLearning = source.convictionLearning;
+  }
+
   if (route.goals) {
     selected.goals = source?.goals || source?.healthProfile || {};
     selected.recentWeights = Array.isArray(source?.recentWeights)
@@ -160,11 +165,54 @@ export function buildRelevantContext(turn = {}, route = {}) {
 export function contextToText(context = {}) {
   try {
     const rules = cognitiveContextRules(context);
-    const json = JSON.stringify(context, null, 2).slice(0, 22500);
+    if (!context.convictionLearning?.goals?.length) {
+      const json = JSON.stringify(context, null, 2).slice(0, 22500);
+      return [rules, json].filter(Boolean).join("\n\n").slice(0, 24000);
+    }
+    const priority = [
+      "convictionLearning",
+      "decisionState",
+      "temporalTimeline",
+      "institutionalMemory",
+      "agentPerformance",
+      "userWorldModel",
+      "relevantMemory"
+    ];
+    const ordered = {};
+    for (const key of priority) {
+      if (context[key] !== undefined) ordered[key] = compactContextField(key, context[key]);
+    }
+    for (const [key, value] of Object.entries(context)) {
+      if (!(key in ordered)) ordered[key] = compactContextField(key, value);
+    }
+    const json = JSON.stringify(ordered, null, 2).slice(0, 22500);
     return [rules, json].filter(Boolean).join("\n\n").slice(0, 24000);
   } catch {
     return "{}";
   }
+}
+
+function compactContextField(key, value) {
+  if (key === "relevantMemory") return String(value || "").slice(0, 9000);
+  if (Array.isArray(value)) return value.slice(0, 60);
+  if (value && typeof value === "object") {
+    try {
+      const copy = JSON.parse(JSON.stringify(value));
+      if (key === "convictionLearning" && Array.isArray(copy.goals)) {
+        copy.goals = copy.goals.slice(0, 3);
+        while (copy.goals.length > 1 && JSON.stringify(copy).length > 6000) copy.goals.pop();
+      }
+      if (key === "decisionState" && Array.isArray(copy.recent)) copy.recent = copy.recent.slice(0, 12);
+      if (key === "userWorldModel") {
+        if (Array.isArray(copy.preferences?.items)) copy.preferences.items = copy.preferences.items.slice(0, 18);
+        if (Array.isArray(copy.constraints?.items)) copy.constraints.items = copy.constraints.items.slice(0, 18);
+      }
+      return copy;
+    } catch {
+      return {};
+    }
+  }
+  return value;
 }
 
 function cognitiveContextRules(context = {}) {
@@ -204,6 +252,10 @@ function cognitiveContextRules(context = {}) {
       "- Privacy blocks are authoritative. Never reconstruct a blocked category from neighboring context.",
       "- Never invent missing identity, preferences, constraints, or physiological responses."
     );
+  }
+
+  if (context?.convictionLearning) {
+    lines.push(convictionInstruction(context.convictionLearning));
   }
 
   if (context?.decisionState) {

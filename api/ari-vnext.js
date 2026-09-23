@@ -85,6 +85,13 @@ import {
   loadAriCommercialEntitlement,
   loadAriIntelligenceControls
 } from "../server/ari-intelligence-control-store.js";
+import {
+  buildAttemptEvent,
+  buildOutcomeEvent,
+  goalCandidateFromMessage,
+  summarizeGoals
+} from "./_lib/ari-vnext/conviction-learning.js";
+import { ensureGoal, loadGoals, saveGoalEvent } from "./_lib/ari-vnext/goal-store.js";
 
 const AUTH_TIMEOUT_MS = Number(process.env.ARI_AUTH_TIMEOUT_MS) > 0
   ? Number(process.env.ARI_AUTH_TIMEOUT_MS)
@@ -211,6 +218,7 @@ export default async function handler(req, res) {
     const shouldLoadDecisionHistory = Boolean(!casualConversation && (fitnessRoute || cognitiveLoopEnabled));
     const shouldLoadConversationLearning = !casualConversation || cleanText(turn.message, 2000).length >= 12;
     const shouldLoadMemory = Boolean(!casualConversation && (routePreview.memory || fitnessRoute || cognitiveLoopEnabled));
+    const goalCandidate = cognitiveLoopEnabled ? goalCandidateFromMessage(turn.message) : null;
     const strategyPreparationPromise = cognitiveLoopEnabled
       ? prepareAdaptiveStrategiesForTurn({
           userId: auth.userId,
@@ -255,7 +263,8 @@ export default async function handler(req, res) {
       persistedCognitiveState,
       adaptiveStrategyPreparation,
       institutionalMemory,
-      agentPerformance
+      agentPerformance,
+      projectGoals
     ] = await Promise.all([
       shouldLoadMemory
         ? retrieveRelevantMemories({
@@ -285,8 +294,24 @@ export default async function handler(req, res) {
         : Promise.resolve(null),
       strategyPreparationPromise,
       institutionalMemoryPromise,
-      agentPerformancePromise
+      agentPerformancePromise,
+      cognitiveLoopEnabled
+        ? loadGoals({ userId: auth.userId, limit: 40 })
+        : Promise.resolve([])
     ]);
+
+    const goalCreation = goalCandidate
+      ? await ensureGoal({ userId: auth.userId, input: goalCandidate, actor: "jose_owner", sourceId: turn.turnId })
+      : null;
+    const loadedGoals = [
+      ...(Array.isArray(projectGoals) ? projectGoals : []),
+      ...(goalCreation?.goal ? [goalCreation.goal] : [])
+    ].filter((goal, index, all) => goal?.id && all.findIndex(item => item.id === goal.id) === index);
+    const convictionLearning = summarizeGoals(loadedGoals, {
+      message: turn.message,
+      activeGoalId: goalCreation?.goal?.id || null,
+      salience: 0.7
+    });
 
     if (persistedWorldModel) {
       Object.assign(
@@ -464,6 +489,7 @@ export default async function handler(req, res) {
       },
       ...(experimentLedger ? { experimentLedger } : {}),
       ...(worldModelForTurn ? { userWorldModel: worldModelForTurn } : {}),
+      ...(cognitiveLoopEnabled && (!fitnessRoute || routePreview.developer) ? { convictionLearning } : {}),
       ...(decisionState ? { decisionState } : {}),
       ...(decisionOutcomeLearning?.resolved ? { decisionOutcomeLearning } : {}),
       ...(communicationLearning ? { communicationLearning } : {}),
@@ -523,8 +549,49 @@ export default async function handler(req, res) {
       }
     };
 
+    const trackedGoal = convictionLearning?.goals?.find((goal) => goal.id === convictionLearning.activeGoalId) || null;
+    const shouldTrackGoalAttempt = Boolean(
+      trackedGoal &&
+      cognitiveLoopEnabled &&
+      (!fitnessRoute || routePreview.developer) &&
+      /\b(?:implement|build|test|run|investigate|try|attempt|continue|change (?:the )?approach|make all changes|work on|figure out)\b/i.test(turn.message)
+    );
+    const goalAttemptEvent = shouldTrackGoalAttempt
+      ? buildAttemptEvent({ goal: trackedGoal, turn })
+      : null;
+    const goalAttemptPersistence = goalAttemptEvent
+      ? await saveGoalEvent({ userId: auth.userId, goalId: trackedGoal.id, event: goalAttemptEvent })
+      : { stored: false, reason: "not_tracked" };
+    const trackedAttemptId = goalAttemptPersistence?.stored
+      ? goalAttemptEvent.payload.attemptId
+      : null;
+
     const modelStartedAt = Date.now();
-    const result = await runAriVNext(turn);
+    const result = await runAriVNext(turn).catch(async (error) => {
+      if (trackedAttemptId) {
+        await saveGoalEvent({
+          userId: auth.userId,
+          goalId: trackedGoal.id,
+          event: buildOutcomeEvent({ attemptId: trackedAttemptId, turn, error })
+        }).catch(() => null);
+      }
+      if (cognitiveLoopEnabled && cognitiveWorkspace) {
+        const failedState = advanceCognitiveState({
+          previous: persistedCognitiveState,
+          workspace: cognitiveWorkspace,
+          turn,
+          result: {
+            success: false,
+            reply: "",
+            route: routePreview,
+            metacognition: { confidence: "limited", missingEvidence: ["runtime result"] },
+            failure: { source: "ari_vnext_runtime", message: cleanText(error?.message || error, 500) }
+          }
+        });
+        await persistAriCognitiveState({ userId: auth.userId, state: failedState }).catch(() => null);
+      }
+      throw error;
+    });
 
     const actionLedgerProposal =
       result?.action?.type === "proposed_action" && result?.pendingAction?.id
@@ -551,6 +618,24 @@ export default async function handler(req, res) {
         reason: actionLedgerProposal.reason || "ledger_write_failed"
       };
     }
+
+    const goalOutcomePersistence = trackedAttemptId
+      ? await saveGoalEvent({
+          userId: auth.userId,
+          goalId: trackedGoal.id,
+          event: buildOutcomeEvent({ attemptId: trackedAttemptId, turn, result })
+        })
+      : { stored: false, reason: "no_tracked_attempt" };
+    result.convictionLearning = {
+      ...result.convictionLearning,
+      activeGoalId: trackedGoal?.id || convictionLearning?.activeGoalId || null,
+      attemptId: trackedAttemptId,
+      attemptStored: Boolean(goalAttemptPersistence?.stored),
+      outcomeStored: Boolean(goalOutcomePersistence?.stored),
+      outcomeReason: goalOutcomePersistence?.reason || null,
+      verifiedLearning: Boolean(goalOutcomePersistence?.goal?.latestOutcome?.newLearning),
+      version: convictionLearning?.version || "1.0.0"
+    };
 
     result.resourceResolution = {
       conversationRecall: {
@@ -611,7 +696,15 @@ export default async function handler(req, res) {
       ? await reflectOnAdaptiveStrategy({
           turn,
           result,
-          adaptiveStrategyState
+          adaptiveStrategyState,
+          reflectionContext: {
+            cognitiveWorkspace,
+            convictionLearning: goalOutcomePersistence?.goal
+              ? summarizeGoals([goalOutcomePersistence.goal, ...loadedGoals.filter(goal => goal.id !== trackedGoal?.id)], {
+                  message: turn.message, activeGoalId: trackedGoal?.id
+                })
+              : convictionLearning
+          }
         })
       : { attempted: false, reason: "not_triggered", proposal: null, provider: null };
     const adaptiveStrategyProposalPersistence = adaptiveStrategyReflection?.proposal
@@ -1008,6 +1101,13 @@ export default async function handler(req, res) {
         : null,
       experimentLedger,
       userWorldModel: runtimeWorldModel,
+      convictionLearning: {
+        ...convictionLearning,
+        attemptId: trackedAttemptId,
+        attemptStored: Boolean(goalAttemptPersistence?.stored),
+        outcomeStored: Boolean(goalOutcomePersistence?.stored),
+        outcomeReason: goalOutcomePersistence?.reason || null
+      },
       decisionState,
       decisionOutcomeLearning,
       communicationLearning,

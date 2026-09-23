@@ -239,7 +239,7 @@ export function buildMotivationalOutcomeReflection({
   rewardEvent = null,
   result = null
 } = {}) {
-  if (!arbitration?.functionalControlSystem || !rewardEvent || result?.success !== true) return null;
+  if (!arbitration?.functionalControlSystem || !rewardEvent) return null;
 
   const reward = clamp(rewardEvent?.actualReward ?? 0.55);
   const predictionError = clampSigned(rewardEvent?.predictionError ?? 0);
@@ -249,6 +249,7 @@ export function buildMotivationalOutcomeReflection({
   const dominantValue = clean(arbitration?.arbitration?.dominantValue, 80) || null;
   const rationaleCode = clean(arbitration?.arbitration?.rationaleCode, 120) || "unknown";
   const actionType = clean(result?.action?.type, 120) || null;
+  const outcomeStatus = clean(rewardEvent?.outcomeStatus, 40) || (result?.success === true ? "delivered" : "failed");
 
   const outcomeDirection =
     predictionError >= 0.10 ? "better_than_expected" :
@@ -274,6 +275,8 @@ export function buildMotivationalOutcomeReflection({
     predictionError: round(predictionError),
     learningSignal,
     actionType,
+    outcomeStatus,
+    completionVerified: rewardEvent?.completionVerified === true,
     compactReason: compactReason({
       posture,
       selectedSide,
@@ -408,6 +411,8 @@ function normalizeReflection(value = null, index = 0) {
     predictionError: round(clampSigned(value?.predictionError ?? 0)),
     learningSignal: clean(value?.learningSignal, 80) || "hold_balance",
     actionType: clean(value?.actionType, 120) || null,
+    outcomeStatus: clean(value?.outcomeStatus, 40) || "unknown",
+    completionVerified: value?.completionVerified === true,
     compactReason: clean(value?.compactReason, 420) || null,
     hiddenChainOfThoughtStored: false,
     subjectiveTemptationClaimed: false,

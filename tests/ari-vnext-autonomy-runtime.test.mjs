@@ -3,6 +3,9 @@ import test from "node:test";
 
 import {
   deriveAriOwnedAutonomyGoals,
+  classifyAutonomyCiState,
+  derivePersistentAutonomyGoals,
+  resolvePendingCi,
   evaluateAutonomyCycleEligibility,
   isAutonomyProtectedPath,
   isSafeAutonomyBranch,
@@ -135,4 +138,57 @@ test("autonomous code writes require one bounded exact replacement", () => {
     find: "{}",
     replace: "{\"x\":1}"
   }).reason, "protected_or_invalid_path");
+});
+
+const sha = "a".repeat(40);
+const branch = "agent/ari-autonomous-development";
+const ciRun = (overrides = {}) => ({ id: 72, head_sha: sha, head_branch: branch,
+  path: ".github/workflows/ari-vnext-tests.yml", status: "completed", conclusion: "success", run_number: 9, ...overrides });
+
+test("CI evidence requires the exact commit, branch, test workflow, and latest run", () => {
+  const classify = (...runs) => classifyAutonomyCiState({ workflow_runs: runs }, sha, branch);
+  assert.equal(classify(ciRun()).ciStatus, "passed");
+  assert.equal(classify(ciRun({ conclusion: "failure" })).ciStatus, "failed");
+  assert.equal(classify(ciRun({ conclusion: "cancelled" })).outcomeStatus, "blocked");
+  for (const override of [
+    { head_sha: "b".repeat(40) }, { head_branch: "main" }, { path: ".github/workflows/deploy.yml" },
+    { status: "in_progress" }, { conclusion: "skipped" }, { conclusion: "neutral" }
+  ]) assert.equal(classify(ciRun(override)).terminal, false);
+  assert.equal(classify(ciRun(), ciRun({ id: 73, run_number: 10, status: "queued" })).terminal, false);
+  assert.equal(classifyAutonomyCiState({ state: "success" }, sha, branch).terminal, false);
+});
+
+test("CI resolves the original attempt, preserves chronological history, and retries persistence failures", async () => {
+  const now = new Date("2026-09-23T18:00:00Z");
+  const old = { at: "2026-09-23T13:00:00Z", action: "branch_commit", status: "pending_ci",
+    commitSha: sha, branch, convictionLearning: { goalId: "goal-1", attemptId: "attempt-1" } };
+  const state = { recent: [{ ...old, commitSha: "b".repeat(40), at: "2026-09-23T14:00:00Z" }, old] };
+  const writes = [];
+  const records = [];
+  const options = { userId: "owner", state, now, repo: "example/repo", token: "test",
+    read: async url => { assert.equal(new URL(url).searchParams.get("head_sha"), sha); return { workflow_runs: [ciRun()] }; },
+    save: async value => { writes.push(value); return true; },
+    record: async value => { records.push(value); return { stored: true, ...value.autonomyGoal.convictionAttempt }; }
+  };
+  const result = await resolvePendingCi(options);
+  assert.equal(result.update.learningStored, true);
+  assert.equal(records[0].autonomyGoal.convictionAttempt.attemptId, "attempt-1");
+  assert.equal(records[0].eventId, `ci:${sha}:72:1`);
+  assert.equal(result.state.recent[0].commitSha, "b".repeat(40));
+  assert.equal(result.state.recent[1].status, "ci_passed");
+  assert.equal(writes.length, 1);
+  const failed = await resolvePendingCi({ ...options, record: async () => ({ stored: false, reason: "unavailable" }) });
+  assert.equal(failed.state.recent[1].ciObservedAt, null);
+  assert.equal(failed.update.learningStored, false);
+  assert.equal(writes.length, 1);
+});
+
+test("scheduled goals honor opt-in, pauses, and reviewed attempt budgets", () => {
+  const base = { id: "g", title: "Improve reasoning", purpose: "Independent learning", domain: "ari_independence",
+    successCriteria: "Transfer demonstrated", status: "active", autonomy: true, commitment: { strength: 0.9 },
+    budget: { used: 1, attempts: 4 }, approaches: [], attempts: [], lessons: [] };
+  assert.equal(derivePersistentAutonomyGoals([base]).length, 1);
+  for (const override of [{ autonomy: false }, { status: "paused" }, { status: "retired" }, { budget: { used: 4, attempts: 4 } }]) {
+    assert.equal(derivePersistentAutonomyGoals([{ ...base, ...override }]).length, 0);
+  }
 });
