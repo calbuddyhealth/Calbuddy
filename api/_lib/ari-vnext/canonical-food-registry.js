@@ -170,12 +170,10 @@ export async function searchCanonicalAriFoodRegistry(query, options = {}) {
 
   const limit = clampInteger(options?.limit, 1, 12, 8);
   const cleanedQuery = String(query || "").trim();
-  const registry = globalThis.AriFoodRegistry;
-
-  const exact = [
-    ...(typeof registry?.getByName === "function" ? registry.getByName(cleanedQuery) : []),
-    ...(typeof registry?.getByAlias === "function" ? registry.getByAlias(cleanedQuery) : [])
-  ];
+  const exact =
+    typeof search.findExact === "function"
+      ? search.findExact(cleanedQuery, { includeSearchMeta: true, typoTolerance: true })
+      : null;
 
   const fuzzy = search.search(cleanedQuery, {
     limit,
@@ -185,7 +183,7 @@ export async function searchCanonicalAriFoodRegistry(query, options = {}) {
 
   const merged = [];
   const seen = new Set();
-  for (const food of [...exact, ...(Array.isArray(fuzzy) ? fuzzy : [])]) {
+  for (const food of [exact, ...(Array.isArray(fuzzy) ? fuzzy : [])]) {
     const id = String(food?.id || "").trim();
     if (!id || seen.has(id)) continue;
     seen.add(id);
