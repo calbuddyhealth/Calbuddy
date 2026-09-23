@@ -188,7 +188,7 @@ Promise.all([
   import("./profile-v4.js?v=4.4.0"),
   import("../v4-ui.js?v=5.5.0"),
   import("./profile-friends.js?v=1.0.0"),
-  import("./profile-gallery-v1.js?v=1.2.0")
+  import("./profile-gallery-v1.js?v=1.3.0")
 ])
   .then(() => finishProfessionalProfileBoot())
   .catch((error) => {
