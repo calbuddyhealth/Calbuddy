@@ -42,9 +42,20 @@
     return data?.overall || "unknown";
   }
 
+  function getOwnerOnlyNavItems() {
+    return Array.from(document.querySelectorAll("[data-ari-owner-only]"));
+  }
+
+  function setOwnerOnlyVisibility(visible) {
+    getOwnerOnlyNavItems().forEach((item) => {
+      item.hidden = !visible;
+      item.setAttribute("aria-hidden", visible ? "false" : "true");
+    });
+  }
+
   async function initializeOwnerHealthNav() {
     const nav = getNav();
-    if (!nav || !window.CalBuddy) return;
+    if ((!nav && !getOwnerOnlyNavItems().length) || !window.CalBuddy) return;
 
     try {
       const session = await window.CalBuddy.getCurrentSession?.();
@@ -53,8 +64,9 @@
       const isOwner = await window.CalBuddy.verifyOwnerSession?.();
       if (!isOwner) return;
 
-      nav.hidden = false;
-      nav.setAttribute("aria-hidden", "false");
+      setOwnerOnlyVisibility(true);
+
+      if (!nav) return;
       setNavState("unknown");
 
       try {
@@ -63,8 +75,7 @@
         setNavState("unknown");
       }
     } catch {
-      nav.hidden = true;
-      nav.setAttribute("aria-hidden", "true");
+      setOwnerOnlyVisibility(false);
     }
   }
 
