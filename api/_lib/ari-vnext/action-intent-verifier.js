@@ -19,13 +19,7 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
 
   if (!availableTools.length) return null;
 
-  const dailyGoalKnown = resolveDailyGoalKnown(turn);
-  const decisions = [
-    "none",
-    "blocked_future_meal_plan",
-    "blocked_missing_daily_goal",
-    ...availableTools
-  ];
+  const decisions = ["none", ...availableTools];
 
   const verifierTool = {
     type: "function",
@@ -59,12 +53,7 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
     "For Crew departures, distinguish leaving the user's OWN membership from archiving an entire OWNED Crew. 'I want out of this Crew' means leave. 'Archive/close/end the Crew I own' means archive. Never escalate a leave request into archive.",
     "No Crew tool may add arbitrary members, choose a replacement member, make a Crew public, award XP, or alter another member's invitation response.",
     "For ARI Circle, a discovery question such as 'anything going on tonight?' or 'what should I do?' is read-only and must use decision=none. Only choose a Circle mutation tool when the current message explicitly asks to change Circle state.",
-    "Interpret natural language semantically. The user does not need to use the exact tool or feature name. For example, 'figure out what I should eat for the rest of today using my calories left and set it up for me' can be a request to create today's Meal Plan.",
-    "ARI XP Meal Plan is strictly TODAY ONLY. If the user asks Ari to create or schedule a Meal Plan for tomorrow or another future day, select blocked_future_meal_plan instead of any tool.",
-    "If the user asks Ari to create today's Meal Plan based on their saved Daily Calorie Goal or remaining calorie budget, but that saved goal is unknown and the user did not provide an explicit numeric calorie target in the CURRENT message, select blocked_missing_daily_goal.",
-    "Do not select blocked_missing_daily_goal for a general meal idea that is not budget-based, or when the user gives a clear explicit calorie target such as 500 calories.",
-    "Do not select blocked_future_meal_plan for a general future nutrition question that is not asking to create/schedule the ARI XP Meal Plan.",
-    `Saved Daily Calorie Goal known: ${dailyGoalKnown ? "true" : "false"}.`,
+    "Meal Plan is not an Ari application capability. Requests to plan meals or food for a future day are advisory nutrition requests, not app mutations. Never redirect them to Training or another unrelated mutation tool.",
     `Available app tools: ${availableTools.join(", ")}.`,
     `Current route: ${JSON.stringify({ nutrition: Boolean(route?.nutrition), training: Boolean(route?.training), goals: Boolean(route?.goals), social: Boolean(route?.social), circleAllowed: Boolean(route?.circleAllowed), teenMode: Boolean(route?.teenMode) })}.`,
     "Use decision=none when the message is advice, explanation, casual conversation, a factual statement, a discovery/read request, or otherwise does not explicitly authorize a write."
@@ -123,20 +112,11 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
 
     if (!decisions.includes(decision)) return null;
 
-    if (
-      decision === "blocked_missing_daily_goal" &&
-      dailyGoalKnown &&
-      availableTools.includes("propose_today_meal_plan")
-    ) {
-      decision = "propose_today_meal_plan";
-    }
-
-    return {
-      version: "1.5.1",
+    return {    return {
+      version: "1.6.0",
       decision,
       confidence,
       reason: String(args?.reason || "").trim().slice(0, 500),
-      dailyGoalKnown,
       model: data?.model || body.model,
       providerRequestId: data?.id || null,
       usage: data?.usage || null
@@ -146,16 +126,4 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
   } finally {
     clearTimeout(timeoutId);
   }
-}
-
-function resolveDailyGoalKnown(turn = {}) {
-  const policy = turn?.context?.nutrition?.calorieBudgetPolicy;
-  if (typeof policy?.dailyGoalKnown === "boolean") return policy.dailyGoalKnown;
-
-  const candidates = [
-    policy?.dailyGoal,
-    turn?.context?.goals?.dailyGoal,
-    turn?.context?.dailyGoal
-  ];
-  return candidates.some((value) => Number.isFinite(Number(value)) && Number(value) > 0);
 }
