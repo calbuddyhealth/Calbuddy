@@ -20,10 +20,6 @@
       "destination": "/api/secure-ai-gateway?route=knowledge"
     },
     {
-      "source": "/api/ari-intent-router",
-      "destination": "/api/secure-ai-gateway?route=intent"
-    },
-    {
       "source": "/api/ask-calbuddy",
       "destination": "/api/secure-ai-gateway?route=ask"
     },
