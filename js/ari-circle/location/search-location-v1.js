@@ -6,7 +6,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const ALLOWED_RADII = new Set([5, 10, 25, 50, 100]);
   const state = {
     client: null,
@@ -236,11 +236,75 @@
     if (!host) return;
     const pref = state.preference;
     const radius = pref?.radiusMiles || 25;
+    const surface = clean(host.dataset?.surface);
     const locationMode = pref?.hasCoordinates
-      ? "Mileage-ready"
+      ? "Current area"
       : pref?.areaLabel
-        ? "Area matching"
-        : "Choose a search area";
+        ? "Saved area"
+        : "Set area";
+
+    if (surface === "meetup") {
+      host.innerHTML = `
+        <section class="ari-circle-location-compact" aria-label="Circle search location">
+          <button class="ari-circle-location-pill" type="button" data-circle-edit-area aria-expanded="false">
+            <span aria-hidden="true">📍</span>
+            <strong>${escapeHtml(displayLabel(pref))}</strong>
+            <span>${pref ? `· ${radius} mi` : "· Set area"}</span>
+            <span aria-hidden="true">⌄</span>
+          </button>
+          <button class="ari-circle-location-current" type="button" data-circle-use-current ${state.busy ? "disabled" : ""} aria-label="Use current location">◎</button>
+
+          <div class="ari-circle-location-panel" data-circle-location-editor hidden>
+            <div class="ari-circle-location-panel__head">
+              <div><strong>Search area</strong><span>${escapeHtml(locationMode)}</span></div>
+              ${pref ? '<button type="button" data-circle-clear-location class="is-quiet">Clear</button>' : ""}
+            </div>
+
+            <form class="ari-circle-location-panel__form" data-circle-location-form>
+              <label>
+                <span>City, ZIP code, or neighborhood</span>
+                <input data-circle-location-area maxlength="100" autocomplete="postal-code" value="${escapeHtml(pref?.areaLabel || "")}" placeholder="Mission Valley, San Diego" />
+              </label>
+              <label class="ari-circle-location-panel__radius">
+                <span>Distance</span>
+                <select data-circle-location-radius aria-label="Circle search distance" ${state.busy ? "disabled" : ""}>
+                  ${[5,10,25,50,100].map((value) => `<option value="${value}"${value === radius ? " selected" : ""}>${value} mi</option>`).join("")}
+                </select>
+              </label>
+              <button type="submit" ${state.busy ? "disabled" : ""}>Save</button>
+            </form>
+            <p class="ari-circle-location-card__privacy">Use a broad area. Current location is rounded before storage and exact coordinates are not shown to other members.</p>
+            <p class="ari-circle-location-card__status" data-circle-location-status role="status" aria-live="polite"></p>
+          </div>
+        </section>
+      `;
+
+      const toggle = host.querySelector("[data-circle-edit-area]");
+      const panel = host.querySelector("[data-circle-location-editor]");
+      toggle?.addEventListener("click", () => {
+        if (!panel) return;
+        panel.hidden = !panel.hidden;
+        toggle.setAttribute("aria-expanded", String(!panel.hidden));
+        if (!panel.hidden) panel.querySelector("input")?.focus?.();
+      });
+
+      host.querySelector("[data-circle-use-current]")?.addEventListener("click", () => useCurrentLocation(host));
+      host.querySelector("[data-circle-location-form]")?.addEventListener("submit", (event) => saveManualArea(host, event));
+      host.querySelector("[data-circle-location-radius]")?.addEventListener("change", (event) => changeRadius(host, event));
+      host.querySelector("[data-circle-clear-location]")?.addEventListener("click", async () => {
+        if (state.busy) return;
+        state.busy = true;
+        try {
+          await clearPreference();
+        } catch (error) {
+          setHostStatus(host, error?.message || "Circle could not clear your search location.");
+        } finally {
+          state.busy = false;
+          renderAll();
+        }
+      });
+      return;
+    }
 
     host.innerHTML = `
       <section class="ari-circle-location-card" aria-label="Circle search location">
