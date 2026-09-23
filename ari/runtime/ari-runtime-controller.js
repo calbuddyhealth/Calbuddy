@@ -585,8 +585,9 @@
       currentTurnId: null
     });
     if (execution?.success) {
-      window.AriVNextBridge?.clearPendingAction?.();
-      CalBuddy.clearPendingAction?.();
+      // Retire only the action that just completed. A newer proposal may already
+      // exist in the same conversation and must not be erased by this receipt.
+      clearMatchingPendingAction(pending);
     }
     return execution;
   }
