@@ -256,8 +256,13 @@
   function loadRouteModules() {
     const path = pathName();
     if (!happeningLoaded && (path.endsWith("/ari-circle-feed.html") || document.querySelector(".feed-page"))) {
+      if (window.AriCircleHappeningV5?.version) {
+        happeningLoaded = true;
+        window.AriCircleHappeningV5.refresh?.();
+        return;
+      }
       happeningLoaded = true;
-      import("/js/ari-circle/feed/happening-v5.js?v=5.2.2").catch((error) => {
+      import("/js/ari-circle/feed/happening-v5.js?v=6.2.0").catch((error) => {
         happeningLoaded = false;
         console.warn("ARI Circle Happening rail failed to load:", error);
       });
