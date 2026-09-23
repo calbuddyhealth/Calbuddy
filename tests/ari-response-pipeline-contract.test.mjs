@@ -115,11 +115,11 @@ function bridgeSandbox(fetchImpl) {
 
 test("Home cache chain points at current quota-aware runtime and bridge assets", () => {
   assert.match(homeSource, /js\/auth\.js\?v=1\.10\.19/);
-  assert.match(homeSource, /js\/home-resilience\.js\?v=1\.3\.8/);
+  assert.match(homeSource, /js\/home-resilience\.js\?v=1\.3\.9/);
   assert.match(authSource, /account-isolation-guard\.js\?v=1\.0\.0/);
-  assert.match(authSource, /ari-central-intent-router\.js\?v=1\.5\.6/);
-  assert.match(routerSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.3\.12/);
-  assert.match(runtimeSource, /const VERSION = "1\.3\.12"/);
+  assert.match(authSource, /ari-central-intent-router\.js\?v=1\.5\.7/);
+  assert.match(routerSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.3\.13/);
+  assert.match(runtimeSource, /const VERSION = "1\.3\.13"/);
   assert.match(runtimeSource, /ari-vnext-bridge\.js\?v=1\.10\.0/);
   assert.match(runtimeSource, /ari-vnext-context-guard\.js\?v=1\.2\.2/);
 });
