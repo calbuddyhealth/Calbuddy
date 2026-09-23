@@ -9,8 +9,8 @@ const retirement = await readFile(new URL("../supabase/migrations/20260923160837
 
 test("simplified Connect controller remains valid browser JavaScript", () => {
   assert.doesNotThrow(() => new Function(connectController));
-  assert.match(connectController, /const VERSION = "1\.0\.0"/);
-  assert.match(meetupHtml, /connect-v1\.js\?v=1\.0\.0/);
+  assert.match(connectController, /const VERSION = "1\.1\.0"/);
+  assert.match(meetupHtml, /connect-v1\.js\?v=1\.1\.0/);
   assert.doesNotMatch(meetupHtml, /meetups-v5\.js/);
 });
 
@@ -39,4 +39,16 @@ test("historical host-flow migration remains readable for compatibility only", (
   assert.match(retirement, /revoke all on function public\.ari_circle_my_host_summary\(\)/i);
   assert.match(retirement, /ari_circle_award_xp_capped/i);
   assert.match(retirement, /select 0::integer/i);
+});
+
+
+test("Connect hides empty discovery groups and gives live instant meetups a Jump In action", () => {
+  assert.match(connectController, /const buckets = \{ now: \[\], today: \[\], tomorrow: \[\], weekend: \[\], later: \[\] \}/);
+  assert.match(connectController, /renderBucket\("Tomorrow", buckets\.tomorrow\)/);
+  assert.match(connectController, /section\.hidden = rows\.length === 0/);
+  assert.match(connectController, /live \? "Join now" : "Join"/);
+  assert.match(meetupHtml, /id="meetupTomorrowSection"[^>]*hidden/);
+  assert.doesNotMatch(meetupHtml, /id="meetupNowEmpty"/);
+  assert.doesNotMatch(meetupHtml, /id="meetupTodayEmpty"/);
+  assert.doesNotMatch(meetupHtml, /id="meetupWeekendEmpty"/);
 });
