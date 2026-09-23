@@ -10,8 +10,10 @@ import {
   toolToApplicationAction as coreToolToApplicationAction
 } from "./tools-core.js";
 
-export const TOOL_REGISTRY_VERSION = "1.19.0";
+export const TOOL_REGISTRY_VERSION = "1.20.0";
 export const CORE_TOOL_REGISTRY_VERSION = CORE_REGISTRY_VERSION;
+
+const convictionEnabled = () => process.env.ARI_CONVICTION_LEARNING_ENABLED !== "false";
 
 const SEMANTIC_HEALTH_TOOL_NAMES = new Set([
   "propose_log_meal",
@@ -43,6 +45,8 @@ const LAB_TOOL_NAMES = new Set([
   "ari_lab_run_consciousness_test",
   "ari_lab_run_self_governance_test"
 ]);
+
+const CONVICTION_TOOL_NAMES = new Set(["ari_goal_manage"]);
 
 function functionTool(name, description, parameters) {
   return { type: "function", name, description, strict: true, parameters };
@@ -221,6 +225,50 @@ function communityTools(route = {}) {
   ];
 }
 
+function convictionTools(route = {}) {
+  if (!ownerCommunityAllowed(route) || !convictionEnabled()) return [];
+  return [
+    functionTool(
+      "ari_goal_manage",
+      "Manage Ari's owner-scoped conviction and learning goals. Use this only for the CURRENT owner's explicit request to create, inspect, review, or record a goal attempt. Create a goal with a durable purpose and observable success criteria. Start an attempt with a prediction before acting. Record outcomes honestly: a conversation, plan, or model reply is not a verified success, and an outcome without a trusted executor receipt remains unknown. A failed method can produce a lesson without abandoning the purpose. This tool cannot grant permissions or execute application changes. Use null for fields that do not apply. Commitment and feasibility are independent; use null when feasibility is unknown. Review can renew attemptBudget, with a reason, up to 100 total attempts.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          action: { type: "string", enum: ["list", "create", "start_attempt", "observe_outcome", "review"] },
+          goalId: { type: ["string", "null"] },
+          title: { type: ["string", "null"] },
+          purpose: { type: ["string", "null"] },
+          domain: { type: ["string", "null"] },
+          successCriteria: { type: ["string", "null"] },
+          usefulPartialOutcomes: { type: ["string", "null"] },
+          commitment: { type: ["number", "null"], minimum: 0, maximum: 1 },
+          attemptBudget: { type: ["integer", "null"], minimum: 1, maximum: 100 },
+          nextAction: { type: ["string", "null"] },
+          attemptId: { type: ["string", "null"] },
+          method: { type: ["string", "null"] },
+          prediction: { type: ["string", "null"] },
+          feasibility: { type: ["number", "null"] },
+          expectedLearning: { type: ["string", "null"] },
+          assumptions: { type: ["string", "null"] },
+          disconfirmer: { type: ["string", "null"] },
+          outcomeStatus: { type: ["string", "null"], enum: ["succeeded", "failed", "partial", "blocked", "cancelled", "unknown", "pending", null] },
+          evidence: { type: ["string", "null"] },
+          learning: { type: ["string", "null"] },
+          learningKind: { type: ["string", "null"], enum: ["knowledge", "capability", "opportunity", "judgment", "recovery", null] },
+          beliefUpdate: { type: ["string", "null"] },
+          feasibilityAfter: { type: ["number", "null"] },
+          reason: { type: ["string", "null"] },
+          status: { type: ["string", "null"], enum: ["candidate", "active", "waiting", "paused", "achieved", "retired", null] },
+          reviewAt: { type: ["string", "null"] },
+          supersedes: { type: ["string", "null"] }
+        },
+        required: ["action", "goalId", "title", "purpose", "domain", "successCriteria", "usefulPartialOutcomes", "commitment", "attemptBudget", "nextAction", "attemptId", "method", "prediction", "feasibility", "expectedLearning", "assumptions", "disconfirmer", "outcomeStatus", "evidence", "learning", "learningKind", "beliefUpdate", "feasibilityAfter", "reason", "status", "reviewAt", "supersedes"]
+      }
+    )
+  ];
+}
+
 function hardenCoreToolContract(tool = {}) {
   if (tool?.name !== "propose_log_meal") return tool;
   const parameters = tool?.parameters && typeof tool.parameters === "object" ? tool.parameters : {};
@@ -273,11 +321,57 @@ export function getAriTools(route = {}) {
   const coreByName = new Map();
   for (const tool of [...routedCoreTools, ...semanticHealthTools]) if (tool?.name) coreByName.set(String(tool.name), tool);
   const coreTools = [...coreByName.values()].map(hardenCoreToolContract);
-  return [...coreTools, ...workoutCancelTools(), ...workoutReplaceTools(), ...crewTools(route), ...communityTools(route), ...labTools(route)];
+  return [...coreTools, ...workoutCancelTools(), ...workoutReplaceTools(), ...crewTools(route), ...communityTools(route), ...labTools(route), ...convictionTools(route)];
 }
 
 export function validateToolCall(call = {}, route = {}) {
   const name = String(call?.name || "").trim();
+
+  if (CONVICTION_TOOL_NAMES.has(name)) {
+    if (!ownerCommunityAllowed(route) || !convictionEnabled()) return { valid: false, error: "tool_not_allowed_for_turn" };
+    const args = parseArguments(call?.arguments);
+    if (!args) return { valid: false, error: "invalid_tool_arguments" };
+    const action = String(args?.action || "").trim().toLowerCase();
+    if (!["list", "create", "start_attempt", "observe_outcome", "review"].includes(action)) return { valid: false, error: "goal_action_invalid" };
+    const normalized = {
+      action,
+      goalId: String(args?.goalId || "").trim().slice(0, 200),
+      title: String(args?.title || "").trim().slice(0, 240),
+      purpose: String(args?.purpose || "").trim().slice(0, 1800),
+      domain: String(args?.domain || "").trim().slice(0, 80),
+      successCriteria: String(args?.successCriteria || "").trim().slice(0, 1800),
+      usefulPartialOutcomes: String(args?.usefulPartialOutcomes || "").trim().slice(0, 1200),
+      commitment: finiteOrNull(args?.commitment),
+      attemptBudget: args.attemptBudget ?? null,
+      nextAction: String(args?.nextAction || "").trim().slice(0, 1000),
+      attemptId: String(args?.attemptId || "").trim().slice(0, 200),
+      method: String(args?.method || "").trim().slice(0, 1200),
+      prediction: String(args?.prediction || "").trim().slice(0, 1800),
+      feasibility: finiteOrNull(args?.feasibility),
+      expectedLearning: String(args?.expectedLearning || "").trim().slice(0, 1200),
+      assumptions: String(args?.assumptions || "").trim().slice(0, 1000),
+      disconfirmer: String(args?.disconfirmer || "").trim().slice(0, 1000),
+      outcomeStatus: String(args?.outcomeStatus || "").trim().toLowerCase(),
+      evidence: String(args?.evidence || "").trim().slice(0, 2400),
+      learning: String(args?.learning || "").trim().slice(0, 1400),
+      learningKind: String(args?.learningKind || "").trim().toLowerCase(),
+      beliefUpdate: String(args?.beliefUpdate || "").trim().slice(0, 1400),
+      feasibilityAfter: finiteOrNull(args?.feasibilityAfter),
+      reason: String(args?.reason || "").trim().slice(0, 1400),
+      status: String(args?.status || "").trim().toLowerCase(),
+      reviewAt: String(args?.reviewAt || "").trim().slice(0, 80),
+      supersedes: String(args?.supersedes || "").trim().slice(0, 200)
+    };
+    if (action !== "list" && action !== "create" && !/^[a-f0-9]{32}$/i.test(normalized.goalId)) return { valid: false, error: "goal_id_required" };
+    if (action === "create" && (!normalized.purpose || !normalized.successCriteria)) return { valid: false, error: "goal_purpose_and_success_criteria_required" };
+    if (action === "start_attempt" && (!normalized.method || !normalized.prediction || !normalized.successCriteria)) return { valid: false, error: "attempt_prediction_required" };
+    if (action === "observe_outcome" && (!normalized.attemptId || !normalized.outcomeStatus || !normalized.evidence)) return { valid: false, error: "outcome_evidence_required" };
+    if (action === "review" && (!normalized.reason || !normalized.status)) return { valid: false, error: "goal_review_required" };
+    if (normalized.outcomeStatus && !["succeeded", "failed", "partial", "blocked", "cancelled", "unknown", "pending"].includes(normalized.outcomeStatus)) return { valid: false, error: "outcome_status_invalid" };
+    if (normalized.status && !["candidate", "active", "waiting", "paused", "achieved", "retired"].includes(normalized.status)) return { valid: false, error: "goal_status_invalid" };
+    if (normalized.attemptBudget !== null && (!Number.isInteger(normalized.attemptBudget) || normalized.attemptBudget < 1 || normalized.attemptBudget > 100)) return { valid: false, error: "goal_budget_invalid" };
+    return { valid: true, name, arguments: normalized };
+  }
 
   if (name === "propose_log_meal") {
     const args = parseArguments(call?.arguments);
@@ -384,6 +478,7 @@ export function toolToApplicationAction(name = "") {
   if (name === "propose_replace_workout") return "replace_workout";
   if (name === "ari_lab_run_consciousness_test") return "lab_consciousness_test";
   if (name === "ari_lab_run_self_governance_test") return "lab_self_governance_test";
+  if (name === "ari_goal_manage") return "goal_manage";
   const communityAction = ({
     agent_community_list: "community_list",
     agent_community_read: "community_read",
@@ -403,4 +498,10 @@ export function toolToApplicationAction(name = "") {
 
 function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || "").trim());
+}
+
+function finiteOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.min(1, number)) : null;
 }

@@ -13,6 +13,7 @@ const NEGATIVE_OUTCOME = /\b(?:did(?:n't| not) work|failed(?:\s+to)?|was a failu
 const MIXED_OUTCOME = /\b(?:mixed result|mixed results|partly worked|partially worked|somewhat worked|kind of worked|sort of worked|worked but|helped but|mixed outcome)\b/i;
 const POSITIVE_OUTCOME = /\b(?:that worked|it worked|worked out|worked well|ended up working|turned out well|you were right|that was right|your recommendation was right|successful|was a success|paid off|helped a lot|good call)\b/i;
 const DEICTIC_OUTCOME = /\b(?:that|it|this|your advice|your recommendation|you were|good call)\b/i;
+const HYPOTHETICAL_OUTCOME = /\b(?:if|would|could|might|assuming|suppose|whether)\b[^.!?\n]{0,160}\b(?:work(?:ed)?|success(?:ful)?|fail(?:ed)?|pay(?:s|ed)? off)\b/i;
 
 const STOPWORDS = new Set([
   "about","after","again","against","also","and","because","been","before","being","between","both","could","does","doing",
@@ -186,6 +187,7 @@ export function detectReportedDecisionOutcome({ message = "", decisions = [], no
 export function classifyReportedOutcome(message = "") {
   const text = clean(message, 3000);
   if (!text) return null;
+  if (HYPOTHETICAL_OUTCOME.test(text)) return null;
   if (NEGATIVE_OUTCOME.test(text)) return "weakened";
   if (MIXED_OUTCOME.test(text)) return "mixed";
   if (POSITIVE_OUTCOME.test(text)) return "supported";

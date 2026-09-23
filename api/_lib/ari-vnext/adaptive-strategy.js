@@ -115,7 +115,7 @@ export function evaluateStrategyOutcome(strategy = {}, outcome = "neutral", now 
   const result = ["positive", "negative", "neutral"].includes(outcome) ? outcome : "neutral";
   const confidenceDelta = current.status === "practical_prior"
     ? (result === "positive" ? 0.03 : result === "negative" ? -0.04 : 0.002)
-    : (result === "positive" ? 0.06 : result === "negative" ? -0.08 : 0.005);
+    : (result === "positive" ? 0.06 : result === "negative" ? -0.08 : 0);
   const next = {
     ...current,
     trials: current.trials + 1,
@@ -145,7 +145,9 @@ export function evaluateStrategyOutcome(strategy = {}, outcome = "neutral", now 
       next.confidence >= 0.74;
     const survivalAdoption = !isReplacement &&
       next.trials >= 7 &&
+      next.positiveOutcomes >= 2 &&
       next.negativeOutcomes === 0 &&
+      resolved >= 2 &&
       next.confidence >= 0.82;
     const replacementAdoption = isReplacement && !replacingPracticalPrior &&
       next.trials >= 7 &&

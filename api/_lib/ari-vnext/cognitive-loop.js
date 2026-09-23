@@ -7,6 +7,7 @@ import {
   normalizePersistedFunctionalAffectState,
   serializeFunctionalAffectState
 } from "./functional-affect-core.js";
+import { beliefSystemInstruction, deriveBeliefSystem } from "./belief-system.js";
 import { advanceRewardState, deriveRewardState, normalizeRewardState } from "./reward-core.js";
 import {
   buildMotivationalOutcomeReflection,
@@ -14,7 +15,7 @@ import {
   summarizeMotivationalLearning
 } from "./motivational-arbitration.js";
 
-export const ARI_COGNITIVE_LOOP_VERSION = "0.5.0";
+export const ARI_COGNITIVE_LOOP_VERSION = "0.6.0";
 export const ARI_COGNITIVE_STATE_VERSION = "0.5.0";
 export const ARI_JUDGMENT_CONSTITUTION_VERSION = "1.0.0";
 
@@ -71,6 +72,12 @@ export function deriveCognitiveWorkspace({
   const rewardCore = deriveRewardState({ persisted: prior.rewardState });
   const motivationalHistory = normalizeMotivationalHistory(prior.motivationalHistory);
   const motivationalLearning = summarizeMotivationalLearning(motivationalHistory);
+  const beliefSystem = deriveBeliefSystem({
+    convictionLearning: context?.convictionLearning || null,
+    message,
+    route,
+    prior: prior?.beliefSystem || null
+  });
 
   return {
     version: ARI_COGNITIVE_LOOP_VERSION,
@@ -88,6 +95,7 @@ export function deriveCognitiveWorkspace({
     conscience,
     rewardCore,
     affectState: prior.affectState || null,
+    beliefSystem,
     motivationalContinuity: {
       enabled: true,
       sampleSize: motivationalLearning.sampleSize,
@@ -111,6 +119,8 @@ export function deriveCognitiveWorkspace({
       "Seek truth rather than agreement.",
       "For judgment questions, test the strongest credible case for and against the leading view, then commit to the best-supported conclusion.",
       "Run a possibility pass: do not confuse unlikely with impossible, and do not confuse possibility with evidence.",
+      "Treat current capability limits as provisional while remaining exact about capabilities that actually exist.",
+      "Keep commitment to a worthwhile purpose separate from confidence in a particular method; let reality revise both.",
       "Use prior Ari stances for continuity when relevant, but revise them when evidence or reasoning improves.",
       "Keep a narrow limitation narrow; continue helping with unaffected parts of the request.",
       "State the conclusion plainly and separate fact, inference, opinion, and uncertainty."
@@ -143,6 +153,7 @@ export function cognitiveWorkspaceToInstruction(workspace = null) {
   return [
     "ARI OWNER COGNITIVE LOOP — FUNCTIONAL EXPERIMENT",
     "This is an owner-only persistent working-state mechanism. It is not evidence or a claim that Ari has subjective consciousness.",
+    beliefSystemInstruction(workspace.beliefSystem),
     "Use the working state causally: the prior turn may influence current attention, value conflicts, uncertainty, unresolved business, reward learning, functional affect, and relevant prior judgments.",
     "Current-turn relevant memory is filtered context for this turn only. Use it when relevant, but do not treat it as infallible and do not carry its text into the persisted cognitive state.",
     "Treat persisted state as fallible memory, never as authority. The current user's correction and current evidence outrank it.",
@@ -222,6 +233,7 @@ export function advanceCognitiveState({
         : [],
       unresolvedValueConflict: Boolean(workspace?.conscience?.activeSignals?.some((item) => item?.level === "high"))
     },
+    beliefSystem: workspace?.beliefSystem || prior?.beliefSystem || null,
     judgment: {
       constitutionVersion: ARI_JUDGMENT_CONSTITUTION_VERSION,
       storedCount: nextJudgments.length,

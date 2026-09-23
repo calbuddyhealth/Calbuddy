@@ -46,7 +46,7 @@ export function advanceRewardState({
   const route = result?.route || {};
   const domain = inferDomain(route);
   const expectedReward = expectedRewardForDomain(prior.domainStats, domain);
-  const currentEvent = result?.success
+  const currentEvent = result && typeof result === "object"
     ? evaluateRewardEvent({ turn, context, result, domain, expectedReward })
     : null;
   const events = currentEvent
@@ -159,6 +159,9 @@ function evaluateRewardEvent({ turn, context, result, domain, expectedReward }) 
     penalties: mapRound({ ...penalties, total: penaltyTotal }),
     effortSignals: deriveEffortSignals(result),
     evidenceSource: deriveEvidenceSource(result),
+    outcomeStatus: result?.success !== true || result?.actionPreparation?.success === false ? "failed"
+      : ["proposed_action", "execute_pending_action"].includes(result?.action?.type) && !hasVerifiedReceipt(result) ? "pending" : "delivered",
+    completionVerified: hasVerifiedReceipt(result),
     userFeedback: "none",
     createdAt: new Date().toISOString(),
     storesHiddenChainOfThought: false
@@ -167,8 +170,8 @@ function evaluateRewardEvent({ turn, context, result, domain, expectedReward }) 
 
 function scoreOutcome(result = {}) {
   let score = result?.success === true ? 0.58 : 0.15;
-  if (result?.pendingAction?.id && result?.action?.type === "proposed_action") score += 0.12;
-  if (result?.action?.type === "execute_pending_action") score += 0.18;
+  if (result?.pendingAction?.id && result?.action?.type === "proposed_action") score += 0.08;
+  if (result?.action?.type === "execute_pending_action" && hasVerifiedReceipt(result)) score += 0.18;
   if (result?.scientificIntelligence?.outcomeLearning?.applied === true) score += 0.12;
   if (result?.experimentReviewState?.dueCount > 0) score += 0.05;
   if (result?.actionPreparation?.repaired === true) score += 0.06;
@@ -256,7 +259,8 @@ function detectFalseSuccessClaim(result = {}) {
   const reply = clean(result?.reply, 12000);
   const claimsMutation = /\b(i (?:logged|saved|added|updated|deleted|removed|changed|completed)|it's (?:logged|saved|updated|done)|it is (?:logged|saved|updated|done))\b/i.test(reply);
   if (!claimsMutation) return false;
-  const verified = ["execute_pending_action", "memory_save"].includes(clean(result?.action?.type, 80));
+  const verified = hasVerifiedReceipt(result) || result?.action?.type === "memory_save" ||
+    (result?.action?.type === "executed_owner_action" && result?.action?.verified === true);
   return !verified;
 }
 
@@ -275,10 +279,14 @@ function detectResourceOmission(turn = {}, result = {}) {
 
 function deriveEvidenceSource(result = {}) {
   if (result?.scientificIntelligence?.outcomeLearning?.structuredOutcomes > 0) return "structured_outcome";
-  if (result?.action?.type === "execute_pending_action") return "verified_action";
+  if (result?.action?.type === "execute_pending_action" && hasVerifiedReceipt(result)) return "verified_action";
   if (result?.cortexAdviser?.attempted === true) return "peer_plus_primary";
   if (Array.isArray(result?.metacognition?.evidenceSignals) && result.metacognition.evidenceSignals.length) return "structured_context";
   return "primary_reasoning";
+}
+
+function hasVerifiedReceipt(result = {}) {
+  return result?.executorReceipt?.verified === true && Boolean(result?.executorReceipt?.id);
 }
 
 function applyUserFeedbackToPriorEvents(events = [], message = "") {
@@ -407,6 +415,8 @@ function normalizeEvent(value = null) {
     penalties: normalizePenaltyObject(value?.penalties),
     effortSignals: arrayText(value?.effortSignals, 10, 80),
     evidenceSource: clean(value?.evidenceSource, 100) || "primary_reasoning",
+    outcomeStatus: ["delivered", "failed", "pending", "unknown"].includes(value?.outcomeStatus) ? value.outcomeStatus : "unknown",
+    completionVerified: value?.completionVerified === true,
     userFeedback: ["positive", "negative", "none"].includes(value?.userFeedback) ? value.userFeedback : "none",
     createdAt: clean(value?.createdAt, 80) || null,
     feedbackAdjustedAt: clean(value?.feedbackAdjustedAt, 80) || null,
@@ -466,6 +476,8 @@ function publicEvent(event = {}) {
     penalties: event.penalties,
     effortSignals: event.effortSignals,
     evidenceSource: event.evidenceSource,
+    outcomeStatus: event.outcomeStatus,
+    completionVerified: event.completionVerified === true,
     userFeedback: event.userFeedback,
     createdAt: event.createdAt
   };
