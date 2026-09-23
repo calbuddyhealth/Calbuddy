@@ -560,9 +560,9 @@
       });
 
       const rows = Array.isArray(data) ? data : [];
-      await hydrateMediaRows(rows);
+      const textUpdates = rows.filter((row) => clean(row.body));
 
-      state.posts = append ? [...state.posts, ...rows] : rows;
+      state.posts = append ? [...state.posts, ...textUpdates] : textUpdates;
       state.nextBefore = rows.length ? rows[rows.length - 1].created_at : null;
 
       renderFeed();
@@ -590,12 +590,12 @@
 
     if (!state.posts.length) {
       empty.hidden = false;
-      status.textContent = "Nothing posted in your Circle yet.";
+      status.textContent = "No friend updates yet.";
       return;
     }
 
     empty.hidden = true;
-    status.textContent = `${state.posts.length} ${state.posts.length === 1 ? "post" : "posts"}`;
+    status.textContent = `${state.posts.length} ${state.posts.length === 1 ? "update" : "updates"}`;
     state.posts.forEach((post) => host.append(createPostCard(post)));
   }
 
@@ -693,7 +693,6 @@
       article.append(body);
     }
 
-    appendPostMedia(article, post);
 
     const reactionHost = document.createElement("div");
     reactionHost.className = "feed-post__reactions";
