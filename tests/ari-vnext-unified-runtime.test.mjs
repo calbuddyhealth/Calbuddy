@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-
 import { deriveUserWorldModel } from "../api/_lib/ari-vnext/user-world-model.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -10,28 +9,29 @@ const root = path.resolve(here, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 const runtime = read("ari/runtime/ari-runtime-controller.js");
-const router = read("ari/intent/ari-central-intent-router.js");
 const auth = read("js/auth.js");
+const home = read("home.html");
+const nutrition = read("nutrition.html");
 const contextGuard = read("ari/vnext/ari-vnext-context-guard.js");
 
 assert.match(runtime, /const DEFAULT_MODE = "vnext"/, "vNext must remain the default Ari runtime");
-assert.doesNotMatch(runtime, /ari-vnext-meal-plan-adapter/, "runtime must not boot the removed Meal Plan adapter");
-assert.match(runtime, /ari-vnext-context-guard\.js\?v=1\.2\.3/, "runtime must boot the canonical context/continuity guard");
-assert.doesNotMatch(runtime, /AriVNextMealPlanAdapter/, "runtime must not wait on removed Meal Plan state");
-assert.match(runtime, /AriVNextContextGuard\?\.ready === true/, "runtime must wait for canonical context guard readiness");
-assert.match(runtime, /ari-vnext-initiative\.js\?v=1\.2\.1/, "runtime must cache-bust the simplified initiative loader");
+assert.match(runtime, /const VERSION = "1\.5\.0"/);
+assert.match(runtime, /ari-vnext-action-adapter\.js\?v=1\.5\.0/);
+assert.doesNotMatch(runtime, /ari-vnext-meal-plan-adapter|ari-whole-workout-replacement/);
+assert.match(runtime, /ari-vnext-context-guard\.js\?v=1\.2\.3/);
+assert.match(runtime, /AriVNextContextGuard\?\.ready === true/);
+assert.match(runtime, /ari-vnext-initiative\.js\?v=1\.2\.1/);
 
-assert.match(router, /ari-runtime-controller\.js\?v=1\.4\.0/, "legacy cached router path may only bootstrap the canonical vNext runtime");
-assert.doesNotMatch(router, /CalBuddy\.askAri\s*=/, "legacy router must never wrap the canonical runtime");
-assert.doesNotMatch(router, /ari-meal-plan-action-v2|ari-meal-plan-goal-guard/, "router must not load legacy Meal Plan services");
-assert.doesNotMatch(auth, /ari-central-intent-router\.js/, "auth must not bootstrap a second semantic router");
-assert.match(auth, /ari-nutrition-action-ui\.js\?v=1\.3\.0/, "auth bootstrap must cache-bust the simplified nutrition action UI");
+assert.doesNotMatch(auth, /ari-central-intent-router\.js|ari-meal-action\.js/);
+assert.match(auth, /ari-nutrition-action-ui\.js\?v=1\.3\.0/);
+assert.match(home, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.5\.0/);
+assert.match(nutrition, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.5\.0/);
 
-assert.match(contextGuard, /window\.AriVNextContextGuard =/, "context guard must expose readiness state");
-assert.doesNotMatch(contextGuard, /readTodayPlannedMeals|nutrition_plan_items|mealPlan:\s*\{/, "removed Meal Plan state must not be hydrated into Ari context");
-assert.match(contextGuard, /burnedAddsFoodAllowance: false/, "vNext nutrition context must not add exercise calories to food allowance");
-assert.match(contextGuard, /unknownGoalMustRemainUnknown: true/, "vNext must never synthesize a missing Daily Calorie Goal");
-assert.match(contextGuard, /ownerMode === true/, "Owner Mode should opt into the bounded peer-reflection path");
+assert.match(contextGuard, /window\.AriVNextContextGuard =/);
+assert.doesNotMatch(contextGuard, /readTodayPlannedMeals|nutrition_plan_items|mealPlan:\s*\{/);
+assert.match(contextGuard, /burnedAddsFoodAllowance: false/);
+assert.match(contextGuard, /unknownGoalMustRemainUnknown: true/);
+assert.match(contextGuard, /ownerMode === true/);
 
 const world = deriveUserWorldModel({
   persisted: null,
@@ -43,7 +43,7 @@ const world = deriveUserWorldModel({
   longitudinalState: null
 });
 
-assert.equal(world.responseProfile.familiarity, "established", "response profile should preserve self-model familiarity");
-assert.equal(world.relationship.familiarity, "established", "relationship world state should preserve self-model familiarity");
+assert.equal(world.responseProfile.familiarity, "established");
+assert.equal(world.relationship.familiarity, "established");
 
 console.log("ari-vnext-unified-runtime.test.mjs passed");
