@@ -1,0 +1,143 @@
+/* ARI Circle Feed Next — friend updates + joinable real-world activity */
+body.circle-v5-real-world .feed-page{
+  width:min(100%,760px)!important;
+  padding-inline:12px!important;
+}
+.feed-next-eyebrow{
+  margin:0 0 4px;
+  color:#5c79bd;
+  font:900 .6rem/1 Inter,sans-serif;
+  letter-spacing:.14em;
+}
+.feed-composer--update{
+  margin:8px 0 12px!important;
+  padding:14px!important;
+  border-radius:20px!important;
+}
+.feed-composer--update .feed-composer__top{margin-bottom:10px}
+.feed-composer--update .feed-composer__top h2{
+  margin:0!important;
+  color:#142033!important;
+  font:900 1rem/1.1 Inter,sans-serif!important;
+  letter-spacing:-.025em!important;
+}
+.feed-composer--update textarea{
+  min-height:74px!important;
+  border-radius:14px!important;
+  background:#fbfcfe!important;
+}
+.feed-composer__toolbar--simple{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto auto!important;
+  align-items:center!important;
+  gap:10px!important;
+}
+.feed-composer__toolbar--simple .feed-composer__privacy{
+  color:#8894a6!important;
+  font-size:.62rem!important;
+}
+.feed-next-happening{
+  margin:16px 0 18px!important;
+}
+.feed-next-section-heading,.feed-next-heading{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:12px;
+  margin:0 2px 9px;
+}
+.feed-next-section-heading h2,.feed-next-heading h2{
+  margin:0!important;
+  color:#142033!important;
+  font:900 1.08rem/1.1 Inter,sans-serif!important;
+  letter-spacing:-.03em!important;
+}
+.feed-next-section-heading>a{
+  color:#526fb8;
+  font:850 .66rem/1 Inter,sans-serif;
+  text-decoration:none;
+}
+.feed-next-event-list{display:grid;gap:9px}
+.feed-next-event-card{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:10px;
+  align-items:center;
+  padding:11px;
+  border:1px solid #e1e8f1;
+  border-radius:18px;
+  background:#fff;
+  box-shadow:0 8px 22px rgba(32,52,86,.055);
+}
+.feed-next-event-card__main{
+  display:grid;
+  grid-template-columns:40px minmax(0,1fr);
+  gap:10px;
+  align-items:center;
+  min-width:0;
+  color:inherit;
+  text-decoration:none;
+}
+.feed-next-event-icon{
+  display:grid;
+  width:40px;
+  height:40px;
+  place-items:center;
+  border:1px solid #dce7f6;
+  border-radius:13px;
+  background:linear-gradient(145deg,#eefaff,#f3f6ff 55%,#f8f2ff);
+  font-size:1rem;
+}
+.feed-next-event-copy{display:block;min-width:0}
+.feed-next-event-copy small,.feed-next-event-copy strong,.feed-next-event-copy span{
+  display:block;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.feed-next-event-copy small{
+  margin-bottom:4px;
+  color:#5d76a9;
+  font:850 .57rem/1 Inter,sans-serif;
+  text-transform:uppercase;
+}
+.feed-next-event-copy strong{
+  color:#142033;
+  font:900 .8rem/1.12 Inter,sans-serif;
+}
+.feed-next-event-copy span{
+  margin-top:5px;
+  color:#8390a2;
+  font:700 .62rem/1 Inter,sans-serif;
+}
+.feed-next-event-action{
+  min-height:36px;
+  padding:0 12px;
+  border:0;
+  border-radius:11px;
+  color:#fff;
+  background:linear-gradient(115deg,#42c9e9,#4268f3 60%,#8b6cf4);
+  font:850 .66rem/1 Inter,sans-serif;
+}
+.feed-next-event-action:disabled{
+  color:#7c899e;
+  background:#eef2f7;
+}
+.feed-next-event-empty{
+  display:grid;
+  gap:4px;
+  padding:14px;
+  color:#687791;
+  border:1px dashed #d9e2ee;
+  border-radius:16px;
+  background:#fff;
+  text-decoration:none;
+}
+.feed-next-event-empty strong{color:#142033;font:850 .78rem/1.2 Inter,sans-serif}
+.feed-next-event-empty span{font:700 .64rem/1.3 Inter,sans-serif}
+@media(max-width:520px){
+  .feed-composer__toolbar--simple{grid-template-columns:1fr auto}
+  .feed-composer__toolbar--simple .feed-composer__privacy{grid-column:1}
+  .feed-composer__toolbar--simple .feed-composer__counter{grid-column:2}
+  .feed-composer__toolbar--simple .feed-primary{grid-column:1/-1;width:100%}
+}
