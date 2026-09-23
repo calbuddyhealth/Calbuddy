@@ -42,7 +42,7 @@
     "ari/vnext/ari-vnext-training-context.js?v=1.3.0",
     "ari/vnext/ari-vnext-action-adapter.js?v=1.4.0",
     "js/training/ari-whole-workout-replacement.js?v=1.0.0",
-    "ari/vnext/ari-vnext-activity-adapter.js?v=1.0.1",
+    "ari/vnext/ari-vnext-activity-adapter.js?v=1.1.0",
     "ari/vnext/ari-vnext-bridge.js?v=1.10.0",
     "ari/vnext/ari-vnext-context-guard.js?v=1.2.3",
     "ari/vnext/ari-vnext-initiative.js?v=1.2.1"
