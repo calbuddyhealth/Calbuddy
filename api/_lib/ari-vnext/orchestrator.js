@@ -1557,7 +1557,9 @@ export function hasCompleteMealNutrition(args = {}) {
   if (!Number.isFinite(calories) || calories <= 0 || calories > 10000) return false;
 
   for (const [key, max] of [["proteinG", 1000], ["carbsG", 1500], ["fatG", 1000]]) {
-    const value = Number(args?.[key]);
+    const raw = args?.[key];
+    if (raw === null || raw === undefined || raw === "") return false;
+    const value = Number(raw);
     if (!Number.isFinite(value) || value < 0 || value > max) return false;
   }
   return true;
