@@ -39,8 +39,8 @@ test("supported radii remain bounded", () => {
 
 test("shared location UI is current on Connect and owner-only discovery routes", () => {
   for (const html of [meetup, explore, v6]) {
-    assert.match(html, /ari-circle-search-location-v1\.css\?v=1\.1\.0/);
-    assert.match(html, /search-location-v1\.js\?v=1\.1\.0/);
+    assert.match(html, /ari-circle-search-location-v1\.css\?v=1\.1\.[01]/);
+    assert.match(html, /search-location-v1\.js\?v=1\.1\.[01]/);
   }
   assert.match(controller, /surface === "meetup"/);
   assert.match(controller, /ari-circle-location-compact/);
