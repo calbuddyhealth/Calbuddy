@@ -11,6 +11,7 @@ import {
   selectDreamInsightsForTurn
 } from "../api/_lib/ari-vnext/dreaming-core.js";
 import { runAriDreamingCycle } from "../api/_lib/ari-vnext/dreaming-runtime.js";
+import dreamingHandler from "../api/ari-dreaming-cycle.js";
 
 function evidence() {
   return {
@@ -148,6 +149,32 @@ test("dreaming runtime stores only normalized attributed insights", async () => 
   assert.equal(result.acceptedInsights, 1);
   assert.equal(result.storedInsights, 1);
   assert.equal(calls[1][1].insights[0].provisional, true);
+});
+
+test("dreaming cron endpoint fails closed without the cron secret", async () => {
+  const prior = process.env.CRON_SECRET;
+  process.env.CRON_SECRET = "expected-secret";
+  const state = { statusCode: 200, payload: null, headers: {} };
+  const res = {
+    setHeader(name, value) { state.headers[name] = value; },
+    status(code) { state.statusCode = code; return this; },
+    json(payload) { state.payload = payload; return this; }
+  };
+  try {
+    await dreamingHandler({ method: "GET", headers: { authorization: "Bearer wrong-secret" } }, res);
+    assert.equal(state.statusCode, 401);
+    assert.equal(state.payload.code, "ARI_DREAMING_UNAUTHORIZED");
+  } finally {
+    if (prior === undefined) delete process.env.CRON_SECRET;
+    else process.env.CRON_SECRET = prior;
+  }
+});
+
+test("Vercel schedules one daily owner dreaming cycle", () => {
+  const config = JSON.parse(fs.readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
+  const dreamCron = config.crons.find(item => item.path === "/api/ari-dreaming-cycle");
+  assert.ok(dreamCron);
+  assert.equal(dreamCron.schedule, "13 12 * * *");
 });
 
 test("dreaming migration keeps the new tables server-only", () => {
