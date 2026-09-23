@@ -31,7 +31,7 @@ test("legacy profile posts are no longer loaded into the active profile experien
 });
 
 test("Profile loader brings in gallery, friends, and compatibility shell without XP", () => {
-  assert.match(profileLoader, /profile-gallery-v1\.js\?v=1\.1\.0/);
+  assert.match(profileLoader, /profile-gallery-v1\.js\?v=1\.2\.0/);
   assert.match(profileLoader, /profile-friends\.js\?v=1\.0\.0/);
   assert.match(profileLoader, /profile-v4\.js\?v=4\.4\.0/);
   assert.match(profileLoader, /v4-ui\.js\?v=5\.5\.0/);
@@ -43,9 +43,9 @@ test("Gallery hard-caps supporting photos at four and retries transient safety o
   assert.match(galleryMigration, /unique \(user_id, position\)/i);
   assert.match(profileGallery, /\[1,2,3,4\]/);
   assert.match(profileGallery, /MAX_BYTES = 8 \* 1024 \* 1024/);
-  assert.match(profileGallery, /const VERSION = "1\.1\.0"/);
+  assert.match(profileGallery, /const VERSION = "1\.2\.0"/);
   assert.match(profileGallery, /isTransientSafetyFailure/);
-  assert.match(profileGallery, /Safety check is busy\. Retrying photo/);
+  assert.match(profileGallery, /Retrying in about/);
   assert.match(profileGallery, /will retry automatically/);
   assert.match(profileGallery, /Tap Try again without reselecting it/);
   assert.match(profileGallery, /ARI_CONTENT_BLOCKED/);
