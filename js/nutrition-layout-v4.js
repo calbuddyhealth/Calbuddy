@@ -1,5 +1,5 @@
-// ARI XP — Nutrition layout v4.6.0
-// Presentation controller + iPhone momentum safeguards + consolidated today-only Meal Plan loader.
+// ARI XP — Nutrition layout v4.7.0
+// Presentation controller + iPhone momentum safeguards. Meal Plan UI is decommissioned.
 (() => {
   "use strict";
 
@@ -117,22 +117,10 @@
     };
   }
 
-  function loadMealPlanner() {
-    if (document.getElementById("ariNutritionMealPlannerScript")) return;
-
-    const script = document.createElement("script");
-    script.id = "ariNutritionMealPlannerScript";
-    script.src = "js/nutrition-meal-plan-today.js?v=2.1.0";
-    script.async = false;
-    document.head.appendChild(script);
-  }
-
   function boot() {
     installNutritionCoreInitBoundary();
     installNutritionLoadCoordinator();
     installMomentumGuards();
-    loadMealPlanner();
-
     const dashboard = document.getElementById("todayNutritionSection");
     if (dashboard && !dashboard.hasAttribute("open")) dashboard.open = true;
 
@@ -149,7 +137,6 @@
 
     window.addEventListener("calbuddy:dashboardRefresh", updateTodayMealLabel);
     window.addEventListener("ari:activityChanged", updateTodayMealLabel);
-    window.addEventListener("ari:nutritionMealPlanChanged", updateTodayMealLabel);
   }
 
   if (document.readyState === "loading") {
