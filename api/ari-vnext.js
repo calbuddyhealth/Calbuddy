@@ -16,7 +16,9 @@ import {
   ARI_COGNITIVE_LOOP_VERSION,
   ARI_COGNITIVE_STATE_VERSION,
   deriveCognitiveWorkspace,
-  isOwnerCognitiveLoopEnabled
+  isOwnerCognitiveLoopEnabled,
+  resolveOwnerCognitionMode,
+  shouldPersistCognitiveState
 } from "./_lib/ari-vnext/cognitive-loop.js";
 import {
   loadAriCognitiveState,
@@ -200,30 +202,39 @@ export default async function handler(req, res) {
     };
 
     const cognitiveLoopEligible = isOwnerCognitiveLoopEnabled(intelligenceEntitlement);
-    const cognitiveLoopEnabled = cognitiveLoopEligible && !casualConversation;
+    const routePreview = routeContext(turn);
+    const cognitiveMode = resolveOwnerCognitionMode({
+      entitlement: intelligenceEntitlement,
+      route: routePreview
+    });
+    const cognitiveLoopEnabled = cognitiveMode !== "off";
+    const deepCognitionEnabled = cognitiveMode === "deep";
     const recallRequested = isConversationRecallRequest(turn.message, turn.history);
 
-    const recentContinuity = !casualConversation && (cognitiveLoopEnabled || recallRequested || shouldRecoverRecentConversation(turn))
+    const shouldHydrateRecentConversation = Boolean(
+      cognitiveLoopEnabled ||
+      (!casualConversation && (recallRequested || shouldRecoverRecentConversation(turn)))
+    );
+    const recentContinuity = shouldHydrateRecentConversation
       ? await hydrateRecentConversation({
           userId: auth.userId,
           conversationId: turn.conversationId,
           history: turn.history,
-          limitPairs: cognitiveLoopEnabled ? 6 : intelligenceEntitlement.advancedEnabled ? 6 : 4,
+          limitPairs: cognitiveMode === "lightweight" ? 2 : cognitiveLoopEnabled ? 6 : intelligenceEntitlement.advancedEnabled ? 6 : 4,
           force: recallRequested
         })
       : { history: turn.history, hydratedPairs: 0 };
     turn.history = recentContinuity.history;
 
-    const routePreview = routeContext(turn);
     const fitnessRoute = Boolean(routePreview.training || routePreview.nutrition || routePreview.goals);
-    const shouldLoadDecisionHistory = Boolean(!casualConversation && (fitnessRoute || cognitiveLoopEnabled));
+    const shouldLoadDecisionHistory = Boolean(!casualConversation && (fitnessRoute || deepCognitionEnabled));
     const shouldLoadConversationLearning = !casualConversation || cleanText(turn.message, 2000).length >= 12;
-    const shouldLoadMemory = Boolean(!casualConversation && (routePreview.memory || fitnessRoute || cognitiveLoopEnabled));
-    const goalCandidate = cognitiveLoopEnabled ? goalCandidateFromMessage(turn.message) : null;
+    const shouldLoadMemory = Boolean(!casualConversation && (routePreview.memory || fitnessRoute || deepCognitionEnabled));
+    const goalCandidate = deepCognitionEnabled ? goalCandidateFromMessage(turn.message) : null;
     const dreamingContextPromise = intelligenceEntitlement?.ownerEligible === true
       ? loadDreamingContext({ userId: auth.userId, message: turn.message, route: routePreview, limit: 5 })
       : Promise.resolve({ version: "1.0.0", active: false, insights: [], lastDreamAt: null });
-    const strategyPreparationPromise = cognitiveLoopEnabled
+    const strategyPreparationPromise = deepCognitionEnabled
       ? prepareAdaptiveStrategiesForTurn({
           userId: auth.userId,
           route: routePreview,
@@ -233,7 +244,7 @@ export default async function handler(req, res) {
           state: null,
           feedbackResolution: { resolved: 0, feedback: "neutral", lifecycleChanges: [] }
         });
-    const institutionalMemoryPromise = cognitiveLoopEnabled
+    const institutionalMemoryPromise = deepCognitionEnabled
       ? retrieveInstitutionalMemory({
           userId: auth.userId,
           message: turn.message,
@@ -244,7 +255,7 @@ export default async function handler(req, res) {
           version: "1.0.0",
           attempted: false,
           active: false,
-          reason: casualConversation ? "casual_turn" : "owner_cognitive_loop_inactive",
+          reason: cognitiveMode === "lightweight" ? "lightweight_continuity_turn" : "owner_cognitive_loop_inactive",
           retrievedCount: 0,
           lessons: [],
           hiddenChainOfThoughtStored: false,
@@ -281,7 +292,7 @@ export default async function handler(req, res) {
       fitnessRoute
         ? listUserExperiments({ userId: auth.userId, statuses: ["active", "completed"], limit: 8 })
         : Promise.resolve([]),
-      casualConversation
+      casualConversation && !cognitiveLoopEnabled
         ? Promise.resolve(null)
         : loadUserWorldModel({ userId: auth.userId }),
       shouldLoadDecisionHistory
@@ -291,7 +302,7 @@ export default async function handler(req, res) {
         ? listCommunicationOutcomes({ userId: auth.userId, limit: 40 })
         : Promise.resolve([]),
       loadSavedCommunicationPreferences({ userId: auth.userId }),
-      casualConversation
+      casualConversation && !cognitiveLoopEnabled
         ? Promise.resolve(null)
         : loadAccountEntitlements({ userId: auth.userId }),
       cognitiveLoopEnabled
@@ -300,7 +311,7 @@ export default async function handler(req, res) {
       strategyPreparationPromise,
       institutionalMemoryPromise,
       agentPerformancePromise,
-      cognitiveLoopEnabled
+      deepCognitionEnabled
         ? loadGoals({ userId: auth.userId, limit: 40 })
         : Promise.resolve([]),
       dreamingContextPromise
@@ -461,6 +472,7 @@ export default async function handler(req, res) {
           previous: persistedCognitiveState,
           turn,
           route: routePreview,
+          mode: cognitiveMode,
           context: {
             ...(turn.context || {}),
             accountEntitlements,
@@ -498,7 +510,7 @@ export default async function handler(req, res) {
       ...(experimentLedger ? { experimentLedger } : {}),
       ...(worldModelForTurn ? { userWorldModel: worldModelForTurn } : {}),
       ...(dreamingContext?.insights?.length ? { dreaming: dreamingContext } : {}),
-      ...(cognitiveLoopEnabled && (!fitnessRoute || routePreview.developer) ? { convictionLearning } : {}),
+      ...(deepCognitionEnabled && (!fitnessRoute || routePreview.developer) ? { convictionLearning } : {}),
       ...(decisionState ? { decisionState } : {}),
       ...(decisionOutcomeLearning?.resolved ? { decisionOutcomeLearning } : {}),
       ...(communicationLearning ? { communicationLearning } : {}),
@@ -695,7 +707,7 @@ export default async function handler(req, res) {
       : null;
     const cognitiveTurnCount = nextCognitiveState?.turnCount || Number(persistedCognitiveState?.turnCount || 0);
 
-    const shouldReflectOnStrategy = cognitiveLoopEnabled && shouldRunAdaptiveStrategyReflection({
+    const shouldReflectOnStrategy = deepCognitionEnabled && shouldRunAdaptiveStrategyReflection({
       message: turn.message,
       result,
       cognitiveTurnCount,
@@ -728,7 +740,7 @@ export default async function handler(req, res) {
     const scientificDecisionRecord = fitnessRoute
       ? buildDecisionRecord({ turnId: turn.turnId, route: result?.route || routePreview, result })
       : null;
-    const decisionRecord = scientificDecisionRecord || (cognitiveLoopEnabled
+    const decisionRecord = scientificDecisionRecord || (deepCognitionEnabled
       ? buildLongHorizonDecisionRecord({
           turnId: turn.turnId,
           turn,
@@ -782,8 +794,10 @@ export default async function handler(req, res) {
             serverHydrationMs,
             modelMs,
             cognitiveLoopActive: cognitiveLoopEnabled,
+            cognitiveMode,
+            deepCognitionActive: deepCognitionEnabled,
             cognitiveTurnCount,
-            adaptiveStrategyActive: cognitiveLoopEnabled,
+            adaptiveStrategyActive: deepCognitionEnabled,
             adaptiveStrategyCount: adaptiveStrategyState?.activeCount || 0,
             adaptiveStrategyReflection: Boolean(adaptiveStrategyReflection?.attempted),
             adaptiveStrategyProposal: Boolean(adaptiveStrategyReflection?.proposal),
@@ -985,10 +999,17 @@ export default async function handler(req, res) {
     const worldModelTask = casualConversation || !runtimeWorldModel
       ? Promise.resolve(false)
       : persistUserWorldModel({ userId: auth.userId, model: runtimeWorldModel });
-    const cognitiveStateTask = nextCognitiveState
+    const cognitiveStatePersistenceEligible = nextCognitiveState
+      ? shouldPersistCognitiveState({
+          previous: persistedCognitiveState,
+          next: nextCognitiveState,
+          mode: cognitiveMode
+        })
+      : false;
+    const cognitiveStateTask = cognitiveStatePersistenceEligible
       ? persistAriCognitiveState({ userId: auth.userId, state: nextCognitiveState })
       : Promise.resolve(false);
-    const strategyUseTask = cognitiveLoopEnabled && adaptiveStrategyState?.active?.length
+    const strategyUseTask = deepCognitionEnabled && adaptiveStrategyState?.active?.length
       ? recordAdaptiveStrategyUses({
           userId: auth.userId,
           strategies: adaptiveStrategyState.active,
@@ -997,7 +1018,7 @@ export default async function handler(req, res) {
           message: turn.message
         })
       : Promise.resolve({ stored: 0 });
-    const strategySignalTask = cognitiveLoopEnabled
+    const strategySignalTask = deepCognitionEnabled
       ? Promise.all(
           (Array.isArray(adaptiveStrategyFeedback?.lifecycleChanges) ? adaptiveStrategyFeedback.lifecycleChanges : [])
             .map((change) => buildStrategyAdoptionSignal(change?.strategy))
@@ -1140,10 +1161,14 @@ export default async function handler(req, res) {
         ? {
             active: true,
             ownerOnly: true,
+            mode: cognitiveMode,
+            lightweightContinuity: cognitiveMode === "lightweight",
+            deepCognition: deepCognitionEnabled,
             version: ARI_COGNITIVE_LOOP_VERSION,
             stateVersion: ARI_COGNITIVE_STATE_VERSION,
             turnCount: cognitiveTurnCount,
             priorStateLoaded: Boolean(persistedCognitiveState),
+            statePersistenceEligible: cognitiveStatePersistenceEligible,
             stateStored: cognitiveStateStored,
             beliefSystem: cognitiveWorkspace?.beliefSystem ? {
               version: cognitiveWorkspace.beliefSystem.version,
@@ -1152,8 +1177,8 @@ export default async function handler(req, res) {
               earnedFaithEligible: cognitiveWorkspace.beliefSystem.posture?.earnedFaith?.eligible === true
             } : null
           }
-        : { active: false, ownerOnly: true, skippedForCasualConversation: casualConversation && cognitiveLoopEligible },
-      adaptiveStrategyLayer: cognitiveLoopEnabled
+        : { active: false, ownerOnly: true, mode: "off" },
+      adaptiveStrategyLayer: deepCognitionEnabled
         ? {
             active: true,
             ownerOnly: true,
