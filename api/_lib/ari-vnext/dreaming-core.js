@@ -22,13 +22,24 @@ const SUBJECTIVE_OVERREACH_PATTERN = /\b(?:ari|i)\s+(?:feels?|felt|loves?|hates?
 const SENSITIVE_DETAIL_PATTERN = /\b(?:diagnos(?:is|ed)|medication|pregnan(?:t|cy)|sexual|bank account|debt amount|income|salary|passport|immigration case|legal case|home address|phone number|email address|ssn|social security)\b/i;
 
 export function dreamEvidenceFingerprint(evidence = {}) {
-  const refs = collectEvidenceRefs(evidence);
-  const stamps = [
-    evidence?.window?.start || "",
-    evidence?.window?.end || "",
-    evidence?.updatedAt || ""
-  ];
-  return stableId(JSON.stringify([refs.sort(), stamps]));
+  const records = [];
+  for (const group of [
+    evidence.conversations,
+    evidence.goals,
+    evidence.goalEvents,
+    evidence.decisions,
+    evidence.communicationOutcomes,
+    evidence.strategies,
+    evidence.institutionalMemory,
+    evidence.priorDreamInsights
+  ]) {
+    for (const item of Array.isArray(group) ? group : []) {
+      if (item?.ref) records.push([clean(item.ref, 220), item.at || item.updatedAt || item.updated_at || item.createdAt || item.created_at || ""]);
+    }
+  }
+  if (evidence?.cognitiveState?.ref) records.push([evidence.cognitiveState.ref, evidence.cognitiveState.updatedAt || ""]);
+  if (evidence?.worldModel?.ref) records.push([evidence.worldModel.ref, evidence.worldModel.updatedAt || ""]);
+  return stableId(JSON.stringify(records.sort((a, b) => a[0].localeCompare(b[0]))));
 }
 
 export function collectEvidenceRefs(evidence = {}) {
