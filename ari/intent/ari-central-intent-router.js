@@ -13,13 +13,11 @@
 
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.5.6";
+  const VERSION = "1.5.7";
   const ENDPOINT = "/api/ari-intent-router";
   const CACHE_TTL_MS = 15000;
   const INSTALL_FLAG = "__ariCentralIntentRouterV1";
   const LEGACY_GATE_FLAG = "__ariCentralIntentLegacyGateV1";
-  const MEAL_PLAN_ACTION_SCRIPT_ID = "ariTodayMealPlanActionV2Script";
-  const MEAL_PLAN_GOAL_GUARD_SCRIPT_ID = "ariMealPlanGoalGuardScript";
   const VNEXT_RUNTIME_CONTROLLER_SCRIPT_ID = "ariVNextRuntimeController";
   const cache = new Map();
 
@@ -35,21 +33,10 @@
     document.head.appendChild(script);
   }
 
-  function loadTodayMealPlanActionService() {
-    appendOrderedScript(
-      MEAL_PLAN_ACTION_SCRIPT_ID,
-      "ari/actions/ari-meal-plan-action-v2.js?v=2.0.0"
-    );
-    appendOrderedScript(
-      MEAL_PLAN_GOAL_GUARD_SCRIPT_ID,
-      "ari/actions/ari-meal-plan-goal-guard.js?v=1.0.0"
-    );
-  }
-
-  function loadVNextRuntime() {
+  function loadVNextRuntime() {  function loadVNextRuntime() {
     appendOrderedScript(
       VNEXT_RUNTIME_CONTROLLER_SCRIPT_ID,
-      "ari/runtime/ari-runtime-controller.js?v=1.3.12"
+      "ari/runtime/ari-runtime-controller.js?v=1.3.13"
     );
   }
 
@@ -305,7 +292,6 @@
     return true;
   }
 
-  loadTodayMealPlanActionService();
 
   let attempts = 0;
   const installTimer = window.setInterval(() => {
