@@ -6,7 +6,7 @@
 import { searchAriFoodCatalog } from "../../ari-food-search.js";
 import { searchCanonicalAriFoodRegistry } from "./canonical-food-registry.js";
 
-export const FOOD_RESOLUTION_VERSION = "1.2.0";
+export const FOOD_RESOLUTION_VERSION = "1.3.0";
 
 export async function resolveMealNutritionFromFoodSearch({
   arguments: args = {},
@@ -14,7 +14,8 @@ export async function resolveMealNutritionFromFoodSearch({
   searchFn = null,
   canonicalSearchFn = searchCanonicalAriFoodRegistry,
   catalogSearchFn = searchAriFoodCatalog,
-  allowExternal = true
+  allowExternal = true,
+  canonicalOnly = false
 } = {}) {
   const input = args && typeof args === "object" && !Array.isArray(args) ? { ...args } : {};
   const query = clean(input?.name, 220);
@@ -24,7 +25,9 @@ export async function resolveMealNutritionFromFoodSearch({
     ? [{ source: "injected_food_search", search: searchFn, enabled: true }]
     : [
         { source: "ari_canonical_food_registry", search: canonicalSearchFn, enabled: true },
-        { source: "ari_food_search", search: catalogSearchFn, enabled: foodSearchConfigured() }
+        ...(!canonicalOnly
+          ? [{ source: "ari_food_search", search: catalogSearchFn, enabled: foodSearchConfigured() }]
+          : [])
       ];
 
   let candidateCount = 0;
