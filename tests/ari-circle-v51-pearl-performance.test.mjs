@@ -31,6 +31,8 @@ test("shared Circle header remains bounded and text-first", () => {
 test("Connect and Feed redesigns avoid nested blur-heavy cards", () => {
   assert.match(connectCss, /background:var\(--connect-card\)/);
   assert.match(feedCss, /feed-next-event-card/);
+  assert.match(feedCss, /feed-quick-update__trigger/);
+  assert.match(feedCss, /\.feed-toast\{[\s\S]*z-index:320!important/);
   assert.doesNotMatch(connectCss, /backdrop-filter:[^;]*blur\(3[0-9]px\)/);
   assert.doesNotMatch(feedCss, /backdrop-filter:[^;]*blur\(3[0-9]px\)/);
 });
