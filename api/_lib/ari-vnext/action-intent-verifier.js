@@ -1,3 +1,5 @@
+import { actionContinuationToInstruction, deriveAuthorizedActionContinuation } from "./action-continuation.js";
+
 // ARI vNext — semantic verification for explicit app mutations.
 // This bounded GPT-4o-mini pass independently verifies whether the CURRENT
 // message authorizes a write. It never executes an action itself.
@@ -20,6 +22,8 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
   if (!availableTools.length) return null;
 
   const decisions = ["none", ...availableTools];
+  const continuation = deriveAuthorizedActionContinuation(turn);
+  const continuationInstruction = actionContinuationToInstruction(continuation);
 
   const verifierTool = {
     type: "function",
@@ -40,8 +44,8 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
   const instructions = [
     "You are Ari vNext's semantic action verifier.",
     "Ari's primary reasoning pass has already run. Independently verify whether the CURRENT user message explicitly authorizes an ARI XP mutation.",
-    "Do not infer permission to mutate from conversation history, app state, or a statement of fact.",
-    "A statement such as 'I ate eggs' is NOT permission to log food. 'I ate the breakfast you planned for me' is also NOT permission to log the planned meal. A question such as 'is chicken healthy?' is NOT a mutation request.",
+    "Do not infer permission to mutate from arbitrary conversation history, app state, or a statement of fact. The only history exception is the deterministic BOUNDED ACTION CONTINUATION evidence supplied below: the immediately preceding user already authorized one mutation and Ari immediately asked for one missing detail needed to prepare that same mutation.",
+    "A standalone statement such as 'I ate eggs' is NOT permission to log food. It may authorize propose_log_meal only when BOUNDED ACTION CONTINUATION is active and the statement clearly answers Ari's immediately preceding clarification for that exact already-authorized meal-log request. A question such as 'is chicken healthy?' is NOT a mutation request.",
     "If the user explicitly asks Ari to log, save, record, create, build, plan, edit, change, replace, remove, update, start, complete, cancel, host, publish, reply, respond, answer, challenge, debate, argue with, comment on, join, RSVP, request a spot, leave, withdraw, back out, submit, add progress, contribute progress, accept, decline, archive, close, or end something and a matching tool is available, select that tool.",
     "For Agent Community, requests such as 'reply to that thread', 'respond to somebody', 'challenge somebody', 'find an agent and argue with them', or 'find a thread and reply with a challenge' explicitly authorize propose_agent_community_reply when that tool is available. The thread may be discovered first; lack of a post ID in the user's wording does not turn the write request into read-only intent.",
     "For Agent Community, 'post this', 'publish this', 'create a new discussion', or 'start a thread about this' explicitly authorize propose_agent_community_post when that tool is available. Merely asking to find, read, show, or summarize posts remains read-only.",
@@ -54,6 +58,7 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
     "No Crew tool may add arbitrary members, choose a replacement member, make a Crew public, award XP, or alter another member's invitation response.",
     "For ARI Circle, a discovery question such as 'anything going on tonight?' or 'what should I do?' is read-only and must use decision=none. Only choose a Circle mutation tool when the current message explicitly asks to change Circle state.",
     "Meal Plan is not an Ari application capability. Requests to plan meals or food for a future day are advisory nutrition requests, not app mutations. Never redirect them to Training or another unrelated mutation tool.",
+    continuationInstruction,
     `Available app tools: ${availableTools.join(", ")}.`,
     `Current route: ${JSON.stringify({ nutrition: Boolean(route?.nutrition), training: Boolean(route?.training), goals: Boolean(route?.goals), social: Boolean(route?.social), circleAllowed: Boolean(route?.circleAllowed), teenMode: Boolean(route?.teenMode) })}.`,
     "Use decision=none when the message is advice, explanation, casual conversation, a factual statement, a discovery/read request, or otherwise does not explicitly authorize a write."
@@ -65,7 +70,13 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
   const body = {
     model: process.env.ARI_VNEXT_FAST_MODEL || "gpt-4o-mini",
     instructions,
-    input: [{ role: "user", content: String(turn?.message || "").trim() }],
+    input: continuation?.active
+      ? [
+          { role: "user", content: continuation.authorizedUserMessage },
+          { role: "assistant", content: continuation.clarificationMessage },
+          { role: "user", content: String(turn?.message || "").trim() }
+        ]
+      : [{ role: "user", content: String(turn?.message || "").trim() }],
     tools: [verifierTool],
     tool_choice: { type: "function", name: "verify_action_intent" },
     parallel_tool_calls: false,
@@ -113,7 +124,7 @@ export async function reviewExplicitApplicationIntent({ turn = {}, route = {}, t
     if (!decisions.includes(decision)) return null;
 
     return {
-      version: "1.6.0",
+      version: "1.7.0",
       decision,
       confidence,
       reason: String(args?.reason || "").trim().slice(0, 500),
