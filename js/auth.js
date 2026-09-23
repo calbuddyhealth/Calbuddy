@@ -261,7 +261,7 @@ function bootstrapNutritionTransactionClient() {
 
 function bootstrapNutritionTrustLayer() {
   if (currentAriSurface() !== "nutrition") return;
-  appendOrderedScript(ARI_NUTRITION_TRUST_SCRIPT_ID, "js/nutrition-trust-layer.js?v=1.1.0");
+  appendOrderedScript(ARI_NUTRITION_TRUST_SCRIPT_ID, "js/nutrition-trust-layer.js?v=1.2.0");
 }
 
 function bootstrapNutritionDataQuality() {
