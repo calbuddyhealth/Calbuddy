@@ -17,7 +17,7 @@ test("runtime preserves the object-style Home ask contract", () => {
   assert.match(runtime, /function normalizeAskRequest\(messageOrInput = "", options = \{\}\)/);
   assert.match(runtime, /typeof messageOrInput === "object"/);
   assert.match(runtime, /const message = clean\(input\?\.message\)/);
-  assert.match(runtime, /legacy\.askAri\(input\)/);
+  assert.match(runtime, /legacy\.askAri\(\{[\s\S]*\.\.\.input,[\s\S]*readOnlyFallback:\s*true/);
   assert.doesNotMatch(runtime, /AriVNextBridge\.ask\(messageOrInput/);
 });
 
