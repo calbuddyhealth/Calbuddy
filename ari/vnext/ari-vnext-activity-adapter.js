@@ -4,12 +4,30 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.1";
+  const VERSION = "1.1.0";
   const SOURCE = "ari_vnext_activity_adapter";
   let servicePromise = null;
 
   function clean(value = "", max = 180) {
     return String(value ?? "").trim().slice(0, max);
+  }
+
+  function mentionsExplicitOtherDate(message = "") {
+    const text = clean(message, 1200).toLowerCase();
+    if (!text) return false;
+    if (/\b(yesterday|tomorrow|day before yesterday|last night)\b/.test(text)) return true;
+    if (/\b\d{4}-\d{2}-\d{2}\b/.test(text)) return true;
+    if (/\b(?:sun(?:day)?|mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?)\b/.test(text)) return true;
+    if (/\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/.test(text)) return true;
+    if (/\b\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?\b/.test(text)) return true;
+    return false;
+  }
+
+  function resolveActivityDateText(pending = {}, args = {}) {
+    const sourceMessage = clean(pending?.sourceMessage, 1200);
+    return mentionsExplicitOtherDate(sourceMessage)
+      ? clean(args?.dateText, 80)
+      : "today";
   }
 
   function loadService() {
@@ -42,11 +60,11 @@
       caloriesBurned: args.caloriesBurned,
       intensity: args.intensity,
       averageHeartRate: args.averageHeartRate,
-      dateText: args.dateText,
+      dateText: resolveActivityDateText(pending, args),
       notes: args.notes
     }, {
       source: "ari_vnext",
-      dateText: args.dateText
+      dateText: resolveActivityDateText(pending, args)
     });
 
     if (!prepared?.success || !prepared?.activity) {
