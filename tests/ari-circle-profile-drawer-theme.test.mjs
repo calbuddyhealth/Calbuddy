@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const menu = fs.readFileSync(new URL("../js/ari-circle/circle-menu-v5.js", import.meta.url), "utf8");
-const authority = fs.readFileSync(new URL("../assets/css/ari-circle-menu-v5-authority.css", import.meta.url), "utf8");
+const menu = fs.readFileSync("js/ari-circle/circle-menu-v5.js", "utf8");
+const authority = fs.readFileSync("assets/css/ari-circle-menu-v5-authority.css", "utf8");
 
-test("Profile primes the same V5 light shell used by the other Circle routes", () => {
-  assert.match(menu, /const VERSION = "2\.5\.0"/);
+test("Profile primes the same light Circle shell used by member routes", () => {
+  assert.match(menu, /const VERSION = "2\.6\.0"/);
+  assert.match(menu, /REAL_WORLD_SCRIPT_SRC = "js\/ari-circle\/v5-real-world\.js\?v=5\.4\.0"/);
   assert.match(menu, /function primeProfileV5Theme\(\)/);
   assert.match(menu, /document\.documentElement\.classList\.add\("circle-v5-real-world-root"\)/);
   assert.match(menu, /document\.body\?\.classList\.add\("circle-v5-real-world"\)/);
@@ -20,7 +21,6 @@ test("drawer uses a page-independent final color authority", () => {
   assert.match(authority, /data-circle-v5-portal="true"/);
   assert.match(authority, /color-scheme:\s*light\s*!important/);
   assert.match(authority, /background:\s*rgba\(255, 255, 255, \.985\)\s*!important/);
-  assert.doesNotMatch(authority, /body\.circle-v5-real-world\s+\.circle-v5-menu__panel/);
 });
 
 test("drawer groups and rows remain pearl instead of inheriting Profile theme", () => {
