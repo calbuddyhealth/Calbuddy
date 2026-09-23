@@ -106,12 +106,6 @@ export function deriveCognitiveWorkspace({
       outcomeAdaptive: true,
       hiddenChainOfThoughtStored: false
     },
-    beliefSystem: workspace?.beliefSystem || deriveBeliefSystem({
-      convictionLearning: turn?.context?.convictionLearning || null,
-      message: turn?.message || "",
-      route: result?.route || {},
-      prior: prior?.beliefSystem || null
-    }),
     judgment: {
       constitutionVersion: ARI_JUDGMENT_CONSTITUTION_VERSION,
       requested: judgmentRequested,
@@ -239,6 +233,7 @@ export function advanceCognitiveState({
         : [],
       unresolvedValueConflict: Boolean(workspace?.conscience?.activeSignals?.some((item) => item?.level === "high"))
     },
+    beliefSystem: workspace?.beliefSystem || prior?.beliefSystem || null,
     judgment: {
       constitutionVersion: ARI_JUDGMENT_CONSTITUTION_VERSION,
       storedCount: nextJudgments.length,
