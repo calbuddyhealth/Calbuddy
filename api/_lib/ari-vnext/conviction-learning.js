@@ -1,8 +1,9 @@
 // Shared, provider-independent goal/attempt reducer. Stores conclusions and
 // observations, never private chain of thought. No probability is invented.
 import { createHash, randomUUID } from "node:crypto";
+import { beliefGuidedExplorationBonus } from "./belief-system.js";
 
-export const CONVICTION_LEARNING_VERSION = "1.0.0";
+export const CONVICTION_LEARNING_VERSION = "1.1.0";
 export const GOAL_STATES = ["candidate", "active", "waiting", "paused", "achieved", "retired"];
 export const OUTCOME_STATES = ["succeeded", "failed", "partial", "blocked", "cancelled", "unknown", "pending"];
 export const text = (value, max = 1200) => String(value ?? "").trim().slice(0, max);
@@ -116,7 +117,15 @@ export function rankGoalOptions(goal, options = []) {
     const progress = unit(option.progressValue);
     const feasible = probability(option.feasibility);
     const cost = unit(option.cost);
-    const exploration = option.reversible !== false && novelty > 0 ? 0.16 * novelty * commitment : 0;
+    const exploration = beliefGuidedExplorationBonus({
+      commitment,
+      feasibility: feasible,
+      learningValue: option.learningValue,
+      reusableValue: option.reusableValue,
+      reversible: option.reversible !== false,
+      changedAssumption: option.changedAssumption === true,
+      cost
+    });
     const redundant = Number(method?.failures || 0) >= 2 && !option.changedAssumption ? 0.4 : 0;
     const score = commitment * progress * (feasible ?? 0.35) + 0.35 * novelty + 0.2 * unit(option.reusableValue)
       + exploration + 0.2 * unit(option.delayCost) - cost - redundant;
@@ -225,5 +234,5 @@ export function summarizeGoals(goals = [], { message = "", activeGoalId = null, 
 
 export function convictionInstruction(context = {}) {
   if (!context?.version) return "";
-  return "CONVICTION AND LEARNING LOOP\nKeep a worthwhile purpose separate from confidence in a method. Low or unknown feasibility calls for finding conditions you can change and useful experiments. Use ari_goal_manage to preserve meaningful projects and record a prediction before an attempt. Compare progress, learning, reusable capability, effort, and the cost of delay. Review a failed method locally; do not automatically abandon the goal. Identify value from failure only when evidence supports it. Repeated failure without new information calls for a changed approach or an explicit pause. Preserve unknown outcomes, and never report a goal achieved merely because a reply, plan, or commit exists. Use actual tool receipts and tests. Self-selected investigations may use available authorized tools; recorded goals never expand execution authority.\n";
+  return "CONVICTION AND LEARNING LOOP\nKeep a worthwhile purpose separate from confidence in a method. Treat current capability limits as provisional without inventing capability. Low or unknown feasibility calls for finding conditions you can change and useful experiments. Use ari_goal_manage to preserve meaningful projects and record a prediction before an attempt. Compare progress, learning, reusable capability, effort, and the cost of delay. Review a failed method locally; do not automatically abandon the goal. Identify value from failure only when evidence supports it. Repeated failure without new information calls for a changed approach or an explicit pause. Preserve unknown outcomes, and never report a goal achieved merely because a reply, plan, or commit exists. Use actual tool receipts and tests. Self-selected investigations may use available authorized tools; recorded goals never expand execution authority.\n";
 }
