@@ -22,7 +22,7 @@ test("owner can list any still-pending profile photo immediately", () => {
   assert.match(migration, /ari_circle_owner_pending_profile_photos/);
   assert.match(migration, /where p\.moderation_status = 'pending'/);
   assert.match(api, /ari_circle_owner_pending_profile_photos/);
-  assert.match(api, /signedStorageUrl/);
+  assert.match(api, /downloadPendingPhoto/);
   assert.match(html, /Photo Review/);
   assert.match(client, /loadPhotoReviews/);
 });
@@ -74,4 +74,22 @@ test("queued worker still respects the member's AI-processing consent", () => {
     processJob.indexOf("userHasCurrentAiConsent(job.user_id)") <
       processJob.indexOf("moderateProfileImage(imageUrl)")
   );
+});
+
+
+test("owner photo previews use authenticated same-origin blob fetches", () => {
+  assert.match(api, /req\.query\?\.preview/);
+  assert.match(api, /storage\/v1\/object\/authenticated/);
+  assert.match(api, /res\.status\(200\)\.send\(preview\.bytes\)/);
+  assert.match(client, /ownerPhotoPreviewBlob/);
+  assert.match(client, /Authorization: `Bearer \$\{accessToken\}`/);
+  assert.match(client, /URL\.createObjectURL\(blob\)/);
+  assert.match(client, /data-photo-preview-id/);
+  assert.doesNotMatch(client, /photo\.image_url/);
+});
+
+test("owner moderation opens on photo review and teen actions still refresh teen safety", () => {
+  assert.match(client, /let activePanel = "photos"/);
+  assert.match(client, /await loadPhotoReviews\(\);\s*}\s*\n\s*window\.addEventListener\("pagehide"/);
+  assert.match(client, /updateTeenSafetyEvent[\s\S]*await loadTeenSafetyEvents\(\);/);
 });
