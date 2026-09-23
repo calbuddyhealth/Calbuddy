@@ -4,7 +4,7 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.7.2";
+CalBuddy.version = "3.8.0";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
 CalBuddy.dashboardRefreshPromise = null;
@@ -1922,7 +1922,7 @@ CalBuddy.saveConversationTurn = async function ({ message, reply }) {
   }
 };
 
-CalBuddy._askAriInternal = async function ({ message, history = [], debugTiming = false }) {
+CalBuddy._askAriInternal = async function ({ message, history = [], debugTiming = false, readOnlyFallback = false }) {
   const timingStart = performance.now();
   const timing = [];
 
@@ -1954,14 +1954,14 @@ if (!message || !message.trim()) {
   }
   const pendingGithubEdit = localStorage.getItem("calbuddyPendingGithubEdit");
 
-if (pendingGithubEdit && CalBuddy.isYes(message)) {
+if (!readOnlyFallback && pendingGithubEdit && CalBuddy.isYes(message)) {
   return await CalBuddy.confirmPendingGithubEdit();
 }
   const pending = CalBuddy.getPendingAction();
-  if (pending && CalBuddy.isYes(message)) {
+  if (!readOnlyFallback && pending && CalBuddy.isYes(message)) {
     return await CalBuddy.confirmPendingAction();
   }
-  if (pending && CalBuddy.isNo(message)) {
+  if (!readOnlyFallback && pending && CalBuddy.isNo(message)) {
     return CalBuddy.cancelPendingAction();
   }
   mark("before getUserContext");
@@ -2110,24 +2110,24 @@ if (
   }
 }
 
-mark("before detectAriActionFromMessage");
-
-const quickAction =
-  await CalBuddy.detectAriActionFromMessage(
+let quickAction = null;
+if (!readOnlyFallback) {
+  mark("before detectAriActionFromMessage");
+  quickAction = await CalBuddy.detectAriActionFromMessage(
     message,
     userContext
   );
-
-mark("after detectAriActionFromMessage");
-  if (quickAction) {
-    const action = await CalBuddy.createPendingAction(quickAction);
-    CalBuddy.setAriMood("coach");
-    return {
-      reply: action.confirmation_text || "I can update that. Want me to do it?",
-      pendingAction: action,
-      emotion: "coach"
-    };
-  }
+  mark("after detectAriActionFromMessage");
+}
+if (quickAction) {
+  const action = await CalBuddy.createPendingAction(quickAction);
+  CalBuddy.setAriMood("coach");
+  return {
+    reply: action.confirmation_text || "I can update that. Want me to do it?",
+    pendingAction: action,
+    emotion: "coach"
+  };
+}
  
   mark("before checkUsage");
   
@@ -2171,6 +2171,7 @@ const rebirth = await window.AriRebirthAppBridge.ask(message, {
   page: window.location.pathname || "unknown",
   history,
   debugTiming,
+  readOnlyFallback,
 
     userContext,
 
@@ -2207,6 +2208,25 @@ mark("after AriRebirthAppBridge.ask");
   mark("before logUsage");
 await CalBuddy.logUsage({ message, usage_type: "chat" });
 mark("after logUsage");
+
+  if (readOnlyFallback) {
+    const rawReply = String(rebirth?.reply || "").trim();
+    const unsafeClaim =
+      Array.isArray(rebirth?.actions) && rebirth.actions.length > 0 ||
+      /\b(?:i(?:'ve| have)?\s+(?:logged|saved|added|recorded|updated|created|deleted|removed)|(?:it|that)\s+(?:is|'s)\s+(?:logged|saved|added|recorded|updated|created|deleted|removed)|done[.!]?$)\b/i.test(rawReply);
+    return {
+      ...rebirth,
+      reply: unsafeClaim
+        ? "I couldn't prepare that app change through the primary Ari runtime. Nothing was saved. Try again."
+        : rawReply || "I couldn't complete that request through the primary Ari runtime. Try again.",
+      pendingAction: null,
+      action: null,
+      actions: [],
+      memoryCandidate: null,
+      developerIntent: null,
+      readOnlyFallback: true
+    };
+  }
 
   const mood = rebirth.emotion || "happy";
 CalBuddy.setAriMood(mood);
@@ -2304,6 +2324,26 @@ return {
   mark("before logUsage");
 await CalBuddy.logUsage({ message, usage_type: "chat" });
 mark("after logUsage");
+
+  if (readOnlyFallback) {
+    const rawReply = String(response?.reply || response?.text || response?.message || "").trim();
+    const unsafeClaim =
+      Boolean(response?.pendingAction) ||
+      /\b(?:i(?:'ve| have)?\s+(?:logged|saved|added|recorded|updated|created|deleted|removed)|(?:it|that)\s+(?:is|'s)\s+(?:logged|saved|added|recorded|updated|created|deleted|removed)|done[.!]?$)\b/i.test(rawReply);
+    return {
+      ...response,
+      reply: unsafeClaim
+        ? "I couldn't prepare that app change through the primary Ari runtime. Nothing was saved. Try again."
+        : rawReply || "I couldn't complete that request through the primary Ari runtime. Try again.",
+      pendingAction: null,
+      action: null,
+      actions: [],
+      memoryCandidate: null,
+      developerIntent: null,
+      readOnlyFallback: true
+    };
+  }
+
   if (response.pendingAction) {
     CalBuddy.setPendingAction(response.pendingAction);
   }
