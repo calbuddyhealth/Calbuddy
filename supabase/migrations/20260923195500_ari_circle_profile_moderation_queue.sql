@@ -112,7 +112,7 @@ declare
   previous_path text := null;
   photo_id uuid;
   queued_message_id bigint := null;
-  pending_upload boolean := false;
+  pending_upload boolean := true;
 begin
   perform public.ari_circle_assert_adult_access();
 
@@ -120,13 +120,8 @@ begin
     raise exception 'Profile photo slot must be between 1 and 4';
   end if;
 
-  pending_upload := clean_path like caller_id::text || '/profile-gallery-pending/%';
-
   if clean_path = ''
-     or (
-       clean_path not like caller_id::text || '/profile-gallery/%'
-       and clean_path not like caller_id::text || '/profile-gallery-pending/%'
-     )
+     or clean_path not like caller_id::text || '/profile-gallery-pending/%'
      or clean_path like '%..%' then
     raise exception 'Invalid profile photo path';
   end if;
@@ -156,8 +151,8 @@ begin
     caller_id,
     requested_position,
     clean_path,
-    case when pending_upload then 'pending' else 'approved' end,
-    case when pending_upload then null else 'legacy_client_approved' end,
+    'pending',
+    null,
     null,
     false,
     '{}'::text[],
@@ -165,7 +160,7 @@ begin
     0,
     null,
     null,
-    case when pending_upload then null else now() end,
+    null,
     now()
   )
   on conflict(user_id, position)
@@ -184,26 +179,24 @@ begin
     updated_at = now()
   returning id into photo_id;
 
-  if pending_upload then
-    select q into queued_message_id
-    from pgmq.send(
-      'ari_circle_profile_moderation',
-      jsonb_build_object(
-        'photo_id', photo_id,
-        'user_id', caller_id,
-        'position', requested_position,
-        'media_path', clean_path,
-        'scope', 'profile_gallery_photo'
-      )
-    ) as q
-    limit 1;
-  end if;
+  select q into queued_message_id
+  from pgmq.send(
+    'ari_circle_profile_moderation',
+    jsonb_build_object(
+      'photo_id', photo_id,
+      'user_id', caller_id,
+      'position', requested_position,
+      'media_path', clean_path,
+      'scope', 'profile_gallery_photo'
+    )
+  ) as q
+  limit 1;
 
   return jsonb_build_object(
     'photo_id', photo_id,
     'position', requested_position,
     'media_path', clean_path,
-    'moderation_status', case when pending_upload then 'pending' else 'approved' end,
+    'moderation_status', 'pending',
     'queue_message_id', queued_message_id,
     'replaced_path', previous_path
   );
