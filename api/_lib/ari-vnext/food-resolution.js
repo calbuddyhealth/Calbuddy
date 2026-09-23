@@ -6,7 +6,7 @@
 import { searchAriFoodCatalog } from "../../ari-food-search.js";
 import { searchCanonicalAriFoodRegistry } from "./canonical-food-registry.js";
 
-export const FOOD_RESOLUTION_VERSION = "1.1.0";
+export const FOOD_RESOLUTION_VERSION = "1.2.0";
 
 export async function resolveMealNutritionFromFoodSearch({
   arguments: args = {},
@@ -148,9 +148,13 @@ export function chooseStrongMatch(query, candidates = []) {
     const coverage = matched / queryTokens.length;
     const exactIdentity =
       normalizedQuery === display ||
-      normalizedQuery === name ||
-      (display.length >= 5 && (display.includes(normalizedQuery) || normalizedQuery.includes(display))) ||
-      (name.length >= 5 && (name.includes(normalizedQuery) || normalizedQuery.includes(name)));
+      normalizedQuery === name;
+    const containedIdentity =
+      !exactIdentity &&
+      (
+        (display.length >= 5 && (display.includes(normalizedQuery) || normalizedQuery.includes(display))) ||
+        (name.length >= 5 && (name.includes(normalizedQuery) || normalizedQuery.includes(name)))
+      );
 
     const confidence = finite(food?.metadata?.confidence, 0.5);
     const searchScore = finite(food?.metadata?.searchScore, 0);
@@ -162,13 +166,15 @@ export function chooseStrongMatch(query, candidates = []) {
 
     const accepted =
       exactIdentity ||
+      containedIdentity ||
       singleTokenStrong ||
       (coverage >= 0.8 && matched >= 2 && (confidence >= 0.55 || verified || searchScore >= 500));
 
     if (!accepted) continue;
 
     const rank =
-      (exactIdentity ? 10000 : 0) +
+      (exactIdentity ? 20000 : 0) +
+      (containedIdentity ? 10000 : 0) +
       coverage * 1000 +
       confidence * 100 +
       (verified ? 100 : 0) +
@@ -181,6 +187,7 @@ export function chooseStrongMatch(query, candidates = []) {
         coverage: round(coverage, 3),
         confidence: round(confidence, 3),
         exactIdentity,
+        containedIdentity,
         matchedTokens: matched,
         queryTokenCount: queryTokens.length
       };
