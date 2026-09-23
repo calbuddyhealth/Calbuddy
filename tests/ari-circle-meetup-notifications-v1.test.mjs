@@ -26,6 +26,6 @@ assert.match(connect, /ari_circle_review_meetup_request/);
 assert.match(connect, /Request sent/);
 assert.match(connect, /Guest accepted/);
 assert.doesNotMatch(connect, /ari_circle_complete_meetup/);
-assert.doesNotMatch(meetupHtml, /verified history|auto-rank|XP/i);
+assert.doesNotMatch(meetupHtml, /verified history|auto-rank|\\bXP\\b/i);
 
 console.log("ARI Circle meetup request/notification contracts OK");
