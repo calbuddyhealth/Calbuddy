@@ -59,28 +59,62 @@ function encodeObjectPath(path) {
     .join("/");
 }
 
-async function signedStorageUrl(path) {
+async function pendingPhotoPath(photoId) {
   const base = clean(process.env.SUPABASE_URL, 2000).replace(/\/+$/, "");
-  const encoded = encodeObjectPath(path);
-  if (!base || !encoded) return "";
+  const id = clean(photoId, 80).toLowerCase();
+  if (!base || !UUID_PATTERN.test(id)) return "";
 
   const response = await fetch(
-    `${base}/storage/v1/object/sign/${BUCKET}/${encoded}`,
+    `${base}/rest/v1/ari_circle_profile_photos?id=eq.${encodeURIComponent(id)}&moderation_status=eq.pending&select=media_path&limit=1`,
     {
-      method: "POST",
-      headers: serviceHeaders(),
-      body: JSON.stringify({ expiresIn: 300 })
+      method: "GET",
+      headers: {
+        ...serviceHeaders(),
+        Accept: "application/json"
+      }
+    }
+  );
+  const data = await readJson(response);
+  if (!response.ok) {
+    const error = new Error("Could not load the pending photo.");
+    error.status = response.status;
+    throw error;
+  }
+  return clean(Array.isArray(data) ? data[0]?.media_path : "", 1000);
+}
+
+async function downloadPendingPhoto(photoId) {
+  const base = clean(process.env.SUPABASE_URL, 2000).replace(/\/+$/, "");
+  const path = await pendingPhotoPath(photoId);
+  const encoded = encodeObjectPath(path);
+  if (!base || !encoded) {
+    const error = new Error("Pending photo not found.");
+    error.status = 404;
+    throw error;
+  }
+
+  const response = await fetch(
+    `${base}/storage/v1/object/authenticated/${BUCKET}/${encoded}`,
+    {
+      method: "GET",
+      headers: {
+        apikey: clean(process.env.SUPABASE_SERVICE_ROLE_KEY, 5000),
+        Authorization: `Bearer ${clean(process.env.SUPABASE_SERVICE_ROLE_KEY, 5000)}`
+      }
     }
   );
 
-  const data = await readJson(response);
-  if (!response.ok) return "";
+  if (!response.ok) {
+    const error = new Error("Pending photo preview could not be loaded.");
+    error.status = response.status;
+    throw error;
+  }
 
-  const raw = clean(data?.signedURL || data?.signedUrl || data?.signed_url, 4000);
-  if (!raw) return "";
-  return raw.startsWith("http")
-    ? raw
-    : `${base}${raw.startsWith("/") ? "" : "/"}${raw}`;
+  return {
+    bytes: Buffer.from(await response.arrayBuffer()),
+    contentType: clean(response.headers.get("content-type"), 120) || "image/jpeg",
+    contentLength: Number(response.headers.get("content-length")) || null
+  };
 }
 
 async function listPendingPhotos() {
@@ -99,8 +133,7 @@ async function listPendingPhotos() {
       moderation_next_retry_at: row.moderation_next_retry_at || null,
       moderation_last_error: clean(row.moderation_last_error, 500) || null,
       display_name: clean(row.display_name, 120) || "Circle member",
-      handle: clean(row.handle, 120) || null,
-      image_url: await signedStorageUrl(row.media_path)
+      handle: clean(row.handle, 120) || null
     });
   }
 
@@ -123,6 +156,26 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === "GET") {
+      const previewId = clean(req.query?.preview, 80).toLowerCase();
+
+      if (previewId) {
+        if (!UUID_PATTERN.test(previewId)) {
+          return res.status(400).json({
+            success: false,
+            code: "INVALID_PHOTO_ID",
+            error: "A valid pending photo is required."
+          });
+        }
+
+        const preview = await downloadPendingPhoto(previewId);
+        res.setHeader("Content-Type", preview.contentType);
+        res.setHeader("Cache-Control", "private, no-store, max-age=0");
+        if (preview.contentLength) {
+          res.setHeader("Content-Length", String(preview.contentLength));
+        }
+        return res.status(200).send(preview.bytes);
+      }
+
       const photos = await listPendingPhotos();
       return res.status(200).json({
         success: true,
