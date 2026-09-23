@@ -287,7 +287,7 @@
     };
   }
 
-  async function preparePlanWorkout(pending = {}) {  async function preparePlanWorkout(pending = {}) {
+  async function preparePlanWorkout(pending = {}) {
     if (!validPendingIdentity(pending)) {
       return failure("invalid_pending_action", "The workout plan is missing its turn-bound identity.");
     }
