@@ -6,7 +6,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.1.1";
   const ALLOWED_RADII = new Set([5, 10, 25, 50, 100]);
   const state = {
     client: null,
@@ -181,6 +181,7 @@
       return;
     }
 
+    input?.blur?.();
     state.busy = true;
     renderAll();
     try {
