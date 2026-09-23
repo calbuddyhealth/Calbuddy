@@ -65,21 +65,21 @@ test("ZXing is absent from initial HTML and loaded only for web scanning", () =>
 });
 
 test("Nutrition cache-bust references match consolidated controllers", () => {
-  assert.match(nutritionHtml, /js\/auth\.js\?v=1\.10\.18/);
-  assert.match(nutritionHtml, /js\/nutrition-layout-v4\.js\?v=4\.6\.0/);
+  assert.match(nutritionHtml, /js\/auth\.js\?v=1\.10\.19/);
+  assert.match(nutritionHtml, /js\/nutrition-layout-v4\.js\?v=4\.7\.0/);
   assert.match(nutritionHtml, /assets\/css\/nutrition-scan\.css\?v=1\.0\.2/);
   assert.match(nutritionHtml, /js\/nutrition-scan-save-bridge\.js\?v=1\.0\.1/);
   assert.match(nutritionHtml, /js\/nutrition-food-loader\.js\?v=1\.0\.14/);
 });
 
-test("Meal Plan has one controller instead of a compact post-render patch", () => {
-  assert.match(layout, /nutrition-meal-plan-today\.js\?v=2\.1\.0/);
-  assert.doesNotMatch(layout, /nutrition-meal-plan-compact/);
-  assert.doesNotMatch(mealPlan, /nutritionRecentPlanShelf/);
-  assert.match(mealPlan, /function decorateRecentMeals\(\)/);
-  assert.match(mealPlan, /AriNutritionPage\?\.getState\?\.\(\)\?\.recentMeals/);
-  assert.match(mealPlan, /await refresh\(\{ includeFavorites: true \}\)/);
-  assert.doesNotMatch(mealPlan, /\.from\("meals"\)[\s\S]*?\.limit\(20\)[\s\S]*?\.from\("meals"\)[\s\S]*?\.limit\(20\)/);
+test("Meal Plan UI is decommissioned and stale loaders clean themselves up", () => {
+  assert.doesNotMatch(layout, /nutrition-meal-plan-today\.js/);
+  assert.doesNotMatch(layout, /loadMealPlanner/);
+  assert.match(mealPlan, /Compatibility tombstone for the removed Meal Plan UI/);
+  assert.match(mealPlan, /nutritionTodayModeTabs/);
+  assert.match(mealPlan, /nutritionTodayMealPlan/);
+  assert.match(mealPlan, /removeLegacyMealPlanSurface/);
+  assert.doesNotMatch(mealPlan, /function buildTabs\(|function buildPlanPane\(|nutrition_plan_items/);
 });
 
 test("Nutrition owns core startup instead of running generic dashboard hydration", () => {
