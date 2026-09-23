@@ -66,7 +66,7 @@ test("client moderation exposes provider outage metadata to retry-capable surfac
     new URL("../js/ari-circle/content-moderation.js", import.meta.url),
     "utf8"
   );
-  assert.match(client, /const VERSION = "1\.5\.1"/);
+  assert.match(client, /const VERSION = "1\.5\.2"/);
   assert.match(client, /moderationError\.code = clean\(data\?\.code\)/);
   assert.match(client, /ARI_CIRCLE_MODERATION_PROVIDER_UNAVAILABLE/);
   assert.match(client, /moderationError\.status = response\.status/);
