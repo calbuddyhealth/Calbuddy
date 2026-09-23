@@ -5,7 +5,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.1.1";
   const $ = (id) => document.getElementById(id);
 
   const state = {
@@ -248,10 +248,7 @@
       const id = clean(person.user_id);
       const name = clean(person.display_name) || "ARI User";
       const handle = clean(person.handle).replace(/^@+/, "");
-      const verified = Number(person.verified_meetups) || 0;
       const isHost = id === hostId || clean(person.role) === "host";
-      const tier = TIER[person.leadership_tier] || (isHost ? "Host" : "Member");
-      const verifiedLabel = `${verified} verified meetup${verified === 1 ? "" : "s"}`;
 
       const hostActions = isHost
         ? `<div class="meetup-room-attendee__actions">
@@ -421,7 +418,7 @@
       startPolling();
       window.AriCircleV5RealWorld?.refresh?.();
     } catch (error) {
-      console.error("Meetup Room V1.1 init failed:", error);
+      console.error("Meetup Room V1.1.1 init failed:", error);
       $("meetupRoomLoading").innerHTML = `<strong>${escapeHtml(error.message || "Meetup room unavailable.")}</strong><br><a href="ari-circle-meetup.html">Back to Meet Up</a>`;
     }
   }
