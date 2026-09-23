@@ -74,6 +74,11 @@ test("Meetup Room keeps attendees available behind a compact disclosure instead 
   assert.match(roomJs, /if \(hostId && !seen\.has\(hostId\)\)/);
 });
 
+test("attendee renderer has no undefined legacy TIER dependency", () => {
+  assert.doesNotMatch(roomJs, /\\bTIER\\[/);
+  assert.doesNotMatch(roomJs, /const tier = TIER/);
+});
+
 test("Meetup Room chat keeps useful quick coordination actions without a second attendance system", () => {
   assert.match(roomHtml, /data-meetup-quick-message="On my way/);
   assert.match(roomHtml, /data-meetup-quick-message="I'm here/);
