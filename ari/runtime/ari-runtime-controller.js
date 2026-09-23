@@ -172,11 +172,11 @@
 
   function dependencyReady(src = "") {
     const base = dependencyBase(src);
-    if (base.endsWith("ari-vnext-training-context.js")) return Boolean(window.AriVNextTrainingContext && versionAtLeast(window.AriVNextTrainingContext?.version, "1.3.0"));
+    if (base.endsWith("ari-vnext-training-context.js")) return Boolean(window.AriVNextTrainingContext);
     if (base.endsWith("ari-vnext-action-adapter.js")) {
       return Boolean(window.AriVNextActionAdapter && versionAtLeast(window.AriVNextActionAdapter?.version, "1.5.0"));
     }
-    if (base.endsWith("ari-vnext-activity-adapter.js")) return Boolean(window.AriVNextActivityAdapter && versionAtLeast(window.AriVNextActivityAdapter?.version, "1.1.0"));
+    if (base.endsWith("ari-vnext-activity-adapter.js")) return Boolean(window.AriVNextActivityAdapter);
     if (base.endsWith("ari-vnext-bridge.js")) {
       return typeof window.AriVNextBridge?.ask === "function" &&
         versionAtLeast(window.AriVNextBridge?.version, "1.10.0");
@@ -229,14 +229,11 @@
 
   function vNextReady() {
     return Boolean(
-      window.AriVNextTrainingContext &&
-      versionAtLeast(window.AriVNextTrainingContext?.version, "1.3.0") &&
       typeof window.AriVNextBridge?.ask === "function" &&
       versionAtLeast(window.AriVNextBridge?.version, "1.10.0") &&
       window.AriVNextActionAdapter &&
       versionAtLeast(window.AriVNextActionAdapter?.version, "1.5.0") &&
       window.AriVNextActivityAdapter &&
-      versionAtLeast(window.AriVNextActivityAdapter?.version, "1.1.0") &&
       window.AriVNextContextGuard?.ready === true &&
       versionAtLeast(window.AriVNextContextGuard?.version, "1.2.4") &&
       window.AriVNextInitiative &&
