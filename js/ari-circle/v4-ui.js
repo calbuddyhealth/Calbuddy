@@ -43,7 +43,7 @@
     ensureStyle(POLISH_STYLE_ID, "assets/css/ari-circle-v4-polish.css?v=4.1.0");
     ensureStyle(UX_STYLE_ID, "assets/css/ari-circle-v4-ux-fixes.css?v=1.0.1");
     // The shared V5 shell owns ari-circle-v5-real-world.css and its light
-    // Pearl/Premium/Visual Authority/XP stack. Do not append the dark base CSS
+    // Pearl/Premium/Visual Authority stack. Do not append the dark base CSS
     // again here; doing so after Visual Authority makes Profile dark-only.
   }
 
