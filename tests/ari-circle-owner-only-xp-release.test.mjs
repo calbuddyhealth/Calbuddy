@@ -6,7 +6,7 @@ const meetup = fs.readFileSync("ari-circle-meetup.html", "utf8");
 const feed = fs.readFileSync("ari-circle-feed.html", "utf8");
 const profileLoader = fs.readFileSync("js/ari-circle/profile/profile-v3-loader.js", "utf8");
 const connect = fs.readFileSync("js/ari-circle/connect/connect-v1.js", "utf8");
-const retirement = fs.readFileSync("supabase/migrations/20260923121000_ari_circle_retire_xp_completion.sql", "utf8");
+const retirement = fs.readFileSync("supabase/migrations/20260923151000_ari_circle_retire_xp_completion.sql", "utf8");
 
 test("active Circle surfaces contain no XP presentation", () => {
   for (const source of [meetup, feed, profileLoader, connect]) {
