@@ -72,7 +72,7 @@ jobs:
               [ -z "$file" ] && continue
 
               case "$file" in
-                api/ari-vnext.js|api/_lib/ari-vnext/*|ari/vnext/*|ari/runtime/ari-runtime-controller.js|ari/intent/ari-central-intent-router.js|ari/personalization/*|ari/pipeline-stages/deliberation/ari-memory-stage.js|js/auth.js|js/nutrition-trust-layer.js|js/nutrition-transaction-client.js|js/ari-nutrition-data-quality.js|tests/ari-vnext-*.test.mjs|tests/ari-personalization.test.mjs|tests/nutrition-*.test.mjs|.github/workflows/ari-vnext-tests.yml)
+                api/ari-vnext.js|api/_lib/ari-vnext/*|ari/vnext/*|ari/runtime/ari-runtime-controller.js|ari/personalization/*|ari/pipeline-stages/deliberation/ari-memory-stage.js|js/auth.js|js/nutrition-trust-layer.js|js/nutrition-transaction-client.js|js/ari-nutrition-data-quality.js|tests/ari-vnext-*.test.mjs|tests/ari-personalization.test.mjs|tests/nutrition-*.test.mjs|.github/workflows/ari-vnext-tests.yml)
                   RUN_ARI=true
                   ;;
                 supabase/migrations/*nutrition*.sql)
