@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-pearl.css?v=5.1.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
-  <link rel="stylesheet" href="assets/css/ari-circle-feed-next.css?v=1.0.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-feed-next.css?v=1.1.0" />
 </head>
 <body class="circle-v5-real-world">
   <main class="feed-page" id="feedPage" hidden>
@@ -32,23 +32,40 @@
       <a class="circle-v4-message" href="ari-circle-messages.html" aria-label="Messages">💬</a>
     </header>
 
-    <section class="feed-composer feed-composer--update" aria-labelledby="composerTitle">
+    <section id="circleV5Happening" class="circle-v5-happening feed-next-happening" aria-labelledby="circleV5HappeningTitle">
+      <div class="feed-next-section-heading">
+        <div><p class="feed-next-eyebrow">HAPPENING</p><h2 id="circleV5HappeningTitle">Join something</h2></div>
+        <a href="ari-circle-meetup.html">See all</a>
+      </div>
+      <div class="feed-next-event-list" id="circleV5HappeningRail" aria-live="polite"></div>
+    </section>
+
+    <section class="feed-composer feed-composer--update is-collapsed" id="feedQuickUpdate" aria-labelledby="composerTitle">
       <form id="feedComposerForm">
-        <div class="feed-composer__top">
+        <button class="feed-quick-update__trigger" id="feedComposerOpen" type="button" aria-expanded="false" aria-controls="feedComposerEditor">
           <div class="feed-avatar feed-avatar--self" id="composerAvatar" aria-hidden="true"><span>A</span></div>
-          <div>
-            <p class="feed-next-eyebrow">YOUR CIRCLE</p>
-            <h2 id="composerTitle">Share an update</h2>
+          <span class="feed-quick-update__copy">
+            <strong id="composerTitle">Share an update</strong>
+            <small>Friends only · text update</small>
+          </span>
+          <span class="feed-quick-update__plus" aria-hidden="true">＋</span>
+        </button>
+
+        <div class="feed-quick-update__editor" id="feedComposerEditor" hidden>
+          <label class="sr-only" for="feedPostBody">Write an update</label>
+          <textarea id="feedPostBody" maxlength="600" rows="3" placeholder="What are you up to?"></textarea>
+
+          <div class="feed-quick-update__meta">
+            <span class="feed-composer__privacy">Friends only</span>
+            <span class="feed-composer__counter"><span id="postCharCount">0</span>/600</span>
           </div>
-        </div>
 
-        <label class="sr-only" for="feedPostBody">Write an update</label>
-        <textarea id="feedPostBody" maxlength="600" rows="2" placeholder="What are you up to?"></textarea>
+          <p class="feed-quick-update__status" id="feedComposerStatus" role="status" aria-live="polite"></p>
 
-        <div class="feed-composer__toolbar feed-composer__toolbar--simple">
-          <span class="feed-composer__privacy">Friends only</span>
-          <div class="feed-composer__counter"><span id="postCharCount">0</span>/600</div>
-          <button class="feed-primary" id="publishPostButton" type="submit">Post</button>
+          <div class="feed-quick-update__actions">
+            <button class="feed-secondary" id="cancelPostButton" type="button">Cancel</button>
+            <button class="feed-primary" id="publishPostButton" type="submit" disabled>Post</button>
+          </div>
         </div>
       </form>
     </section>
@@ -80,8 +97,8 @@
   <script src="supabase-config.js?v=1.1.8"></script>
   <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.4.0" defer></script>
   <script src="js/ari-circle/content-moderation.js?v=1.5.0" defer></script>
-  <script src="js/ari-circle/feed/feed.js?v=2.1.0" defer></script>
-  <script src="js/ari-circle/feed/happening-v5.js?v=6.0.0" defer></script>
+  <script src="js/ari-circle/feed/feed.js?v=2.2.0" defer></script>
+  <script src="js/ari-circle/feed/happening-v5.js?v=6.1.0" defer></script>
   <script src="js/ari-circle/feed/feed-post-options.js?v=1.0.0" defer></script>
   <script src="js/ari-circle/feed/feed-polish.js?v=1.0.2" defer></script>
   <script src="js/ari-circle/feed/feed-moderation.js?v=1.1.0" defer></script>
