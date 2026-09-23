@@ -1,6 +1,6 @@
 /* =============================================================
-   ARI CIRCLE V5.3.2 — REAL WORLD SOCIAL SHELL
-   Feed · Connect for members; Missions + ARI Next remain owner-only while experimental.
+   ARI CIRCLE V5.4.0 — SIMPLE SOCIAL SHELL
+   Feed · Connect are the member-facing Circle experience.
    One current navigation owner, bounded lifecycle refreshes, and no retired
    Buddies/Challenges route shims.
 ============================================================= */
