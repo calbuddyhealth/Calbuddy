@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
   <link rel="stylesheet" href="assets/css/ari-circle-search-location-v1.css?v=1.1.0" />
-  <link rel="stylesheet" href="assets/css/ari-circle-connect-v1.css?v=1.1.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-connect-v1.css?v=1.2.0" />
 </head>
 <body class="circle-v5-real-world circle-connect-next">
   <main class="circle-v5-page" id="meetupPage" hidden>
@@ -58,7 +58,7 @@
 
       <section class="circle-connect-section" id="meetupNowSection" aria-labelledby="meetupNowTitle" hidden>
         <div class="circle-connect-section-head">
-          <div><p>HAPPENING NOW</p><h2 id="meetupNowTitle">Jump in</h2></div>
+          <div><p>HAPPENING NOW</p><h2 id="meetupNowTitle">Jump in <span class="circle-connect-section-count" data-meetup-count>0</span></h2></div>
           <span class="circle-live-dot" aria-hidden="true"></span>
         </div>
         <div class="circle-connect-list" id="meetupNowList"></div>
@@ -66,36 +66,35 @@
 
       <section class="circle-connect-section" id="meetupTodaySection" aria-labelledby="meetupTodayTitle" hidden>
         <div class="circle-connect-section-head">
-          <div><p>TODAY</p><h2 id="meetupTodayTitle">Later today</h2></div>
+          <div><p>TODAY</p><h2 id="meetupTodayTitle">Later today <span class="circle-connect-section-count" data-meetup-count>0</span></h2></div>
         </div>
         <div class="circle-connect-list" id="meetupTodayList"></div>
       </section>
 
       <section class="circle-connect-section" id="meetupTomorrowSection" aria-labelledby="meetupTomorrowTitle" hidden>
         <div class="circle-connect-section-head">
-          <div><p>TOMORROW</p><h2 id="meetupTomorrowTitle">Tomorrow</h2></div>
+          <div><p>TOMORROW</p><h2 id="meetupTomorrowTitle">Tomorrow <span class="circle-connect-section-count" data-meetup-count>0</span></h2></div>
         </div>
         <div class="circle-connect-list" id="meetupTomorrowList"></div>
       </section>
 
       <section class="circle-connect-section" id="meetupWeekendSection" aria-labelledby="meetupWeekendTitle" hidden>
         <div class="circle-connect-section-head">
-          <div><p>THIS WEEKEND</p><h2 id="meetupWeekendTitle">Make a plan</h2></div>
+          <div><p>THIS WEEKEND</p><h2 id="meetupWeekendTitle">Make a plan <span class="circle-connect-section-count" data-meetup-count>0</span></h2></div>
         </div>
         <div class="circle-connect-list" id="meetupWeekendList"></div>
       </section>
 
       <section class="circle-connect-section" id="meetupLaterSection" aria-labelledby="meetupLaterTitle" hidden>
         <div class="circle-connect-section-head">
-          <div><p>COMING UP</p><h2 id="meetupLaterTitle">More to explore</h2></div>
+          <div><p>COMING UP</p><h2 id="meetupLaterTitle">More to explore <span class="circle-connect-section-count" data-meetup-count>0</span></h2></div>
         </div>
         <div class="circle-connect-list" id="meetupLaterList"></div>
       </section>
 
       <div class="circle-connect-all-empty" id="meetupEmpty" hidden>
-        <strong>Nothing planned yet.</strong>
-        <span>Host something simple and give people a reason to show up.</span>
-        <button class="circle-v5-button-primary" id="emptyHostMeetupButton" type="button">+ Host a meetup</button>
+        <strong>Nothing nearby yet.</strong>
+        <span>Use + Host above to make something happen.</span>
       </div>
     </div>
   </main>
@@ -203,6 +202,6 @@
   <script src="js/ari-circle/location/search-location-v1.js?v=1.1.0" defer></script>
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.0" defer></script>
   <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.4.0" defer></script>
-  <script src="js/ari-circle/connect/connect-v1.js?v=1.1.0" defer></script>
+  <script src="js/ari-circle/connect/connect-v1.js?v=1.2.0" defer></script>
 </body>
 </html>
