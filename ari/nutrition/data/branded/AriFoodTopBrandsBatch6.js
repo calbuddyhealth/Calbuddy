@@ -54,4 +54,4 @@
   const registration=registry.registerMany(FOODS,{source:MODULE_NAME});
   if((registration.rejected||0)>0) console.error(`[ARI Nutrition] ${MODULE_NAME}: rejected ${registration.rejected} record(s).`);
   global.AriFoodTopBrandsBatch6=Object.freeze({VERSION,MODULE_NAME,VERIFIED_AT,count:()=>FOODS.length,getFoodIds:()=>FOODS.map(f=>f.id),getRecord(id){const f=FOODS.find(x=>x.id===id);return f?JSON.parse(JSON.stringify(f)):null;}});
-})(window);
+})(typeof window !== "undefined" ? window : globalThis);
