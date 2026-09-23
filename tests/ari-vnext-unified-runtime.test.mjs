@@ -28,6 +28,7 @@ assert.match(auth, /ari-central-intent-router\.js\?v=1\.5\.7/, "auth bootstrap m
 assert.match(auth, /ari-nutrition-action-ui\.js\?v=1\.3\.0/, "auth bootstrap must cache-bust the simplified nutrition action UI");
 
 assert.match(contextGuard, /window\.AriVNextContextGuard =/, "context guard must expose readiness state");
+assert.doesNotMatch(contextGuard, /readTodayPlannedMeals|nutrition_plan_items|mealPlan:\s*\{/, "removed Meal Plan state must not be hydrated into Ari context");
 assert.match(contextGuard, /burnedAddsFoodAllowance: false/, "vNext nutrition context must not add exercise calories to food allowance");
 assert.match(contextGuard, /unknownGoalMustRemainUnknown: true/, "vNext must never synthesize a missing Daily Calorie Goal");
 assert.match(contextGuard, /ownerMode === true/, "Owner Mode should opt into the bounded peer-reflection path");
