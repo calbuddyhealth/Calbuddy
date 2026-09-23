@@ -9,7 +9,7 @@ const happening = fs.readFileSync("js/ari-circle/feed/happening-v5.js", "utf8");
 const shell = fs.readFileSync("js/ari-circle/v5-real-world.js", "utf8");
 const menu = fs.readFileSync("js/ari-circle/circle-menu-v5.js", "utf8");
 const gallery = fs.readFileSync("js/ari-circle/profile/profile-gallery-v1.js", "utf8");
-const galleryMigration = fs.readFileSync("supabase/migrations/20260923120000_ari_circle_profile_gallery_v1.sql", "utf8");
+const galleryMigration = fs.readFileSync("supabase/migrations/20260923150000_ari_circle_profile_gallery_v1.sql", "utf8");
 const connections = fs.readFileSync("js/ari-circle/connections/connections-controller.js", "utf8");
 
 test("Connect prioritizes people doing things over configuration", () => {
