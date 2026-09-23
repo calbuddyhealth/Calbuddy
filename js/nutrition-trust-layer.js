@@ -1,21 +1,19 @@
 // =====================================================
 // ARI XP
 // File: js/nutrition-trust-layer.js
-// Version: 1.1.0
+// Version: 1.2.0
 // Purpose:
-//   Reliability boundary for Nutrition mutations.
+//   Reliability boundary for normal Nutrition meal logging.
 //   - Uses one shared anomaly validator with Ari context.
-//   - Consumes planned meals through one atomic Supabase RPC.
-//   - Uses mutation IDs so retries cannot double-log the same action.
-//   - Preserves partial-meal identity by renaming the remaining plan.
-//   - Returns verified totals and offers immediate Undo.
+//   - Preserves warning/validation behavior for manually logged meals.
 //   - Observes only meal-list containers, never the entire document body.
+//   - Meal Plan UI/event hooks are decommissioned.
 // =====================================================
 
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const VALIDATOR_SCRIPT_ID = "ariNutritionValidatorScript";
   const VALIDATOR_SRC = "js/nutrition-validator.js?v=1.0.0";
   const PAGE = String(window.location.pathname || "")
@@ -236,13 +234,6 @@
 
   async function refreshAll() {
     const jobs = [];
-
-    if (typeof window.AriNutritionMealPlanner?.refresh === "function") {
-      jobs.push(
-        Promise.resolve(window.AriNutritionMealPlanner.refresh())
-          .catch((error) => console.warn("[ARI Nutrition Trust] Meal Plan refresh failed:", error?.message || error))
-      );
-    }
 
     if (typeof window.AriNutritionPage?.refresh === "function") {
       jobs.push(
@@ -620,22 +611,7 @@
   }
 
   function install() {
-    document.addEventListener("click", onPlanClickCapture, true);
     document.addEventListener("click", onManualSaveCapture, true);
-
-    document.addEventListener("click", (event) => {
-      if (event.target?.closest?.('#nutritionTodayModeTabs [data-mode="plan"]')) {
-        runLegacyRepairOnce();
-      }
-    });
-
-    window.addEventListener("ari:nutritionMealPlanChanged", (event) => {
-      if (event?.detail?.source === "nutrition_trust_layer") {
-        scheduleScan();
-        return;
-      }
-      void repairPartialRemainders().then(() => refreshAll());
-    });
 
     window.addEventListener("ari:meal-ledger-synced", scheduleScan);
     window.addEventListener("calbuddy:mealsChanged", scheduleScan);
