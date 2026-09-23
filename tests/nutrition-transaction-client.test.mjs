@@ -14,9 +14,10 @@ const migration = fs.readFileSync(
 test("transaction client is valid JavaScript and loads after the canonical ledger bootstrap", () => {
   assert.doesNotThrow(() => new Function(client));
   assert.match(auth, /ARI_NUTRITION_TRANSACTION_SCRIPT_ID/);
-  assert.match(auth, /js\/nutrition-transaction-client\.js\?v=1\.0\.0/);
+  assert.match(auth, /js\/nutrition-transaction-client\.js\?v=1\.1\.0/);
   assert.ok(auth.indexOf("bootstrapCanonicalMealLedger();") < auth.indexOf("bootstrapNutritionTransactionClient();"));
   assert.match(client, /CalBuddy\.__ariMealLedgerSyncV1/);
+  assert.doesNotMatch(client, /AriNutritionPlanSync|ari_sync_nutrition_plans|nutrition_plan_items/);
 });
 
 test("signed-in meal logging does not silently fall back after a failed transaction", () => {
