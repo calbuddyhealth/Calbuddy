@@ -29,6 +29,7 @@ export function dreamEvidenceFingerprint(evidence = {}) {
     evidence.goalEvents,
     evidence.decisions,
     evidence.communicationOutcomes,
+    evidence.communityInteractions,
     evidence.strategies,
     evidence.institutionalMemory
   ]) {
@@ -73,6 +74,7 @@ export function collectEvidenceRefs(evidence = {}) {
     evidence.goalEvents,
     evidence.decisions,
     evidence.communicationOutcomes,
+    evidence.communityInteractions,
     evidence.strategies,
     evidence.institutionalMemory,
     evidence.priorDreamInsights
@@ -249,6 +251,7 @@ export function buildDreamModelPayload(evidence = {}) {
     goalEvents: (evidence.goalEvents || []).slice(0, 24),
     decisions: (evidence.decisions || []).slice(0, 16),
     communicationOutcomes: (evidence.communicationOutcomes || []).slice(0, 20),
+    communityInteractions: (evidence.communityInteractions || []).slice(0, 20),
     strategies: (evidence.strategies || []).slice(0, 16),
     institutionalMemory: (evidence.institutionalMemory || []).slice(0, 12),
     priorDreamInsights: (evidence.priorDreamInsights || []).slice(0, 12)
