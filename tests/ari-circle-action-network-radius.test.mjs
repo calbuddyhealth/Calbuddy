@@ -6,6 +6,7 @@ const html = fs.readFileSync("ari-circle-v6.html", "utf8");
 const meetupHtml = fs.readFileSync("ari-circle-meetup.html", "utf8");
 const runtime = fs.readFileSync("js/ari-circle/v6/action-network-v6.js", "utf8");
 const locationRuntime = fs.readFileSync("js/ari-circle/location/search-location-v1.js", "utf8");
+const locationCss = fs.readFileSync("assets/css/ari-circle-search-location-v1.css", "utf8");
 const css = fs.readFileSync("assets/css/ari-circle-v6-experience.css", "utf8");
 const migration = fs.readFileSync(
   "supabase/migrations/20260825101500_ari_circle_action_network_intent_v1.sql",
@@ -51,4 +52,12 @@ test("the simplified ARI Next composer remains compact across desktop and mobile
   assert.match(css, /\.v6-intent-composer\{[^}]*grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
   assert.match(css, /@media\(max-width:720px\)[\s\S]*\.v6-intent-composer\{grid-template-columns:1fr 1fr/);
   assert.match(css, /@media\(max-width:430px\)[\s\S]*\.v6-intent-composer\{grid-template-columns:1fr\}/);
+});
+
+test("Connect location editor prevents iOS focus zoom", () => {
+  assert.match(meetupHtml, /ari-circle-search-location-v1\.css\?v=1\.1\.1/);
+  assert.match(meetupHtml, /search-location-v1\.js\?v=1\.1\.1/);
+  assert.match(locationRuntime, /const VERSION = "1\.1\.1"/);
+  assert.match(locationRuntime, /input\?\.blur\?\.\(\);\s*state\.busy = true/);
+  assert.match(locationCss, /@media \(max-width: 560px\)[\s\S]*\.ari-circle-location-panel__form input,[\s\S]*font-size:16px !important/);
 });
