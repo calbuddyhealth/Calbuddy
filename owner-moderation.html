@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&amp;family=Inter:wght@400;500;600;700;800&amp;family=Orbitron:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/account.css?v=3.0.0">
-  <link rel="stylesheet" href="assets/css/owner-moderation.css?v=1.0.0">
+  <link rel="stylesheet" href="assets/css/owner-moderation.css?v=1.1.0">
 </head>
 <body>
   <main class="ari-account-page">
@@ -23,7 +23,7 @@
       <div class="ari-page-symbol" aria-hidden="true">◆</div>
       <p class="ari-page-kicker">OWNER ONLY</p>
       <h1 class="ari-page-title">Safety &amp; moderation</h1>
-      <p class="ari-page-description">Review safety events, user reports, protected birthday correction requests, and owner-only ARI controls.</p>
+      <p class="ari-page-description">Review pending Circle photos immediately, plus safety events, user reports, protected birthday correction requests, and owner-only ARI controls.</p>
     </section>
 
     <section class="ari-settings-section" aria-labelledby="ownerToolsTitle">
@@ -49,12 +49,24 @@
 
     <section id="moderationWorkspace" hidden>
       <nav class="owner-moderation-nav" aria-label="Moderation areas">
-        <button type="button" data-owner-panel="teen" class="is-active">Teen Safety</button>
+        <button type="button" data-owner-panel="photos" class="is-active">Photo Review <span id="photoReviewNavCount" hidden></span></button>
+        <button type="button" data-owner-panel="teen">Teen Safety</button>
         <button type="button" data-owner-panel="reports">Reports</button>
         <button type="button" data-owner-panel="age">Age Corrections</button>
       </nav>
 
-      <section class="owner-panel" id="teenSafetyPanel">
+      <section class="owner-panel" id="photoReviewPanel">
+        <div class="owner-safety-summary" aria-label="Photo review summary">
+          <div class="owner-safety-stat"><strong id="photoReviewPending">0</strong><span>Pending photos</span></div>
+          <div class="owner-safety-stat"><strong id="photoReviewRateLimited">0</strong><span>Waiting on provider</span></div>
+        </div>
+
+        <p class="owner-safety-note">Every pending profile photo is available here immediately. Owner approval publishes it at once without waiting for automated screening. The first completed decision wins; resolved worker jobs are discarded automatically.</p>
+
+        <div class="owner-photo-review-list" id="photoReviewList"></div>
+      </section>
+
+      <section class="owner-panel" id="teenSafetyPanel" hidden>
         <div class="owner-safety-summary" aria-label="Teen safety summary">
           <div class="owner-safety-stat"><strong id="teenSafetyOpen">0</strong><span>Open</span></div>
           <div class="owner-safety-stat owner-safety-stat--high"><strong id="teenSafetyHigh">0</strong><span>High priority</span></div>
@@ -109,6 +121,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=1.1.0"></script>
   <script src="js/settings-shared.js?v=1.0.0"></script>
-  <script src="js/owner-moderation.js?v=2.1.0"></script>
+  <script src="js/owner-moderation.js?v=2.2.0"></script>
 </body>
 </html>

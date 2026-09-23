@@ -179,7 +179,7 @@
         <ul class="ari-ai-consent-list">
           <li><strong>Ask ARI:</strong> your message, recent conversation context, and relevant ARI XP profile or memory information may be sent when needed to answer you.</li>
           <li><strong>ARI Circle:</strong> text, photos, and sampled frames from short videos you try to share may be checked before publication to help filter harmful content.</li>
-          <li>You can decline. Ask ARI will remain unavailable and ARI Circle content that requires safety screening cannot be published until permission is granted.</li>
+          <li>You can decline. Ask ARI will remain unavailable and new Circle content will not be sent to OpenAI. Supporting profile photos may stay private for owner review; other Circle content that requires AI screening cannot publish until permission is granted.</li>
           <li>You can change this permission later from Privacy &amp; Ari Memory.</li>
         </ul>
         <div class="ari-ai-consent-actions">

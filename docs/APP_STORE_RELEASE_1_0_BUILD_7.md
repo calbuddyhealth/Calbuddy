@@ -92,7 +92,7 @@ ARI XP does not link user/device data with third-party data for targeted adverti
 
 ARI XP uses OpenAI as a third-party AI processing provider for Ask ARI responses and ARI Circle safety screening.
 
-Before AI-powered features transmit personal data to OpenAI, the user is presented with an AI-processing disclosure that identifies OpenAI, explains the categories of information that may be transmitted, and provides **Allow AI processing** and **Not now** choices. If permission is declined or withdrawn, Ask ARI remains unavailable and ARI Circle content that requires AI safety screening cannot be published until permission is granted. The permission can be changed later in Privacy & Ari Memory.
+Before AI-powered features transmit personal data to OpenAI, the user is presented with an AI-processing disclosure that identifies OpenAI, explains the categories of information that may be transmitted, and provides **Allow AI processing** and **Not now** choices. If permission is declined or withdrawn, Ask ARI remains unavailable and ARI XP does not send new Circle content to OpenAI. Supporting profile photos may remain private and pending for owner review; other Circle content that requires AI safety screening cannot be published until permission is granted. The permission can be changed later in Privacy & Ari Memory.
 
 Information sent to OpenAI may include, when relevant to the feature being used:
 

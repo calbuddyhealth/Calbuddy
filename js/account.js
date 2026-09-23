@@ -1,4 +1,4 @@
-/* ARI XP — My Account v3.5.0 */
+/* ARI XP — My Account v3.5.1 */
 
 (() => {
   "use strict";
@@ -166,6 +166,7 @@
     let teenHigh = 0;
     let agePending = 0;
     let boundaryPending = 0;
+    let photoPending = 0;
 
     try {
       const { data, error } = await window.calbuddySupabase.rpc("ari_admin_teen_safety_summary");
@@ -188,18 +189,36 @@
       console.warn("Owner age-correction summary unavailable:", error?.message || error);
     }
 
-    const totalOpen = teenOpen + agePending;
+    try {
+      const token = String(currentSession?.access_token || "").trim();
+      if (token) {
+        const response = await fetch("/api/ari-circle-owner-photo-review", {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store"
+        });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok && data?.success === true) {
+          photoPending = Math.max(0, Number(data.pending || 0));
+        }
+      }
+    } catch (error) {
+      console.warn("Owner photo-review summary unavailable:", error?.message || error);
+    }
+
+    const totalOpen = teenOpen + agePending + photoPending;
     const urgent = teenHigh + boundaryPending;
 
     if (subtitle) {
-      if (agePending > 0) {
+      if (photoPending > 0) {
+        subtitle.textContent = `${photoPending.toLocaleString()} photo${photoPending === 1 ? "" : "s"} waiting · approve now`;
+      } else if (agePending > 0) {
         subtitle.textContent = `${teenOpen.toLocaleString()} teen safety · ${agePending.toLocaleString()} age correction${agePending === 1 ? "" : "s"}`;
       } else if (teenHigh > 0) {
         subtitle.textContent = `${teenOpen.toLocaleString()} teen safety open · ${teenHigh.toLocaleString()} high priority`;
       } else if (teenOpen > 0) {
         subtitle.textContent = `${teenOpen.toLocaleString()} teen safety event${teenOpen === 1 ? "" : "s"} open`;
       } else {
-        subtitle.textContent = "Reports, teen safety & age corrections";
+        subtitle.textContent = "Photos, reports, teen safety & age corrections";
       }
     }
 
@@ -208,7 +227,7 @@
       pill.dataset.alert = urgent > 0 ? "high" : totalOpen > 0 ? "open" : "clear";
     }
 
-    link.setAttribute("aria-label", `Owner moderation, ${totalOpen} safety or age-review items open`);
+    link.setAttribute("aria-label", `Owner moderation, ${totalOpen} photo, safety, or age-review items open`);
   }
 
   async function checkOwnerAccess() {

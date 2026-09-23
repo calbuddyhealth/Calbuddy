@@ -12,6 +12,9 @@ const SPACING_MS_DEFAULT = 750;
 const OPENAI_MODERATION_URL = "https://api.openai.com/v1/moderations";
 const OPENAI_MODERATION_MODEL = "omni-moderation-latest";
 const BUCKET = "ari-circle-post-media";
+const AI_CONSENT_KEY = "ari_ai_processing_consent";
+const AI_CONSENT_VERSION_KEY = "ari_ai_processing_consent_version";
+const REQUIRED_AI_CONSENT_VERSION = "2";
 
 function clean(value, max = 2000) {
   return String(value ?? "").trim().slice(0, max);
@@ -69,6 +72,32 @@ function encodeObjectPath(path) {
     .filter(Boolean)
     .map((segment) => encodeURIComponent(segment))
     .join("/");
+}
+
+async function userHasCurrentAiConsent(userId) {
+  const base = clean(process.env.SUPABASE_URL, 2000).replace(/\/+$/, "");
+  const id = clean(userId, 200);
+  if (!base || !id) return false;
+
+  const response = await fetch(
+    `${base}/auth/v1/admin/users/${encodeURIComponent(id)}`,
+    {
+      method: "GET",
+      headers: serviceHeaders()
+    }
+  );
+  const data = await readJson(response);
+  if (!response.ok) {
+    const error = new Error("Could not verify AI processing permission.");
+    error.status = response.status;
+    error.retryAfterSeconds = 300;
+    throw error;
+  }
+
+  const user = data?.user || data;
+  const metadata = user?.user_metadata || {};
+  return metadata[AI_CONSENT_KEY] === true &&
+    String(metadata[AI_CONSENT_VERSION_KEY] || "") === REQUIRED_AI_CONSENT_VERSION;
 }
 
 async function signedStorageUrl(path) {
@@ -190,6 +219,15 @@ async function completeJob(job, policy) {
 }
 
 async function processJob(job) {
+  const consentGranted = await userHasCurrentAiConsent(job.user_id);
+  if (!consentGranted) {
+    const error = new Error("AI processing permission is required before automated photo screening.");
+    error.status = 403;
+    error.providerCode = "AI_PROCESSING_CONSENT_REQUIRED";
+    error.retryAfterSeconds = 3600;
+    throw error;
+  }
+
   const imageUrl = await signedStorageUrl(job.media_path);
   const moderation = await moderateProfileImage(imageUrl);
   const policy = evaluateAdultProfileImage(moderation);

@@ -1,4 +1,4 @@
-/* ARI Rebirth — Owner Moderation v2.1.0 */
+/* ARI Rebirth — Owner Moderation v2.2.0 */
 
 (() => {
   "use strict";
@@ -7,7 +7,7 @@
   let activeReportFilter = "open";
   let activeSafetyFilter = "open";
   let activeAgeFilter = "pending";
-  let activePanel = "teen";
+  let activePanel = "photos";
 
   function setStatus(message = "", type = "") {
     window.AriSettings.setStatus($("moderationStatus"), message, type);
@@ -46,6 +46,146 @@
     return String(value)
       .replaceAll("_", " ")
       .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+
+  async function ownerPhotoApi({ method = "GET", body = null } = {}) {
+    const accessToken = String(session?.access_token || "").trim();
+    if (!accessToken) throw new Error("Owner session is unavailable.");
+
+    const response = await fetch("/api/ari-circle-owner-photo-review", {
+      method,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        ...(body ? { "Content-Type": "application/json" } : {})
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      cache: "no-store"
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(data?.error || "Owner photo review is unavailable.");
+      error.code = data?.code || "";
+      error.status = response.status;
+      throw error;
+    }
+    return data;
+  }
+
+  function renderPhotoReviews(photos) {
+    const list = $("photoReviewList");
+    const pendingCount = photos.length;
+    const providerWaiting = photos.filter((photo) =>
+      Number(photo.moderation_retry_count || 0) > 0 ||
+      Boolean(photo.moderation_next_retry_at)
+    ).length;
+
+    $("photoReviewPending").textContent = pendingCount.toLocaleString();
+    $("photoReviewRateLimited").textContent = providerWaiting.toLocaleString();
+
+    const navCount = $("photoReviewNavCount");
+    if (navCount) {
+      navCount.hidden = pendingCount === 0;
+      navCount.textContent = pendingCount > 99 ? "99+" : String(pendingCount);
+    }
+
+    if (!pendingCount) {
+      list.innerHTML = '<div class="ari-empty-state">No profile photos are waiting for review.</div>';
+      return;
+    }
+
+    list.innerHTML = photos.map((photo) => {
+      const handle = photo.handle ? `@${String(photo.handle).replace(/^@+/, "")}` : "";
+      const image = photo.image_url
+        ? `<img src="${escapeHtml(photo.image_url)}" alt="Pending profile photo from ${escapeHtml(photo.display_name || "Circle member")}" loading="lazy">`
+        : '<div class="owner-photo-review-card__missing">Preview unavailable</div>';
+      const retryInfo = Number(photo.moderation_retry_count || 0) > 0
+        ? `<span class="owner-safety-pill">${Number(photo.moderation_retry_count)} worker retr${Number(photo.moderation_retry_count) === 1 ? "y" : "ies"}</span>`
+        : '<span class="owner-safety-pill">Waiting for worker</span>';
+
+      return `
+        <article class="owner-photo-review-card" data-photo-review-id="${escapeHtml(photo.photo_id)}">
+          <div class="owner-photo-review-card__media">${image}</div>
+          <div class="owner-photo-review-card__body">
+            <div class="owner-safety-card__top">
+              <div>
+                <h3>${escapeHtml(photo.display_name || "Circle member")}</h3>
+                <div class="owner-safety-card__identity">${escapeHtml(handle || photo.user_id || "")}</div>
+              </div>
+              <span class="owner-safety-pill">PENDING</span>
+            </div>
+            <div class="owner-safety-pills">
+              <span class="owner-safety-pill">Profile slot ${escapeHtml(photo.position || "—")}</span>
+              ${retryInfo}
+            </div>
+            <div class="owner-safety-meta">
+              Submitted: ${escapeHtml(formatDate(photo.submitted_at))}<br />
+              User ID: ${escapeHtml(photo.user_id || "")}
+              ${photo.moderation_next_retry_at ? `<br />Worker retry: ${escapeHtml(formatDate(photo.moderation_next_retry_at))}` : ""}
+            </div>
+            <div class="owner-photo-review-actions">
+              <button type="button" data-photo-decision="approve">Approve now</button>
+              <button type="button" data-photo-decision="reject">Reject</button>
+            </div>
+          </div>
+        </article>
+      `;
+    }).join("");
+
+    list.querySelectorAll("[data-photo-decision]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const card = button.closest("[data-photo-review-id]");
+        reviewPendingPhoto(card?.dataset?.photoReviewId, button.dataset.photoDecision, button);
+      });
+    });
+  }
+
+  async function loadPhotoReviews() {
+    if (activePanel !== "photos") return;
+    setStatus("Loading pending photos…", "working");
+
+    try {
+      const data = await ownerPhotoApi();
+      setStatus("");
+      renderPhotoReviews(Array.isArray(data?.photos) ? data.photos : []);
+    } catch (error) {
+      setStatus(error?.message || "Owner photo review is unavailable.", "error");
+      $("photoReviewList").innerHTML = '<div class="ari-empty-state">Pending photos could not be loaded.</div>';
+    }
+  }
+
+  async function reviewPendingPhoto(photoId, decision, button) {
+    if (!photoId || !["approve", "reject"].includes(decision)) return;
+
+    const card = button?.closest?.("[data-photo-review-id]");
+    card?.querySelectorAll("button").forEach((item) => { item.disabled = true; });
+    setStatus(decision === "approve" ? "Approving photo…" : "Rejecting photo…", "working");
+
+    try {
+      await ownerPhotoApi({
+        method: "POST",
+        body: {
+          photo_id: photoId,
+          decision
+        }
+      });
+
+      setStatus(
+        decision === "approve"
+          ? "Photo approved and published. Automated moderation was skipped."
+          : "Photo rejected and kept private.",
+        "success"
+      );
+      await loadPhotoReviews();
+    } catch (error) {
+      if (error?.status === 409) {
+        setStatus("That photo was already resolved by the worker or another owner action.", "info");
+        await loadPhotoReviews();
+        return;
+      }
+      setStatus(error?.message || "The photo could not be reviewed.", "error");
+      card?.querySelectorAll("button").forEach((item) => { item.disabled = false; });
+    }
   }
 
   function reportActions(report) {
@@ -230,7 +370,7 @@
     });
     if (error) return setStatus(error.message, "error");
     if (data !== true) return setStatus("That safety event is no longer available.", "error");
-    await loadTeenSafetyEvents();
+    await loadPhotoReviews();
   }
 
   function ageCorrectionActions(request) {
@@ -340,14 +480,16 @@
   }
 
   function switchPanel(panelName) {
-    activePanel = panelName === "reports" ? "reports" : panelName === "age" ? "age" : "teen";
+    activePanel = ["photos", "teen", "reports", "age"].includes(panelName) ? panelName : "photos";
+    $("photoReviewPanel").hidden = activePanel !== "photos";
     $("teenSafetyPanel").hidden = activePanel !== "teen";
     $("reportPanel").hidden = activePanel !== "reports";
     $("ageCorrectionPanel").hidden = activePanel !== "age";
     document.querySelectorAll("[data-owner-panel]").forEach((button) => {
       button.classList.toggle("is-active", button.dataset.ownerPanel === activePanel);
     });
-    if (activePanel === "teen") loadTeenSafetyEvents();
+    if (activePanel === "photos") loadPhotoReviews();
+    else if (activePanel === "teen") loadTeenSafetyEvents();
     else if (activePanel === "reports") loadReports();
     else loadAgeCorrections();
   }
