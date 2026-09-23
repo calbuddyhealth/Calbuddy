@@ -7,11 +7,12 @@ const adapterSource = await readFile(new URL("../ari/vnext/ari-vnext-action-adap
 const resilienceSource = await readFile(new URL("../js/home-resilience.js", import.meta.url), "utf8");
 const homeSource = await readFile(new URL("../home.html", import.meta.url), "utf8");
 
-test("Home defaults to vNext and legacy fallback is read-only", () => {
+test("Home defaults to vNext and normal vNext failures never spend a second legacy model call", () => {
   assert.match(runtimeSource, /const DEFAULT_MODE = "vnext"/);
-  assert.match(runtimeSource, /runReadOnlyLegacyFallback/);
-  assert.match(runtimeSource, /Ari vNext runtime failed; using read-only legacy fallback/);
-  assert.doesNotMatch(runtimeSource, /legacy\.confirmPendingAction|legacy\.cancelPendingAction/);
+  assert.match(runtimeSource, /code: "ARI_VNEXT_RUNTIME_FAILED"/);
+  assert.match(runtimeSource, /source: "ari_vnext_runtime_failure"/);
+  assert.doesNotMatch(runtimeSource, /Ari vNext runtime failed; using read-only legacy fallback/);
+  assert.doesNotMatch(runtimeSource, /return await runReadOnlyLegacyFallback\(input, error\)/);
 });
 
 test("Home resilience waits for the runtime controller before asking Ari", () => {
@@ -34,10 +35,10 @@ test("vNext dependencies are canonical and contain no removed monkey-patch", () 
 });
 
 test("runtime and action adapter versions are cache-busted", () => {
-  assert.match(runtimeSource, /const VERSION = "1\.5\.0"/);
-  assert.match(runtimeSource, /ari-vnext-action-adapter\.js\?v=1\.5\.0/);
+  assert.match(runtimeSource, /const VERSION = "1\.6\.0"/);
+  assert.match(runtimeSource, /ari-vnext-action-adapter\.js\?v=1\.6\.0/);
   assert.match(runtimeSource, /ari-vnext-bridge\.js\?v=1\.10\.0/);
-  assert.match(homeSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.5\.0/);
+  assert.match(homeSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.6\.0/);
 });
 
 test("whole-workout replacement is canonical, not a runtime patch", () => {
