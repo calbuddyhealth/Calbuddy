@@ -10,7 +10,7 @@ import {
   toolToApplicationAction as coreToolToApplicationAction
 } from "./tools-core.js";
 
-export const TOOL_REGISTRY_VERSION = "1.17.0";
+export const TOOL_REGISTRY_VERSION = "1.18.0";
 export const CORE_TOOL_REGISTRY_VERSION = CORE_REGISTRY_VERSION;
 
 const SEMANTIC_HEALTH_TOOL_NAMES = new Set([
@@ -227,7 +227,7 @@ function hardenCoreToolContract(tool = {}) {
   const properties = parameters?.properties && typeof parameters.properties === "object" ? parameters.properties : {};
   return {
     ...tool,
-    description: "Propose logging food or a meal only when the CURRENT user message explicitly asks to log, add, record, or save it. Do not use for nutrition questions or statements about eating. Resolve or estimate a complete nutrition payload before proposing the mutation; calories, protein, carbs, and fat must all be numeric because the trusted executor will not accept unresolved nutrition. Clearly mark estimates in notes.",
+    description: "Propose logging food or a meal when the CURRENT user explicitly asks to log, add, record, or save it, OR when the current turn directly supplies the missing detail Ari just requested for the same immediately preceding explicitly authorized meal-log request. A standalone statement such as 'I ate pizza' is not permission to write. An unrelated follow-up never inherits permission. Resolve or estimate a complete nutrition payload before proposing the mutation; calories, protein, carbs, and fat must all be numeric because the trusted executor will not accept unresolved nutrition. Clearly mark estimates in notes.",
     parameters: { ...parameters, properties: { ...properties, calories: { type: "number" }, proteinG: { type: "number" }, carbsG: { type: "number" }, fatG: { type: "number" } } }
   };
 }
