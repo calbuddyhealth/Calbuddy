@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — FEED
-   Version: 2.0.0
+   Version: 2.2.0
 
    V2:
    - One simple composer: text, photo, or short video.
@@ -14,7 +14,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "2.1.0";
+  const VERSION = "2.2.0";
   const MEDIA_BUCKET = "ari-circle-post-media";
   const SIGNED_URL_SECONDS = 60 * 60;
   const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -115,10 +115,54 @@
     if (dialog?.open) dialog.close();
   }
 
+  function composerBody() {
+    return clean($("feedPostBody")?.value);
+  }
+
+  function setComposerStatus(message = "", tone = "") {
+    const node = $("feedComposerStatus");
+    if (!node) return;
+    node.textContent = clean(message);
+    node.dataset.tone = clean(tone);
+  }
+
+  function syncComposerControls() {
+    const button = $("publishPostButton");
+    const body = composerBody();
+    if ($("postCharCount")) $("postCharCount").textContent = String($("feedPostBody")?.value?.length || 0);
+    if (!button) return;
+    button.disabled = state.busy || !body;
+    button.textContent = state.busy ? "Posting…" : "Post";
+  }
+
+  function openQuickUpdate({ focus = true } = {}) {
+    const shell = $("feedQuickUpdate");
+    const editor = $("feedComposerEditor");
+    const trigger = $("feedComposerOpen");
+    if (!shell || !editor || !trigger) return;
+    shell.classList.remove("is-collapsed");
+    shell.classList.add("is-expanded");
+    editor.hidden = false;
+    trigger.setAttribute("aria-expanded", "true");
+    syncComposerControls();
+    if (focus) requestAnimationFrame(() => $("feedPostBody")?.focus());
+  }
+
+  function closeQuickUpdate() {
+    const shell = $("feedQuickUpdate");
+    const editor = $("feedComposerEditor");
+    const trigger = $("feedComposerOpen");
+    if (!shell || !editor || !trigger) return;
+    shell.classList.add("is-collapsed");
+    shell.classList.remove("is-expanded");
+    editor.hidden = true;
+    trigger.setAttribute("aria-expanded", "false");
+    setComposerStatus("");
+  }
+
   function setBusy(isBusy) {
     state.busy = Boolean(isBusy);
     [
-      $("publishPostButton"),
       $("verifyAgeButton"),
       $("shareMomentButton"),
       $("feedMediaButton")
@@ -127,6 +171,7 @@
       .forEach((button) => {
         button.disabled = state.busy;
       });
+    syncComposerControls();
   }
 
   async function rpc(name, params = {}) {
@@ -353,8 +398,9 @@
 
   function clearComposer() {
     if ($("feedPostBody")) $("feedPostBody").value = "";
-    if ($("postCharCount")) $("postCharCount").textContent = "0";
     clearSelectedMedia();
+    setComposerStatus("");
+    syncComposerControls();
   }
 
   async function uploadSelectedMedia(folder) {
@@ -399,34 +445,32 @@
       return;
     }
 
-    const body = clean($("feedPostBody")?.value);
-    if (!body && !state.selectedMedia) {
-      showToast("Write something or add a photo or video.");
+    const body = composerBody();
+    if (!body) {
+      openQuickUpdate({ focus: true });
+      setComposerStatus("Write an update before posting.", "error");
+      syncComposerControls();
       return;
     }
 
-    let uploaded = null;
+    setComposerStatus("");
     setBusy(true);
     try {
-      if (state.selectedMedia) {
-        showToast("Uploading media…", 1200);
-        uploaded = await uploadSelectedMedia("posts");
-      }
-
       await rpc("ari_circle_feed_create_post_v2", {
-        requested_body: body || null,
-        requested_media_path: uploaded?.path || null,
-        requested_media_type: uploaded?.type || null,
-        requested_media_duration_seconds: uploaded?.duration ?? null
+        requested_body: body,
+        requested_media_path: null,
+        requested_media_type: null,
+        requested_media_duration_seconds: null
       });
 
       clearComposer();
-      showToast("Shared to your Circle.");
+      closeQuickUpdate();
+      showToast("Posted to your friends.");
       await refreshFeed();
     } catch (error) {
-      if (uploaded?.path) await removeUploadedPath(uploaded.path);
       console.error("ARI Circle feed post failed:", error);
-      showToast(error.message || "Could not share that post.", 4500);
+      setComposerStatus(error.message || "Couldn’t post that update. Try again.", "error");
+      showToast("Couldn’t post. Your update is still here.", 4500);
     } finally {
       setBusy(false);
     }
@@ -937,17 +981,20 @@
     });
 
     $("feedPostBody")?.addEventListener("input", () => {
-      if ($("postCharCount")) $("postCharCount").textContent = String($("feedPostBody").value.length);
+      setComposerStatus("");
+      syncComposerControls();
     });
 
+    $("feedComposerOpen")?.addEventListener("click", () => openQuickUpdate({ focus: true }));
+    $("cancelPostButton")?.addEventListener("click", closeQuickUpdate);
     $("feedComposerForm")?.addEventListener("submit", publishPost);
     $("ageForm")?.addEventListener("submit", verifyAge);
     $("commentForm")?.addEventListener("submit", addComment);
     $("refreshFeedButton")?.addEventListener("click", refreshFeed);
     $("loadMoreButton")?.addEventListener("click", () => loadFeed({ append: true }));
     $("emptyComposeButton")?.addEventListener("click", () => {
-      $("feedPostBody")?.focus();
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      openQuickUpdate({ focus: true });
+      $("feedQuickUpdate")?.scrollIntoView({ block: "center", behavior: "smooth" });
     });
 
     $("momentPrevButton")?.addEventListener("click", () => moveMoment(-1));
@@ -964,6 +1011,7 @@
 
       bindReactionPicker();
       bindCommonUi();
+      syncComposerControls();
 
       await Promise.all([loadOwnProfile(), loadAgeState()]);
 
