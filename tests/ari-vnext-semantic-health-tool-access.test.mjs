@@ -36,8 +36,6 @@ test("core health mutation capabilities remain visible when context routing miss
 
   for (const name of [
     "propose_log_meal",
-    "propose_today_meal_plan",
-    "propose_log_planned_meal",
     "propose_log_activity",
     "propose_workout_plan",
     "propose_edit_workout",
@@ -47,6 +45,12 @@ test("core health mutation capabilities remain visible when context routing miss
   ]) {
     assert.equal(names.has(name), true, name);
   }
+});
+
+test("Meal Plan mutations stay removed even when semantic health capabilities are broadly exposed", () => {
+  const names = toolNames();
+  assert.equal(names.has("propose_today_meal_plan"), false);
+  assert.equal(names.has("propose_log_planned_meal"), false);
 });
 
 test("semantic capability exposure does not turn on unrelated experiment or Circle mutations", () => {
