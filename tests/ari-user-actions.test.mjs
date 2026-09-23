@@ -33,13 +33,13 @@ test("normal conversation bypasses the extra mutation preflight", () => {
 });
 
 test("Meal Plan mutation paths are removed while nutrition advice remains conversational", () => {
-  assert.doesNotMatch(routerHandler, /\\bplan_meal\\b|\\blog_planned_meal\\b|\\bmeal_plan\\b/);
+  assert.doesNotMatch(routerHandler, /plan_meal|log_planned_meal|meal_plan/);
   assert.doesNotMatch(routerClient, /ari-meal-plan-action-v2|ari-meal-plan-goal-guard/);
   assert.match(routerHandler, /Meal planning is advisory conversation only/);
   assert.match(routerHandler, /Create a shoulder workout tomorrow/);
 });
 
-test("central router is the authority over legacy action classification", () => {test("central router is the authority over legacy action classification", () => {
+test("central router is the authority over legacy action classification", () => {
   assert.match(routerClient, /centralIntentLegacyGate/);
   assert.match(routerClient, /clean\(decision\.action\) === "none"/);
   assert.match(routerClient, /\["nutrition", "training"\]/);
