@@ -26,7 +26,7 @@
   <link rel="stylesheet" href="assets/css/base.css?v=16" />
   <link rel="stylesheet" href="assets/css/header.css?v=17" />
   <link rel="stylesheet" href="assets/css/animations.css?v=16" />
-  <link rel="stylesheet" href="assets/css/ari-training.css?v=4.6.0" />
+  <link rel="stylesheet" href="assets/css/ari-training.css?v=4.8.0" />
 </head>
 
 <body class="ari-training-page">
@@ -747,6 +747,109 @@
   </div>
 
   <!-- =====================================================
+       PLANNED EXERCISE DETAIL
+  ====================================================== -->
+  <dialog
+    id="exerciseDetailDialog"
+    class="ari-training-dialog ari-exercise-detail-dialog"
+    aria-labelledby="exerciseDetailName"
+  >
+    <div class="ari-training-dialog__surface ari-exercise-detail-dialog__surface">
+      <header class="ari-training-dialog__header">
+        <div>
+          <p
+            id="exerciseDetailType"
+            class="ari-section-heading__eyebrow"
+          >
+            EXERCISE
+          </p>
+
+          <h2 id="exerciseDetailName">
+            Exercise
+          </h2>
+        </div>
+
+        <button
+          id="closeExerciseDetailButton"
+          type="button"
+          aria-label="Close exercise details"
+        >
+          &times;
+        </button>
+      </header>
+
+      <div class="ari-exercise-detail-visuals">
+        <figure
+          id="exerciseAnatomyFigure"
+          class="ari-exercise-detail-figure"
+          hidden
+        >
+          <img
+            id="exerciseAnatomyImage"
+            src=""
+            alt=""
+          />
+          <figcaption>Anatomy</figcaption>
+        </figure>
+
+        <figure
+          id="exerciseMovementFigure"
+          class="ari-exercise-detail-figure"
+          hidden
+        >
+          <img
+            id="exerciseMovementImage"
+            src=""
+            alt=""
+          />
+          <figcaption>Exercise Guide</figcaption>
+        </figure>
+
+        <div
+          id="exerciseVisualPlaceholder"
+          class="ari-exercise-detail-placeholder"
+        >
+          Exercise illustration unavailable.
+        </div>
+      </div>
+
+      <section class="ari-exercise-detail-section">
+        <h3>How to Perform</h3>
+        <ol id="exerciseInstructionList"></ol>
+      </section>
+
+      <section class="ari-exercise-detail-section">
+        <h3>Muscles</h3>
+        <div
+          id="exerciseMuscleList"
+          class="ari-exercise-detail-copy"
+        ></div>
+      </section>
+
+      <section class="ari-exercise-detail-section">
+        <h3>Movement</h3>
+        <p
+          id="exerciseMovementSummary"
+          class="ari-exercise-detail-copy"
+        ></p>
+      </section>
+
+      <section class="ari-exercise-detail-section">
+        <h3>Equipment</h3>
+        <p
+          id="exerciseEquipmentSummary"
+          class="ari-exercise-detail-copy"
+        ></p>
+      </section>
+
+      <section class="ari-exercise-detail-section">
+        <h3>Form Cues</h3>
+        <ul id="exerciseFormCueList"></ul>
+      </section>
+    </div>
+  </dialog>
+
+  <!-- =====================================================
        SESSION EXERCISE PICKER
   ====================================================== -->
   <dialog
@@ -1064,12 +1167,39 @@
 
   <!-- Planned exercise preview -->
   <template id="trainingDayExercisePreviewTemplate">
-    <article class="ari-training-exercise-preview-row">
-      <div>
+    <button
+      class="ari-training-exercise-preview-row"
+      type="button"
+    >
+      <span
+        class="ari-training-exercise-preview-row__index"
+        aria-hidden="true"
+      ></span>
+
+      <span class="ari-training-exercise-preview-row__copy">
         <strong class="ari-training-exercise-preview-row__name"></strong>
         <span class="ari-training-exercise-preview-row__prescription"></span>
-      </div>
-    </article>
+      </span>
+
+      <span
+        class="ari-training-exercise-preview-row__view"
+        aria-hidden="true"
+      >
+        <span>View</span>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <path
+            d="M9 6l6 6-6 6"
+            stroke="currentColor"
+            stroke-width="2.25"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </span>
+    </button>
   </template>
 
   <!-- Live set -->
@@ -1175,10 +1305,11 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=8"></script>
   <script src="js/auth.js"></script>
+  <script src="js/training/exercise-illustration-loader.js?v=1.0.0"></script>
 
   <script
     type="module"
-    src="js/ari-training.js?v=4.6.0"
+    src="js/ari-training.js?v=4.8.0"
   ></script>
 </body>
 </html>
