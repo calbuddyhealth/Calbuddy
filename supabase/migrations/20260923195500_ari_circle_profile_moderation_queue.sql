@@ -112,7 +112,6 @@ declare
   previous_path text := null;
   photo_id uuid;
   queued_message_id bigint := null;
-  pending_upload boolean := true;
 begin
   perform public.ari_circle_assert_adult_access();
 
