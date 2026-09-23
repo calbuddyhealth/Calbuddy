@@ -61,3 +61,16 @@ test("owner moderation audit fields distinguish owner from worker decisions", ()
   assert.match(migration, /moderation_source = 'worker'/);
   assert.match(migration, /moderation_source = 'owner'/);
 });
+
+
+test("queued worker still respects the member's AI-processing consent", () => {
+  const worker = fs.readFileSync("api/ari-circle-moderation-worker.js", "utf8");
+  assert.match(worker, /ari_ai_processing_consent/);
+  assert.match(worker, /ari_ai_processing_consent_version/);
+  assert.match(worker, /userHasCurrentAiConsent\(job\.user_id\)/);
+  assert.match(worker, /AI_PROCESSING_CONSENT_REQUIRED/);
+  assert.ok(
+    worker.indexOf("userHasCurrentAiConsent(job.user_id)") <
+      worker.indexOf("moderateProfileImage(imageUrl)")
+  );
+});
