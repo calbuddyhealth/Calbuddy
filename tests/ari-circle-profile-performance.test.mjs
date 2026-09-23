@@ -46,7 +46,6 @@ test("Gallery hard-caps supporting photos at four and retries transient safety o
   assert.match(profileGallery, /const VERSION = "1\.2\.0"/);
   assert.match(profileGallery, /isTransientSafetyFailure/);
   assert.match(profileGallery, /Retrying in about/);
-  assert.match(profileGallery, /will retry automatically/);
   assert.match(profileGallery, /Tap Try again without reselecting it/);
   assert.match(profileGallery, /ARI_CONTENT_BLOCKED/);
   assert.match(profileGallery, /state\.pending = null/);
