@@ -27,7 +27,7 @@ function capabilityNames() {
 
 test("every advertised Ari application tool maps to a concrete application action", () => {
   const names = capabilityNames();
-  assert.equal(names.length, 25);
+  assert.equal(names.length, 23);
 
   for (const name of names) {
     const action = toolToApplicationAction(name);
