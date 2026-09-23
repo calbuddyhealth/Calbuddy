@@ -6,6 +6,7 @@ import {
   buildDreamModelPayload,
   collectEvidenceRefs,
   dreamEvidenceFingerprint,
+  latestDreamEvidenceAt,
   normalizeDreamOutput
 } from "./dreaming-core.js";
 import {
@@ -39,9 +40,15 @@ export async function runAriDreamingCycle({
   if (refs.length < 3) return { success: true, dreamed: false, reason: "insufficient_evidence", evidenceCount: refs.length };
 
   const fingerprint = dreamEvidenceFingerprint(evidence);
+  const evidenceAt = latestDreamEvidenceAt(evidence);
   const latest = await loadLatest({ userId });
-  if (latest?.status === "completed" && latest?.evidence_fingerprint === fingerprint) {
-    return { success: true, dreamed: false, reason: "no_new_evidence", lastDreamAt: latest.completed_at || null };
+  const latestCompletedMs = Date.parse(String(latest?.completed_at || ""));
+  const evidenceMs = Date.parse(String(evidenceAt || ""));
+  if (latest?.status === "completed" && (
+    latest?.evidence_fingerprint === fingerprint ||
+    (Number.isFinite(latestCompletedMs) && Number.isFinite(evidenceMs) && latestCompletedMs >= evidenceMs)
+  )) {
+    return { success: true, dreamed: false, reason: "no_new_evidence", lastDreamAt: latest.completed_at || null, latestEvidenceAt: evidenceAt };
   }
 
   const runId = randomUUID();
