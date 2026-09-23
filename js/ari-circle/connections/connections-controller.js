@@ -4,7 +4,7 @@
 //
 // Purpose:
 // - Own the connection relationship UI for the profile being viewed.
-// - Render the Add to Circle button from CircleStore connection state.
+// - Render the Add Friend button from CircleStore connection state.
 // - Start / cancel outgoing Circle requests.
 // - Remove an existing Circle connection.
 // - Coordinate block/report confirmation dialogs.
@@ -12,8 +12,8 @@
 //
 // V1.0.1:
 // - Fixes corrupted UTF-8 checkmark text in connection buttons.
-// - "Requested â" is now "Requested ✓".
-// - "In Your Circle â" is now "In Your Circle ✓".
+// - "Requested â" is now "Requested".
+// - "In Your Circle â" is now "Friends".
 //
 // This module does NOT:
 // - Query or write to Supabase.
@@ -444,7 +444,7 @@ const ConnectionsController = {
 
       case CONNECTION_STATES.INCOMING_PENDING:
         button.textContent =
-          "Respond to Request";
+          "Friend Request";
         break;
 
       case CONNECTION_STATES.CONNECTED:
@@ -460,7 +460,7 @@ const ConnectionsController = {
       case CONNECTION_STATES.NONE:
       default:
         button.textContent =
-          "Add to Circle";
+          "Add Friend";
         break;
     }
 
@@ -471,7 +471,7 @@ const ConnectionsController = {
         true;
 
       button.textContent =
-        "Sign in to Connect";
+        "Sign in to Add Friend";
     }
   },
 

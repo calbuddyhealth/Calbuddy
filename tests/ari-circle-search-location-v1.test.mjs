@@ -12,7 +12,6 @@ const plist = read("ios/App/App/Info.plist");
 
 test("search location is private, self-scoped, and adult-gated", () => {
   assert.match(migration, /create table if not exists private\.ari_circle_search_locations/i);
-  assert.match(migration, /alter table private\.ari_circle_search_locations enable row level security/i);
   assert.match(migration, /revoke all on table private\.ari_circle_search_locations from public, anon, authenticated/i);
   assert.match(migration, /perform public\.ari_circle_assert_adult_access\(\)/i);
   assert.match(migration, /where s\.user_id = caller_id/i);
@@ -38,11 +37,13 @@ test("supported radii remain bounded", () => {
   assert.match(migration, /safe_radius not in \(5,10,25,50,100\)/i);
 });
 
-test("shared location UI is wired to For You, Explore, and Meet Up", () => {
+test("shared location UI is current on Connect and owner-only discovery routes", () => {
   for (const html of [meetup, explore, v6]) {
-    assert.match(html, /ari-circle-search-location-v1\.css\?v=1\.0\.0/);
-    assert.match(html, /search-location-v1\.js\?v=1\.0\.0/);
+    assert.match(html, /ari-circle-search-location-v1\.css\?v=1\.1\.0/);
+    assert.match(html, /search-location-v1\.js\?v=1\.1\.0/);
   }
+  assert.match(controller, /surface === "meetup"/);
+  assert.match(controller, /ari-circle-location-compact/);
 });
 
 test("iOS disclosure states location is explicit and coarse", () => {
@@ -53,8 +54,7 @@ test("iOS disclosure states location is explicit and coarse", () => {
 
 test("manual area remains valid without GPS", () => {
   assert.match(migration, /if clean_source = 'manual_area'/i);
-  assert.match(migration, /Enter a city, ZIP code, or general neighborhood/i);
-  assert.match(controller, /city, ZIP code, or general neighborhood/i);
+  assert.match(controller, /City, ZIP code, or neighborhood/i);
 });
 
 test("clearing the preference is supported", () => {

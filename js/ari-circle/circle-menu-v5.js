@@ -1,7 +1,7 @@
 /* =============================================================
-   ARI CIRCLE — CONTROL DRAWER V5.3
-   Version: 2.5.0
-   Adults-only shared controls + authoritative Real World Social shell.
+   ARI CIRCLE — CONTROL DRAWER
+   Version: 2.6.0
+   Adults-only shared controls for the simplified Circle shell.
    The drawer panel is portaled to <body> so iOS Safari cannot clip it
    inside the sticky/backdrop-filtered header.
 ============================================================= */
@@ -9,7 +9,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "2.5.0";
+  const VERSION = "2.6.0";
   const STYLE_ID = "ariCircleMenuV5Style";
   const STYLE_HREF = "assets/css/ari-circle-menu-v5.css?v=1.1.0";
   const AUTHORITY_STYLE_ID = "ariCircleMenuV5AuthorityStyle";
@@ -23,7 +23,7 @@
   const PROFILE_SAFETY_SCRIPT_ID = "ariCircleProfileSafetyScript";
   const PROFILE_SAFETY_SCRIPT_SRC = "js/ari-circle/profile/profile-safety.js?v=1.1.0";
   const REAL_WORLD_SCRIPT_ID = "ariCircleV5RealWorldScript";
-  const REAL_WORLD_SCRIPT_SRC = "js/ari-circle/v5-real-world.js?v=5.3.0";
+  const REAL_WORLD_SCRIPT_SRC = "js/ari-circle/v5-real-world.js?v=5.4.0";
   let outsideBound = false;
   let panelSequence = 0;
 
@@ -79,11 +79,11 @@
 
   function loadRealWorldShell() {
     if (!adultAccessReady()) return;
-    if (window.AriCircleV5RealWorld?.version === "5.3.0") {
+    if (window.AriCircleV5RealWorld?.version === "5.4.0") {
       window.AriCircleV5RealWorld.refresh?.();
       return;
     }
-    if (document.querySelector(`script[src*="v5-real-world.js?v=5.3.0"]`)) return;
+    if (document.querySelector(`script[src*="v5-real-world.js?v=5.4.0"]`)) return;
     const script = document.createElement("script");
     script.id = REAL_WORLD_SCRIPT_ID;
     script.src = REAL_WORLD_SCRIPT_SRC;
@@ -159,8 +159,7 @@
     const mainRows = [
       item({ href: "ari-circle.html?panel=notifications", label: "Notifications", iconMarkup: icon.bell }),
       item({ href: "ari-circle.html", label: "Profile", iconMarkup: icon.user }),
-      item({ href: "ari-circle.html?panel=discover-friends", label: "Discover Friends", iconMarkup: icon.discover }),
-      item({ href: "ari-circle-quests.html", label: "Quests", iconMarkup: icon.quest })
+      item({ href: "ari-circle.html?panel=discover-friends", label: "Discover Friends", iconMarkup: icon.discover })
     ].join("");
     const accountRows = [
       includeProfileOptions ? item({ label: "Profile Options", iconMarkup: icon.user, button: true, profileOptions: true }) : item({ href: "ari-circle.html#about", label: "Profile Options", iconMarkup: icon.user }),
@@ -178,7 +177,7 @@
         ${group("Main", mainRows)}
         ${group("Account", accountRows)}
         <div class="circle-v52-menu-exit">${item({ href: "home.html", label: "Exit ARI Circle", iconMarkup: icon.exit, exit: true })}</div>
-        <div class="circle-v52-menu-footer">V5.3</div>
+        <div class="circle-v52-menu-footer">Circle</div>
       </nav>`;
   }
 

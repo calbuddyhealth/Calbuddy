@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-pearl.css?v=5.1.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
-  <link rel="stylesheet" href="assets/css/ari-circle-xp.css?v=1.0.2" />
+  <link rel="stylesheet" href="assets/css/ari-circle-feed-next.css?v=1.0.0" />
 </head>
 <body class="circle-v5-real-world">
   <main class="feed-page" id="feedPage" hidden>
@@ -27,59 +27,37 @@
         <nav class="circle-v4-menu__panel" aria-label="Circle menu"></nav>
       </details>
 
-      <a class="feed-brand circle-v5-brand" href="ari-circle-v6.html" aria-label="ARI Circle ARI Next"><span>ARI CIRCLE</span></a>
+      <a class="feed-brand circle-v5-brand" href="ari-circle-feed.html" aria-label="ARI Circle Feed"><span>ARI CIRCLE</span></a>
 
       <a class="circle-v4-message" href="ari-circle-messages.html" aria-label="Messages">💬</a>
     </header>
 
-    <section class="feed-composer" aria-labelledby="composerTitle">
+    <section class="feed-composer feed-composer--update" aria-labelledby="composerTitle">
       <form id="feedComposerForm">
         <div class="feed-composer__top">
           <div class="feed-avatar feed-avatar--self" id="composerAvatar" aria-hidden="true"><span>A</span></div>
-          <div><h2 id="composerTitle">Share something</h2></div>
+          <div>
+            <p class="feed-next-eyebrow">YOUR CIRCLE</p>
+            <h2 id="composerTitle">Share an update</h2>
+          </div>
         </div>
 
-        <label class="sr-only" for="feedPostBody">Write a post</label>
-        <textarea id="feedPostBody" maxlength="1200" rows="1" placeholder="Share something…"></textarea>
+        <label class="sr-only" for="feedPostBody">Write an update</label>
+        <textarea id="feedPostBody" maxlength="600" rows="2" placeholder="What are you up to?"></textarea>
 
-        <div class="feed-media-preview" id="feedMediaPreview" hidden>
-          <div class="feed-media-preview__stage" id="feedMediaPreviewStage"></div>
-          <button class="feed-media-preview__remove" id="removeFeedMedia" type="button" aria-label="Remove selected media">×</button>
-          <div class="feed-media-preview__meta" id="feedMediaPreviewMeta"></div>
+        <div class="feed-composer__toolbar feed-composer__toolbar--simple">
+          <span class="feed-composer__privacy">Friends only</span>
+          <div class="feed-composer__counter"><span id="postCharCount">0</span>/600</div>
+          <button class="feed-primary" id="publishPostButton" type="submit">Post</button>
         </div>
-
-        <input id="feedMediaInput" type="file" accept="image/*,video/*" hidden />
-
-        <div class="feed-composer__toolbar">
-          <button class="feed-media-button" id="feedMediaButton" type="button" aria-label="Choose camera or photo library">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4.5 7.5A2.5 2.5 0 0 1 7 5h1.15l1-1.5h5.7l1 1.5H17a2.5 2.5 0 0 1 2.5 2.5v9A2.5 2.5 0 0 1 17 19H7a2.5 2.5 0 0 1-2.5-2.5v-9Z"></path>
-              <circle cx="12" cy="12" r="3.2"></circle>
-            </svg>
-            <span>Camera / Library</span>
-          </button>
-          <div class="feed-composer__counter"><span id="postCharCount">0</span>/1200</div>
-          <button class="feed-primary" id="publishPostButton" type="submit">Share</button>
-        </div>
-
-        <div class="feed-moment-action" id="feedMomentAction" hidden>
-          <div><strong>Make it a Moment</strong><span>Photo or video · 24h</span></div>
-          <button class="feed-moment-button" id="shareMomentButton" type="button">Add to Moment</button>
-        </div>
-        <span class="feed-composer__privacy">Friends only · kept inside your verified age space.</span>
       </form>
     </section>
 
-    <section class="feed-moments" id="momentsSection" aria-labelledby="momentsTitle" hidden>
-      <div class="feed-moments__heading"><h2 id="momentsTitle">Moments</h2><span>24h</span></div>
-      <div class="feed-moments__strip" id="momentsStrip" aria-live="polite"></div>
-    </section>
-
     <section class="feed-stream" aria-labelledby="streamTitle">
-      <div class="feed-section-heading"><div><h2 id="streamTitle">Your Feed</h2></div><button class="feed-text-button" id="refreshFeedButton" type="button" hidden aria-hidden="true" tabindex="-1">Refresh</button></div>
+      <div class="feed-section-heading feed-next-heading"><div><p class="feed-next-eyebrow">FRIENDS</p><h2 id="streamTitle">Updates from your people</h2></div><button class="feed-text-button" id="refreshFeedButton" type="button" hidden aria-hidden="true" tabindex="-1">Refresh</button></div>
       <p class="feed-status" id="feedStatus" role="status" aria-live="polite">Loading…</p>
       <div class="feed-list" id="feedList" aria-live="polite"></div>
-      <div class="feed-empty" id="feedEmpty" hidden><span aria-hidden="true">✦</span><h3>Quiet in here.</h3><p>Share the first update.</p><button class="feed-primary" id="emptyComposeButton" type="button">Share</button></div>
+      <div class="feed-empty" id="feedEmpty" hidden><span aria-hidden="true">✦</span><h3>Quiet in here.</h3><p>Friend updates will show here.</p><button class="feed-primary" id="emptyComposeButton" type="button">Post an update</button></div>
       <button class="feed-secondary feed-full" id="loadMoreButton" type="button" hidden>Load more</button>
     </section>
   </main>
@@ -97,14 +75,12 @@
   <div class="feed-toast" id="feedToast" role="status" aria-live="polite" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script id="ariCircleMenuV5Script" src="js/ari-circle/circle-menu-v5.js?v=2.5.0" defer></script>
+  <script id="ariCircleMenuV5Script" src="js/ari-circle/circle-menu-v5.js?v=2.6.0" defer></script>
   <script id="ariCircleSocialBadgesScript" src="js/ari-circle/social-badges.js?v=1.2.0" defer></script>
   <script src="supabase-config.js?v=1.1.8"></script>
-  <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.3.0" defer></script>
+  <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.4.0" defer></script>
   <script src="js/ari-circle/content-moderation.js?v=1.5.0" defer></script>
   <script src="js/ari-circle/feed/feed.js?v=2.0.0" defer></script>
-  <script src="js/ari-circle/feed/moment-replies.js?v=3.0.0" defer></script>
-  <script src="js/ari-circle/media/camera-ios26-recovery.js?v=4.0.0" defer></script>
   <script src="js/ari-circle/feed/feed-post-options.js?v=1.0.0" defer></script>
   <script src="js/ari-circle/feed/feed-polish.js?v=1.0.2" defer></script>
   <script src="js/ari-circle/feed/feed-moderation.js?v=1.1.0" defer></script>

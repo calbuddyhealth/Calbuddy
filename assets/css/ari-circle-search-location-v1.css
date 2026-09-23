@@ -5,3 +5,21 @@
 .ari-circle-location-card__editor{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}.ari-circle-location-card__editor[hidden]{display:none}.ari-circle-location-card__editor label{display:grid;gap:5px;font-size:.68rem;font-weight:800;color:#5f6f8a}.ari-circle-location-card__editor input{min-height:40px;padding:0 11px;border:1px solid #d5deeb;border-radius:11px;background:#fff;color:#17243c;font:700 .78rem Inter,sans-serif;outline:none}.ari-circle-location-card__editor input:focus{border-color:#6f8fd5;box-shadow:0 0 0 3px rgba(78,113,191,.12)}
 .ari-circle-location-card__privacy,.ari-circle-location-card__status{grid-column:1/-1;margin:0;font-size:.67rem;line-height:1.4;color:#7b879c}.ari-circle-location-card__status{min-height:0;font-weight:700;color:#4f6285}.ari-circle-location-card__status:empty{display:none}
 @media(max-width:560px){.ari-circle-location-card{grid-template-columns:minmax(0,1fr) auto;padding:12px}.ari-circle-location-card__editor{grid-template-columns:1fr}.ari-circle-location-card__editor button{width:100%}.ari-circle-location-card__actions button{flex:1 1 auto}.ari-circle-location-card__privacy{font-size:.65rem}}
+
+
+/* Connect compact location control */
+.ari-circle-location-compact{position:relative;margin:10px 0 14px;font-family:Inter,sans-serif}
+.ari-circle-location-pill{display:flex;width:100%;min-height:44px;align-items:center;gap:7px;padding:0 12px;border:1px solid #dce5f0;border-radius:14px;color:#53647d;background:#fff;box-shadow:0 7px 20px rgba(36,57,92,.055);font:750 .72rem/1 Inter,sans-serif;text-align:left}
+.ari-circle-location-pill strong{min-width:0;overflow:hidden;color:#1a2a45;font:850 .76rem/1 Inter,sans-serif;text-overflow:ellipsis;white-space:nowrap}
+.ari-circle-location-pill span:nth-last-child(2){margin-left:auto;color:#7d899c}
+.ari-circle-location-current{position:absolute;right:6px;top:5px;display:grid;width:34px;height:34px;place-items:center;border:0;border-radius:10px;color:#3658ad;background:#eff4ff;font:900 .92rem/1 Inter,sans-serif;cursor:pointer}
+.ari-circle-location-pill{padding-right:50px}
+.ari-circle-location-panel{margin-top:8px;padding:12px;border:1px solid #dfe7f1;border-radius:16px;background:#fff;box-shadow:0 14px 32px rgba(36,57,92,.08)}
+.ari-circle-location-panel__head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.ari-circle-location-panel__head>div{display:grid;gap:3px}.ari-circle-location-panel__head strong{color:#182943;font:850 .75rem/1 Inter,sans-serif}.ari-circle-location-panel__head span{color:#8793a5;font:700 .61rem/1 Inter,sans-serif}
+.ari-circle-location-panel__head button{border:0;color:#75839a;background:transparent;font:800 .62rem/1 Inter,sans-serif}
+.ari-circle-location-panel__form{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:end}
+.ari-circle-location-panel__form label{display:grid;gap:5px;color:#687791;font:800 .62rem/1 Inter,sans-serif}
+.ari-circle-location-panel__form input,.ari-circle-location-panel__form select{min-height:40px;padding:0 10px;border:1px solid #d7e0eb;border-radius:11px;color:#17243c;background:#fff;font:750 .72rem Inter,sans-serif}
+.ari-circle-location-panel__form button{min-height:40px;padding:0 13px;border:0;border-radius:11px;color:#fff;background:#4268f3;font:850 .7rem/1 Inter,sans-serif}
+@media(max-width:560px){.ari-circle-location-panel__form{grid-template-columns:1fr 110px}.ari-circle-location-panel__form button{grid-column:1/-1}.ari-circle-location-current{right:6px}}

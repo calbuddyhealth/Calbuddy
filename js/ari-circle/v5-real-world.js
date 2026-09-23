@@ -1,13 +1,13 @@
 /* =============================================================
-   ARI CIRCLE V5.3.2 — REAL WORLD SOCIAL SHELL
-   Feed · Connect for members; Missions + ARI Next remain owner-only while experimental.
+   ARI CIRCLE V5.4.0 — SIMPLE SOCIAL SHELL
+   Feed · Connect are the member-facing Circle experience.
    One current navigation owner, bounded lifecycle refreshes, and no retired
    Buddies/Challenges route shims.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "5.3.2";
+  const VERSION = "5.4.0";
   if (window.AriCircleV5RealWorld?.version === VERSION) return;
 
   const STYLE_ID = "ariCircleV5RealWorldStyle";
@@ -18,24 +18,20 @@
   const PREMIUM_STYLE_HREF = "assets/css/ari-circle-v5-premium.css?v=5.2.0";
   const AUTHORITY_STYLE_ID = "ariCircleV525AuthorityStyle";
   const AUTHORITY_STYLE_HREF = "assets/css/ari-circle-v5-visual-authority.css?v=5.2.5";
-  const XP_STYLE_ID = "ariCircleXpStyle";
-  const XP_STYLE_HREF = "assets/css/ari-circle-xp.css?v=1.0.1";
   const NAV_ID = "ariCircleV5BottomNav";
   const CONNECT_STYLE_ID = "ariCircleConnectModeStyle";
   const CONNECT_NAV_ID = "ariCircleConnectModeNav";
-  const NAV_MODEL = "feed-connect-owner-ari-next";
+  const NAV_MODEL = "feed-connect-v1";
   const HALO_SEEN_KEY = "ari-circle-v522-wordmark-seen";
   const OWNER_ROUTE_FALLBACK = "ari-circle-feed.html";
   const MISSIONS_ROUTE_FALLBACK = "ari-circle-meetup.html";
   let queued = false;
   let happeningLoaded = false;
-  let profileLoaded = false;
   let ownerAccess = false;
   let ownerAccessResolved = false;
   let ownerVerificationPromise = null;
 
   const ICONS = Object.freeze({
-    arinext: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 14.2 9l5.8 1.1-4.5 3.8 1.4 5.8-4.9-3.1-4.9 3.1 1.4-5.8L4 10.1 9.8 9 12 3.5Z"></path></svg>`,
     connect: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="3"></circle><circle cx="16.5" cy="9" r="2.5"></circle><path d="M3.5 19c.5-3.5 2.3-5.3 5-5.3s4.6 1.8 5.1 5.3M14.2 14.2c3.4-.4 5.6 1.2 6.3 4.8"></path></svg>`,
     feed: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4.5" width="16" height="15" rx="3"></rect><path d="M8 9h8M8 12.5h5M8 16h7"></path></svg>`,
     message: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18.25 3.75 20l.85-3.45A7.9 7.9 0 0 1 3 11.75C3 7.47 6.9 4 11.7 4h.6c4.8 0 8.7 3.47 8.7 7.75s-3.9 7.75-8.7 7.75h-.6A9.5 9.5 0 0 1 7 18.25Z"></path></svg>`
@@ -146,7 +142,6 @@
     ensureStylesheet(PEARL_STYLE_ID, PEARL_STYLE_HREF, "ari-circle-v5-pearl.css");
     ensureStylesheet(PREMIUM_STYLE_ID, PREMIUM_STYLE_HREF, "ari-circle-v5-premium.css");
     ensureStylesheet(AUTHORITY_STYLE_ID, AUTHORITY_STYLE_HREF, "ari-circle-v5-visual-authority.css");
-    ensureStylesheet(XP_STYLE_ID, XP_STYLE_HREF, "ari-circle-xp.css");
     ensureConnectStyle();
   }
 
@@ -154,7 +149,6 @@
     const path = pathName();
     if (path.includes("ari-circle-meetup") || path.includes("ari-circle-quest")) return "connect";
     if (path.endsWith("/ari-circle-feed.html")) return "feed";
-    if (ownerAccess && (path.endsWith("/ari-circle-v6.html") || path.includes("ari-circle-explore"))) return "arinext";
     return "";
   }
 
@@ -170,7 +164,6 @@
     return `<div class="circle-v5-bottom-nav__dock">
       ${navLink("feed", "ari-circle-feed.html", "Feed")}
       ${navLink("connect", "ari-circle-meetup.html", "Connect")}
-      ${ownerAccess ? navLink("arinext", "ari-circle-v6.html", "ARI Next") : ""}
     </div>`;
   }
 
@@ -184,7 +177,7 @@
       document.body.append(wrap);
     }
 
-    const model = `${NAV_MODEL}:${ownerAccess ? "owner" : "member"}`;
+    const model = NAV_MODEL;
     if (wrap.dataset.circleNavModel !== model) {
       wrap.innerHTML = bottomNavMarkup();
       wrap.dataset.circleNavModel = model;
@@ -199,28 +192,7 @@
   }
 
   function ensureConnectModeNav() {
-    const path = pathName();
-    const isMeetups = path.includes("ari-circle-meetup");
-    const isMissions = path.includes("ari-circle-quest");
-    if (!isMeetups && !isMissions) return;
-
-    const main = document.querySelector(".circle-v5-page-main");
-    if (!main) return;
-
-    let nav = document.getElementById(CONNECT_NAV_ID);
-    if (!nav) {
-      nav = document.createElement("nav");
-      nav.id = CONNECT_NAV_ID;
-      nav.className = "circle-connect-mode-nav";
-      nav.setAttribute("aria-label", "Connect sections");
-      main.insertBefore(nav, main.firstElementChild);
-    }
-
-    nav.innerHTML = `
-      <a href="ari-circle-meetup.html" class="${isMeetups ? "is-active" : ""}"${isMeetups ? ' aria-current="page"' : ""}>Meetups</a>
-      ${ownerAccess ? `<a href="ari-circle-quests.html" class="${isMissions ? "is-active" : ""}"${isMissions ? ' aria-current="page"' : ""}>Missions</a>` : ""}
-    `;
-    nav.style.gridTemplateColumns = ownerAccess ? "1fr 1fr" : "1fr";
+    document.getElementById(CONNECT_NAV_ID)?.remove();
   }
 
   function removeRedundantQuestDrawerLink() {
@@ -253,8 +225,8 @@
       const brand = header.querySelector(".feed-brand, .circle-v5-brand, .circle-header__brand");
       if (brand) {
         brand.classList.add("circle-v51-brand");
-        brand.setAttribute("href", ownerAccess ? "ari-circle-v6.html" : "ari-circle-feed.html");
-        brand.setAttribute("aria-label", ownerAccess ? "ARI Circle ARI Next" : "ARI Circle Feed");
+        brand.setAttribute("href", "ari-circle-feed.html");
+        brand.setAttribute("aria-label", "ARI Circle Feed");
         if (brand.dataset.circleV51Brand !== VERSION) {
           brand.innerHTML = haloMarkup();
           brand.dataset.circleV51Brand = VERSION;
@@ -290,13 +262,7 @@
         console.warn("ARI Circle Happening rail failed to load:", error);
       });
     }
-    if (!profileLoaded && (path.endsWith("/ari-circle.html") || document.body?.classList.contains("ari-circle-page"))) {
-      profileLoaded = true;
-      import("/js/ari-circle/profile/profile-v5-real-world.js?v=5.1.0").catch((error) => {
-        profileLoaded = false;
-        console.warn("ARI Circle Real World profile failed to load:", error);
-      });
-    }
+
   }
 
   function run() {

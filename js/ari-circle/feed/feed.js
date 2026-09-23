@@ -14,7 +14,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "2.0.0";
+  const VERSION = "2.1.0";
   const MEDIA_BUCKET = "ari-circle-post-media";
   const SIGNED_URL_SECONDS = 60 * 60;
   const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -199,7 +199,7 @@
       });
       closeDialog("ageDialog");
       showToast("Age verified. Your birthday stays private.");
-      await Promise.all([refreshFeed(), loadMoments()]);
+      await refreshFeed();
     } catch (error) {
       console.error("ARI Circle feed age verification failed:", error);
       showToast(error.message || "Could not verify age.", 4500);
@@ -943,7 +943,7 @@
     $("feedComposerForm")?.addEventListener("submit", publishPost);
     $("ageForm")?.addEventListener("submit", verifyAge);
     $("commentForm")?.addEventListener("submit", addComment);
-    $("refreshFeedButton")?.addEventListener("click", () => Promise.all([refreshFeed(), loadMoments()]));
+    $("refreshFeedButton")?.addEventListener("click", refreshFeed);
     $("loadMoreButton")?.addEventListener("click", () => loadFeed({ append: true }));
     $("emptyComposeButton")?.addEventListener("click", () => {
       $("feedPostBody")?.focus();
@@ -962,7 +962,6 @@
       const user = await requireUser();
       if (!user) return;
 
-      bindMediaUi();
       bindReactionPicker();
       bindCommonUi();
 
@@ -977,7 +976,7 @@
         return;
       }
 
-      await Promise.all([refreshFeed(), loadMoments()]);
+      await refreshFeed();
     } catch (error) {
       console.error("ARI Circle feed failed to start:", error);
       $("feedLoading").innerHTML = `
@@ -990,7 +989,7 @@
 
   window.AriCircleFeed = Object.freeze({
     version: VERSION,
-    refresh: () => Promise.all([refreshFeed(), loadMoments()])
+    refresh: refreshFeed
   });
 
   document.addEventListener("DOMContentLoaded", init);

@@ -75,7 +75,9 @@ test("App Health is prominent for the owner but hidden by default from normal us
 
   assert.match(nav, /verifyOwnerSession/);
   assert.match(nav, /if \(!isOwner\) return/);
-  assert.match(nav, /nav\.hidden = false/);
+  assert.match(nav, /setOwnerOnlyVisibility\(true\)/);
+  assert.match(nav, /item\.hidden = !visible/);
+  assert.match(nav, /item\.setAttribute\("aria-hidden", visible \? "false" : "true"\)/);
 
   assert.match(page, /OWNER DIAGNOSTICS/);
   assert.match(page, /SMART SWEEP/);
