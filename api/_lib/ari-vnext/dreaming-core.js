@@ -54,6 +54,7 @@ export function latestDreamEvidenceAt(evidence = {}) {
     evidence.goalEvents,
     evidence.decisions,
     evidence.communicationOutcomes,
+    evidence.communityInteractions,
     evidence.strategies,
     evidence.institutionalMemory
   ]) {
@@ -152,18 +153,25 @@ export function normalizeDreamCandidate(raw = {}, { allowedRefs = new Set() } = 
 
   if (!DREAM_INSIGHT_KINDS.includes(kind)) return { accepted: false, reason: "invalid_kind" };
   if (title.length < 4 || summary.length < 20) return { accepted: false, reason: "insight_too_thin" };
-  if (SECRET_PATTERN.test(summary) || HIDDEN_REASONING_PATTERN.test(summary) || SUBJECTIVE_OVERREACH_PATTERN.test(summary)) {
+  const protectedText = `${title} ${summary} ${evidenceBasis}`;
+  if (SECRET_PATTERN.test(protectedText) || HIDDEN_REASONING_PATTERN.test(protectedText) || SUBJECTIVE_OVERREACH_PATTERN.test(protectedText)) {
     return { accepted: false, reason: "unsafe_or_private_claim" };
   }
-  if (raw?.sensitive === true || SENSITIVE_DETAIL_PATTERN.test(summary)) {
+  if (raw?.sensitive === true || SENSITIVE_DETAIL_PATTERN.test(protectedText)) {
     return { accepted: false, reason: "sensitive_detail_not_for_dream_insight" };
   }
 
   const minimumConfidence = ["relationship", "belief", "strategy"].includes(kind) ? 0.68 : 0.62;
   if (confidence < minimumConfidence) return { accepted: false, reason: "confidence_too_low" };
 
+  // Prior dreams can help the model notice continuity, but cannot prove themselves.
+  const externalEvidenceRefs = evidenceRefs.filter(ref => !ref.startsWith("dream:"));
   const minimumRefs = ["communication", "relationship", "belief", "strategy", "contradiction"].includes(kind) ? 2 : 1;
-  if (evidenceRefs.length < minimumRefs) return { accepted: false, reason: "insufficient_attributed_evidence" };
+  if (externalEvidenceRefs.length < minimumRefs) return { accepted: false, reason: "insufficient_attributed_evidence" };
+  if (["communication", "relationship"].includes(kind) &&
+      !externalEvidenceRefs.some(ref => /^(?:turn|communication|community):/.test(ref))) {
+    return { accepted: false, reason: "interaction_evidence_required" };
+  }
 
   const insightKey = stableId([
     kind,
