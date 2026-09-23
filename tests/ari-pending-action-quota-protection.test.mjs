@@ -12,7 +12,7 @@ test("pending-action recovery patch is syntactically valid", () => {
 test("Home loads pending-action recovery after home behavior and before quota UI", () => {
   const homeIndex = home.indexOf('js/home.js?v=3.4.2');
   const recoveryIndex = home.indexOf('js/ari-pending-action-recovery.js?v=1.2.0');
-  const quotaIndex = home.indexOf('js/ari-quota-ui.js?v=1.0.0');
+  const quotaIndex = home.indexOf('js/ari-quota-ui.js?v=1.0.2');
   assert.ok(homeIndex >= 0);
   assert.ok(recoveryIndex > homeIndex);
   assert.ok(quotaIndex > recoveryIndex);
@@ -71,4 +71,16 @@ test("a yes or cancel aimed at a stale terminal card is consumed locally instead
   assert.match(intercept, /if \(!pending\)/);
   assert.match(intercept, /hideRecoveredPendingIfEmpty\(\)/);
   assert.match(intercept, /return true/);
+});
+
+
+test("quota exhaustion cannot strand a real pending confirmation", () => {
+  const quotaUi = fs.readFileSync("js/ari-quota-ui.js", "utf8");
+  assert.match(quotaUi, /currentPendingAction\(\)/);
+  assert.match(quotaUi, /isPendingResolutionText/);
+  assert.match(quotaUi, /CONFIRM_RE/);
+  assert.match(quotaUi, /CANCEL_RE/);
+  assert.match(quotaUi, /allowPendingResolution/);
+  assert.match(quotaUi, /calbuddy:pendingActionCleared/);
+  assert.match(quotaUi, /ari:vnextPendingActionCleared/);
 });
