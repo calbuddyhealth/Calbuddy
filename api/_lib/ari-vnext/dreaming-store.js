@@ -232,6 +232,7 @@ export async function loadDreamingContext({ userId, message = "", route = {}, li
     readTable(config, INSIGHT_TABLE, {
       user_id: `eq.${id}`,
       status: "eq.active",
+      updated_at: `gte.${new Date(Date.now() - 90 * 86400000).toISOString()}`,
       select: "id,insight_key,kind,domain,title,summary,confidence,evidence_refs,evidence_basis,action,transfer_conditions,disconfirmers,status,last_seen_at,updated_at",
       order: "confidence.desc,updated_at.desc",
       limit: "32"
