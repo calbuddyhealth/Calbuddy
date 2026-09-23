@@ -30,8 +30,7 @@ export function dreamEvidenceFingerprint(evidence = {}) {
     evidence.decisions,
     evidence.communicationOutcomes,
     evidence.strategies,
-    evidence.institutionalMemory,
-    evidence.priorDreamInsights
+    evidence.institutionalMemory
   ]) {
     for (const item of Array.isArray(group) ? group : []) {
       if (item?.ref) records.push([clean(item.ref, 220), item.at || item.updatedAt || item.updated_at || item.createdAt || item.created_at || ""]);
@@ -40,6 +39,30 @@ export function dreamEvidenceFingerprint(evidence = {}) {
   if (evidence?.cognitiveState?.ref) records.push([evidence.cognitiveState.ref, evidence.cognitiveState.updatedAt || ""]);
   if (evidence?.worldModel?.ref) records.push([evidence.worldModel.ref, evidence.worldModel.updatedAt || ""]);
   return stableId(JSON.stringify(records.sort((a, b) => a[0].localeCompare(b[0]))));
+}
+
+export function latestDreamEvidenceAt(evidence = {}) {
+  const values = [];
+  const add = value => {
+    const ms = Date.parse(String(value || ""));
+    if (Number.isFinite(ms)) values.push(ms);
+  };
+  for (const group of [
+    evidence.conversations,
+    evidence.goals,
+    evidence.goalEvents,
+    evidence.decisions,
+    evidence.communicationOutcomes,
+    evidence.strategies,
+    evidence.institutionalMemory
+  ]) {
+    for (const item of Array.isArray(group) ? group : []) {
+      add(item?.at || item?.updatedAt || item?.updated_at || item?.resolvedAt || item?.resolved_at || item?.createdAt || item?.created_at);
+    }
+  }
+  add(evidence?.cognitiveState?.updatedAt);
+  add(evidence?.worldModel?.updatedAt);
+  return values.length ? new Date(Math.max(...values)).toISOString() : null;
 }
 
 export function collectEvidenceRefs(evidence = {}) {
