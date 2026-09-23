@@ -1,6 +1,7 @@
 // ARI vNext — model-first orchestration through OpenAI Responses API.
 
 import { reviewExplicitApplicationIntent } from "./action-intent-verifier.js";
+import { actionContinuationToInstruction, deriveAuthorizedActionContinuation } from "./action-continuation.js";
 import { actionReplyRequiresProposal, guardUnpreparedActionReply } from "./action-response.js";
 import { adviserMemoToInstruction, runCortexAdviser } from "./cortex-adviser.js";
 import { multiAgentCouncilToInstruction, publicMultiAgentCouncil, runAriMultiAgentCouncil } from "./multi-agent-orchestrator.js";
@@ -64,6 +65,7 @@ const OWNER_LAB_ACTIONS = new Set([
 
 export async function runAriVNext(turn = {}) {
   const route = routeContext(turn);
+  const actionContinuation = deriveAuthorizedActionContinuation(turn);
   const safety = classifySafety(turn, route);
   const communication = resolvePersonalizedCommunicationProfile({
     preferences: turn?.preferences || {},
@@ -240,6 +242,7 @@ export async function runAriVNext(turn = {}) {
   const adviserInstruction = adviserMemoToInstruction(cortexAdviser);
   const instructions = [
     baseInstructions,
+    actionContinuationToInstruction(actionContinuation),
     institutionalMemoryInstruction,
     adviserInstruction,
     councilInstruction
@@ -268,8 +271,11 @@ export async function runAriVNext(turn = {}) {
   // turns where the primary model did not select one of these proven paths.
   const primaryFunctionName = String(functionCall?.name || "").trim();
   const shouldVerify =
-    !LOW_RISK_PRIMARY_FAST_PATHS.has(primaryFunctionName) &&
-    (Boolean(functionCall) || shouldReviewNoToolTurn(turn));
+    actionContinuation?.active === true ||
+    (
+      !LOW_RISK_PRIMARY_FAST_PATHS.has(primaryFunctionName) &&
+      (Boolean(functionCall) || shouldReviewNoToolTurn(turn, actionContinuation))
+    );
   const semanticActionReview = shouldVerify
     ? await reviewExplicitApplicationIntent({ turn, route, tools })
     : null;
@@ -411,7 +417,6 @@ export async function runAriVNext(turn = {}) {
       `Your previous ${String(functionCall.name || "application")} function call failed trusted validation with: ${String(validation.error || "invalid_arguments")}.`,
       "Reissue the SAME function with corrected arguments only. Preserve the user's request exactly; do not switch actions.",
       mealNutritionRepair,
-      "For Meal Plan, use at most one breakfast, one lunch, one dinner, and one snack. Never create duplicate meal slots."
     ].filter(Boolean).join("\n");
 
     const repaired = await callResponses({
@@ -1243,7 +1248,7 @@ function buildInstructions({
     "\nDATA FIDELITY\nFor any proposed write, preserve every explicit quantity and named item from the CURRENT user request. Do not silently drop components. If a user asks to log multiple foods as one meal, the single meal record must represent all of those foods with combined nutrition and clear serving details.",
     "\nRELEVANT ARI XP CONTEXT\nUse only what is relevant to the current question. Treat missing fields as unknown.\n" + contextToText(relevantContext),
     "\nREQUEST INTERPRETATION\nInterpret the CURRENT user message semantically before deciding whether it is conversation, a question, contextual information, or a request to change application state. Do not require magic keywords or exact feature names. Natural phrasing, references, and paraphrases count when the current message makes the requested operation clear. Separate understanding from execution: first determine what the user is asking for, then use the matching application function when one exists. Trusted code will validate, persist, confirm, and execute the proposal. If essential details are genuinely missing, ask one concise clarification instead of guessing. Never expose hidden chain-of-thought; only the selected action or clarification is externally observable.",
-    "\nACTION RULE\nOnly call an application function when the CURRENT user message explicitly requests that mutation. Never infer a write from an old turn. A statement like 'I ate eggs' or 'I ate the breakfast you planned' is not permission to log food. When the current message DOES explicitly request a supported app mutation, use the matching function instead of only describing what you could do. Natural phrasing counts; the user does not need to name the feature or tool. Never start, finish, or cancel an experiment without an explicit current-turn request and confirmation. Cancelling a proposal cancels only that proposal; a later explicit request must create a fresh proposal. Normal ARI XP application functions prepare changes for confirmation and this model pass never executes those writes. OWNER AGENT COMMUNITY post/reply functions are the explicit exception: after a current-turn owner publication request passes trusted validation, the server executes that public action immediately and returns verified publication evidence. Never claim any other change was logged or saved, and never ask the user to confirm a normal app change without returning the application function that prepares it."
+    "\nACTION RULE\nCall an application function only when the CURRENT user message explicitly requests that mutation, except for one bounded continuation: when the immediately preceding user explicitly authorized one mutation, Ari immediately asked for a missing detail needed to prepare that exact mutation, and the current turn clearly supplies that detail. Never inherit permission from older or unrelated conversation history. A standalone statement like 'I ate eggs' is not permission to log food. When a supported mutation is authorized, use the matching function instead of merely describing what you could do. Natural phrasing counts; the user does not need to name the feature or tool. Never start, finish, or cancel an experiment without an explicit current-turn request and confirmation. Cancelling a proposal cancels only that proposal; a later explicit request must create a fresh proposal. Normal ARI XP application functions prepare changes for confirmation and this model pass never executes those writes. OWNER AGENT COMMUNITY post/reply functions are the explicit exception: after a current-turn owner publication request passes trusted validation, the server executes that public action immediately and returns verified publication evidence. Never claim any other change was logged or saved, and never ask the user to confirm a normal app change without returning the application function that prepares it."
   );
 
   return sections.join("\n");
@@ -1407,7 +1412,9 @@ export function missingWorkoutDateClarification(turn = {}, route = {}) {
     : "What day do you want the workout for?";
 }
 
-function shouldReviewNoToolTurn(turn = {}) {
+function shouldReviewNoToolTurn(turn = {}, continuation = null) {
+  if (continuation?.active === true || deriveAuthorizedActionContinuation(turn).active === true) return true;
+
   const text = String(turn?.message || "").trim().toLowerCase();
   if (!text) return false;
 
