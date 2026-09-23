@@ -1,0 +1,104 @@
+/* ARI Circle Profile Gallery V1 */
+.circle-profile-gallery{
+  width:min(100%,720px);
+  margin:12px auto;
+  padding:15px;
+  border:1px solid #e1e8f1;
+  border-radius:22px;
+  background:#fff;
+  box-shadow:0 10px 28px rgba(31,45,70,.06);
+}
+.circle-profile-gallery__head{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:10px;
+}
+.circle-profile-gallery__head p{
+  margin:0 0 5px;
+  color:#5c79bd;
+  font:900 .6rem/1 Inter,sans-serif;
+  letter-spacing:.14em;
+}
+.circle-profile-gallery__head h2{
+  margin:0;
+  color:#142033;
+  font:900 1.08rem/1.1 Inter,sans-serif;
+  letter-spacing:-.03em;
+}
+.circle-profile-gallery__head>span{
+  color:#8995a6;
+  font:750 .6rem/1 Inter,sans-serif;
+}
+.circle-profile-gallery__grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+}
+.circle-profile-gallery__photo,
+.circle-profile-gallery__empty{
+  position:relative;
+  overflow:hidden;
+  aspect-ratio:1/1;
+  border:1px solid #e0e8f2;
+  border-radius:17px;
+  background:#f6f9fd;
+}
+.circle-profile-gallery__photo img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+.circle-profile-gallery__photo-actions{
+  position:absolute;
+  right:7px;
+  bottom:7px;
+  left:7px;
+  display:flex;
+  gap:6px;
+}
+.circle-profile-gallery__photo-actions button{
+  flex:1 1 auto;
+  min-height:31px;
+  border:1px solid rgba(255,255,255,.45);
+  border-radius:10px;
+  color:#fff;
+  background:rgba(12,22,39,.68);
+  backdrop-filter:blur(10px);
+  font:800 .58rem/1 Inter,sans-serif;
+}
+.circle-profile-gallery__empty{
+  display:grid;
+  place-items:center;
+  align-content:center;
+  gap:6px;
+  color:#71809a;
+  border-style:dashed;
+  cursor:pointer;
+}
+.circle-profile-gallery__empty span{
+  display:grid;
+  width:36px;
+  height:36px;
+  place-items:center;
+  border-radius:12px;
+  color:#4268f3;
+  background:#edf2ff;
+  font:500 1.35rem/1 Inter,sans-serif;
+}
+.circle-profile-gallery__empty strong{
+  font:800 .64rem/1 Inter,sans-serif;
+}
+.circle-profile-gallery__status{
+  min-height:0;
+  margin:9px 0 0;
+  color:#687791;
+  font:700 .64rem/1.35 Inter,sans-serif;
+}
+.circle-profile-gallery__status:empty{display:none}
+@media(max-width:520px){
+  .circle-profile-gallery{margin:10px 0;padding:12px;border-radius:19px}
+  .circle-profile-gallery__grid{gap:7px}
+  .circle-profile-gallery__photo,.circle-profile-gallery__empty{border-radius:15px}
+}
