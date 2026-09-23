@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — CONNECT V1
-   Activity-first meetup discovery. No XP, levels, completion flow, or ranking.
+   Activity-first meetup discovery. No progression, completion flow, or ranking.
 ============================================================= */
 (() => {
   "use strict";
