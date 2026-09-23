@@ -34,8 +34,6 @@ export function getAriTools(route = {}) {
 
   }
 
-  if (route?.training) {  }
-
   if (route?.training) {
     tools.push(functionTool(
       "propose_log_activity",
@@ -360,7 +358,7 @@ function validateSemantics(name, args) {
     }
   }
 
-  if (name === "propose_log_activity") {  if (name === "propose_log_activity") {
+  if (name === "propose_log_activity") {
     if (!String(args?.activityName || "").trim()) return { valid: false, error: "activity_name_required" };
     const duration = args?.durationMinutes;
     const calories = args?.caloriesBurned;
@@ -523,7 +521,7 @@ function validateSemantics(name, args) {
   return { valid: true };
 }
 
-function validNullableRange(value, min, max, allowNull = true) {function validNullableRange(value, min, max, allowNull = true) {
+function validNullableRange(value, min, max, allowNull = true) {
   if (value === null || value === undefined || value === "") return allowNull;
   const number = Number(value);
   return Number.isFinite(number) && number >= min && number <= max;
