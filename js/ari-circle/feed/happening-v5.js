@@ -1,7 +1,9 @@
 /* ARI Circle Feed activity rail — events first, no XP/progression. */
 (() => {
   "use strict";
-  const VERSION = "6.1.0";
+  const VERSION = "6.2.0";
+  const FEED_PREVIEW_LIMIT = 2;
+  const CANDIDATE_LIMIT = 24;
   const clean = (value) => String(value ?? "").trim();
   const escapeHtml = (value) => String(value ?? "")
     .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
@@ -41,6 +43,93 @@
     const hrs=Math.ceil(mins/60);
     if(hrs<24) return `Starts in ${hrs} hr${hrs===1?"":"s"}`;
     return dateTime(value);
+  }
+
+  function numberOr(value, fallback=Number.POSITIVE_INFINITY) {
+    const parsed=Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  function eventScore(row, now=Date.now()) {
+    const start=new Date(row?.starts_at).getTime();
+    const end=new Date(row?.ends_at).getTime();
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end<=now) return Number.NEGATIVE_INFINITY;
+
+    const count=Math.max(0,Number(row?.participant_count)||0);
+    const capacity=Math.max(0,Number(row?.max_participants)||0);
+    const full=capacity>0 && count>=capacity;
+    const approval=clean(row?.join_mode)==="approval";
+    const requestStatus=clean(row?.viewer_request_status);
+    const live=start<=now && end>now;
+    const minutesUntil=Math.max(0,(start-now)/60000);
+    const distance=numberOr(row?.distance_miles);
+
+    let score=0;
+    if(live) score+=1000;
+    else if(minutesUntil<=60) score+=700;
+    else if(minutesUntil<=180) score+=520;
+    else if(minutesUntil<=720) score+=340;
+    else if(minutesUntil<=1440) score+=220;
+    else if(minutesUntil<=4320) score+=100;
+
+    if(row?.viewer_is_host) score-=120;
+    else if(row?.viewer_joined) score-=70;
+
+    if(full && !approval && !row?.viewer_is_host && !row?.viewer_joined) score-=700;
+    else if(approval) score+=30;
+    else score+=110;
+
+    if(requestStatus==="pending" || requestStatus==="waitlisted") score-=40;
+    if(Number.isFinite(distance)) score+=Math.max(0,140-(distance*5));
+    score+=Math.min(70,count*8);
+
+    return score;
+  }
+
+  function stableMeetupCompare(a,b,now=Date.now()) {
+    const scoreDelta=eventScore(b,now)-eventScore(a,now);
+    if(scoreDelta!==0) return scoreDelta;
+
+    const startDelta=new Date(a?.starts_at).getTime()-new Date(b?.starts_at).getTime();
+    if(Number.isFinite(startDelta) && startDelta!==0) return startDelta;
+
+    const distanceDelta=numberOr(a?.distance_miles)-numberOr(b?.distance_miles);
+    if(Number.isFinite(distanceDelta) && distanceDelta!==0) return distanceDelta;
+
+    return clean(a?.meetup_id).localeCompare(clean(b?.meetup_id));
+  }
+
+  function selectFeedMeetups(rows, limit=FEED_PREVIEW_LIMIT, now=Date.now()) {
+    const ranked=(Array.isArray(rows)?rows:[])
+      .filter((row)=>{
+        const end=new Date(row?.ends_at).getTime();
+        if(!Number.isFinite(end) || end<=now) return false;
+        const count=Math.max(0,Number(row?.participant_count)||0);
+        const capacity=Math.max(0,Number(row?.max_participants)||0);
+        const full=capacity>0 && count>=capacity;
+        const approval=clean(row?.join_mode)==="approval";
+        return !full || approval || row?.viewer_is_host || row?.viewer_joined;
+      })
+      .sort((a,b)=>stableMeetupCompare(a,b,now));
+
+    const selected=[];
+    const usedHosts=new Set();
+
+    for(const row of ranked) {
+      const host=clean(row?.host_user_id);
+      if(host && usedHosts.has(host)) continue;
+      selected.push(row);
+      if(host) usedHosts.add(host);
+      if(selected.length>=limit) return selected;
+    }
+
+    for(const row of ranked) {
+      if(selected.includes(row)) continue;
+      selected.push(row);
+      if(selected.length>=limit) break;
+    }
+
+    return selected;
   }
 
   function ensureSection() {
@@ -149,12 +238,10 @@
       const {data,error}=await c.rpc("ari_circle_list_meetups",{
         requested_activity:null,
         requested_window:"upcoming",
-        result_limit:8
+        result_limit:CANDIDATE_LIMIT
       });
       if(error) throw error;
-      const rows=(Array.isArray(data)?data:[])
-        .filter((row)=>new Date(row.ends_at).getTime()>Date.now())
-        .slice(0,6);
+      const rows=selectFeedMeetups(data,FEED_PREVIEW_LIMIT);
 
       rail.replaceChildren();
       if(!rows.length) {
@@ -177,5 +264,10 @@
   else load();
 
   document.addEventListener("ari-circle:v5-real-world-ready",()=>ensureSection());
-  window.AriCircleHappeningV5=Object.freeze({version:VERSION,refresh:load});
+  window.AriCircleHappeningV5=Object.freeze({
+    version:VERSION,
+    previewLimit:FEED_PREVIEW_LIMIT,
+    refresh:load,
+    selectFeedMeetups
+  });
 })();
