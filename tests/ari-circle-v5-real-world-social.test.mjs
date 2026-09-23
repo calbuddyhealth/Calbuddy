@@ -77,7 +77,7 @@ test("profile gallery enforces avatar plus four supporting photos", () => {
   assert.match(gallery, /profile_gallery_photo/);
   assert.match(gallery, /circleProfileGalleryNotice/);
   assert.match(gallery, /circleProfileGalleryRetry/);
-  assert.match(gallery, /profile-safety\.js\?v=1\.2\.0/);
+  assert.match(gallery, /profile-safety\.js\?v=1\.2\.1/);
 });
 
 test("profile relationship action is explicitly friendship", () => {

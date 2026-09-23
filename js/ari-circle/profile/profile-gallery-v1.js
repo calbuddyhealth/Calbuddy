@@ -1,11 +1,11 @@
 /* =============================================================
-   ARI CIRCLE — PROFILE GALLERY V1.1
+   ARI CIRCLE — PROFILE GALLERY V1.2
    Avatar + four supporting photos = five-photo maximum.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const BUCKET = "ari-circle-post-media";
   const MAX_BYTES = 8 * 1024 * 1024;
   const SIGNED_SECONDS = 60 * 60;
@@ -66,7 +66,7 @@
     const link = document.createElement("link");
     link.id = "ariCircleProfileGalleryStyle";
     link.rel = "stylesheet";
-    link.href = "assets/css/ari-circle-profile-gallery-v1.css?v=1.1.0";
+    link.href = "assets/css/ari-circle-profile-gallery-v1.css?v=1.2.0";
     document.head.append(link);
   }
 
@@ -160,7 +160,7 @@
   async function screenPhoto(file) {
     if (!window.AriCircleProfileSafety?.screen) {
       try {
-        await import("./profile-safety.js?v=1.2.0");
+        await import("./profile-safety.js?v=1.2.1");
       } catch {}
     }
     if (!window.AriCircleProfileSafety?.screen) {
@@ -329,10 +329,16 @@
         state.client.storage.from(BUCKET).remove([uploadedPath]).catch(() => {});
       }
 
-      if (isTransientSafetyFailure(error) && pending.safetyAttempts < 4) {
-        const delayMs = [0, 8000, 20000, 45000][pending.safetyAttempts] || 45000;
+      if (isTransientSafetyFailure(error) && pending.safetyAttempts < 8) {
+        const providerDelayMs = Number(error?.retryAfterSeconds) > 0
+          ? Number(error.retryAfterSeconds) * 1000
+          : 0;
+        const fallbackDelayMs = [0, 30000, 60000, 90000, 120000, 180000, 240000, 300000][pending.safetyAttempts] || 300000;
+        const delayMs = Math.max(providerDelayMs, fallbackDelayMs);
+        const seconds = Math.max(1, Math.round(delayMs / 1000));
+
         status(
-          "The photo safety service is temporarily busy. Your photo is still selected and will retry automatically.",
+          `The photo safety service is temporarily busy. Your photo is still selected. Retrying in about ${seconds} seconds.`,
           { tone: "warning", retry: true }
         );
         scheduleRetry(delayMs);

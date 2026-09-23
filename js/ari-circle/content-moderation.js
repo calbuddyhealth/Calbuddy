@@ -1,6 +1,6 @@
 /* =============================================================
    ARI XP — ARI CIRCLE CONTENT MODERATION
-   Version: 1.5.1
+   Version: 1.5.2
 
    Cost-controlled pre-publication screening for ARI Circle UGC.
    - Uses dedicated free OpenAI moderation endpoint.
@@ -12,7 +12,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.5.1";
+  const VERSION = "1.5.2";
   const MODERATION_API = "/api/ari-circle-moderation";
   const CONSENT_SCRIPT = "js/ai-processing-consent.js?v=1.1.0";
   const AI_CONSENT_KEY = "ari_ai_processing_consent";
@@ -550,7 +550,11 @@
         response.status >= 500 ? "ARI_CIRCLE_MODERATION_PROVIDER_UNAVAILABLE" : "ARI_MODERATION_UNAVAILABLE"
       );
       moderationError.status = response.status;
-      const retryAfter = Number(response.headers.get("retry-after"));
+      const retryAfterHeader = Number(response.headers.get("retry-after"));
+      const retryAfterBody = Number(data?.retry_after_seconds);
+      const retryAfter = Number.isFinite(retryAfterHeader) && retryAfterHeader > 0
+        ? retryAfterHeader
+        : retryAfterBody;
       moderationError.retryAfterSeconds = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : null;
       throw moderationError;
     }

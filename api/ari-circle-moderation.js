@@ -16,7 +16,7 @@ const AI_CONSENT_VERSION_KEY = "ari_ai_processing_consent_version";
 const REQUIRED_AI_CONSENT_VERSION = "2";
 const MODERATION_RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 const MODERATION_MAX_ATTEMPTS = 3;
-const MODERATION_RETRY_CAP_MS = 1400;
+const MODERATION_RETRY_CAP_MS = 2500;
 
 function clean(value, max = 1000) {
   return String(value ?? "").trim().slice(0, max);
@@ -199,9 +199,17 @@ async function moderateOne({ apiKey, input }) {
     );
     error.status = response.status;
     error.retryable = MODERATION_RETRYABLE_STATUS.has(response.status);
+    error.providerCode = clean(data?.error?.code, 120) || null;
+    error.providerType = clean(data?.error?.type, 120) || null;
+    const retryAfter = Number(response.headers.get("retry-after"));
+    error.retryAfterSeconds = Number.isFinite(retryAfter) && retryAfter > 0
+      ? Math.min(300, retryAfter)
+      : null;
     lastError = error;
 
-    if (!error.retryable || attempt >= MODERATION_MAX_ATTEMPTS) {
+    // A 429 is a provider-directed cooldown. Retrying immediately from the same
+    // serverless invocation only burns more of the same rate-limit window.
+    if (response.status === 429 || !error.retryable || attempt >= MODERATION_MAX_ATTEMPTS) {
       throw error;
     }
 
@@ -408,16 +416,28 @@ export default async function handler(req, res) {
       });
     }
 
+    const providerRetryAfter = Number(error?.retryAfterSeconds) || null;
+    const retryAfterSeconds = Math.max(
+      20,
+      Math.min(300, providerRetryAfter || (providerStatus === 429 ? 60 : 30))
+    );
+
     console.error("[ARI Circle Moderation Error]", {
       scope,
       status: providerStatus,
+      provider_code: error?.providerCode || null,
+      provider_type: error?.providerType || null,
+      retry_after_seconds: retryAfterSeconds,
       error: error?.message || error
     });
+
+    res.setHeader("Retry-After", String(retryAfterSeconds));
     return await finish(
       {
         error: "ARI Circle safety screening is temporarily unavailable.",
         decision: "provider_error",
-        code: "ARI_CIRCLE_MODERATION_PROVIDER_UNAVAILABLE"
+        code: "ARI_CIRCLE_MODERATION_PROVIDER_UNAVAILABLE",
+        retry_after_seconds: retryAfterSeconds
       },
       503
     );
