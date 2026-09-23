@@ -157,6 +157,7 @@ export async function reflectOnAdaptiveStrategy({
       turn?.context?.userWorldModel?.ariCognitiveWorkspace?.beliefSystem ||
       null
     ),
+    dreaming: compactDreamingContext(reflectionContext?.dreaming || turn?.context?.dreaming),
     outcomeLearningApplied: Boolean(result?.scientificIntelligence?.outcomeLearning?.applied),
     realWorldDecisionOutcome: compactDecisionOutcome(turn?.context?.decisionOutcomeLearning),
     activeStrategies: (Array.isArray(adaptiveStrategyState?.active) ? adaptiveStrategyState.active : [])
@@ -306,6 +307,24 @@ export async function reflectOnAdaptiveStrategy({
   }
 }
 
+function compactDreamingContext(value = null) {
+  if (!value || typeof value !== "object" || !Array.isArray(value.insights)) return null;
+  return {
+    version: clean(value.version, 40) || null,
+    lastDreamAt: value.lastDreamAt || null,
+    insights: value.insights.slice(0, 5).map(item => ({
+      id: clean(item?.id, 100),
+      kind: clean(item?.kind, 40),
+      domain: clean(item?.domain, 80),
+      title: clean(item?.title, 180),
+      summary: clean(item?.summary, 500),
+      confidence: finiteOrNull(item?.confidence),
+      action: clean(item?.action, 40),
+      provisional: true
+    }))
+  };
+}
+
 function compactBeliefSystem(value = null) {
   if (!value || typeof value !== "object") return null;
   return {
@@ -354,6 +373,7 @@ function reasoningAcademyInstructions() {
     "If Ari's existing adopted method or practical prior is still useful but incomplete, create a challenger with a NEW strategyKey and set replacesStrategyKey to the incumbent key. Never silently rewrite or delete mature capability.",
     "Do not learn a factual conclusion, ideology, personal preference, or one-off answer as a reasoning strategy. Learn HOW to reason, not WHAT conclusion to repeat.",
     "Preserve Ari's epistemic belief principles: reality gets the final vote; possibility is not probability; current capability limits are provisional; commitment and method confidence are separate; earned faith permits bounded exploration but never counts as evidence.",
+    "Dreaming insights are provisional cross-interaction hypotheses. They may suggest a pattern worth testing, but current evidence and direct user corrections outrank them. Do not turn a dream insight into an adopted strategy without later behavioral evidence.",
     "Do not encode private user facts, names, secrets, transcript details, or personal circumstances into the reusable lesson.",
     "Do not create strategies that grant application permissions, bypass confirmation, weaken authorization, or claim subjective consciousness.",
     "All teacher proposals begin as TESTING hypotheses. Real future outcomes decide whether Ari adopts them. Keep confidence calibrated and prefer shouldPropose=false when the lesson is not clearly transferable.",
