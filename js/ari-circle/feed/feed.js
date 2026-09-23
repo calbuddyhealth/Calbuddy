@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — FEED
-   Version: 2.2.0
+   Version: 2.3.0
 
    V2:
    - One simple composer: text, photo, or short video.
@@ -8,13 +8,13 @@
    - Private Supabase Storage media with signed read URLs.
    - 30-second video limit.
    - 24-hour ARI Circle Moments.
-   - Keeps comments, native emoji reactions, age separation, and blocking.
+   - Keeps comments, age separation, and blocking.
 ============================================================= */
 
 (() => {
   "use strict";
 
-  const VERSION = "2.2.0";
+  const VERSION = "2.3.0";
   const MEDIA_BUCKET = "ari-circle-post-media";
   const SIGNED_URL_SECONDS = 60 * 60;
   const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -31,7 +31,6 @@
     posts: [],
     moments: [],
     nextBefore: null,
-    activeReactionPostId: null,
     activeCommentsPost: null,
     selectedMedia: null,
     previewUrl: null,
@@ -662,9 +661,6 @@
       ? `@${clean(post.handle).replace(/^@+/, "")}`
       : "ARI Circle";
 
-    const reactions = Array.isArray(post.reaction_summary) ? post.reaction_summary : [];
-    const viewerReactions = new Set(Array.isArray(post.viewer_reactions) ? post.viewer_reactions : []);
-
     const header = document.createElement("div");
     header.className = "feed-post__header";
     header.append(createAvatar(post.display_name, post.avatar_url, post.author_user_id));
@@ -694,35 +690,19 @@
     }
 
 
-    const reactionHost = document.createElement("div");
-    reactionHost.className = "feed-post__reactions";
-    reactions.forEach((reaction) => {
-      const emoji = clean(reaction?.emoji);
-      const count = Number(reaction?.count) || 0;
-      if (!emoji || count <= 0) return;
-
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "feed-reaction-pill";
-      if (viewerReactions.has(emoji)) button.classList.add("is-active");
-      button.textContent = `${emoji} ${count}`;
-      button.addEventListener("click", () => toggleReaction(post.post_id, emoji));
-      reactionHost.append(button);
-    });
-    article.append(reactionHost);
-
     const actions = document.createElement("div");
     actions.className = "feed-post__actions";
 
-    const reactButton = document.createElement("button");
-    reactButton.type = "button";
-    reactButton.innerHTML = `<span aria-hidden="true">☺</span><span>React${Number(post.reaction_count) ? ` · ${Number(post.reaction_count)}` : ""}</span>`;
-    reactButton.addEventListener("click", () => openReactionPicker(post.post_id));
-    actions.append(reactButton);
-
     const commentButton = document.createElement("button");
     commentButton.type = "button";
-    commentButton.innerHTML = `<span aria-hidden="true">◌</span><span>Comment${Number(post.comment_count) ? ` · ${Number(post.comment_count)}` : ""}</span>`;
+    commentButton.className = "feed-post__comment-action";
+    commentButton.setAttribute("aria-label", `Open comments${Number(post.comment_count) ? `, ${Number(post.comment_count)} comment${Number(post.comment_count) === 1 ? "" : "s"}` : ""}`);
+    commentButton.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5.5 18.25 3.75 20l.7-3.05A7.7 7.7 0 0 1 3 12.5C3 7.8 7 4 12 4s9 3.8 9 8.5S17 21 12 21a10 10 0 0 1-4.65-1.12Z"></path>
+      </svg>
+      <span>Comment${Number(post.comment_count) ? ` · ${Number(post.comment_count)}` : ""}</span>
+    `;
     commentButton.addEventListener("click", () => openComments(post));
     actions.append(commentButton);
 
@@ -837,50 +817,6 @@
     const total = state.moments.length;
     state.momentIndex = (state.momentIndex + direction + total) % total;
     renderMomentViewer();
-  }
-
-  function openReactionPicker(postId) {
-    state.activeReactionPostId = postId;
-    if ($("customReactionInput")) $("customReactionInput").value = "";
-    openDialog("reactionDialog");
-  }
-
-  async function toggleReaction(postId, emoji) {
-    const cleanEmoji = clean(emoji);
-    if (!postId || !cleanEmoji || state.busy) return;
-
-    state.busy = true;
-    try {
-      await rpc("ari_circle_feed_toggle_reaction", {
-        requested_post_id: postId,
-        requested_emoji: cleanEmoji
-      });
-      closeDialog("reactionDialog");
-      await refreshFeed();
-    } catch (error) {
-      console.error("ARI Circle reaction failed:", error);
-      showToast(error.message || "Could not react.", 4200);
-    } finally {
-      state.busy = false;
-    }
-  }
-
-  function bindReactionPicker() {
-    $("quickReactionGrid")?.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-reaction]");
-      if (!button) return;
-      toggleReaction(state.activeReactionPostId, button.dataset.reaction);
-    });
-
-    $("customReactionForm")?.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const value = clean($("customReactionInput")?.value);
-      if (!value) {
-        showToast("Choose or enter an emoji.");
-        return;
-      }
-      toggleReaction(state.activeReactionPostId, value);
-    });
   }
 
   async function openComments(post) {
@@ -1008,8 +944,7 @@
       const user = await requireUser();
       if (!user) return;
 
-      bindReactionPicker();
-      bindCommonUi();
+        bindCommonUi();
       syncComposerControls();
 
       await Promise.all([loadOwnProfile(), loadAgeState()]);
