@@ -1,6 +1,6 @@
 // =====================================================
 // ARI XP — vNext shared context guard
-// Version: 1.2.3
+// Version: 1.2.4
 // Purpose:
 //   - Give every vNext surface the same canonical nutrition budget contract.
 // //   - Treat an unset calorie goal as unknown instead of inventing a fallback.
@@ -16,7 +16,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.2.3";
+  const VERSION = "1.2.4";
   const CONTEXT_FLAG = "__ariVNextContextGuardV1";
   const BRIDGE_FLAG = "__ariVNextContinuityGuardV1";
   const PEER_FLAG = "__ariVNextOwnerPeerGuardV1";
@@ -54,7 +54,7 @@
     circleContextCacheToken = null;
   }
 
-  function readLocalGoals() {  function readLocalGoals() {
+  function readLocalGoals() {
     try {
       const value = JSON.parse(localStorage.getItem("calbuddyGoals") || "{}");
       return value && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -63,7 +63,7 @@
     }
   }
 
-  function resolveExplicitDailyGoal(context = {}) {  function resolveExplicitDailyGoal(context = {}) {
+  function resolveExplicitDailyGoal(context = {}) {
     const localGoals = readLocalGoals();
     const candidates = [
       context?.profile?.daily_calorie_goal,
@@ -79,7 +79,7 @@
     return null;
   }
 
-  function mergeHistory(recent = [], current = []) {  function mergeHistory(recent = [], current = []) {
+  function mergeHistory(recent = [], current = []) {
     if (typeof window.CalBuddy?.mergeConversationHistory === "function") {
       return window.CalBuddy.mergeConversationHistory(recent, current).slice(-16);
     }

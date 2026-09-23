@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.6.0
+// Version: 1.6.1
 // Purpose:
 //   Make Ari vNext the single semantic/action authority on Home + Nutrition.
 //   Legacy CalBuddy/Rebirth remains a read-only emergency response fallback.
@@ -34,7 +34,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.6.0";
+  const VERSION = "1.6.1";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
@@ -43,7 +43,7 @@
     "ari/vnext/ari-vnext-action-adapter.js?v=1.5.0",
     "ari/vnext/ari-vnext-activity-adapter.js?v=1.1.0",
     "ari/vnext/ari-vnext-bridge.js?v=1.10.0",
-    "ari/vnext/ari-vnext-context-guard.js?v=1.2.3",
+    "ari/vnext/ari-vnext-context-guard.js?v=1.2.4",
     "ari/vnext/ari-vnext-initiative.js?v=1.2.1"
   ];
 
@@ -170,6 +170,13 @@
     return String(src || "").split("?")[0];
   }
 
+  function contextGuardReady() {
+    const ready = window.AriVNextContextGuard?.ready === true;
+    if (!ready) return false;
+    const version = clean(window.AriVNextContextGuard?.version);
+    return !version || versionAtLeast(version, "1.2.4");
+  }
+
   function dependencyReady(src = "") {
     const base = dependencyBase(src);
     if (base.endsWith("ari-vnext-training-context.js")) return Boolean(window.AriVNextTrainingContext);
@@ -181,7 +188,7 @@
       return typeof window.AriVNextBridge?.ask === "function" &&
         versionAtLeast(window.AriVNextBridge?.version, "1.10.0");
     }
-    if (base.endsWith("ari-vnext-context-guard.js")) return window.AriVNextContextGuard?.ready === true;
+    if (base.endsWith("ari-vnext-context-guard.js")) return contextGuardReady();
     if (base.endsWith("ari-vnext-initiative.js")) {
       return Boolean(
         window.AriVNextInitiative &&
@@ -234,7 +241,7 @@
       window.AriVNextActionAdapter &&
       versionAtLeast(window.AriVNextActionAdapter?.version, "1.5.0") &&
       window.AriVNextActivityAdapter &&
-      window.AriVNextContextGuard?.ready === true &&
+      contextGuardReady() &&
       window.AriVNextInitiative &&
       versionAtLeast(window.AriVNextInitiative?.version, "1.2.1") &&
       window.AriVNextOperationRegistry?.ready === true &&

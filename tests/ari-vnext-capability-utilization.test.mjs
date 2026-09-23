@@ -59,7 +59,7 @@ test("runtime readiness guarantees optional executor layers instead of merely ad
   assert.match(actionAdapter, /executeValidatedWorkoutReplacement/);
   assert.doesNotMatch(runtime, /ari-whole-workout-replacement/);
 
-  assert.match(runtime, /ari-vnext-context-guard\.js\?v=1\.2\.3/);
+  assert.match(runtime, /ari-vnext-context-guard\.js\?v=1\.2\.4/);
   assert.match(contextGuard, /AriVNextCircleActionAdapter\?\.ready === true/);
   assert.match(contextGuard, /ari-vnext-circle-action-adapter\.js\?v=1\.1\.1/);
 
