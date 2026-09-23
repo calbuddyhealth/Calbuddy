@@ -83,7 +83,7 @@
 
     const script = document.createElement("script");
     script.id = CIRCLE_MENU_SCRIPT_ID;
-    script.src = "js/ari-circle/circle-menu-v5.js?v=1.0.1";
+    script.src = "js/ari-circle/circle-menu-v5.js?v=2.6.0";
     script.defer = true;
     document.head.append(script);
   }
