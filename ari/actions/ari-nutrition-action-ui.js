@@ -80,7 +80,7 @@
     return type === "log_meal" ? "I couldn't log that meal. Try again." : "I couldn't apply that nutrition change. Try again.";
   }
 
-  function isNutritionAction(action) {  function isNutritionAction(action) {
+  function isNutritionAction(action) {
     const type = clean(action?.action_type || action?.type);
     return Boolean(type && NUTRITION_ACTION_TYPES.has(type));
   }
