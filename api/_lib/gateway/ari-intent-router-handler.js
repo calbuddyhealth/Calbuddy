@@ -82,7 +82,7 @@ function emptyEntities() {
   };
 }
 
-export default async function handler(req, res) {export default async function handler(req, res) {
+export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   if (!process.env.OPENAI_API_KEY) return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
 
@@ -90,7 +90,7 @@ export default async function handler(req, res) {export default async function h
   const appContext = req.body?.appContext && typeof req.body.appContext === "object" ? req.body.appContext : {};
   if (!message) return res.status(400).json({ error: "Message is required" });
 
-  const system = `  const system = `
+  const system = `
 You are ARI XP's CENTRAL INTENT ROUTER.
 Your only job is to interpret the CURRENT user message into the supplied schema.
 Do not answer the user. Do not execute anything. Do not claim anything was saved.
