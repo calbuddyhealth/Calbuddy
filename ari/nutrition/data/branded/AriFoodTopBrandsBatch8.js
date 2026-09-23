@@ -66,4 +66,4 @@
   if(typeof registry.getBySource==="function"&&typeof registry.remove==="function") try{ for(const food of registry.getBySource(MODULE_NAME,{includeDisabled:true})||[]) if(food?.id) registry.remove(food.id); }catch(error){ console.warn(`[ARI Nutrition] ${MODULE_NAME} could not clear prior records.`,error); }
   registry.registerMany(FOODS,{source:MODULE_NAME});
   global.AriFoodTopBrandsBatch8=Object.freeze({VERSION,MODULE_NAME,count:()=>FOODS.length,foods:()=>FOODS.slice()});
-})(window);
+})(typeof window !== "undefined" ? window : globalThis);
