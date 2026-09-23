@@ -9,7 +9,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "2.5.0";
+  const VERSION = "2.6.0";
   const STYLE_ID = "ariCircleMenuV5Style";
   const STYLE_HREF = "assets/css/ari-circle-menu-v5.css?v=1.1.0";
   const AUTHORITY_STYLE_ID = "ariCircleMenuV5AuthorityStyle";
@@ -159,8 +159,7 @@
     const mainRows = [
       item({ href: "ari-circle.html?panel=notifications", label: "Notifications", iconMarkup: icon.bell }),
       item({ href: "ari-circle.html", label: "Profile", iconMarkup: icon.user }),
-      item({ href: "ari-circle.html?panel=discover-friends", label: "Discover Friends", iconMarkup: icon.discover }),
-      item({ href: "ari-circle-quests.html", label: "Quests", iconMarkup: icon.quest })
+      item({ href: "ari-circle.html?panel=discover-friends", label: "Discover Friends", iconMarkup: icon.discover })
     ].join("");
     const accountRows = [
       includeProfileOptions ? item({ label: "Profile Options", iconMarkup: icon.user, button: true, profileOptions: true }) : item({ href: "ari-circle.html#about", label: "Profile Options", iconMarkup: icon.user }),
@@ -178,7 +177,7 @@
         ${group("Main", mainRows)}
         ${group("Account", accountRows)}
         <div class="circle-v52-menu-exit">${item({ href: "home.html", label: "Exit ARI Circle", iconMarkup: icon.exit, exit: true })}</div>
-        <div class="circle-v52-menu-footer">V5.3</div>
+        <div class="circle-v52-menu-footer">Circle</div>
       </nav>`;
   }
 
