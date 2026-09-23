@@ -9,7 +9,7 @@ import { recordOpenAIUsage } from "../ai-provider-usage.js";
 //   Public /api/ari-intent-router remains routed through secure-ai-gateway.
 // =====================================================
 
-const ROUTER_VERSION = "1.4.0";
+const ROUTER_VERSION = "1.5.0";
 
 const ROUTER_SCHEMA = {
   type: "object",
@@ -98,8 +98,8 @@ Do not answer the user. Do not execute anything. Do not claim anything was saved
 CRITICAL RULES:
 - Base executable actions on the CURRENT message only. Never infer a data mutation from old conversation history.
 - Ordinary questions and statements must use action="none" unless the statement clearly reports food/drink consumption as described below.
-- A clear first-person consumption statement such as "I ate an egg roll", "I had chicken and rice", or "I drank two beers" routes to nutrition / log / meal / log_meal. The app will still require confirmation before saving.
-- "Log an egg roll", "add an egg roll", "record 2 beers", and "I ate an egg roll, log it" are also nutrition log_meal actions.
+- A standalone first-person consumption statement such as "I ate an egg roll", "I had chicken and rice", or "I drank two beers" is nutrition context only and must use action="none". Consumption alone is not write authorization.
+- "Log an egg roll", "add an egg roll", "record 2 beers", and "I ate an egg roll, log it" are nutrition / log / meal / log_meal actions because the CURRENT message explicitly authorizes the write.
 - "How many calories are in an egg roll?" is a nutrition question with action="none".
 - Meal planning is advisory conversation only. Requests such as "make me a meal plan", "plan my meals tomorrow", or "make me a 500 calorie lunch" stay nutrition questions with action="none"; never create or schedule Meal Plan application state.
 - Recipe/cooking requests that emphasize a dish, cooking instructions, delicious/tasty food, "recipe", taco night, pasta dinner, salmon dinner, carne asada, etc. route to nutrition / create / recipe / create_recipe.
