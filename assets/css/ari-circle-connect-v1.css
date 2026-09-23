@@ -651,3 +651,54 @@ body.circle-connect-next .circle-v5-page-main.circle-connect-main {
     padding-bottom:calc(124px + env(safe-area-inset-bottom)) !important;
   }
 }
+
+
+/* Connect V1.2.1 — iPhone viewport containment */
+body.circle-connect-next,
+body.circle-connect-next *,
+body.circle-connect-next *::before,
+body.circle-connect-next *::after {
+  box-sizing:border-box;
+}
+
+body.circle-connect-next {
+  width:100%;
+  max-width:100%;
+  overflow-x:hidden;
+}
+
+body.circle-connect-next .circle-v5-page {
+  width:100% !important;
+  max-width:760px !important;
+}
+
+body.circle-connect-next .circle-v5-page-main.circle-connect-main {
+  width:100% !important;
+  max-width:100% !important;
+  min-width:0;
+}
+
+body.circle-connect-next .circle-connect-heading > div:first-child {
+  min-width:0;
+}
+
+body.circle-connect-next .circle-connect-heading h1 {
+  max-width:100%;
+  overflow-wrap:anywhere;
+}
+
+body.circle-connect-next [data-ari-circle-search-location],
+body.circle-connect-next .ari-circle-location-compact,
+body.circle-connect-next .ari-circle-location-pill,
+body.circle-connect-next .ari-circle-location-panel {
+  width:100%;
+  max-width:100%;
+  min-width:0;
+}
+
+body.circle-connect-next .circle-connect-card,
+body.circle-connect-next .circle-connect-list,
+body.circle-connect-next .circle-connect-section {
+  min-width:0;
+  max-width:100%;
+}
