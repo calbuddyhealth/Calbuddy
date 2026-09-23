@@ -1,19 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import vm from "node:vm";
+import { getAriTools, validateToolCall, toolToApplicationAction } from "../api/_lib/ari-vnext/tools.js";
 
-import {
-  getAriTools,
-  validateToolCall,
-  toolToApplicationAction
-} from "../api/_lib/ari-vnext/tools.js";
-
-const shim = fs.readFileSync("js/training/ari-whole-workout-replacement.js", "utf8");
-const home = fs.readFileSync("home.html", "utf8");
+const adapter = fs.readFileSync("ari/vnext/ari-vnext-action-adapter.js", "utf8");
+const runtime = fs.readFileSync("ari/runtime/ari-runtime-controller.js", "utf8");
 
 function replacementArgs() {
   return {
-    dateText: "2026-09-09",
+    dateText: "2026-09-23",
     focus: "chest",
     durationMinutes: 60,
     difficulty: "intermediate",
@@ -34,33 +30,19 @@ test("Ari exposes an explicit whole-workout replacement tool", () => {
 });
 
 test("whole-workout replacement requires an exact date and complete replacement", () => {
-  const valid = validateToolCall({
-    name: "propose_replace_workout",
-    arguments: JSON.stringify(replacementArgs())
-  }, {});
-  assert.equal(valid.valid, true);
-
-  const invalid = validateToolCall({
-    name: "propose_replace_workout",
-    arguments: JSON.stringify({ ...replacementArgs(), dateText: "today" })
-  }, {});
+  assert.equal(validateToolCall({ name: "propose_replace_workout", arguments: JSON.stringify(replacementArgs()) }, {}).valid, true);
+  const invalid = validateToolCall({ name: "propose_replace_workout", arguments: JSON.stringify({ ...replacementArgs(), dateText: "today" }) }, {});
   assert.equal(invalid.valid, false);
   assert.equal(invalid.error, "workout_replace_exact_date_required");
 });
 
-test("trusted browser patch distinguishes whole replacement from exercise replacement", () => {
-  assert.match(shim, /pendingAction\?\.name[\s\S]*!== "replace_workout"/);
-  assert.match(shim, /existing_workout_mode: "replace"/);
-  assert.match(shim, /workout_replace_completed_session/);
-  assert.match(shim, /workout_replace_target_changed/);
-  assert.match(shim, /workout_replace_registry_revalidation_failed/);
-  assert.match(shim, /setBuiltWorkoutForDate/);
-  assert.match(shim, /mode: "replace"/);
-});
-
-test("Home loads replacement support before pending-action recovery", () => {
-  const replacementIndex = home.indexOf("js/training/ari-whole-workout-replacement.js?v=1.0.0");
-  const pendingRecoveryIndex = home.indexOf("js/ari-pending-action-recovery.js?v=1.2.0");
-  assert.ok(replacementIndex >= 0);
-  assert.ok(pendingRecoveryIndex > replacementIndex);
+test("replacement is owned by the canonical adapter", () => {
+  assert.doesNotThrow(() => new vm.Script(adapter));
+  assert.match(adapter, /mapWorkoutReplacementValidated/);
+  assert.match(adapter, /executeValidatedWorkoutReplacement/);
+  assert.match(adapter, /workout_replace_completed_session/);
+  assert.match(adapter, /workout_replace_target_changed/);
+  assert.match(adapter, /workout_replace_registry_revalidation_failed/);
+  assert.match(adapter, /setBuiltWorkoutForDate/);
+  assert.doesNotMatch(runtime, /ari-whole-workout-replacement/);
 });
