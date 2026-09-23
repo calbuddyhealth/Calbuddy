@@ -12,7 +12,7 @@ test("successful vNext confirmations clear the legacy pending-action mirror", ()
   const buttonConfirm = runtime.match(
     /async function confirmPendingAction\(\)[\s\S]*?function cancelPendingAction\(\)/
   )?.[0] || "";
-  assert.match(buttonConfirm, /if \(execution\?\.success\) clearMatchingPendingAction\(pending\)/);
+  assert.match(buttonConfirm, /if \(execution\?\.success\) \{[\s\S]*?clearMatchingPendingAction\(pending\)/);
   assert.doesNotMatch(buttonConfirm, /if \(execution\?\.success\)[\s\S]{0,120}CalBuddy\.clearPendingAction\?\.\(\)/);
 
   const typedConfirm = runtime.match(
