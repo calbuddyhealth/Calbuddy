@@ -61,8 +61,8 @@ update public.ari_circle_profile_photos
 set moderation_status = 'approved',
     moderation_decision = coalesce(moderation_decision, 'legacy_approved'),
     moderated_at = coalesce(moderated_at, updated_at)
-where moderation_status is null
-   or moderation_status not in ('pending','approved','rejected');
+where moderation_status = 'approved'
+  and moderated_at is null;
 
 drop function if exists public.ari_circle_profile_photos_list(uuid);
 
