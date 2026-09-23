@@ -171,9 +171,9 @@
   }
 
   function contextGuardReady() {
-    const guard = window.AriVNextContextGuard;
-    if (guard?.ready !== true) return false;
-    const version = clean(guard?.version);
+    const ready = window.AriVNextContextGuard?.ready === true;
+    if (!ready) return false;
+    const version = clean(window.AriVNextContextGuard?.version);
     return !version || versionAtLeast(version, "1.2.4");
   }
 
