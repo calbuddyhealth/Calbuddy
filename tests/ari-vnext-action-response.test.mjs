@@ -162,17 +162,17 @@ test("unusual natural meal wording still has semantic meal-log capability availa
 });
 
 
-test("missing meal nutrition is filled deterministically without a second model call when registry data exists", async (t) => {
+test("missing meal nutrition can be filled deterministically by the canonical registry without a second model call", async (t) => {
   const unresolved = {
     type: "function_call",
     name: "propose_log_meal",
     call_id: "unresolved-meal",
     arguments: JSON.stringify({
-      name: "Chick-fil-A Spicy Chicken Biscuit",
+      name: "Banana",
       quantity: 1,
-      unit: "sandwich",
-      servingSize: "1 sandwich",
-      mealCategory: "Breakfast",
+      unit: "banana",
+      servingSize: "1 medium banana",
+      mealCategory: "Snack",
       calories: null,
       proteinG: null,
       carbsG: null,
@@ -187,13 +187,14 @@ test("missing meal nutrition is filled deterministically without a second model 
 
   const result = await runAriVNext({
     turnId: "meal-estimate-registry-fill",
-    message: "I ate a spicy chicken chikfila biscuit sandwich. Log that",
+    message: "Log one medium banana",
     history: [],
     context: {}
   });
 
   assert.equal(result.pendingAction.name, "log_meal");
-  assert.equal(result.pendingAction.arguments.calories, 430);
+  assert.equal(result.pendingAction.arguments.calories, 105);
+  assert.equal(result.pendingAction.arguments.proteinG, 1.3);
   assert.match(result.reply, /confirm to save/i);
   assert.equal(requests.length, 1);
 });
