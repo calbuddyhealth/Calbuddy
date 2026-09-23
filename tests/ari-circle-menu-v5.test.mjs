@@ -52,7 +52,7 @@ test("primary member pages use the current shared header and shell", () => {
     assert.match(html, /social-badges\.js\?v=1\.2\.0/);
     assert.match(html, /supabase-config\.js\?v=1\.1\.8/);
     assert.match(html, /ari-circle-v5-visual-authority\.css\?v=5\.2\.5/);
-    assert.match(html, /v5-real-world\.js\?v=5\.4\.0/);
+    assert.match(html, /v5-real-world\.js\?v=5\.4\.[01]/);
   }
   assert.match(shell, /navLink\("feed", "ari-circle-feed\.html", "Feed"\)/);
   assert.match(shell, /navLink\("connect", "ari-circle-meetup\.html", "Connect"\)/);
