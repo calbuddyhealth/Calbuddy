@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — PROFILE COMPATIBILITY SHELL
-   Version: 5.4.0
+   Version: 5.5.0
 
    Profile remains a purpose-specific secondary surface. Primary navigation is
    owned only by the shared For You · Meet Up · Feed shell.
@@ -8,12 +8,11 @@
 (() => {
   "use strict";
 
-  const VERSION = "5.4.0";
-  const REAL_WORLD_VERSION = "5.3.0";
+  const VERSION = "5.5.0";
+  const REAL_WORLD_VERSION = "5.4.0";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   const VISUAL_AUTHORITY_MATCH = "ari-circle-v5-visual-authority.css";
-  const XP_AUTHORITY_MATCH = "ari-circle-xp.css";
   let appReady = false;
   let panelHandled = false;
   let visitorControlsLoaded = false;
@@ -50,12 +49,8 @@
 
   function promoteV5VisualAuthority() {
     const authority = document.querySelector(`link[rel="stylesheet"][href*="${VISUAL_AUTHORITY_MATCH}"]`);
-    const xp = document.querySelector(`link[rel="stylesheet"][href*="${XP_AUTHORITY_MATCH}"]`);
     if (authority?.parentElement === document.head) document.head.append(authority);
-    // XP is intentionally last so Profile-specific reward styling cannot be
-    // flattened by older Pearl/Premium compatibility layers.
-    if (xp?.parentElement === document.head) document.head.append(xp);
-    return Boolean(authority || xp);
+    return Boolean(authority);
   }
 
   function standardizeMenus() {
@@ -103,8 +98,8 @@
 
     const brand = header.querySelector(".circle-header__brand");
     if (brand) {
-      brand.href = "ari-circle-v6.html";
-      brand.setAttribute("aria-label", "ARI Circle For You");
+      brand.href = "ari-circle-feed.html";
+      brand.setAttribute("aria-label", "ARI Circle Feed");
       if (brand.parentElement !== header) header.append(brand);
     }
 
@@ -126,7 +121,7 @@
   function simplifyProfile() {
     removeLegacyProfileNav();
     ensureProfileHeader();
-    ["circleV3Hubs","circle-top","circle-love","circle-details","circleV3AchievementsPanel"].forEach(hide);
+    ["circleV3Hubs","circle-top","circle-love","circle-details","circleV3AchievementsPanel","circleV3ProfileTabs","circleV3PostsPanel"].forEach(hide);
     $("circleV3Summary")?.remove();
     document.querySelector(".circle-v3-name-flair")?.remove();
     document.querySelector('[data-v3-profile-tab="achievements"]')?.remove();
