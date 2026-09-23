@@ -1,4 +1,4 @@
-/* ARI Circle Profile Gallery V1.2 */
+/* ARI Circle Profile Gallery V1.3 */
 .circle-profile-gallery{
   width:min(100%,720px);
   margin:12px auto;
@@ -138,4 +138,29 @@
   .circle-profile-gallery{margin:10px 0;padding:12px;border-radius:19px}
   .circle-profile-gallery__grid{gap:7px}
   .circle-profile-gallery__photo,.circle-profile-gallery__empty{border-radius:15px}
+}
+
+
+.circle-profile-gallery__moderation-badge{
+  position:absolute;
+  top:8px;
+  left:8px;
+  z-index:2;
+  display:inline-flex;
+  align-items:center;
+  min-height:26px;
+  padding:0 9px;
+  border:1px solid rgba(255,255,255,.48);
+  border-radius:999px;
+  color:#fff;
+  background:rgba(12,22,39,.72);
+  backdrop-filter:blur(10px);
+  font:850 .58rem/1 Inter,sans-serif;
+}
+.circle-profile-gallery__photo[data-moderation-status="pending"] img,
+.circle-profile-gallery__photo[data-moderation-status="uploading"] img{
+  filter:saturate(.9);
+}
+.circle-profile-gallery__photo[data-moderation-status="rejected"] img{
+  filter:saturate(.72) brightness(.82);
 }
