@@ -34,14 +34,13 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.4.0";
+  const VERSION = "1.5.0";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
   const VNEXT_SCRIPTS = [
     "ari/vnext/ari-vnext-training-context.js?v=1.3.0",
-    "ari/vnext/ari-vnext-action-adapter.js?v=1.4.0",
-    "js/training/ari-whole-workout-replacement.js?v=1.0.0",
+    "ari/vnext/ari-vnext-action-adapter.js?v=1.5.0",
     "ari/vnext/ari-vnext-activity-adapter.js?v=1.1.0",
     "ari/vnext/ari-vnext-bridge.js?v=1.10.0",
     "ari/vnext/ari-vnext-context-guard.js?v=1.2.3",
@@ -182,9 +181,8 @@
   function dependencyReady(src = "") {
     const base = dependencyBase(src);
     if (base.endsWith("ari-vnext-training-context.js")) return Boolean(window.AriVNextTrainingContext);
-    if (base.endsWith("ari-vnext-action-adapter.js")) return Boolean(window.AriVNextActionAdapter);
-    if (base.endsWith("ari-whole-workout-replacement.js")) {
-      return Boolean(window.AriVNextActionAdapter?.__ariWholeWorkoutReplacementV1);
+    if (base.endsWith("ari-vnext-action-adapter.js")) {
+      return Boolean(window.AriVNextActionAdapter && versionAtLeast(window.AriVNextActionAdapter?.version, "1.5.0"));
     }
     if (base.endsWith("ari-vnext-activity-adapter.js")) return Boolean(window.AriVNextActivityAdapter);
     if (base.endsWith("ari-vnext-bridge.js")) {
@@ -242,7 +240,7 @@
       typeof window.AriVNextBridge?.ask === "function" &&
       versionAtLeast(window.AriVNextBridge?.version, "1.10.0") &&
       window.AriVNextActionAdapter &&
-      window.AriVNextActionAdapter.__ariWholeWorkoutReplacementV1 === true &&
+      versionAtLeast(window.AriVNextActionAdapter?.version, "1.5.0") &&
       window.AriVNextActivityAdapter &&
       window.AriVNextContextGuard?.ready === true &&
       window.AriVNextInitiative &&
