@@ -48,5 +48,5 @@ test("Feed loads current shared shell without Profile compatibility layers", () 
   assert.match(feed, /id="ari-circle-v5-real-world-style"/);
   assert.doesNotMatch(feed, /ari-circle-v4\.css/);
   assert.doesNotMatch(feed, /js\/ari-circle\/v4-ui\.js/);
-  assert.match(feed, /v5-real-world\.js\?v=5\.4\.0/);
+  assert.match(feed, /v5-real-world\.js\?v=5\.4\.1/);
 });
