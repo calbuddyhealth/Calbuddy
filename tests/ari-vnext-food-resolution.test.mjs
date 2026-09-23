@@ -196,6 +196,7 @@ test("vNext server loads the same canonical ARI food registry used by Nutrition"
   const state = await ensureCanonicalFoodRegistry();
   assert.equal(state.ready, true);
   assert.ok(state.foodCount > 100, `expected canonical registry to contain real food coverage, found ${state.foodCount}`);
+  assert.deepEqual(state.moduleFailures || [], [], "all canonical food data modules must be server-safe");
 
   const result = await searchCanonicalAriFoodRegistry("banana", { limit: 5 });
   assert.equal(result.success, true);
@@ -233,6 +234,13 @@ test("default vNext meal resolution uses canonical banana serving macros before 
 
 
 test("canonical food resolution handles one slice of pepperoni pizza without asking for unnecessary detail", async () => {
+  const search = await searchCanonicalAriFoodRegistry("Pepperoni Pizza", { limit: 6 });
+  assert.equal(search.success, true);
+  assert.ok(
+    search.results.some((food) => food?.id === "prepared-pepperoni-pizza-slice"),
+    "generic pepperoni pizza must be present in the server-side canonical registry"
+  );
+
   const result = await resolveMealNutritionFromFoodSearch({
     arguments: {
       name: "Pepperoni Pizza",
