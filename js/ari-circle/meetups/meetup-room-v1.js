@@ -7,10 +7,6 @@
 
   const VERSION = "1.1.0";
   const $ = (id) => document.getElementById(id);
-  const TIER = Object.freeze({
-    new_host: "New Host", organizer: "Organizer", active_host: "Active Host",
-    community_leader: "Community Leader", community_builder: "Community Builder"
-  });
 
   const state = {
     client: null,
@@ -92,7 +88,7 @@
 
   function titleCaseStatus(status) {
     const value = clean(status).toLowerCase();
-    if (value === "completed") return "Completed";
+    if (value === "completed") return "Ended";
     if (value === "cancelled") return "Cancelled";
     return "Scheduled";
   }
@@ -193,8 +189,6 @@
         display_name: room.host_display_name,
         handle: room.host_handle,
         avatar_url: room.host_avatar_url,
-        leadership_tier: room.host_leadership_tier,
-        verified_meetups: room.host_verified_meetups || 0,
         role: "host"
       });
     }
@@ -270,7 +264,7 @@
         <a class="meetup-room-attendee__avatar" href="ari-circle.html?user=${encodeURIComponent(id)}">${avatarMarkup(person.avatar_url, name)}</a>
         <div class="meetup-room-attendee__copy">
           <strong>${escapeHtml(name)}</strong>
-          <span>${handle ? `@${escapeHtml(handle)} · ` : ""}${escapeHtml(tier)} · ${escapeHtml(verifiedLabel)}</span>
+          <span>${handle ? `@${escapeHtml(handle)}` : ""}${isHost ? `${handle ? " · " : ""}Host` : ""}</span>
         </div>
         ${hostActions}`;
       host.append(row);
