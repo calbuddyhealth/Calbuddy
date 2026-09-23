@@ -1,4 +1,4 @@
-/* ARI Rebirth — Owner Moderation v2.2.0 */
+/* ARI Rebirth — Owner Moderation v2.2.1 */
 
 (() => {
   "use strict";
@@ -8,6 +8,7 @@
   let activeSafetyFilter = "open";
   let activeAgeFilter = "pending";
   let activePanel = "photos";
+  const photoPreviewUrls = new Map();
 
   function setStatus(message = "", type = "") {
     window.AriSettings.setStatus($("moderationStatus"), message, type);
@@ -72,6 +73,73 @@
     return data;
   }
 
+  function clearPhotoPreviewUrls() {
+    for (const url of photoPreviewUrls.values()) {
+      try { URL.revokeObjectURL(url); } catch {}
+    }
+    photoPreviewUrls.clear();
+  }
+
+  async function ownerPhotoPreviewBlob(photoId) {
+    const accessToken = String(session?.access_token || "").trim();
+    if (!accessToken) throw new Error("Owner session is unavailable.");
+
+    const response = await fetch(
+      `/api/ari-circle-owner-photo-review?preview=${encodeURIComponent(photoId)}`,
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        cache: "no-store"
+      }
+    );
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      const error = new Error(data?.error || "Photo preview could not be loaded.");
+      error.code = data?.code || "";
+      error.status = response.status;
+      throw error;
+    }
+
+    return await response.blob();
+  }
+
+  async function hydratePhotoPreviews(photos) {
+    const queue = photos
+      .map((photo) => String(photo?.photo_id || "").trim())
+      .filter(Boolean);
+    const concurrency = Math.min(3, queue.length);
+
+    async function worker() {
+      while (queue.length) {
+        const photoId = queue.shift();
+        const target = document.querySelector(`[data-photo-preview-id="${CSS.escape(photoId)}"]`);
+        if (!target) continue;
+
+        try {
+          const blob = await ownerPhotoPreviewBlob(photoId);
+          if (!blob?.size) throw new Error("Empty photo preview.");
+          const url = URL.createObjectURL(blob);
+          photoPreviewUrls.set(photoId, url);
+
+          const card = target.closest("[data-photo-review-id]");
+          const name = card?.dataset?.photoReviewName || "Circle member";
+          const image = document.createElement("img");
+          image.src = url;
+          image.alt = `Pending profile photo from ${name}`;
+          image.loading = "lazy";
+          target.replaceWith(image);
+        } catch (error) {
+          target.textContent = "Preview unavailable";
+          target.classList.add("owner-photo-review-card__missing");
+          console.warn("Owner photo preview unavailable:", photoId, error?.message || error);
+        }
+      }
+    }
+
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+  }
+
   function renderPhotoReviews(photos) {
     const list = $("photoReviewList");
     const pendingCount = photos.length;
@@ -94,17 +162,17 @@
       return;
     }
 
+    clearPhotoPreviewUrls();
+
     list.innerHTML = photos.map((photo) => {
       const handle = photo.handle ? `@${String(photo.handle).replace(/^@+/, "")}` : "";
-      const image = photo.image_url
-        ? `<img src="${escapeHtml(photo.image_url)}" alt="Pending profile photo from ${escapeHtml(photo.display_name || "Circle member")}" loading="lazy">`
-        : '<div class="owner-photo-review-card__missing">Preview unavailable</div>';
+      const image = `<div class="owner-photo-review-card__missing" data-photo-preview-id="${escapeHtml(photo.photo_id)}">Loading preview…</div>`;
       const retryInfo = Number(photo.moderation_retry_count || 0) > 0
         ? `<span class="owner-safety-pill">${Number(photo.moderation_retry_count)} worker retr${Number(photo.moderation_retry_count) === 1 ? "y" : "ies"}</span>`
         : '<span class="owner-safety-pill">Waiting for worker</span>';
 
       return `
-        <article class="owner-photo-review-card" data-photo-review-id="${escapeHtml(photo.photo_id)}">
+        <article class="owner-photo-review-card" data-photo-review-id="${escapeHtml(photo.photo_id)}" data-photo-review-name="${escapeHtml(photo.display_name || "Circle member")}">
           <div class="owner-photo-review-card__media">${image}</div>
           <div class="owner-photo-review-card__body">
             <div class="owner-safety-card__top">
@@ -138,6 +206,8 @@
         reviewPendingPhoto(card?.dataset?.photoReviewId, button.dataset.photoDecision, button);
       });
     });
+
+    void hydratePhotoPreviews(photos);
   }
 
   async function loadPhotoReviews() {
@@ -370,7 +440,7 @@
     });
     if (error) return setStatus(error.message, "error");
     if (data !== true) return setStatus("That safety event is no longer available.", "error");
-    await loadPhotoReviews();
+    await loadTeenSafetyEvents();
   }
 
   function ageCorrectionActions(request) {
@@ -541,8 +611,9 @@
       });
     });
 
-    await loadTeenSafetyEvents();
+    await loadPhotoReviews();
   }
 
+  window.addEventListener("pagehide", clearPhotoPreviewUrls, { once: true });
   document.addEventListener("DOMContentLoaded", init);
 })();
