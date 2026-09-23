@@ -9,7 +9,6 @@ import { resolveAriIntelligenceEntitlement } from "../server/ari-intelligence-en
 
 const root = process.cwd();
 const runtime = fs.readFileSync(path.join(root, "ari/runtime/ari-runtime-controller.js"), "utf8");
-const router = fs.readFileSync(path.join(root, "ari/intent/ari-central-intent-router.js"), "utf8");
 const api = fs.readFileSync(path.join(root, "api/ari-vnext.js"), "utf8");
 const bridge = fs.readFileSync(path.join(root, "ari/vnext/ari-vnext-bridge.js"), "utf8");
 
@@ -130,10 +129,10 @@ test("runtime restores canonical userContext into the vNext bridge", () => {
   assert.doesNotMatch(runtime, /AriVNextBridge\.ask\(message, \{ \.\.\.input, context \}\)/);
 });
 
-test("normal conversation bypasses the legacy intent preflight", () => {
-  assert.match(router, /const MUTATION_CUE_PATTERN/);
-  assert.match(router, /return !isLikelyMutationMessage\(message\)/);
-  assert.match(router, /ari-runtime-controller\.js\?v=1\.3\.14/);
+test("normal conversation enters the canonical vNext runtime without a browser semantic preflight", () => {
+  assert.match(runtime, /CalBuddy\.askAri = ask/);
+  assert.match(runtime, /runReadOnlyLegacyFallback/);
+  assert.doesNotMatch(runtime, /ari-central-intent-router|MUTATION_CUE_PATTERN/);
 });
 
 test("server skips owner cognitive hydration for casual conversation only", () => {
