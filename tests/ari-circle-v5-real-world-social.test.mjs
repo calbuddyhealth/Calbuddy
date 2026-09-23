@@ -6,6 +6,7 @@ const meetupHtml = fs.readFileSync("ari-circle-meetup.html", "utf8");
 const connect = fs.readFileSync("js/ari-circle/connect/connect-v1.js", "utf8");
 const feedHtml = fs.readFileSync("ari-circle-feed.html", "utf8");
 const happening = fs.readFileSync("js/ari-circle/feed/happening-v5.js", "utf8");
+const feedController = fs.readFileSync("js/ari-circle/feed/feed.js", "utf8");
 const shell = fs.readFileSync("js/ari-circle/v5-real-world.js", "utf8");
 const menu = fs.readFileSync("js/ari-circle/circle-menu-v5.js", "utf8");
 const gallery = fs.readFileSync("js/ari-circle/profile/profile-gallery-v1.js", "utf8");
@@ -34,16 +35,30 @@ test("Connect reuses canonical meetup joins, requests, waitlists, rooms, and hos
   assert.doesNotMatch(connect, /ari_circle_complete_meetup/);
 });
 
-test("Feed is event-first while preserving friend text updates", () => {
+test("Feed is event-first while preserving compact friend text updates", () => {
   assert.match(feedHtml, /Share an update/);
+  assert.match(feedHtml, /Friends only · text update/);
   assert.match(feedHtml, /Updates from your people/);
-  assert.match(feedHtml, /feed\/happening-v5\.js\?v=6\.0\.0/);
+  assert.match(feedHtml, /feed\/happening-v5\.js\?v=6\.1\.0/);
+  assert.match(feedHtml, /feed\/feed\.js\?v=2\.2\.0/);
+  assert.match(feedHtml, /id="feedComposerEditor" hidden/);
+  assert.match(feedHtml, /id="publishPostButton" type="submit" disabled/);
+  assert.ok(feedHtml.indexOf('id="circleV5Happening"') < feedHtml.indexOf('id="feedQuickUpdate"'));
   assert.doesNotMatch(feedHtml, /Camera \/ Library/);
   assert.doesNotMatch(feedHtml, /Make it a Moment/);
-  assert.match(happening, /Join something/);
+
+  assert.match(happening, /const VERSION = "6\.1\.0"/);
+  assert.match(happening, /insertAdjacentElement\("beforebegin",section\)/);
   assert.match(happening, /ari_circle_list_meetups/);
   assert.match(happening, /ari_circle_join_meetup/);
   assert.match(happening, /ari_circle_request_meetup/);
+
+  assert.match(feedController, /const VERSION = "2\.2\.0"/);
+  assert.match(feedController, /button\.disabled = state\.busy \|\| !body/);
+  assert.match(feedController, /button\.textContent = state\.busy \? "Posting…" : "Post"/);
+  assert.match(feedController, /requested_media_path: null/);
+  assert.match(feedController, /const textUpdates = rows\.filter\(\(row\) => clean\(row\.body\)\)/);
+  assert.doesNotMatch(feedController, /\n\s*appendPostMedia\(article, post\);/);
 });
 
 test("Circle primary shell is Feed and Connect only", () => {
