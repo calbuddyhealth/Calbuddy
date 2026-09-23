@@ -41,7 +41,7 @@ test("Feed is event-first while preserving compact friend text updates", () => {
   assert.match(feedHtml, /Friends only · text update/);
   assert.match(feedHtml, /Updates from your people/);
   assert.match(feedHtml, /feed\/happening-v5\.js\?v=6\.2\.0/);
-  assert.match(feedHtml, /feed\/feed\.js\?v=2\.2\.0/);
+  assert.match(feedHtml, /feed\/feed\.js\?v=2\.3\.0/);
   assert.match(feedHtml, /id="feedComposerEditor" hidden/);
   assert.match(feedHtml, /id="publishPostButton" type="submit" disabled/);
   assert.ok(feedHtml.indexOf('id="circleV5Happening"') < feedHtml.indexOf('id="feedQuickUpdate"'));
@@ -61,7 +61,7 @@ test("Feed is event-first while preserving compact friend text updates", () => {
   assert.match(happening, /ari_circle_join_meetup/);
   assert.match(happening, /ari_circle_request_meetup/);
 
-  assert.match(feedController, /const VERSION = "2\.2\.0"/);
+  assert.match(feedController, /const VERSION = "2\.3\.0"/);
   assert.match(feedController, /button\.disabled = state\.busy \|\| !body/);
   assert.match(feedController, /button\.textContent = state\.busy \? "Posting…" : "Post"/);
   assert.match(feedController, /requested_media_path: null/);
