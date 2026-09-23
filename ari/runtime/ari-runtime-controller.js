@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.5.0
+// Version: 1.6.0
 // Purpose:
 //   Make Ari vNext the single semantic/action authority on Home + Nutrition.
 //   Legacy CalBuddy/Rebirth remains a read-only emergency response fallback.
@@ -34,7 +34,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.5.0";
+  const VERSION = "1.6.0";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
@@ -550,8 +550,17 @@
       return result;
     } catch (error) {
       if (shouldPropagateTransportError(error)) throw error;
-      console.error("Ari vNext runtime failed; using read-only legacy fallback:", error);
-      return await runReadOnlyLegacyFallback(input, error);
+      console.error("Ari vNext runtime failed:", error);
+      return {
+        success: false,
+        ready: false,
+        retryable: true,
+        code: "ARI_VNEXT_RUNTIME_FAILED",
+        reply: "I couldn't complete that request through Ari's primary runtime. Nothing was saved. Try again.",
+        pendingAction: null,
+        action: null,
+        source: "ari_vnext_runtime_failure"
+      };
     }
   }
 
