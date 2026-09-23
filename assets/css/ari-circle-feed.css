@@ -1,6 +1,6 @@
 /* =============================================================
    ARI CIRCLE — FEED
-   Version: 1.0.0
+   Version: 1.0.1
    Pearl / cyan / royal / violet social layer.
 ============================================================= */
 
@@ -319,8 +319,7 @@ textarea:focus-visible {
 
 #feedPostBody::placeholder,
 .feed-inline-field input::placeholder,
-.feed-comment-form input::placeholder,
-.feed-custom-reaction input::placeholder { color: #9ba3b3; }
+.feed-comment-form input::placeholder { color: #9ba3b3; }
 
 .feed-composer__meta {
   display: grid;
@@ -343,7 +342,6 @@ textarea:focus-visible {
 
 .feed-inline-field input,
 .feed-field input,
-.feed-custom-reaction input,
 .feed-comment-form input {
   width: 100%;
   min-height: 44px;
@@ -549,42 +547,18 @@ textarea:focus-visible {
   background: #eef2f9;
 }
 
-.feed-post__reactions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  padding: 0 16px 11px;
-}
-
-.feed-reaction-pill {
-  appearance: none;
-  border: 1px solid rgba(59, 79, 139, 0.11);
-  min-height: 34px;
-  padding: 0 10px;
-  border-radius: 999px;
-  background: #f8faff;
-  font-size: 0.76rem;
-  cursor: pointer;
-}
-
-.feed-reaction-pill.is-active {
-  border-color: rgba(37,88,255,0.24);
-  background: linear-gradient(135deg, rgba(25,207,255,0.13), rgba(138,77,255,0.12));
-}
-
 .feed-post__actions {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: 1fr;
   border-top: 1px solid rgba(59, 79, 139, 0.09);
 }
 
-.feed-post__actions button,
-.feed-post__actions a {
+.feed-post__actions button {
   min-height: 48px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 8px;
   border: 0;
   background: transparent;
   color: #58637a;
@@ -592,10 +566,19 @@ textarea:focus-visible {
   font-weight: 800;
 }
 
-.feed-post__actions button + button,
-.feed-post__actions a { border-left: 1px solid rgba(59, 79, 139, 0.08); }
+.feed-post__comment-action svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
-.feed-post__actions .feed-report-link { width: 48px; color: var(--feed-muted); }
+.feed-post__comment-action:active {
+  background: #f8faff;
+}
 
 .feed-empty {
   text-align: center;
@@ -711,25 +694,6 @@ textarea:focus-visible {
   color: #657087;
   font-size: 1.15rem;
 }
-
-.feed-emoji-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 9px;
-  margin: 18px 0;
-}
-
-.feed-emoji-grid button {
-  min-height: 58px;
-  border: 1px solid rgba(59, 79, 139, 0.11);
-  border-radius: 16px;
-  background: #fff;
-  font-size: 1.6rem;
-  box-shadow: 0 8px 22px rgba(52, 72, 126, 0.05);
-}
-
-.feed-custom-reaction { display: grid; gap: 8px; color: var(--feed-soft); font-size: 0.76rem; font-weight: 700; }
-.feed-custom-reaction > div { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 
 .feed-comments-card { min-height: min(70vh, 620px); }
 .feed-comments-list { display: grid; gap: 10px; margin: 18px 0; }
