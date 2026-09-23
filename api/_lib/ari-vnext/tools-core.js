@@ -1,7 +1,7 @@
 // ARI vNext — model-visible application capabilities.
 // These functions PROPOSE mutations. The trusted app layer validates and executes them.
 
-export const TOOL_REGISTRY_VERSION = "1.14.0";
+export const TOOL_REGISTRY_VERSION = "1.15.0";
 
 export function getAriTools(route = {}) {
   const tools = [];
@@ -9,7 +9,7 @@ export function getAriTools(route = {}) {
   if (route?.nutrition) {
     tools.push(functionTool(
       "propose_log_meal",
-      "Propose logging food or a meal when the CURRENT user explicitly asks to log, add, record, or save it, OR when the current turn directly supplies a missing detail to Ari's immediately preceding clarification for that same explicitly authorized meal-log request. Do not use for a standalone statement about eating, an unrelated follow-up, or a nutrition question. Estimate nutrition when exact values are unavailable and clearly mark estimates in notes.",
+      "Propose logging food or a meal when the CURRENT user explicitly asks to log, add, record, or save it, OR when the current turn directly supplies a missing detail to Ari's immediately preceding clarification for that same explicitly authorized meal-log request. Do not use for a standalone statement about eating, an unrelated follow-up, or a nutrition question. For ordinary recognizable foods, estimate calories, protein, carbs, and fat in THIS tool call using a reasonable standard serving when the user did not provide exact nutrition. Do not ask for brand, recipe, or exact weight merely because those details are unknown; mark the values as estimated in notes. Ask a clarification only when the food identity or amount is genuinely too ambiguous to form a reasonable estimate.",
       {
         type: "object",
         additionalProperties: false,
