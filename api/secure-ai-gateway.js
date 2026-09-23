@@ -2,18 +2,10 @@
 // Protects legacy AI routes without changing the submitted native client's
 // request contract. This is a budget/abuse guard, not a replacement for auth.
 
-import intentRouterHandler from "./_lib/gateway/ari-intent-router-handler.js";
 import askCalbuddyHandler from "./_lib/gateway/ask-calbuddy-handler.js";
 import usageHandler from "./_lib/gateway/usage-handler.js";
 
 const ROUTE_LIMITS = Object.freeze({
-  intent: {
-    endpoint: "/api/ari-intent-router",
-    windows: [
-      { seconds: 60, requests: 180 },
-      { seconds: 3600, requests: 3000 }
-    ]
-  },
   ask: {
     endpoint: "/api/ask-calbuddy",
     windows: [
@@ -34,11 +26,6 @@ export default async function handler(req, res) {
   setSecurityHeaders(res);
 
   const route = clean(req?.query?.route, 40).toLowerCase();
-
-  if (route === "intent") {
-    if (!(await allowRoute(req, res, ROUTE_LIMITS.intent))) return;
-    return await intentRouterHandler(req, res);
-  }
 
   if (route === "ask") {
     if (!(await allowRoute(req, res, ROUTE_LIMITS.ask))) return;

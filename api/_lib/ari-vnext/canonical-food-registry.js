@@ -1,7 +1,7 @@
 // ARI vNext — server-side access to the same canonical food registry/search
 // used by the Nutrition UI. Modules are loaded lazily once per server isolate.
 
-export const CANONICAL_FOOD_REGISTRY_VERSION = "1.0.0";
+export const CANONICAL_FOOD_REGISTRY_VERSION = "1.1.0";
 
 let initializationPromise = null;
 
@@ -169,16 +169,32 @@ export async function searchCanonicalAriFoodRegistry(query, options = {}) {
   }
 
   const limit = clampInteger(options?.limit, 1, 12, 8);
-  const results = search.search(String(query || ""), {
+  const cleanedQuery = String(query || "").trim();
+  const exact =
+    typeof search.findExact === "function"
+      ? search.findExact(cleanedQuery, { includeSearchMeta: true, typoTolerance: true })
+      : null;
+
+  const fuzzy = search.search(cleanedQuery, {
     limit,
     includeSearchMeta: true,
     typoTolerance: true
   });
 
+  const merged = [];
+  const seen = new Set();
+  for (const food of [exact, ...(Array.isArray(fuzzy) ? fuzzy : [])]) {
+    const id = String(food?.id || "").trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    merged.push(food);
+    if (merged.length >= limit) break;
+  }
+
   return {
     success: true,
-    query: String(query || "").trim(),
-    results: (Array.isArray(results) ? results : []).map(toResolverFood),
+    query: cleanedQuery,
+    results: merged.map(toResolverFood),
     source: "ari_canonical_food_registry",
     registry: state
   };

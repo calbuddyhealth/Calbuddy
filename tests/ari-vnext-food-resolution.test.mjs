@@ -196,6 +196,7 @@ test("vNext server loads the same canonical ARI food registry used by Nutrition"
   const state = await ensureCanonicalFoodRegistry();
   assert.equal(state.ready, true);
   assert.ok(state.foodCount > 100, `expected canonical registry to contain real food coverage, found ${state.foodCount}`);
+  assert.deepEqual(state.moduleFailures || [], [], "all canonical food data modules must be server-safe");
 
   const result = await searchCanonicalAriFoodRegistry("banana", { limit: 5 });
   assert.equal(result.success, true);
@@ -229,4 +230,39 @@ test("default vNext meal resolution uses canonical banana serving macros before 
   assert.equal(result.arguments.fatG, 0.4);
   assert.match(result.arguments.notes, /canonical food registry/i);
   assert.match(result.servingResolution, /registry_serving/i);
+});
+
+
+test("canonical food resolution handles one slice of pepperoni pizza without asking for unnecessary detail", async () => {
+  const search = await searchCanonicalAriFoodRegistry("Pepperoni Pizza", { limit: 6 });
+  assert.equal(search.success, true);
+  assert.ok(
+    search.results.some((food) => food?.id === "prepared-pepperoni-pizza-slice"),
+    "generic pepperoni pizza must be present in the server-side canonical registry"
+  );
+
+  const result = await resolveMealNutritionFromFoodSearch({
+    arguments: {
+      name: "Pepperoni Pizza",
+      quantity: 1,
+      unit: "slice",
+      servingSize: "1 slice",
+      mealCategory: "Meal",
+      calories: 0,
+      proteinG: 0,
+      carbsG: 0,
+      fatG: 0,
+      notes: "Estimated by model."
+    },
+    message: "I had a slice of pepperoni pizza. Log that."
+  });
+
+  assert.equal(result.resolved, true);
+  assert.equal(result.source, "ari_canonical_food_registry");
+  assert.equal(result.match.id, "prepared-pepperoni-pizza-slice");
+  assert.equal(result.arguments.calories, 300);
+  assert.equal(result.arguments.proteinG, 13);
+  assert.equal(result.arguments.carbsG, 34);
+  assert.equal(result.arguments.fatG, 13);
+  assert.match(result.servingResolution, /registry_(?:serving|unit)/i);
 });

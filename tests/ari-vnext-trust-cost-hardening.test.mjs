@@ -17,7 +17,8 @@ test("runtime preserves the object-style Home ask contract", () => {
   assert.match(runtime, /function normalizeAskRequest\(messageOrInput = "", options = \{\}\)/);
   assert.match(runtime, /typeof messageOrInput === "object"/);
   assert.match(runtime, /const message = clean\(input\?\.message\)/);
-  assert.match(runtime, /legacy\.askAri\(input\)/);
+  assert.match(runtime, /runReadOnlyLegacyFallback/);
+  assert.match(runtime, /readOnlyFallback:\s*true/);
   assert.doesNotMatch(runtime, /AriVNextBridge\.ask\(messageOrInput/);
 });
 
@@ -42,12 +43,13 @@ test("vNext pending actions are discarded after expiry in the browser boundary",
   assert.match(bridge, /this\.clearPendingAction\(\)/);
 });
 
-test("expired vNext-linked legacy actions cannot execute through fallback confirmation", () => {
-  assert.match(runtime, /function isExpiredVNextLegacyPending/);
-  assert.match(runtime, /action\?\.vnext_expires_at/);
-  assert.match(runtime, /isExpiredVNextLegacyPending\(legacyPending\)/);
-  assert.match(runtime, /legacy\.cancelPendingAction\?\.\(\)/);
-  assert.match(runtime, /That pending change expired/);
+test("legacy fallback cannot confirm or execute app mutations", () => {
+  assert.match(runtime, /runReadOnlyLegacyFallback/);
+  assert.match(runtime, /pendingAction:\s*null/);
+  assert.match(runtime, /action:\s*null/);
+  assert.match(runtime, /actions:\s*\[\]/);
+  assert.match(runtime, /App changes are available only through the primary Ari runtime/);
+  assert.doesNotMatch(runtime, /isExpiredVNextLegacyPending/);
 });
 
 test("retrieved memory uses complete-record budgeting instead of slicing mid-entry", () => {

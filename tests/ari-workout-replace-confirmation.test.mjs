@@ -3,39 +3,30 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 
-const source = fs.readFileSync("ari/actions/ari-workout-plan-action.js", "utf8");
+const adapter = fs.readFileSync("ari/vnext/ari-vnext-action-adapter.js", "utf8");
 
-test("workout action source remains valid JavaScript", () => {
-  assert.doesNotThrow(() => new vm.Script(source));
+test("canonical workout adapter remains valid JavaScript", () => {
+  assert.doesNotThrow(() => new vm.Script(adapter));
 });
 
-test("superseding a create proposal over an existing workout promotes it to replace", () => {
-  const block = source.match(/const pendingWorkout = getPendingWorkout\(\);[\s\S]*?const editContext = readEditContext\(\);/)?.[0] || "";
-  assert.match(block, /const existing = await inspectDate\(merged\.scheduledDate\)/);
-  assert.match(block, /const inheritedMode = clean\(pendingWorkout\?\.payload\?\.existing_workout_mode \|\| "create"\)/);
-  assert.match(block, /const mode = existing && inheritedMode === "create" \? "replace" : inheritedMode/);
-  assert.match(block, /CalBuddy\.cancelPendingAction\?\.\(\)/);
-  assert.match(block, /buildPendingActionFromOptions\([\s\S]*?mode/);
+test("whole-workout replacement is prepared against an existing date-specific workout", () => {
+  assert.match(adapter, /mapWorkoutReplacementValidated/);
+  assert.match(adapter, /const existing = controller\.getDate\(scheduledDate\)/);
+  assert.match(adapter, /workout_replace_target_missing/);
+  assert.match(adapter, /workout_replace_completed_session/);
+  assert.match(adapter, /existing_workout_mode:\s*"replace"/);
+  assert.match(adapter, /confirmation_text:[\s\S]{0,260}Replace/);
 });
 
-test("stored workout edit context becomes an explicit replace proposal", () => {
-  assert.match(source, /function readEditContext\(\)/);
-  const block = source.match(/const editContext = readEditContext\(\);[\s\S]*?const storedConflict = readConflict\(\);/)?.[0] || "";
-  assert.match(block, /existingWorkoutMode: "replace"/);
-  assert.match(block, /buildPendingAction\(message, replacementDecision, requestedDate, "replace"\)/);
-  assert.match(block, /workoutEditConvertedToReplacement: true/);
+test("replacement execution revalidates target identity and canonical exercises", () => {
+  assert.match(adapter, /executeValidatedWorkoutReplacement/);
+  assert.match(adapter, /workout_replace_target_changed/);
+  assert.match(adapter, /workout_replace_registry_revalidation_failed/);
+  assert.match(adapter, /controller\.getExercise\(entry\.exerciseId\)/);
+  assert.match(adapter, /controller\.setBuiltWorkoutForDate/);
+  assert.match(adapter, /controller\.save\(\{ remote: true \}\)/);
 });
 
-test("a concrete edit request can immediately create a replacement confirmation", () => {
-  const editBlock = source.match(/if \(clean\(decision\.action\) === "edit_workout"\)[\s\S]*?if \(existing\) \{/)?.[0] || source;
-  assert.match(source, /const hasConcreteRevision = Boolean\(/);
-  assert.match(source, /buildPendingAction\(message, replacementDecision, requestedDate, "replace"\)/);
-});
-
-test("executor still refuses an un-authorized create over an existing workout", () => {
-  assert.match(source, /if \(existing && mode === "create"\) return \{ success: false, conflict: true/);
-});
-
-test("successful workout writes clear stale edit state", () => {
-  assert.match(source, /await controller\.save\(\{ remote: true \}\);[\s\S]*?clearEditContext\(\)/);
+test("completed workouts cannot be replaced", () => {
+  assert.match(adapter, /existing\?\.completed === true \|\| existing\?\.progress\?\.completed === true/);
 });

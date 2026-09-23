@@ -263,4 +263,4 @@
       return found ? JSON.parse(JSON.stringify(found)) : null;
     }
   });
-})(window);
+})(typeof window !== "undefined" ? window : globalThis);

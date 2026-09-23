@@ -2,6 +2,7 @@
 // ARI XP
 // File: auth.js
 // Purpose: Shared Supabase auth helpers for ARI XP.
+// V1.10.20 — vNext single-authority cutover: legacy semantic action wrappers no longer bootstrap on Home/Nutrition.
 // V1.10.19 — Loads Meal Plan-free central Ari runtime and Nutrition surface.
 // V1.10.18 — Loads quota-aware central Ari router v1.5.5.
 // V1.10.17 — Loads consolidated Nutrition ledger/trust/data-quality runtime versions.
@@ -30,8 +31,6 @@ const ARI_MEAL_LEDGER_SYNC_SCRIPT_ID = "ariMealLedgerSyncScript";
 const ARI_NUTRITION_TRANSACTION_SCRIPT_ID = "ariNutritionTransactionScript";
 const ARI_NUTRITION_TRUST_SCRIPT_ID = "ariNutritionTrustScript";
 const ARI_NUTRITION_QUALITY_SCRIPT_ID = "ariNutritionQualityScript";
-const ARI_INTENT_ROUTER_SCRIPT_ID = "ariCentralIntentRouterScript";
-const ARI_MEAL_ACTION_SCRIPT_ID = "ariMealActionScript";
 const ARI_NUTRITION_ACTION_UI_SCRIPT_ID = "ariNutritionActionUiScript";
 const ARI_GOALS_NEUTRAL_SCRIPT_ID = "ariGoalsNeutralNewUserScript";
 const ARI_WORKOUT_DIALOG_FLOATING_CLOSE_SCRIPT_ID = "ariWorkoutDialogFloatingCloseScript";
@@ -270,18 +269,6 @@ function bootstrapNutritionDataQuality() {
   appendOrderedScript(ARI_NUTRITION_QUALITY_SCRIPT_ID, "js/ari-nutrition-data-quality.js?v=1.1.0");
 }
 
-function bootstrapAriCentralIntentRouter() {
-  const surface = currentAriSurface();
-  if (surface !== "home" && surface !== "nutrition") return;
-  appendOrderedScript(ARI_INTENT_ROUTER_SCRIPT_ID, "ari/intent/ari-central-intent-router.js?v=1.5.8");
-}
-
-function bootstrapAriMealAction() {
-  const surface = currentAriSurface();
-  if (surface !== "home" && surface !== "nutrition") return;
-  appendOrderedScript(ARI_MEAL_ACTION_SCRIPT_ID, "ari/actions/ari-meal-action.js?v=2.0.0");
-}
-
 function bootstrapNutritionActionUi() {
   if (currentAriSurface() !== "nutrition") return;
   appendOrderedScript(ARI_NUTRITION_ACTION_UI_SCRIPT_ID, "ari/actions/ari-nutrition-action-ui.js?v=1.3.0");
@@ -318,8 +305,6 @@ bootstrapCanonicalMealLedger();
 bootstrapNutritionTransactionClient();
 bootstrapNutritionTrustLayer();
 bootstrapNutritionDataQuality();
-bootstrapAriCentralIntentRouter();
-bootstrapAriMealAction();
 bootstrapNutritionActionUi();
 bootstrapNeutralGoalsForNewUsers();
 bootstrapWorkoutDialogFloatingClose();

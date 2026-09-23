@@ -6,7 +6,7 @@
 import { searchAriFoodCatalog } from "../../ari-food-search.js";
 import { searchCanonicalAriFoodRegistry } from "./canonical-food-registry.js";
 
-export const FOOD_RESOLUTION_VERSION = "1.1.0";
+export const FOOD_RESOLUTION_VERSION = "1.2.0";
 
 export async function resolveMealNutritionFromFoodSearch({
   arguments: args = {},
@@ -149,8 +149,7 @@ export function chooseStrongMatch(query, candidates = []) {
     const exactIdentity =
       normalizedQuery === display ||
       normalizedQuery === name ||
-      (display.length >= 5 && (display.includes(normalizedQuery) || normalizedQuery.includes(display))) ||
-      (name.length >= 5 && (name.includes(normalizedQuery) || normalizedQuery.includes(name)));
+      aliases.includes(normalizedQuery);
 
     const confidence = finite(food?.metadata?.confidence, 0.5);
     const searchScore = finite(food?.metadata?.searchScore, 0);

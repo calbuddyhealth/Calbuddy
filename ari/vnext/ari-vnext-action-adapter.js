@@ -5,7 +5,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.4.0";
+  const VERSION = "1.5.0";
   const SOURCE = "ari_vnext_action_adapter";
   const WORKOUT_CONTROLLER_URL = "js/training/workout-plan-controller.js";
 
@@ -34,6 +34,9 @@
       if (name === "edit_workout") {
         return failure("workout_edit_requires_registry_validation", "Workout edits must be prepared asynchronously against the canonical date-specific workout and exercise registry.");
       }
+      if (name === "replace_workout") {
+        return failure("workout_replace_requires_registry_validation", "Whole-workout replacements must be prepared asynchronously against the current date-specific workout and canonical exercise registry.");
+      }
 
       return failure("unsupported_vnext_action", `Unsupported vNext action: ${name}.`);
     },
@@ -43,6 +46,7 @@
       const args = object(pendingAction?.arguments);
       if (name === "plan_workout") return await this.mapWorkoutPlanValidated(pendingAction, args);
       if (name === "edit_workout") return await this.mapWorkoutEditValidated(pendingAction, args);
+      if (name === "replace_workout") return await this.mapWorkoutReplacementValidated(pendingAction, args);
       return this.toCalBuddyAction(pendingAction);
     },
 
@@ -151,7 +155,13 @@
       let execution;
 
       try {
-        if (mapped.action?.action_type === "plan_workout" && mapped.action?.payload?.vnext_prebuilt_workout) {
+        if (
+          mapped.action?.action_type === "plan_workout" &&
+          mapped.action?.payload?.vnext_prebuilt_workout &&
+          clean(mapped.action?.payload?.existing_workout_mode, 20).toLowerCase() === "replace"
+        ) {
+          execution = await this.executeValidatedWorkoutReplacement({ action: mapped.action, pending, currentTurnId });
+        } else if (mapped.action?.action_type === "plan_workout" && mapped.action?.payload?.vnext_prebuilt_workout) {
           execution = await this.executeValidatedWorkout({ action: mapped.action, pending, currentTurnId });
         } else if (mapped.action?.action_type === "edit_workout" && mapped.action?.payload?.vnext_prepared_edit) {
           execution = await this.executeValidatedWorkoutEdit({ action: mapped.action, pending, currentTurnId });
@@ -382,6 +392,48 @@
       };
     },
 
+    async mapWorkoutReplacementValidated(pending, args) {
+      const mapped = await this.mapWorkoutPlanValidated(pending, args);
+      if (!mapped?.success || !mapped?.action) return mapped;
+
+      const scheduledDate = clean(mapped.action?.payload?.scheduled_date, 20);
+      let controller;
+      try {
+        controller = await this.getWorkoutController();
+      } catch (error) {
+        return failure("training_controller_unavailable", error?.message || "The canonical Training controller is unavailable.");
+      }
+
+      const existing = controller.getDate(scheduledDate);
+      if (!hasWorkout(existing)) {
+        return failure("workout_replace_target_missing", `There isn't a workout to replace on ${formatDateLabel(scheduledDate)}.`);
+      }
+      if (existing?.completed === true || existing?.progress?.completed === true) {
+        return failure("workout_replace_completed_session", "A completed workout cannot be replaced through Ari.");
+      }
+
+      const workout = object(mapped.action?.payload?.vnext_prebuilt_workout);
+      mapped.action = {
+        ...mapped.action,
+        payload: {
+          ...mapped.action.payload,
+          existing_workout_mode: "replace",
+          replacement_of_workout_id: existing?.workoutId || existing?.id || null,
+          replacement_of_title: clean(existing?.title, 160) || "Workout"
+        },
+        confirmation_text: `Replace ${clean(existing?.title, 160) || "the current workout"} with Ari's ${clean(workout?.title, 160) || "new workout"} on ${formatDateLabel(scheduledDate)}?`
+      };
+      mapped.resolution = {
+        ...(mapped.resolution || {}),
+        replacement: true,
+        existingWorkout: {
+          title: clean(existing?.title, 160) || "Workout",
+          exerciseCount: Array.isArray(existing?.exercises) ? existing.exercises.length : 0
+        }
+      };
+      return mapped;
+    },
+
     async mapWorkoutEditValidated(pending, args) {
       const scheduledDate = resolveWorkoutDate(args.dateText, pending?.sourceMessage);
       if (!scheduledDate) return failure("workout_edit_date_required", "An exact workout date is required before Ari can edit the plan.");
@@ -523,6 +575,64 @@
       return {
         success: true,
         result: { workout, scheduled_date: scheduledDate, reply: `${clean(workout.title, 160) || "Workout"} is set for ${formatDateLabel(scheduledDate)}.` },
+        action: decorateExecutedAction(action, pending, currentTurnId)
+      };
+    },
+
+    async executeValidatedWorkoutReplacement({ action, pending, currentTurnId = null } = {}) {
+      let controller;
+      try {
+        controller = await this.getWorkoutController();
+      } catch (error) {
+        return failure("training_controller_unavailable", error?.message || "The canonical Training controller is unavailable.");
+      }
+
+      const payload = object(action?.payload);
+      const scheduledDate = clean(payload.scheduled_date, 20);
+      const workout = object(payload.vnext_prebuilt_workout);
+      if (!scheduledDate || !workout?.workoutId || !Array.isArray(workout?.blocks)) {
+        return failure("invalid_validated_workout_replacement", "The validated replacement workout is incomplete.");
+      }
+
+      const existing = controller.getDate(scheduledDate);
+      if (!hasWorkout(existing)) {
+        return failure("workout_replace_target_missing", `There isn't a workout to replace on ${formatDateLabel(scheduledDate)}.`);
+      }
+      if (existing?.completed === true || existing?.progress?.completed === true) {
+        return failure("workout_replace_completed_session", "A completed workout cannot be replaced through Ari.");
+      }
+
+      const expectedTitle = clean(payload.replacement_of_title, 160);
+      if (expectedTitle && clean(existing?.title, 160) !== expectedTitle) {
+        return failure("workout_replace_target_changed", "That workout changed after Ari prepared the replacement. Ask Ari to prepare it again.");
+      }
+
+      const entries = workout.blocks.flatMap((block) => Array.isArray(block?.exercises) ? block.exercises : []);
+      for (const entry of entries) {
+        if (!entry?.exerciseId || !controller.getExercise(entry.exerciseId)) {
+          return failure("workout_replace_registry_revalidation_failed", "One of Ari's replacement exercises is no longer available in the canonical exercise registry.");
+        }
+      }
+
+      const saved = controller.setBuiltWorkoutForDate(scheduledDate, workout, {
+        focusId: clean(payload.focus_id, 100) || "custom"
+      });
+      if (!saved) return failure("workout_replace_save_failed", "Training could not safely replace that workout.");
+
+      const remoteSaved = await controller.save({ remote: true });
+      if (remoteSaved === false) {
+        return failure("workout_replace_remote_save_failed", "The replacement was prepared locally but ARI XP could not confirm the remote save.");
+      }
+
+      dispatchWorkoutUpdate({ scheduledDate, mode: "replace", pending, currentTurnId, operation: "replace_workout" });
+      return {
+        success: true,
+        result: {
+          workout,
+          scheduled_date: scheduledDate,
+          operation: "replace_workout",
+          reply: `${clean(workout.title, 160) || "The new workout"} replaced ${clean(existing?.title, 160) || "the previous workout"} for ${formatDateLabel(scheduledDate)}.`
+        },
         action: decorateExecutedAction(action, pending, currentTurnId)
       };
     },

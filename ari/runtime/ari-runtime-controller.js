@@ -1,16 +1,16 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.3.14
+// Version: 1.5.0
 // Purpose:
-//   Make Ari vNext the default Home + Nutrition intelligence runtime while
-//   preserving Rebirth as a deterministic emergency fallback during cutover.
+//   Make Ari vNext the single semantic/action authority on Home + Nutrition.
+//   Legacy CalBuddy/Rebirth remains a read-only emergency response fallback.
 //
 // Contract:
 //   - vNext is the default runtime.
 //   - The runtime controller owns the ordered vNext dependency boot sequence.
-//   - Rebirth remains available by local emergency override.
-//   - A vNext transport/runtime failure falls back once to Rebirth.
+//   - Legacy fallback can answer read-only but cannot interpret or execute app mutations.
+//   - A vNext transport/runtime failure never crosses into a second write authority.
 //   - Existing trusted CalBuddy action execution remains authoritative.
 //   - Typed and button confirmations share the same trusted action boundary.
 //   - Successful vNext confirmations clear both vNext and legacy pending mirrors.
@@ -34,30 +34,21 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.3.14";
+  const VERSION = "1.5.0";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
   const VNEXT_SCRIPTS = [
     "ari/vnext/ari-vnext-training-context.js?v=1.3.0",
-    "ari/vnext/ari-vnext-action-adapter.js?v=1.4.0",
-    "js/training/ari-whole-workout-replacement.js?v=1.0.0",
-    "ari/vnext/ari-vnext-activity-adapter.js?v=1.0.1",
+    "ari/vnext/ari-vnext-action-adapter.js?v=1.5.0",
+    "ari/vnext/ari-vnext-activity-adapter.js?v=1.1.0",
     "ari/vnext/ari-vnext-bridge.js?v=1.10.0",
     "ari/vnext/ari-vnext-context-guard.js?v=1.2.3",
     "ari/vnext/ari-vnext-initiative.js?v=1.2.1"
   ];
 
   const legacy = {
-    askAri: typeof CalBuddy.askAri === "function" ? CalBuddy.askAri.bind(CalBuddy) : null,
-    confirmPendingAction:
-      typeof CalBuddy.confirmPendingAction === "function"
-        ? CalBuddy.confirmPendingAction.bind(CalBuddy)
-        : null,
-    cancelPendingAction:
-      typeof CalBuddy.cancelPendingAction === "function"
-        ? CalBuddy.cancelPendingAction.bind(CalBuddy)
-        : null
+    askAri: typeof CalBuddy.askAri === "function" ? CalBuddy.askAri.bind(CalBuddy) : null
   };
 
   let dependencyPromise = null;
@@ -182,9 +173,8 @@
   function dependencyReady(src = "") {
     const base = dependencyBase(src);
     if (base.endsWith("ari-vnext-training-context.js")) return Boolean(window.AriVNextTrainingContext);
-    if (base.endsWith("ari-vnext-action-adapter.js")) return Boolean(window.AriVNextActionAdapter);
-    if (base.endsWith("ari-whole-workout-replacement.js")) {
-      return Boolean(window.AriVNextActionAdapter?.__ariWholeWorkoutReplacementV1);
+    if (base.endsWith("ari-vnext-action-adapter.js")) {
+      return Boolean(window.AriVNextActionAdapter && versionAtLeast(window.AriVNextActionAdapter?.version, "1.5.0"));
     }
     if (base.endsWith("ari-vnext-activity-adapter.js")) return Boolean(window.AriVNextActivityAdapter);
     if (base.endsWith("ari-vnext-bridge.js")) {
@@ -242,7 +232,7 @@
       typeof window.AriVNextBridge?.ask === "function" &&
       versionAtLeast(window.AriVNextBridge?.version, "1.10.0") &&
       window.AriVNextActionAdapter &&
-      window.AriVNextActionAdapter.__ariWholeWorkoutReplacementV1 === true &&
+      versionAtLeast(window.AriVNextActionAdapter?.version, "1.5.0") &&
       window.AriVNextActivityAdapter &&
       window.AriVNextContextGuard?.ready === true &&
       window.AriVNextInitiative &&
@@ -369,6 +359,7 @@
 
     return {
       ...result,
+      reply: clean(mapped.action?.confirmation_text) || result?.reply || "Confirm this change?",
       pendingAction: mapped.action,
       vnextPendingAction: pending,
       actionMapping: {
@@ -394,10 +385,8 @@
     const pending = result?.vnextPendingAction || result?.pendingAction || null;
 
     if (actionType === "cancel_pending_action") {
-      if (legacy.cancelPendingAction && CalBuddy.getPendingAction?.()) {
-        legacy.cancelPendingAction();
-      }
       window.AriVNextBridge?.clearPendingAction?.();
+      CalBuddy.clearPendingAction?.();
       return { ...result, pendingAction: null };
     }
 
@@ -483,25 +472,40 @@
     return { success: true, reply: payload?.reply || "Experiment updated." };
   }
 
-  function isExpiredVNextLegacyPending(action = null) {
-    if (!action || typeof action !== "object") return false;
-    const linked = Boolean(
-      action?.vnext_action_id ||
-      action?.vnext_source_turn_id ||
-      clean(action?.vnext_source) === "ari_vnext_action_adapter"
-    );
-    if (!linked) return false;
-
-    const expiresAt = Date.parse(String(action?.vnext_expires_at || ""));
-    return Number.isFinite(expiresAt) && expiresAt <= Date.now();
-  }
-
   function shouldPropagateTransportError(error) {
     return Boolean(
       error?.name === "AbortError" ||
       error?.code === "ARI_REQUEST_ABORTED" ||
       error?.code === "ARI_TURN_IN_PROGRESS"
     );
+  }
+
+  async function runReadOnlyLegacyFallback(input = {}, error = null) {
+    if (!legacy.askAri) throw error || new Error("Ari read-only fallback is unavailable.");
+
+    const result = await legacy.askAri({
+      ...input,
+      readOnlyFallback: true
+    });
+
+    const rawReply = clean(result?.reply || result?.text || result?.message);
+    const unsafeClaim =
+      Boolean(result?.pendingAction || result?.action) ||
+      (Array.isArray(result?.actions) && result.actions.length > 0) ||
+      /\b(?:i(?:'ve| have)?\s+(?:logged|saved|added|recorded|updated|created|deleted|removed)|(?:it|that)\s+(?:is|'s)\s+(?:logged|saved|added|recorded|updated|created|deleted|removed)|done[.!]?$)\b/i.test(rawReply);
+
+    return {
+      ...(result || {}),
+      reply: unsafeClaim
+        ? "I couldn't prepare that app change through the primary Ari runtime. Nothing was saved. Try again."
+        : rawReply || "I couldn't complete that request through the primary Ari runtime. Try again.",
+      pendingAction: null,
+      action: null,
+      actions: [],
+      memoryCandidate: null,
+      developerIntent: null,
+      readOnlyFallback: true
+    };
   }
 
   async function ask(messageOrInput = "", options = {}) {
@@ -517,8 +521,7 @@
 
     const mode = getMode();
     if (mode !== "vnext") {
-      if (!legacy.askAri) throw new Error("Ari Rebirth fallback is unavailable.");
-      return await legacy.askAri(input);
+      return await runReadOnlyLegacyFallback(input);
     }
 
     try {
@@ -547,18 +550,46 @@
       return result;
     } catch (error) {
       if (shouldPropagateTransportError(error)) throw error;
-      console.error("Ari vNext runtime failed; using Rebirth fallback:", error);
-      if (!legacy.askAri) throw error;
-      return await legacy.askAri(input);
+      console.error("Ari vNext runtime failed; using read-only legacy fallback:", error);
+      return await runReadOnlyLegacyFallback(input, error);
     }
   }
 
   async function confirmPendingAction() {
-    const pending = window.AriVNextBridge?.getPendingAction?.();
-    const legacyPending = CalBuddy.getPendingAction?.() || null;
+    if (getMode() !== "vnext") {
+      return {
+        success: false,
+        readOnlyFallback: true,
+        reply: "App changes are available only through the primary Ari runtime. Ask Ari to prepare the change again."
+      };
+    }
 
-    if (getMode() === "vnext" && !pending?.id && isExpiredVNextLegacyPending(legacyPending)) {
-      legacy.cancelPendingAction?.();
+    await ensureVNext();
+
+    const bridgePending = window.AriVNextBridge?.getPendingAction?.() || null;
+    const storedPending = CalBuddy.getPendingAction?.() || null;
+    const restoredVNext =
+      storedPending?.vnext_pending_action &&
+      typeof storedPending.vnext_pending_action === "object"
+        ? storedPending.vnext_pending_action
+        : null;
+    const pending = bridgePending?.id ? bridgePending : restoredVNext;
+
+    if (!pending?.id) {
+      if (storedPending) CalBuddy.clearPendingAction?.();
+      return {
+        success: false,
+        expired: true,
+        reply: storedPending
+          ? "That older pending change is no longer executable. Ask Ari to prepare it again."
+          : "There is no pending Ari change to confirm."
+      };
+    }
+
+    const expiresAt = Date.parse(String(pending?.expiresAt || ""));
+    if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) {
+      window.AriVNextBridge?.clearPendingAction?.();
+      CalBuddy.clearPendingAction?.();
       return {
         success: false,
         expired: true,
@@ -566,13 +597,16 @@
       };
     }
 
-    if (getMode() !== "vnext" || !pending?.id) {
-      return legacy.confirmPendingAction ? await legacy.confirmPendingAction() : null;
+    if (!bridgePending?.id) {
+      window.AriVNextBridge?.setPendingAction?.(pending);
     }
 
     if (isExperimentAction(pending.name)) {
       const response = await executeExperimentAction(pending);
-      if (response?.success) window.AriVNextBridge?.clearPendingAction?.();
+      if (response?.success) {
+        window.AriVNextBridge?.clearPendingAction?.();
+        CalBuddy.clearPendingAction?.();
+      }
       return response;
     }
 
@@ -581,17 +615,14 @@
       currentTurnId: null
     });
     if (execution?.success) {
-      // Retire only the action that just completed. A newer proposal may already
-      // exist in the same conversation and must not be erased by this receipt.
       clearMatchingPendingAction(pending);
     }
     return execution;
   }
 
   function cancelPendingAction() {
-    if (getMode() !== "vnext") return legacy.cancelPendingAction?.();
     window.AriVNextBridge?.clearPendingAction?.();
-    if (CalBuddy.getPendingAction?.()) legacy.cancelPendingAction?.();
+    CalBuddy.clearPendingAction?.();
     return { success: true, cancelled: true, reply: "Cancelled. That pending change was not saved." };
   }
 

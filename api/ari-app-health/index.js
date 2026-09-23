@@ -133,7 +133,6 @@ function impactsWorkflow(workflowId, file) {
     if ([
       "api/ari-vnext.js",
       "ari/runtime/ari-runtime-controller.js",
-      "ari/intent/ari-central-intent-router.js",
       "js/auth.js",
       "js/nutrition-trust-layer.js",
       "js/nutrition-transaction-client.js",

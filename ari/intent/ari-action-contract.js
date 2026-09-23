@@ -35,7 +35,7 @@ window.Ari.actionContract = {
       return {
         ...base,
         shouldOnlyAnswer: true,
-        reason: "Meal logging is disabled while the single-path Nutrition action service is rebuilt."
+        reason: "Nutrition mutations are owned exclusively by Ari vNext; this legacy contract is read-only."
       };
     }
 
@@ -43,7 +43,7 @@ window.Ari.actionContract = {
       return {
         ...base,
         shouldOnlyAnswer: true,
-        reason: "Workout mutations are owned exclusively by ari-workout-plan-action.js."
+        reason: "Training mutations are owned exclusively by Ari vNext; this legacy contract is read-only."
       };
     }
 

@@ -14,7 +14,6 @@ const quotaApi = fs.readFileSync("api/ari-daily-chat-quota.js", "utf8");
 const bridge = fs.readFileSync("ari/vnext/ari-vnext-bridge.js", "utf8");
 const runtime = fs.readFileSync("ari/runtime/ari-runtime-controller.js", "utf8");
 const resilience = fs.readFileSync("js/home-resilience.js", "utf8");
-const router = fs.readFileSync("ari/intent/ari-central-intent-router.js", "utf8");
 const migration = fs.readFileSync("supabase/migrations/20260909173000_add_ari_daily_chat_quota.sql", "utf8");
 
 const originalLimit = process.env.ARI_DAILY_CHAT_LIMIT;
@@ -107,11 +106,10 @@ test("browser bridge syncs IANA timezone, renders remaining questions, and bypas
 });
 
 test("runtime and Home require the quota-aware bridge and runtime versions", () => {
-  assert.match(runtime, /const VERSION = "1\.3\.14"/);
+  assert.match(runtime, /const VERSION = "1\.5\.0"/);
   assert.match(runtime, /ari-vnext-bridge\.js\?v=1\.10\.0/);
   assert.match(runtime, /versionAtLeast\(window\.AriVNextBridge\?\.version, "1\.10\.0"\)/);
-  assert.match(resilience, /REQUIRED_RUNTIME_VERSION = "1\.3\.13"/);
-  assert.match(router, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.3\.14/);
+  assert.match(resilience, /REQUIRED_RUNTIME_VERSION = "1\.5\.0"/);
 });
 
 test("database quota boundary is atomic, local-day aware, and service-role only", () => {

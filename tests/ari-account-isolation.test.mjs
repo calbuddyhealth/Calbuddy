@@ -240,9 +240,11 @@ test("Nutrition surface cannot render Training or activity pending actions", () 
   assert.match(nutritionUiSource, /if \(!isNutritionAction\(current\)\)/);
 });
 
-test("auth boots account isolation before Ari routing and no longer boots workout actions on Nutrition", () => {
+test("auth boots account isolation without reinstalling a legacy semantic router", () => {
   assert.match(authSource, /account-isolation-guard\.js\?v=1\.0\.0/);
   assert.equal(authSource.includes("bootstrapAriWorkoutActionForNutrition"), false);
-  assert.ok(authSource.indexOf("bootstrapAccountIsolation();") < authSource.indexOf("bootstrapAriCentralIntentRouter();"));
+  assert.equal(authSource.includes("bootstrapAriCentralIntentRouter"), false);
+  assert.equal(authSource.includes("ari-central-intent-router.js"), false);
+  assert.match(authSource, /bootstrapAccountIsolation\(\)/);
   assert.match(authSource, /AriAccountIsolation\?\.deactivateUser/);
 });

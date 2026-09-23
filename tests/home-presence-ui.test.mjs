@@ -43,11 +43,9 @@ test("thinking fades the thread while keeping Ari's presence visible", () => {
   assert.doesNotMatch(styles, /\.ari-response-disclosure/);
 });
 
-test("the UI release keeps the current ARI app bridge", () => {
-  assert.match(
-    html,
-    /ari\/ari-rebirth-app-bridge\.js\?v=2\.5\.3/
-  );
+test("the UI release loads the canonical Ari vNext runtime without the Rebirth bridge", () => {
+  assert.match(html, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.5\.0/);
+  assert.doesNotMatch(html, /ari-rebirth-app-bridge\.js/);
 });
 
 test("home loads exactly one AI consent controller", () => {
