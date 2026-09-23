@@ -132,7 +132,9 @@ test("Ari confirmation executes log_activity through the trusted activity adapte
   assert.match(activityAdapter, /action_type: "log_activity"/);
   assert.match(activityAdapter, /type !== "log_activity"/);
   assert.match(activityAdapter, /window\.CalBuddy\.executeAction = async function patchedExecute/);
-  assert.match(activityAdapter, /await service\.logActivity/);\n  assert.match(activityAdapter, /resolveActivityDateText/);\n  assert.match(activityAdapter, /mentionsExplicitOtherDate/);
+  assert.match(activityAdapter, /await service\.logActivity/);
+  assert.match(activityAdapter, /resolveActivityDateText/);
+  assert.match(activityAdapter, /mentionsExplicitOtherDate/);
   assert.match(service, /client\.from\("activity_logs"\)\.insert/);
 });
 
