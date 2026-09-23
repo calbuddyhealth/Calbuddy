@@ -38,6 +38,23 @@ $$;
 create index if not exists ari_circle_profile_photos_moderation_idx
   on public.ari_circle_profile_photos(moderation_status, moderation_next_retry_at, updated_at);
 
+create table if not exists public.ari_circle_moderation_worker_state (
+  singleton boolean primary key default true check (singleton),
+  cooldown_until timestamptz,
+  consecutive_429s integer not null default 0,
+  last_provider_status integer,
+  last_error text,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.ari_circle_moderation_worker_state(singleton)
+values(true)
+on conflict(singleton) do nothing;
+
+alter table public.ari_circle_moderation_worker_state enable row level security;
+revoke all on table public.ari_circle_moderation_worker_state from public, anon, authenticated;
+grant select, insert, update, delete on table public.ari_circle_moderation_worker_state to service_role;
+
 -- Existing gallery rows predate asynchronous moderation and were already
 -- published through the legacy synchronous safety path.
 update public.ari_circle_profile_photos
@@ -429,6 +446,92 @@ $$;
 
 revoke all on function public.ari_circle_profile_moderation_retry(bigint,uuid,text,integer,text) from public, anon, authenticated;
 grant execute on function public.ari_circle_profile_moderation_retry(bigint,uuid,text,integer,text) to service_role;
+
+create or replace function public.ari_circle_profile_moderation_worker_gate()
+returns jsonb
+language plpgsql
+security definer
+set search_path = 'public', 'pg_temp'
+as $
+declare
+  s public.ari_circle_moderation_worker_state%rowtype;
+begin
+  select * into s
+  from public.ari_circle_moderation_worker_state
+  where singleton = true;
+
+  return jsonb_build_object(
+    'allowed', s.cooldown_until is null or s.cooldown_until <= now(),
+    'cooldown_until', s.cooldown_until,
+    'consecutive_429s', s.consecutive_429s,
+    'last_provider_status', s.last_provider_status
+  );
+end;
+$;
+
+revoke all on function public.ari_circle_profile_moderation_worker_gate() from public, anon, authenticated;
+grant execute on function public.ari_circle_profile_moderation_worker_gate() to service_role;
+
+create or replace function public.ari_circle_profile_moderation_provider_limited(
+  requested_retry_seconds integer,
+  requested_error text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = 'public', 'pg_temp'
+as $
+declare
+  current_429s integer := 0;
+  provider_delay integer := greatest(30, least(coalesce(requested_retry_seconds, 60), 3600));
+  adaptive_delay integer;
+  final_delay integer;
+begin
+  select consecutive_429s into current_429s
+  from public.ari_circle_moderation_worker_state
+  where singleton = true
+  for update;
+
+  current_429s := coalesce(current_429s, 0) + 1;
+  adaptive_delay := least(3600, 60 * (2 ^ least(6, current_429s - 1))::integer);
+  final_delay := greatest(provider_delay, adaptive_delay);
+
+  update public.ari_circle_moderation_worker_state
+  set cooldown_until = now() + make_interval(secs => final_delay),
+      consecutive_429s = current_429s,
+      last_provider_status = 429,
+      last_error = left(btrim(coalesce(requested_error, 'rate_limited')), 500),
+      updated_at = now()
+  where singleton = true;
+
+  return jsonb_build_object(
+    'cooldown_seconds', final_delay,
+    'consecutive_429s', current_429s,
+    'cooldown_until', now() + make_interval(secs => final_delay)
+  );
+end;
+$;
+
+revoke all on function public.ari_circle_profile_moderation_provider_limited(integer,text) from public, anon, authenticated;
+grant execute on function public.ari_circle_profile_moderation_provider_limited(integer,text) to service_role;
+
+create or replace function public.ari_circle_profile_moderation_provider_healthy()
+returns void
+language sql
+security definer
+set search_path = 'public', 'pg_temp'
+as $
+  update public.ari_circle_moderation_worker_state
+  set cooldown_until = null,
+      consecutive_429s = 0,
+      last_provider_status = 200,
+      last_error = null,
+      updated_at = now()
+  where singleton = true;
+$;
+
+revoke all on function public.ari_circle_profile_moderation_provider_healthy() from public, anon, authenticated;
+grant execute on function public.ari_circle_profile_moderation_provider_healthy() to service_role;
 
 create or replace function public.ari_circle_profile_moderation_metrics()
 returns jsonb
