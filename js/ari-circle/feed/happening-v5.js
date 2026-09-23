@@ -1,7 +1,7 @@
 /* ARI Circle Feed activity rail — events first, no XP/progression. */
 (() => {
   "use strict";
-  const VERSION = "6.0.0";
+  const VERSION = "6.1.0";
   const clean = (value) => String(value ?? "").trim();
   const escapeHtml = (value) => String(value ?? "")
     .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
@@ -57,7 +57,7 @@
       <div class="feed-next-event-list" id="circleV5HappeningRail"></div>
     `;
     const composer=document.querySelector(".feed-composer");
-    if (composer?.parentNode) composer.insertAdjacentElement("afterend",section);
+    if (composer?.parentNode) composer.insertAdjacentElement("beforebegin",section);
     return section;
   }
 
