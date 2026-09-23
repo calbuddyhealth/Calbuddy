@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.3.12
+// Version: 1.3.13
 // Purpose:
 //   Make Ari vNext the default Home + Nutrition intelligence runtime while
 //   preserving Rebirth as a deterministic emergency fallback during cutover.
@@ -16,7 +16,6 @@
 //   - Successful vNext confirmations clear both vNext and legacy pending mirrors.
 //   - vNext experiment actions keep their authenticated ledger lifecycle.
 //   - vNext manual activity logs use the shared Training activity writer.
-//   - vNext Meal Plan proposals use the trusted today-only Meal Plan adapter.
 //   - Initiative checks are deterministic and do not spend an LLM call.
 //   - ask() accepts both legacy object input and message/options input without
 //     ever stringifying the request object into "[object Object]".
@@ -196,7 +195,7 @@
     if (base.endsWith("ari-vnext-initiative.js")) {
       return Boolean(
         window.AriVNextInitiative &&
-        versionAtLeast(window.AriVNextInitiative?.version, "1.2.0") &&
+        versionAtLeast(window.AriVNextInitiative?.version, "1.2.1") &&
         window.AriVNextOperationRegistry?.ready === true &&
         versionAtLeast(window.AriVNextOperationRegistry?.version, "1.9.0")
       );
@@ -245,12 +244,11 @@
       window.AriVNextActionAdapter &&
       window.AriVNextActionAdapter.__ariWholeWorkoutReplacementV1 === true &&
       window.AriVNextActivityAdapter &&
-      window.AriVNextMealPlanAdapter?.ready === true &&
       window.AriVNextContextGuard?.ready === true &&
       window.AriVNextInitiative &&
-      versionAtLeast(window.AriVNextInitiative?.version, "1.2.0") &&
+      versionAtLeast(window.AriVNextInitiative?.version, "1.2.1") &&
       window.AriVNextOperationRegistry?.ready === true &&
-      versionAtLeast(window.AriVNextOperationRegistry?.version, "1.8.0")
+      versionAtLeast(window.AriVNextOperationRegistry?.version, "1.9.0")
     );
   }
 
