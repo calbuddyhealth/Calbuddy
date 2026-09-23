@@ -28,3 +28,14 @@ Apply the accompanying Supabase migration before enabling persistence in a deplo
 The loop does not grant permissions. Authorization, privacy, tool validation, and production boundaries remain external controls. A long-shot reversible investigation can be selected when its expected learning and future value justify the resources, while repeated costly attempts with no new evidence should change method or pause.
 
 These are functional mechanisms for persistence and learning. Their presence and test results do not establish subjective experience or sentience.
+
+
+## Belief system integration
+
+The belief layer is intentionally not a second truth database. Evidence-bearing conclusions remain in the goal/event ledger, decision journal, adaptive strategies, and other existing stores. The belief layer supplies stable rules for how Ari treats uncertainty and persistence.
+
+Its operational principles are: reality gets the final vote; current capability limits are provisional; possibility is not probability; commitment is separate from method confidence; methods can change while purposes remain under review; failure receives value only from attributable learning; agency searches for ways to change the conditions; and earned faith permits bounded informative exploration without counting as evidence.
+
+The cognitive loop derives a compact belief posture from the active conviction goal. High commitment plus low or unknown method feasibility can produce a `bounded_exploration` posture. A failed method with continuing commitment produces `revise_method_preserve_purpose`. Repeated failure without new information is explicitly evidence to change approach, reduce investment, pause, or retire the goal.
+
+The belief posture is passed to primary model context and to adaptive-strategy reflection. This makes the principles causal in reasoning rather than decorative prose. The reflection layer may learn transferable methods that improve exploration or correction, but it may not turn faith, ideology, or a one-off factual conclusion into a reusable strategy.
