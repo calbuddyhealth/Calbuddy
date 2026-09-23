@@ -1,16 +1,16 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.3.14
+// Version: 1.4.0
 // Purpose:
-//   Make Ari vNext the default Home + Nutrition intelligence runtime while
-//   preserving Rebirth as a deterministic emergency fallback during cutover.
+//   Make Ari vNext the single semantic/action authority on Home + Nutrition.
+//   Legacy CalBuddy/Rebirth remains a read-only emergency response fallback.
 //
 // Contract:
 //   - vNext is the default runtime.
 //   - The runtime controller owns the ordered vNext dependency boot sequence.
-//   - Rebirth remains available by local emergency override.
-//   - A vNext transport/runtime failure falls back once to Rebirth.
+//   - Legacy fallback can answer read-only but cannot interpret or execute app mutations.
+//   - A vNext transport/runtime failure never crosses into a second write authority.
 //   - Existing trusted CalBuddy action execution remains authoritative.
 //   - Typed and button confirmations share the same trusted action boundary.
 //   - Successful vNext confirmations clear both vNext and legacy pending mirrors.
@@ -34,7 +34,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.3.14";
+  const VERSION = "1.4.0";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
@@ -504,6 +504,34 @@
     );
   }
 
+  async function runReadOnlyLegacyFallback(input = {}, error = null) {
+    if (!legacy.askAri) throw error || new Error("Ari read-only fallback is unavailable.");
+
+    const result = await legacy.askAri({
+      ...input,
+      readOnlyFallback: true
+    });
+
+    const rawReply = clean(result?.reply || result?.text || result?.message);
+    const unsafeClaim =
+      Boolean(result?.pendingAction || result?.action) ||
+      (Array.isArray(result?.actions) && result.actions.length > 0) ||
+      /\b(?:i(?:'ve| have)?\s+(?:logged|saved|added|recorded|updated|created|deleted|removed)|(?:it|that)\s+(?:is|'s)\s+(?:logged|saved|added|recorded|updated|created|deleted|removed)|done[.!]?$)\b/i.test(rawReply);
+
+    return {
+      ...(result || {}),
+      reply: unsafeClaim
+        ? "I couldn't prepare that app change through the primary Ari runtime. Nothing was saved. Try again."
+        : rawReply || "I couldn't complete that request through the primary Ari runtime. Try again.",
+      pendingAction: null,
+      action: null,
+      actions: [],
+      memoryCandidate: null,
+      developerIntent: null,
+      readOnlyFallback: true
+    };
+  }
+
   async function ask(messageOrInput = "", options = {}) {
     const request = normalizeAskRequest(messageOrInput, options);
     const { input, message } = request;
@@ -517,8 +545,7 @@
 
     const mode = getMode();
     if (mode !== "vnext") {
-      if (!legacy.askAri) throw new Error("Ari Rebirth fallback is unavailable.");
-      return await legacy.askAri(input);
+      return await runReadOnlyLegacyFallback(input);
     }
 
     try {
@@ -547,9 +574,8 @@
       return result;
     } catch (error) {
       if (shouldPropagateTransportError(error)) throw error;
-      console.error("Ari vNext runtime failed; using Rebirth fallback:", error);
-      if (!legacy.askAri) throw error;
-      return await legacy.askAri(input);
+      console.error("Ari vNext runtime failed; using read-only legacy fallback:", error);
+      return await runReadOnlyLegacyFallback(input, error);
     }
   }
 
