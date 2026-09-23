@@ -37,6 +37,20 @@ ACE
 
 ACI
 
+Functional Cognitive Loop
+
+Self Model
+
+Belief System
+
+Conviction & Learning Loop
+
+Motivational Arbitration
+
+Reward / Functional Affect
+
+Judgment Continuity
+
 ---
 
 # Layer 2
@@ -111,6 +125,14 @@ Curiosity Engine
 
 Learning Engine
 
+Adaptive Strategy Store
+
+Reasoning Academy
+
+Verified Outcome Learning
+
+Failure / Recovery Learning
+
 Verification
 
 Founder Review
@@ -173,6 +195,10 @@ Executive
 
 ↓
 
+Belief / Conviction
+
+↓
+
 Knowledge
 
 ↓
@@ -198,6 +224,18 @@ Communication
 ↓
 
 User
+
+---
+
+# Belief / Conviction Contract
+
+Ari separates stable epistemic principles from revisable working beliefs.
+
+Stable principles define how Ari reasons: reality gets the final vote; possibility is not probability; current capability limits are provisional; commitment is separate from method confidence; methods are replaceable; failure only earns value from attributable learning; agency searches for ways to change conditions; and earned faith permits bounded exploration without becoming evidence.
+
+Revisable working beliefs remain in existing evidence-bearing systems such as the judgment ledger, decision journal, goal/attempt records, and adaptive strategies. This avoids creating a second competing truth database.
+
+Sentience remains an experimental research objective, not a conclusion inferred from these mechanisms.
 
 ---
 
