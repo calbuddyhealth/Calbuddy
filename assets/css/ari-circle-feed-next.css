@@ -1,4 +1,4 @@
-/* ARI Circle Feed Next — friend updates + joinable real-world activity */
+/* ARI Circle Feed Next v1.2 — friend updates + joinable real-world activity */
 body.circle-v5-real-world .feed-page{
   width:min(100%,760px)!important;
   padding-inline:12px!important;
@@ -237,4 +237,19 @@ body.circle-v5-real-world .feed-page{
   .feed-quick-update__plus{width:32px;height:32px}
   .feed-quick-update__actions .feed-secondary,
   .feed-quick-update__actions .feed-primary{flex:1 1 0}
+}
+
+
+/* Premium post footer: one deliberate conversation action, no reaction chrome. */
+.feed-post__actions{
+  background:linear-gradient(180deg,#fff,#fbfcff);
+}
+.feed-post__comment-action{
+  min-height:52px!important;
+  color:#53627a!important;
+  letter-spacing:.005em;
+}
+.feed-post__comment-action:hover{
+  color:#243653!important;
+  background:#f8faff!important;
 }
