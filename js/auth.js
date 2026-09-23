@@ -272,7 +272,7 @@ function bootstrapNutritionDataQuality() {
 function bootstrapAriCentralIntentRouter() {
   const surface = currentAriSurface();
   if (surface !== "home" && surface !== "nutrition") return;
-  appendOrderedScript(ARI_INTENT_ROUTER_SCRIPT_ID, "ari/intent/ari-central-intent-router.js?v=1.5.6");
+  appendOrderedScript(ARI_INTENT_ROUTER_SCRIPT_ID, "ari/intent/ari-central-intent-router.js?v=1.5.7");
 }
 
 function bootstrapAriMealAction() {
@@ -283,7 +283,7 @@ function bootstrapAriMealAction() {
 
 function bootstrapNutritionActionUi() {
   if (currentAriSurface() !== "nutrition") return;
-  appendOrderedScript(ARI_NUTRITION_ACTION_UI_SCRIPT_ID, "ari/actions/ari-nutrition-action-ui.js?v=1.2.0");
+  appendOrderedScript(ARI_NUTRITION_ACTION_UI_SCRIPT_ID, "ari/actions/ari-nutrition-action-ui.js?v=1.3.0");
 }
 
 function bootstrapNeutralGoalsForNewUsers() {
