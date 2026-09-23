@@ -256,7 +256,7 @@ function bootstrapCanonicalMealLedger() {
 function bootstrapNutritionTransactionClient() {
   const surface = currentAriSurface();
   if (surface !== "home" && surface !== "nutrition") return;
-  appendOrderedScript(ARI_NUTRITION_TRANSACTION_SCRIPT_ID, "js/nutrition-transaction-client.js?v=1.0.0");
+  appendOrderedScript(ARI_NUTRITION_TRANSACTION_SCRIPT_ID, "js/nutrition-transaction-client.js?v=1.1.0");
 }
 
 function bootstrapNutritionTrustLayer() {
