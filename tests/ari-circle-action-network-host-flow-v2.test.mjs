@@ -5,7 +5,7 @@ import test from "node:test";
 const meetupHtml = await readFile(new URL("../ari-circle-meetup.html", import.meta.url), "utf8");
 const connectController = await readFile(new URL("../js/ari-circle/connect/connect-v1.js", import.meta.url), "utf8");
 const migration = await readFile(new URL("../supabase/migrations/20260826050000_ari_circle_host_flow_v2.sql", import.meta.url), "utf8");
-const retirement = await readFile(new URL("../supabase/migrations/20260923121000_ari_circle_retire_xp_completion.sql", import.meta.url), "utf8");
+const retirement = await readFile(new URL("../supabase/migrations/20260923151000_ari_circle_retire_xp_completion.sql", import.meta.url), "utf8");
 
 test("simplified Connect controller remains valid browser JavaScript", () => {
   assert.doesNotThrow(() => new Function(connectController));
