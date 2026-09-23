@@ -31,24 +31,25 @@ test("legacy profile posts are no longer loaded into the active profile experien
 });
 
 test("Profile loader brings in gallery, friends, and compatibility shell without XP", () => {
-  assert.match(profileLoader, /profile-gallery-v1\.js\?v=1\.2\.0/);
+  assert.match(profileLoader, /profile-gallery-v1\.js\?v=1\.3\.0/);
   assert.match(profileLoader, /profile-friends\.js\?v=1\.0\.0/);
   assert.match(profileLoader, /profile-v4\.js\?v=4\.4\.0/);
   assert.match(profileLoader, /v4-ui\.js\?v=5\.5\.0/);
   assert.doesNotMatch(profileLoader, /ari-circle-xp\.css/);
 });
 
-test("Gallery hard-caps supporting photos at four and retries transient safety outages", () => {
+test("Gallery hard-caps supporting photos at four and publishes through the moderation queue", () => {
   assert.match(galleryMigration, /position between 1 and 4/i);
   assert.match(galleryMigration, /unique \(user_id, position\)/i);
   assert.match(profileGallery, /\[1,2,3,4\]/);
   assert.match(profileGallery, /MAX_BYTES = 8 \* 1024 \* 1024/);
-  assert.match(profileGallery, /const VERSION = "1\.2\.0"/);
-  assert.match(profileGallery, /isTransientSafetyFailure/);
-  assert.match(profileGallery, /Retrying in about/);
-  assert.match(profileGallery, /Tap Try again without reselecting it/);
-  assert.match(profileGallery, /ARI_CONTENT_BLOCKED/);
-  assert.match(profileGallery, /state\.pending = null/);
+  assert.match(profileGallery, /const VERSION = "1\.3\.0"/);
+  assert.match(profileGallery, /profile-gallery-pending/);
+  assert.match(profileGallery, /Photo uploaded\. Checking before it becomes visible/);
+  assert.match(profileGallery, /moderation_status/);
+  assert.match(profileGallery, /STATUS_POLL_MS = 15000/);
+  assert.doesNotMatch(profileGallery, /screenPhoto\(/);
+  assert.doesNotMatch(profileGallery, /AriCircleProfileSafety\.screen/);
 });
 
 test("Friend and message authorities remain separate", () => {
