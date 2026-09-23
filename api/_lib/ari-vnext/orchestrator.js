@@ -13,7 +13,7 @@ import { communicationLearningToInstruction } from "./communication-outcomes.js"
 import { buildRelevantContext, contextToText, routeContext } from "./context-router.js";
 import { evaluateExperimentSnapshot } from "./experiment-ledger.js";
 import { FITNESS_INTELLIGENCE, shouldUseFitnessIntelligence } from "./fitness-intelligence.js";
-import { resolveMealNutritionFromFoodSearch } from "./food-resolution.js";
+import { explicitNutritionFields, resolveMealNutritionFromFoodSearch } from "./food-resolution.js";
 import { deriveGoalHierarchy, goalHierarchyToInstruction } from "./goal-hierarchy.js";
 import { deriveLongitudinalState, longitudinalStateToInstruction } from "./longitudinal-state.js";
 import { deriveMetacognition, metacognitionToInstruction } from "./metacognition.js";
@@ -397,27 +397,50 @@ export async function runAriVNext(turn = {}) {
   let validation = validateToolCall(functionCall, route);
 
   if (!validation.valid) {
-    const mealNutritionRepair =
+    const isMealNutritionFailure =
       String(functionCall?.name || "") === "propose_log_meal" &&
-      String(validation?.error || "") === "meal_nutrition_required"
-        ? [
-            "MEAL NUTRITION REPAIR:",
-            "The user asked to log food but did not need to provide calories or macros.",
-            "Infer the most likely food and serving from the CURRENT message.",
-            "Estimate calories, protein, carbs, and fat when exact nutrition is unavailable; use reasonable nutrition knowledge rather than refusing simply because the user omitted numbers.",
-            "If the message names a recognizable restaurant or branded item, preserve that identity and estimate the standard serving unless the serving itself is genuinely ambiguous.",
-            "Mark estimated values clearly in notes. Do not pretend an estimate is exact.",
-            "Only ask the user a clarification if the food identity or amount is too ambiguous to make a reasonable estimate."
-          ].join("\n")
-        : "";
+      String(validation?.error || "") === "meal_nutrition_required";
+
+    if (isMealNutritionFailure) {
+      return withInternalCouncil({
+        success: true,
+        ready: true,
+        reply: "I couldn't produce a usable nutrition estimate for that meal in this turn, so nothing was prepared. Try the request again with the food and approximate amount.",
+        actionPreparation: {
+          success: false,
+          code: "meal_estimate_invalid",
+          retryable: true
+        },
+        route,
+        safety,
+        communication,
+        selfModel,
+        relationshipContinuity,
+        goalHierarchy,
+        metacognition,
+        cortexAdviser: publicCortexAdviser(cortexAdviser),
+        multiAgent: publicMultiAgentCouncil(multiAgentCouncil),
+        scientificIntelligence,
+        experimentReviewState,
+        temporalContext,
+        modelPolicy,
+        coachingState,
+        longitudinalState,
+        pendingAction: null,
+        action: null,
+        provider: providerSummary(first),
+        semanticActionReview: publicActionReview(semanticActionReview),
+        nutritionResolution: publicNutritionResolution(nutritionResolution),
+        source: "ari_vnext_meal_estimate_invalid"
+      }, multiAgentCouncil);
+    }
 
     const repairInstructions = [
       instructions,
       "\nTOOL ARGUMENT CORRECTION",
       `Your previous ${String(functionCall.name || "application")} function call failed trusted validation with: ${String(validation.error || "invalid_arguments")}.`,
-      "Reissue the SAME function with corrected arguments only. Preserve the user's request exactly; do not switch actions.",
-      mealNutritionRepair,
-    ].filter(Boolean).join("\n");
+      "Reissue the SAME function with corrected arguments only. Preserve the user's request exactly; do not switch actions."
+    ].join("\n");
 
     const repaired = await callResponses({
       turn,
@@ -427,16 +450,7 @@ export async function runAriVNext(turn = {}) {
       tools,
       toolChoice: { type: "function", name: String(functionCall.name) }
     });
-    let repairedCall = findFunctionCall(repaired?.output);
-    let repairedNutritionResolution = null;
-    if (repairedCall) {
-      const enrichedRepair = await enrichMealFunctionCall({
-        functionCall: repairedCall,
-        turn
-      });
-      repairedCall = enrichedRepair.functionCall;
-      repairedNutritionResolution = enrichedRepair.nutritionResolution;
-    }
+    const repairedCall = findFunctionCall(repaired?.output);
     const repairedValidation = repairedCall
       ? validateToolCall(repairedCall, route)
       : { valid: false, error: "missing_repaired_tool_call" };
@@ -447,7 +461,6 @@ export async function runAriVNext(turn = {}) {
 
     first = repaired;
     functionCall = repairedCall;
-    if (repairedNutritionResolution) nutritionResolution = repairedNutritionResolution;
     validation = repairedValidation;
   }
 
@@ -1474,10 +1487,55 @@ async function enrichMealFunctionCall({ functionCall = null, turn = {} } = {}) {
     return { functionCall, nutritionResolution: null };
   }
 
+  const message = String(turn?.message || "");
+  const modelNutritionComplete = hasCompleteMealNutrition(args);
+  const modelArgs = modelNutritionComplete
+    ? markModelEstimateWhenNeeded(args, message)
+    : args;
+
   const resolution = await resolveMealNutritionFromFoodSearch({
-    arguments: args,
-    message: turn?.message || ""
+    arguments: modelArgs,
+    message
   }).catch(() => null);
+
+  if (modelNutritionComplete) {
+    const exactPrecisionUpgrade =
+      resolution?.resolved === true &&
+      resolution?.arguments &&
+      resolution?.match?.exactIdentity === true &&
+      (
+        resolution?.source === "ari_canonical_food_registry" ||
+        resolution?.match?.verified === true
+      );
+
+    if (exactPrecisionUpgrade) {
+      return {
+        functionCall: {
+          ...functionCall,
+          arguments: JSON.stringify(resolution.arguments)
+        },
+        nutritionResolution: resolution
+      };
+    }
+
+    return {
+      functionCall: {
+        ...functionCall,
+        arguments: JSON.stringify(modelArgs)
+      },
+      nutritionResolution: {
+        version: "1.0.0",
+        resolved: true,
+        reason: "model_estimate_primary",
+        source: "ari_model_estimate",
+        arguments: modelArgs,
+        appliedFields: [],
+        preservedExplicitFields: [...explicitNutritionFields(message)],
+        match: null,
+        servingResolution: String(modelArgs?.servingSize || modelArgs?.unit || "").trim() || null
+      }
+    };
+  }
 
   if (!resolution?.resolved || !resolution?.arguments) {
     return { functionCall, nutritionResolution: resolution || null };
@@ -1489,6 +1547,31 @@ async function enrichMealFunctionCall({ functionCall = null, turn = {} } = {}) {
       arguments: JSON.stringify(resolution.arguments)
     },
     nutritionResolution: resolution
+  };
+}
+
+function hasCompleteMealNutrition(args = {}) {
+  const calories = Number(args?.calories);
+  if (!Number.isFinite(calories) || calories <= 0 || calories > 10000) return false;
+
+  for (const [key, max] of [["proteinG", 1000], ["carbsG", 1500], ["fatG", 1000]]) {
+    const value = Number(args?.[key]);
+    if (!Number.isFinite(value) || value < 0 || value > max) return false;
+  }
+  return true;
+}
+
+function markModelEstimateWhenNeeded(args = {}, message = "") {
+  const explicit = explicitNutritionFields(message);
+  if (explicit.size >= 4) return { ...args };
+
+  const note = String(args?.notes || "").trim();
+  const estimateMarker = "Estimated by Ari from a reasonable standard serving; exact brand, recipe, and preparation may vary.";
+  if (/\bestimat(?:e|ed|ion)\b/i.test(note)) return { ...args };
+
+  return {
+    ...args,
+    notes: note ? `${note} ${estimateMarker}` : estimateMarker
   };
 }
 
