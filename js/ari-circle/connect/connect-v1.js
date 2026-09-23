@@ -5,7 +5,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const $ = (id) => document.getElementById(id);
   const ACTIVITY = Object.freeze({
     walking: ["Walking", "🚶"],
@@ -170,6 +170,13 @@
       && a.getDate() === b.getDate();
   }
 
+  function tomorrowFrom(now = new Date()) {
+    const tomorrow = new Date(now);
+    tomorrow.setDate(now.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    return tomorrow;
+  }
+
   function weekendBounds(now = new Date()) {
     const day = now.getDay();
     const daysToSaturday = day === 6 ? 0 : (6 - day + 7) % 7;
@@ -184,7 +191,8 @@
   function bucketRows(rows) {
     const now = new Date();
     const { start: weekendStart, end: weekendEnd } = weekendBounds(now);
-    const buckets = { now: [], today: [], weekend: [], later: [] };
+    const tomorrow = tomorrowFrom(now);
+    const buckets = { now: [], today: [], tomorrow: [], weekend: [], later: [] };
 
     rows.forEach((row) => {
       const start = new Date(row.starts_at);
@@ -196,6 +204,8 @@
         buckets.now.push(row);
       } else if (isSameLocalDay(start, now)) {
         buckets.today.push(row);
+      } else if (isSameLocalDay(start, tomorrow)) {
+        buckets.tomorrow.push(row);
       } else if (start >= weekendStart && start < weekendEnd) {
         buckets.weekend.push(row);
       } else {
@@ -203,10 +213,19 @@
       }
     });
 
+    buckets.now.sort((a, b) => {
+      const aInstant = clean(a.join_mode || "instant") === "instant" ? 0 : 1;
+      const bInstant = clean(b.join_mode || "instant") === "instant" ? 0 : 1;
+      if (aInstant !== bInstant) return aInstant - bInstant;
+      const aDistance = Number.isFinite(Number(a.distance_miles)) ? Number(a.distance_miles) : Number.POSITIVE_INFINITY;
+      const bDistance = Number.isFinite(Number(b.distance_miles)) ? Number(b.distance_miles) : Number.POSITIVE_INFINITY;
+      return aDistance - bDistance;
+    });
+
     return buckets;
   }
 
-  function cardActionState(row) {
+  function cardActionState(row, { live = false } = {}) {
     const count = Number(row.participant_count) || 0;
     const capacity = Number(row.max_participants) || 0;
     const full = capacity > 0 && count >= capacity;
@@ -268,31 +287,41 @@
     }
 
     return {
-      primaryLabel: joinMode === "approval" ? "Request to Join" : "Join",
+      primaryLabel: joinMode === "approval" ? "Request to Join" : (live ? "Join now" : "Join"),
       primaryAction: joinMode === "approval" ? "request" : "join",
       secondary: "",
       disabled: false
     };
   }
 
-  function createMeetupCard(row) {
+  function createMeetupCard(row, { live = false } = {}) {
     const article = document.createElement("article");
-    article.className = "circle-connect-card";
+    article.className = `circle-connect-card${live ? " is-live" : ""}`;
     article.dataset.meetupId = clean(row.meetup_id);
 
     const [activityLabel, activityIcon] = activityMeta(row.activity);
     const count = Math.max(0, Number(row.participant_count) || 0);
     const capacity = Math.max(0, Number(row.max_participants) || 0);
     const openSpots = Math.max(0, capacity - count);
-    const action = cardActionState(row);
+    const action = cardActionState(row, { live });
     const handle = clean(row.host_handle)
       ? `@${clean(row.host_handle).replace(/^@+/, "")}`
       : "ARI Circle";
     const distance = Number(row.distance_miles);
     const distanceLabel = Number.isFinite(distance) ? `${distance.toFixed(distance < 10 ? 1 : 0)} mi` : "";
-    const joinCopy = clean(row.join_mode) === "approval" ? "Host approval" : "Instant join";
+    const joinMode = clean(row.join_mode) || "instant";
+    const joinCopy = joinMode === "approval" ? "Host approval" : "Instant join";
+    const jumpInReady = live
+      && joinMode === "instant"
+      && openSpots > 0
+      && !row.viewer_is_host
+      && !row.viewer_joined;
 
     article.innerHTML = `
+      ${live ? `<div class="circle-connect-live-strip">
+        <span><i aria-hidden="true"></i> LIVE NOW</span>
+        <strong>${jumpInReady ? "Jump in" : joinMode === "approval" ? "Approval required" : "In progress"}</strong>
+      </div>` : ""}
       <div class="circle-connect-card__top">
         <a class="circle-connect-avatar" href="ari-circle.html?user=${encodeURIComponent(row.host_user_id)}">${avatar(row)}</a>
         <div class="circle-connect-identity">
@@ -329,17 +358,12 @@
 
   function renderBucket(name, rows) {
     const list = $(`meetup${name}List`);
-    const empty = $(`meetup${name}Empty`);
     const section = $(`meetup${name}Section`);
-    if (!list || !empty || !section) return;
+    if (!list || !section) return;
 
     list.replaceChildren();
-    rows.forEach((row) => list.append(createMeetupCard(row)));
-    empty.hidden = rows.length > 0;
-
-    if (name === "Later") {
-      section.hidden = rows.length === 0;
-    }
+    rows.forEach((row) => list.append(createMeetupCard(row, { live: name === "Now" })));
+    section.hidden = rows.length === 0;
   }
 
   function renderMeetups() {
@@ -347,13 +371,14 @@
     const buckets = bucketRows(rows);
     renderBucket("Now", buckets.now);
     renderBucket("Today", buckets.today);
+    renderBucket("Tomorrow", buckets.tomorrow);
     renderBucket("Weekend", buckets.weekend);
     renderBucket("Later", buckets.later);
 
     const total = rows.length;
     $("meetupEmpty").hidden = total > 0;
     $("meetupStatus").textContent = total
-      ? `${total} meetup${total === 1 ? "" : "s"} available.`
+      ? `${total} thing${total === 1 ? "" : "s"} nearby`
       : "";
 
     const params = new URLSearchParams(location.search);
