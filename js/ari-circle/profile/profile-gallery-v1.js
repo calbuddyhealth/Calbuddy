@@ -160,7 +160,7 @@
   async function screenPhoto(file) {
     if (!window.AriCircleProfileSafety?.screen) {
       try {
-        await import("./profile-safety.js?v=1.1.0");
+        await import("./profile-safety.js?v=1.2.0");
       } catch {}
     }
     if (!window.AriCircleProfileSafety?.screen) {
