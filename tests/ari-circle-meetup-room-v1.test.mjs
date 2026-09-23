@@ -75,7 +75,7 @@ test("Meetup Room keeps attendees available behind a compact disclosure instead 
 });
 
 test("attendee renderer has no undefined legacy TIER dependency", () => {
-  assert.doesNotMatch(roomJs, /\\bTIER\\[/);
+  assert.doesNotMatch(roomJs, /\bTIER\[/);
   assert.doesNotMatch(roomJs, /const tier = TIER/);
 });
 
@@ -105,7 +105,7 @@ test("Meetup Room loader collapses instead of pushing the loaded room down one v
   );
   assert.match(roomJs, /if \(firstReveal\) requestAnimationFrame\(\(\) => window\.scrollTo\(0, 0\)\)/);
   assert.match(roomHtml, /ari-circle-meetup-room-v1\.css\?v=1\.2\.0/);
-  assert.match(roomHtml, /meetup-room-v1\.js\?v=1\.1\.0/);
+  assert.match(roomHtml, /meetup-room-v1\.js\?v=1\.1\.1/);
 });
 
 test("Meetup Room is a focused coordination surface for Build 7", () => {
