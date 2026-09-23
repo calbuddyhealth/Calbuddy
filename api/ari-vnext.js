@@ -459,6 +459,7 @@ export default async function handler(req, res) {
             ...(turn.context || {}),
             accountEntitlements,
             userWorldModel: persistedWorldModel,
+            convictionLearning,
             decisionState,
             temporalTimeline,
             relevantMemory: turn.memory || ""
@@ -1128,7 +1129,13 @@ export default async function handler(req, res) {
             stateVersion: ARI_COGNITIVE_STATE_VERSION,
             turnCount: cognitiveTurnCount,
             priorStateLoaded: Boolean(persistedCognitiveState),
-            stateStored: cognitiveStateStored
+            stateStored: cognitiveStateStored,
+            beliefSystem: cognitiveWorkspace?.beliefSystem ? {
+              version: cognitiveWorkspace.beliefSystem.version,
+              mode: cognitiveWorkspace.beliefSystem.posture?.mode || null,
+              activeGoalId: cognitiveWorkspace.beliefSystem.activeGoal?.id || null,
+              earnedFaithEligible: cognitiveWorkspace.beliefSystem.posture?.earnedFaith?.eligible === true
+            } : null
           }
         : { active: false, ownerOnly: true, skippedForCasualConversation: casualConversation && cognitiveLoopEligible },
       adaptiveStrategyLayer: cognitiveLoopEnabled
