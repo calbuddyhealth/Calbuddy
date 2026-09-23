@@ -24,8 +24,8 @@ const deletedLegacyPaths = [
 ];
 
 test("Home and Nutrition directly load the canonical vNext runtime", () => {
-  assert.match(home, /calbuddy-core\.js\?v=3\.8\.0[\s\S]*ari\/runtime\/ari-runtime-controller\.js\?v=1\.5\.0/);
-  assert.match(nutrition, /calbuddy-core\.js\?v=3\.8\.0[\s\S]*ari\/runtime\/ari-runtime-controller\.js\?v=1\.5\.0/);
+  assert.match(home, /calbuddy-core\.js\?v=3\.8\.0[\s\S]*ari\/runtime\/ari-runtime-controller\.js\?v=1\.6\.0/);
+  assert.match(nutrition, /calbuddy-core\.js\?v=3\.8\.0[\s\S]*ari\/runtime\/ari-runtime-controller\.js\?v=1\.6\.0/);
 });
 
 test("normal Home/Nutrition bootstrap has no competing semantic wrappers", () => {
