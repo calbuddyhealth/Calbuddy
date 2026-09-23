@@ -341,6 +341,10 @@
           "The photo safety service is still busy. Your photo has not been published. Tap Try again without reselecting it.",
           { tone: "error", retry: true }
         );
+      } else if (clean(error?.code).toUpperCase() === "ARI_CONTENT_BLOCKED") {
+        state.pending = null;
+        clearRetryTimer();
+        status(error.message || "That photo can’t be shared in ARI Circle.", { tone: "error" });
       } else {
         status(error.message || "Could not update that photo.", { tone: "error", retry: true });
       }
