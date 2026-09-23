@@ -5,7 +5,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const $ = (id) => document.getElementById(id);
   const ACTIVITY = Object.freeze({
     walking: ["Walking", "🚶"],
@@ -239,9 +239,14 @@
         primaryAction: "room",
         secondary: [
           joinMode === "approval"
-            ? `<button class="circle-v5-button" data-meetup-action="requests" type="button">Requests${requestCount ? ` · ${requestCount}` : ""}</button>`
+            ? `<button class="circle-v5-button circle-connect-card__requests" data-meetup-action="requests" type="button">Requests${requestCount ? ` · ${requestCount}` : ""}</button>`
             : "",
-          `<button class="circle-v5-button" data-meetup-action="cancel" type="button">Cancel</button>`
+          `<details class="circle-connect-card-menu">
+            <summary aria-label="Meetup options">•••</summary>
+            <div class="circle-connect-card-menu__panel">
+              <button data-meetup-action="cancel" type="button">Cancel meetup</button>
+            </div>
+          </details>`
         ].join(""),
         disabled: false
       };
@@ -310,7 +315,6 @@
     const distance = Number(row.distance_miles);
     const distanceLabel = Number.isFinite(distance) ? `${distance.toFixed(distance < 10 ? 1 : 0)} mi` : "";
     const joinMode = clean(row.join_mode) || "instant";
-    const joinCopy = joinMode === "approval" ? "Host approval" : "Instant join";
     const jumpInReady = live
       && joinMode === "instant"
       && openSpots > 0
@@ -334,9 +338,11 @@
       <div class="circle-connect-card__body">
         <h3>${escapeHtml(row.title || "Meetup")}</h3>
         ${clean(row.description) ? `<p>${escapeHtml(row.description)}</p>` : ""}
-        <div class="circle-connect-meta">
+        <div class="circle-connect-facts">
           <span>📍 ${escapeHtml(row.area || "General area")}${distanceLabel ? ` · ${escapeHtml(distanceLabel)}` : ""}</span>
+          <span class="circle-connect-facts__sep" aria-hidden="true">·</span>
           <span>◷ ${escapeHtml(dateTime(row.starts_at))}</span>
+          <span class="circle-connect-facts__sep" aria-hidden="true">·</span>
           <span>👥 ${count} going${openSpots ? ` · ${openSpots} spot${openSpots === 1 ? "" : "s"} left` : ""}</span>
         </div>
       </div>
@@ -344,7 +350,6 @@
       <div class="circle-connect-card__actions">
         <button class="circle-v5-button-primary" data-meetup-action="${escapeHtml(action.primaryAction)}" type="button" ${action.disabled ? 'data-permanent-disabled="true" disabled' : ""}>${escapeHtml(action.primaryLabel)}</button>
         ${action.secondary}
-        <span class="circle-connect-timing">${escapeHtml(relativeStart(row.starts_at))} · ${escapeHtml(joinCopy)}</span>
       </div>
     `;
 
@@ -363,6 +368,8 @@
 
     list.replaceChildren();
     rows.forEach((row) => list.append(createMeetupCard(row, { live: name === "Now" })));
+    const count = section.querySelector("[data-meetup-count]");
+    if (count) count.textContent = String(rows.length);
     section.hidden = rows.length === 0;
   }
 
@@ -653,7 +660,6 @@
 
   function bind() {
     $("hostMeetupButton")?.addEventListener("click", openHostDialog);
-    $("emptyHostMeetupButton")?.addEventListener("click", openHostDialog);
     $("hostMeetupForm")?.addEventListener("submit", createMeetup);
     $("refreshMeetups")?.addEventListener("click", loadMeetups);
 
