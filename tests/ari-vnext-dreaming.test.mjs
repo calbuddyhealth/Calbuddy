@@ -57,6 +57,24 @@ test("dreaming requires repeated evidence before creating relationship or commun
   assert.equal(normalizeDreamOutput(raw, evidence()).insights.length, 1);
 });
 
+test("prior dream insights cannot self-reinforce without external evidence", () => {
+  const e = evidence();
+  e.priorDreamInsights = [
+    { ref: "dream:d1", id: "d1", kind: "relationship", title: "Old inference", summary: "Old inference", confidence: 0.9 },
+    { ref: "dream:d2", id: "d2", kind: "relationship", title: "Second inference", summary: "Second inference", confidence: 0.9 }
+  ];
+  const raw = {
+    summary: "No external support.",
+    insights: [{
+      kind: "relationship", domain: "conversation", title: "Self-reinforcing pattern",
+      summary: "Two old dream inferences repeat the same relationship hypothesis.",
+      confidence: 0.95, evidenceRefs: ["dream:d1", "dream:d2"], evidenceBasis: "Only prior dream outputs.",
+      action: "observe", transferConditions: [], disconfirmers: [], sensitive: false
+    }]
+  };
+  assert.equal(normalizeDreamOutput(raw, e).insights.length, 0);
+});
+
 test("dreaming rejects sensitive details and subjective-emotion claims", () => {
   const base = {
     kind: "relationship", domain: "conversation", title: "Pattern", confidence: 0.9,
