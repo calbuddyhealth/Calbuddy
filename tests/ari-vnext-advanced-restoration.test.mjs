@@ -135,12 +135,16 @@ test("normal conversation enters the canonical vNext runtime without a browser s
   assert.doesNotMatch(runtime, /ari-central-intent-router|MUTATION_CUE_PATTERN/);
 });
 
-test("server skips owner cognitive hydration for casual conversation only", () => {
+test("server keeps owner cognition lightweight on casual conversation instead of turning it off", () => {
   assert.match(api, /const casualConversation = preliminaryRoute\.casualConversation === true/);
   assert.match(api, /const cognitiveLoopEligible = isOwnerCognitiveLoopEnabled\(intelligenceEntitlement\)/);
-  assert.match(api, /const cognitiveLoopEnabled = cognitiveLoopEligible && !casualConversation/);
-  assert.match(api, /casualConversation\s*\? Promise\.resolve\(null\)\s*:\s*loadUserWorldModel/);
-  assert.match(api, /casualConversation\s*\? Promise\.resolve\(null\)\s*:\s*loadAccountEntitlements/);
+  assert.match(api, /const cognitiveMode = resolveOwnerCognitionMode/);
+  assert.match(api, /const cognitiveLoopEnabled = cognitiveMode !== "off"/);
+  assert.match(api, /const deepCognitionEnabled = cognitiveMode === "deep"/);
+  assert.match(api, /limitPairs: cognitiveMode === "lightweight" \? 2/);
+  assert.match(api, /casualConversation && !cognitiveLoopEnabled\s*\? Promise\.resolve\(null\)\s*:\s*loadUserWorldModel/);
+  assert.match(api, /casualConversation && !cognitiveLoopEnabled\s*\? Promise\.resolve\(null\)\s*:\s*loadAccountEntitlements/);
+  assert.match(api, /shouldPersistCognitiveState/);
   assert.match(api, /serverHydrationMs/);
   assert.match(api, /modelMs/);
 });

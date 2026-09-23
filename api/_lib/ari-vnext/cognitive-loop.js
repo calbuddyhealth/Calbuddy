@@ -15,8 +15,8 @@ import {
   summarizeMotivationalLearning
 } from "./motivational-arbitration.js";
 
-export const ARI_COGNITIVE_LOOP_VERSION = "0.6.0";
-export const ARI_COGNITIVE_STATE_VERSION = "0.5.0";
+export const ARI_COGNITIVE_LOOP_VERSION = "0.7.0";
+export const ARI_COGNITIVE_STATE_VERSION = "0.6.0";
 export const ARI_JUDGMENT_CONSTITUTION_VERSION = "1.0.0";
 
 const CORE_VALUES = Object.freeze([
@@ -54,13 +54,35 @@ export function isOwnerCognitiveLoopEnabled(entitlement = null) {
   return entitlement.advancedEnabled === true && entitlement.ownerEligible === true;
 }
 
+export function resolveOwnerCognitionMode({ entitlement = null, route = {} } = {}) {
+  if (!isOwnerCognitiveLoopEnabled(entitlement)) return "off";
+  return route?.casualConversation === true ? "lightweight" : "deep";
+}
+
+export function shouldPersistCognitiveState({
+  previous = null,
+  next = null,
+  mode = "deep"
+} = {}) {
+  if (!next || typeof next !== "object" || Array.isArray(next)) return false;
+  const cognitionMode = normalizeCognitionMode(mode);
+  if (cognitionMode === "off") return false;
+  if (!previous || typeof previous !== "object" || Array.isArray(previous)) return true;
+  if (cognitionMode === "deep") return true;
+
+  return JSON.stringify(meaningfulCognitiveSignature(previous)) !==
+    JSON.stringify(meaningfulCognitiveSignature(next));
+}
+
 export function deriveCognitiveWorkspace({
   previous = null,
   turn = {},
   route = {},
-  context = {}
+  context = {},
+  mode = "deep"
 } = {}) {
   const prior = normalizeState(previous);
+  const cognitionMode = normalizeCognitionMode(mode);
   const message = clean(turn?.message, 4000);
   const attention = deriveAttention({ route, message, prior });
   const salience = deriveSalience({ route, message, prior, context });
@@ -82,6 +104,9 @@ export function deriveCognitiveWorkspace({
   return {
     version: ARI_COGNITIVE_LOOP_VERSION,
     stateVersion: ARI_COGNITIVE_STATE_VERSION,
+    mode: cognitionMode,
+    lightweightContinuity: cognitionMode === "lightweight",
+    deepCognition: cognitionMode === "deep",
     ownerOnly: true,
     functionalExperiment: true,
     subjectiveConsciousnessClaimed: false,
@@ -150,8 +175,18 @@ export function deriveCognitiveWorkspace({
 export function cognitiveWorkspaceToInstruction(workspace = null) {
   if (!workspace?.ownerOnly || workspace?.functionalExperiment !== true) return "";
 
+  if (normalizeCognitionMode(workspace?.mode) === "lightweight") {
+    return [
+      "ARI OWNER COGNITIVE LOOP — LIGHTWEIGHT CONTINUITY",
+      "This is the always-on owner continuity layer. It is functional state, not evidence or a claim that Ari has subjective consciousness.",
+      "Use prior continuity, functional affect, active beliefs, unresolved open loops, relationship context, and relevant dream-derived context only when they actually help the current turn.",
+      "Do not manufacture significance, force reflection, create a new belief, or escalate into heavy deliberation merely because continuity state is available.",
+      "Current evidence and the user's current message outrank persisted state. Never expose hidden chain-of-thought."
+    ].join("\n").slice(0, 3200);
+  }
+
   return [
-    "ARI OWNER COGNITIVE LOOP — FUNCTIONAL EXPERIMENT",
+    "ARI OWNER COGNITIVE LOOP — DEEP FUNCTIONAL EXPERIMENT",
     "This is an owner-only persistent working-state mechanism. It is not evidence or a claim that Ari has subjective consciousness.",
     beliefSystemInstruction(workspace.beliefSystem),
     "Use the working state causally: the prior turn may influence current attention, value conflicts, uncertainty, unresolved business, reward learning, functional affect, and relevant prior judgments.",
@@ -220,6 +255,7 @@ export function advanceCognitiveState({
 
   return {
     version: ARI_COGNITIVE_STATE_VERSION,
+    mode: normalizeCognitionMode(workspace?.mode || prior?.mode || "deep"),
     turnCount: Number(prior.turnCount || 0) + 1,
     updatedAt: new Date().toISOString(),
     lastTurnId: clean(turn?.turnId, 200) || null,
@@ -289,6 +325,53 @@ export function advanceCognitiveState({
       judgmentRecorded: nextJudgments.some((item) => item?.sourceTurnId === clean(turn?.turnId, 200))
     },
     openLoops: nextLoops.slice(0, 8)
+  };
+}
+
+function normalizeCognitionMode(value = "deep") {
+  const mode = String(value || "").trim().toLowerCase();
+  if (mode === "off" || mode === "lightweight" || mode === "deep") return mode;
+  return "deep";
+}
+
+function meaningfulCognitiveSignature(state = {}) {
+  const affect = state?.affectState || {};
+  const dominant = affect?.dominantState || {};
+  const belief = state?.beliefSystem || {};
+  const continuity = state?.continuity || {};
+  const motivation = state?.motivationalLearning || {};
+  const lastOutcome = state?.lastOutcome || {};
+
+  return {
+    openLoops: (Array.isArray(state?.openLoops) ? state.openLoops : []).slice(0, 8).map((item) => ({
+      id: clean(item?.id, 180),
+      type: clean(item?.type, 80),
+      priority: Number(item?.priority || 0)
+    })),
+    judgments: (Array.isArray(state?.judgments) ? state.judgments : []).slice(0, 10).map((item) => ({
+      topicKey: clean(item?.topicKey, 180),
+      position: clean(item?.position, 260),
+      confidenceLabel: clean(item?.confidenceLabel, 60)
+    })),
+    belief: {
+      mode: clean(belief?.posture?.mode, 80) || null,
+      activeGoalId: clean(belief?.activeGoal?.id, 180) || null,
+      earnedFaithEligible: belief?.posture?.earnedFaith?.eligible === true
+    },
+    affect: {
+      dominant: clean(dominant?.name || dominant?.state || dominant?.label, 60) || null,
+      intensity: Math.round(Number(dominant?.intensity || 0) * 10) / 10,
+      valence: Math.round(Number(affect?.dimensions?.valence ?? 0.5) * 10) / 10
+    },
+    motivation: {
+      driveBias: Math.round(Number(motivation?.driveBias || 0) * 10) / 10,
+      restraintBias: Math.round(Number(motivation?.restraintBias || 0) * 10) / 10,
+      selectedSide: clean(lastOutcome?.motivationalSelectedSide, 40) || null
+    },
+    continuity: {
+      familiarity: clean(continuity?.familiarity, 60) || null,
+      persistentRecognition: continuity?.persistentRecognition === true
+    }
   };
 }
 

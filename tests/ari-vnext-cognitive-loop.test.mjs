@@ -6,13 +6,77 @@ import {
   advanceCognitiveState,
   cognitiveWorkspaceToInstruction,
   deriveCognitiveWorkspace,
-  isOwnerCognitiveLoopEnabled
+  isOwnerCognitiveLoopEnabled,
+  resolveOwnerCognitionMode,
+  shouldPersistCognitiveState
 } from "../api/_lib/ari-vnext/cognitive-loop.js";
 
 test("owner Advanced Ari enables the cognitive loop while premium alone does not", () => {
   assert.equal(isOwnerCognitiveLoopEnabled({ advancedEnabled: true, ownerEligible: true }), true);
   assert.equal(isOwnerCognitiveLoopEnabled({ advancedEnabled: true, ownerEligible: false, premiumEligible: true }), false);
   assert.equal(isOwnerCognitiveLoopEnabled({ advancedEnabled: false, ownerEligible: true }), false);
+});
+
+test("owner cognition stays lightweight for casual turns and deep for meaningful turns", () => {
+  const entitlement = { advancedEnabled: true, ownerEligible: true, cognitiveLoopEnabled: true };
+  assert.equal(resolveOwnerCognitionMode({
+    entitlement,
+    route: { casualConversation: true, complexity: "fast" }
+  }), "lightweight");
+  assert.equal(resolveOwnerCognitionMode({
+    entitlement,
+    route: { casualConversation: false, complexity: "fast" }
+  }), "deep");
+  assert.equal(resolveOwnerCognitionMode({
+    entitlement: { advancedEnabled: true, ownerEligible: false, cognitiveLoopEnabled: false },
+    route: { casualConversation: true }
+  }), "off");
+});
+
+test("lightweight cognition persists only meaningful state deltas", () => {
+  const previous = {
+    turnCount: 7,
+    beliefSystem: { posture: { mode: "steady", earnedFaith: { eligible: false } }, activeGoal: null },
+    affectState: {
+      dominantState: { name: "neutral", intensity: 0.1 },
+      dimensions: { valence: 0.5 }
+    },
+    motivationalLearning: { driveBias: 0.5, restraintBias: 0.5 },
+    continuity: { familiarity: "familiar", persistentRecognition: true },
+    lastOutcome: { motivationalSelectedSide: "balanced" },
+    openLoops: [],
+    judgments: []
+  };
+  const bookkeepingOnly = {
+    ...previous,
+    mode: "lightweight",
+    turnCount: 8,
+    updatedAt: "2026-09-23T16:00:00.000Z",
+    lastTurnId: "greeting-1"
+  };
+  assert.equal(shouldPersistCognitiveState({
+    previous,
+    next: bookkeepingOnly,
+    mode: "lightweight"
+  }), false);
+
+  const meaningful = {
+    ...bookkeepingOnly,
+    affectState: {
+      dominantState: { name: "concerned", intensity: 0.7 },
+      dimensions: { valence: 0.3 }
+    }
+  };
+  assert.equal(shouldPersistCognitiveState({
+    previous,
+    next: meaningful,
+    mode: "lightweight"
+  }), true);
+  assert.equal(shouldPersistCognitiveState({
+    previous,
+    next: bookkeepingOnly,
+    mode: "deep"
+  }), true);
 });
 
 test("cognitive workspace carries prior state without claiming consciousness", () => {
