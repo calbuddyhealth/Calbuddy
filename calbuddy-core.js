@@ -2237,7 +2237,17 @@ CalBuddy.buildVisualEvidenceFollowUpReply = function (
   return lines.join("\n");
 };
 
+CalBuddy.isExplicitVisualSandboxRequest = function (message = "") {
+  const text = String(message || "").toLowerCase().trim();
+  return (
+    /\b(?:use|open|run|inspect in|look in|navigate in)\s+(?:the\s+)?(?:read[- ]only\s+)?sandbox\b/i.test(text) ||
+    /\b(?:this is|that's|that is|treat this as)\s+(?:your\s+|the\s+)?sandbox\b/i.test(text) ||
+    /\b(?:sandbox mode|visual sandbox|read[- ]only sandbox)\b/i.test(text)
+  );
+};
+
 CalBuddy.messageRequiresLiveOwner = function (message = "") {
+  if (CalBuddy.isExplicitVisualSandboxRequest(message)) return false;
   const text = String(message || "").toLowerCase();
   return (
     /\b(live owner|live owner session|my actual account|my real account|actual account state|real account state)\b/i.test(text) ||
@@ -2830,6 +2840,7 @@ if (
         : CalBuddy.inferVisualInspectionPath(message);
 
   const liveOwnerActive = await CalBuddy.isVisualLiveOwnerSessionActive();
+  const explicitSandbox = CalBuddy.isExplicitVisualSandboxRequest(message);
   const requestedLiveOwner = CalBuddy.messageRequiresLiveOwner(message);
 
   if (requestedLiveOwner && !liveOwnerActive) {
@@ -2853,9 +2864,11 @@ if (
       ? pendingVisual.visualMode
       : isVisualFollowUp && recentVisual?.visualMode
         ? recentVisual.visualMode
-        : liveOwnerActive
-          ? "live_owner"
-          : "sandbox";
+        : explicitSandbox
+          ? "sandbox"
+          : liveOwnerActive
+            ? "live_owner"
+            : "sandbox";
 
   const visualResult =
     isVisualFollowUp && recentVisual && !wantsResume
