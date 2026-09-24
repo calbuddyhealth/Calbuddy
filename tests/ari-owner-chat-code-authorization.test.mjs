@@ -63,6 +63,47 @@ test("client GitHub request still delegates authorization to the server", () => 
   assert.match(block, /\/api\/ari-github-edit/);
 });
 
+
+test("typed chat authorization uses the normal pending-action path before legacy GitHub fallback", () => {
+  const start = core.indexOf("CalBuddy._askAriInternal = async function");
+  const end = core.indexOf("DETERMINISTIC OWNER GITHUB ROUTING", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const block = core.slice(start, end);
+
+  const pendingConfirm = block.indexOf("pending && CalBuddy.isYes(message)");
+  const legacyConfirm = block.indexOf("exactLegacyGithubConfirmation");
+  assert.ok(pendingConfirm >= 0);
+  assert.ok(legacyConfirm > pendingConfirm);
+  assert.match(
+    block,
+    /trim\(\)\.toUpperCase\(\) === "CONFIRM GITHUB EDIT"/
+  );
+  assert.doesNotMatch(
+    block,
+    /pendingGithubEdit && CalBuddy\.isYes\(message\)/
+  );
+});
+
+test("new GitHub proposals clear legacy GitHub-only state and cancellation cannot resurrect it", () => {
+  assert.match(
+    core,
+    /New code edits use the normal pending-action lifecycle/
+  );
+  assert.match(
+    core,
+    /localStorage\.removeItem\("calbuddyPendingGithubEdit"\);[\s\S]{0,500}createGithubEditPendingAction/
+  );
+
+  const cancelBlock = sliceBetween(
+    core,
+    "CalBuddy.cancelPendingAction = function",
+    "CalBuddy.isDeveloperCommand = function"
+  );
+  assert.match(cancelBlock, /github_edit_request/);
+  assert.match(cancelBlock, /localStorage\.removeItem\("calbuddyPendingGithubEdit"\)/);
+});
+
 test("Ari self-model knows owner-confirmed chat code editing is a real capability", () => {
   assert.match(selfModel, /ARI_SELF_MODEL_VERSION = "1\.4\.1"/);
   assert.match(selfModel, /ownerConfirmedChatCodeEditsSupported:\s*true/);
