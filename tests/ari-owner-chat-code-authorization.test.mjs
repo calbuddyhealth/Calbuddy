@@ -64,6 +64,21 @@ test("client GitHub request still delegates authorization to the server", () => 
 });
 
 
+test("validated owner GitHub edits do not depend on developer-keyword phrasing", () => {
+  const block = sliceBetween(
+    core,
+    "CalBuddy.shouldHandleDeveloperIntent = function",
+    "ARI TEMP ACTION MEMORY"
+  );
+
+  assert.match(block, /hasValidatedGithubEdit/);
+  assert.match(block, /developerIntent\.type === "github_edit_request"/);
+  assert.match(block, /developerIntent\.safety\?\.ownerRequired === true/);
+  assert.match(block, /developerIntent\.safety\?\.requiresConfirmation === true/);
+  assert.match(block, /if \(hasValidatedGithubEdit\) return true/);
+  assert.match(block, /return explicitDeveloperCommand && hasExecutableGithubWork/);
+});
+
 test("typed chat authorization uses the normal pending-action path before legacy GitHub fallback", () => {
   const start = core.indexOf("CalBuddy._askAriInternal = async function");
   const end = core.indexOf("DETERMINISTIC OWNER GITHUB ROUTING", start);
