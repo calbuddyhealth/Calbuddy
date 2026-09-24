@@ -44,7 +44,7 @@ test("thinking fades the thread while keeping Ari's presence visible", () => {
 });
 
 test("the UI release loads the canonical Ari vNext runtime without the Rebirth bridge", () => {
-  assert.match(html, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.6\.1/);
+  assert.match(html, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.6\.2/);
   assert.doesNotMatch(html, /ari-rebirth-app-bridge\.js/);
 });
 
