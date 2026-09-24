@@ -172,7 +172,7 @@ export function contextToText(context = {}) {
   try {
     const protectedContext = buildProtectedContext(context);
     const protectedJson = JSON.stringify(protectedContext, null, 2);
-    const rules = cognitiveContextRules(context).slice(0, 6500);
+    const rules = cognitiveContextRules(context).slice(0, 12000);
 
     const sectionHeader = "PROTECTED CONTINUITY CONTEXT — preserve and use this before optional cognition:";
     const rulesHeader = "COGNITIVE/BEHAVIOR RULES:";
