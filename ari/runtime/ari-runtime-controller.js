@@ -48,12 +48,19 @@
   ];
 
   const legacy = {
-    askAri: typeof CalBuddy.askAri === "function" ? CalBuddy.askAri.bind(CalBuddy) : null,
-    confirmPendingAction:
+    askAri: typeof CalBuddy.askAri === "function" ? CalBuddy.askAri.bind(CalBuddy) : null
+  };
+
+  // CalBuddy's pre-cutover pending-action executor remains the trusted
+  // application write boundary. It is not a semantic fallback and it never
+  // interprets user intent; vNext only delegates an already-prepared exact
+  // local owner-control action to it after explicit confirmation.
+  const trustedCalBuddyActions = {
+    confirm:
       typeof CalBuddy.confirmPendingAction === "function"
         ? CalBuddy.confirmPendingAction.bind(CalBuddy)
         : null,
-    cancelPendingAction:
+    cancel:
       typeof CalBuddy.cancelPendingAction === "function"
         ? CalBuddy.cancelPendingAction.bind(CalBuddy)
         : null
@@ -321,7 +328,7 @@
     const localPending = localOwnerControlPending();
 
     if (localPending && isAffirmative(message)) {
-      if (!legacy.confirmPendingAction) {
+      if (!trustedCalBuddyActions.confirm) {
         return {
           success: false,
           ready: false,
@@ -329,7 +336,7 @@
           reply: "The Live Owner confirmation handler is unavailable. Nothing changed."
         };
       }
-      const result = await legacy.confirmPendingAction();
+      const result = await trustedCalBuddyActions.confirm();
       return {
         ...(result || {}),
         source: "ari_vnext_local_owner_control_confirmation"
@@ -337,8 +344,8 @@
     }
 
     if (localPending && isNegative(message)) {
-      const result = legacy.cancelPendingAction
-        ? legacy.cancelPendingAction()
+      const result = trustedCalBuddyActions.cancel
+        ? trustedCalBuddyActions.cancel()
         : (CalBuddy.clearPendingAction?.(), { success: true, reply: "Cancelled." });
       return {
         ...(result || {}),
@@ -696,8 +703,8 @@
 
   async function confirmPendingAction() {
     const localPending = localOwnerControlPending();
-    if (localPending && legacy.confirmPendingAction) {
-      const result = await legacy.confirmPendingAction();
+    if (localPending && trustedCalBuddyActions.confirm) {
+      const result = await trustedCalBuddyActions.confirm();
       return {
         ...(result || {}),
         source: "ari_vnext_local_owner_control_confirmation"
@@ -770,8 +777,8 @@
 
   function cancelPendingAction() {
     const localPending = localOwnerControlPending();
-    if (localPending && legacy.cancelPendingAction) {
-      const result = legacy.cancelPendingAction();
+    if (localPending && trustedCalBuddyActions.cancel) {
+      const result = trustedCalBuddyActions.cancel();
       return {
         ...(result || {}),
         source: "ari_vnext_local_owner_control_cancel"
