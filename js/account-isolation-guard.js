@@ -13,7 +13,9 @@
     "calbuddyPendingAction",
     "arixp_pending_ari_turn_v1",
     "ariLastIntentDecision",
-    "calbuddyPendingGithubEdit"
+    "calbuddyPendingGithubEdit",
+    "calbuddyPendingVisualInspection",
+    "calbuddyLastVisualInspection"
   ]);
 
   const TRANSIENT_SESSION_KEYS = Object.freeze([
