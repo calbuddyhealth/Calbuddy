@@ -227,6 +227,7 @@ test("visual inspector state cannot survive an account switch", async () => {
     requestId: "vis_user_a",
     targetPath: "/ari-circle.html"
   }));
+  ctx.local.setItem("calbuddyVisualLiveOwnerSession", JSON.stringify({ mode: "live_owner", userId: "user-a", expiresAt: Date.now() + 60000 }));
   ctx.local.setItem("calbuddyLastVisualInspection", JSON.stringify({
     requestId: "vis_user_a_done",
     targetPath: "/home.html"
@@ -237,6 +238,7 @@ test("visual inspector state cannot survive an account switch", async () => {
 
   assert.equal(ctx.local.getItem("calbuddyPendingVisualInspection"), null);
   assert.equal(ctx.local.getItem("calbuddyLastVisualInspection"), null);
+  assert.equal(ctx.local.getItem("calbuddyVisualLiveOwnerSession"), null);
 });
 
 test("sign-out/account deactivation clears active browser state", async () => {
