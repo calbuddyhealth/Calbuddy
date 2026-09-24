@@ -173,6 +173,27 @@ test("whole-app inspection becomes a bounded multi-page visual tour", () => {
   assert.match(api, /I won't describe that as a full-app inspection/);
 });
 
+test("captured route redirects count as completed visual checkpoints", () => {
+  assert.match(api, /expectedCheckpoints/);
+  assert.match(api, /missingCheckpoints/);
+  assert.match(api, /redirectedRoutes/);
+  assert.doesNotMatch(
+    api.slice(
+      api.indexOf("function evaluateVisualCoverage"),
+      api.indexOf("function structuralFindings")
+    ),
+    /missingPaths\.length === 0/
+  );
+  assert.match(
+    api,
+    /requested .* redirected to .* the redirect was captured as the route outcome rather than treated as a missing checkpoint/
+  );
+  assert.match(
+    api,
+    /when a checkpoint requested one route but the captured URL redirected elsewhere/
+  );
+});
+
 test("explicit sandbox wording overrides an active Live Owner visual session", () => {
   assert.match(core, /CalBuddy\.isExplicitVisualSandboxRequest/);
   assert.match(core, /this is\|that's\|that is\|treat this as/);
