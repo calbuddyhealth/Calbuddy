@@ -88,6 +88,8 @@ test("browser worker uses a read-only owner sandbox and captures real visual evi
 });
 
 test("visual screenshots are sent through a vision model before Ari reasons from them", () => {
+  assert.match(api, /hasScopedLiveOwnerAIProcessingAuthorization/);
+  assert.match(api, /visionBlockedByConsent/);
   assert.match(api, /Visual App Inspector/);
   assert.match(api, /image_url/);
   assert.match(api, /detail: "high"/);
@@ -165,7 +167,7 @@ test("whole-app inspection becomes a bounded multi-page visual tour", () => {
   assert.match(worker, /"visit_path"/);
   assert.match(worker, /captureCurrentPage/);
   assert.match(worker, /checkpoint:/);
-  assert.match(worker, /version: "1\.2\.0"/);
+  assert.match(worker, /version: "1\.3\.0"/);
   assert.match(api, /evaluateVisualCoverage/);
   assert.match(api, /VISUAL_TOUR_INCOMPLETE/);
   assert.match(api, /I won't describe that as a full-app inspection/);
