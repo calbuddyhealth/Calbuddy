@@ -1,0 +1,74 @@
+name: ARI Visual App Inspector
+
+run-name: ARI Visual ${{ inputs.request_id }} · ${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Correlation ID for the owner visual-inspection request
+        required: true
+        type: string
+      base_url:
+        description: Allowed ARI XP production or preview origin
+        required: true
+        default: https://www.calbuddyhealth.com
+        type: string
+      target_path:
+        description: App route to inspect
+        required: true
+        default: /home.html
+        type: string
+      viewports:
+        description: mobile, desktop, or both
+        required: true
+        default: mobile
+        type: string
+      auth_mode:
+        description: read-only visual authentication mode
+        required: true
+        default: mock_owner
+        type: string
+      instruction:
+        description: Owner request being visually investigated
+        required: false
+        default: ""
+        type: string
+      actions_b64:
+        description: Base64 JSON safe interaction plan
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Inspect ARI XP visually
+        env:
+          ARI_VISUAL_REQUEST_ID: ${{ inputs.request_id }}
+          ARI_VISUAL_BASE_URL: ${{ inputs.base_url }}
+          ARI_VISUAL_PATH: ${{ inputs.target_path }}
+          ARI_VISUAL_VIEWPORTS: ${{ inputs.viewports }}
+          ARI_VISUAL_AUTH_MODE: ${{ inputs.auth_mode }}
+          ARI_VISUAL_INSTRUCTION: ${{ inputs.instruction }}
+          ARI_VISUAL_ACTIONS_B64: ${{ inputs.actions_b64 }}
+        run: node scripts/ari-visual-inspector.mjs
