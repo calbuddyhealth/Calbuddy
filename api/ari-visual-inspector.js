@@ -57,7 +57,11 @@ export default async function handler(req, res) {
 
   const token = clean(process.env.APP_HEALTH_GITHUB_TOKEN || process.env.GITHUB_TOKEN, 8000);
   const repo = clean(process.env.GITHUB_REPO, 300);
-  const branch = clean(process.env.ARI_VISUAL_BRANCH || process.env.APP_HEALTH_BRANCH || process.env.GITHUB_BRANCH, 200) || "main";
+  // The Visual Inspector workflow is a control-plane worker. It must run from
+  // the canonical default branch regardless of whatever branch App Health or
+  // repository editing happens to target. Coupling this to APP_HEALTH_BRANCH
+  // or GITHUB_BRANCH can dispatch against a stale workflow schema.
+  const branch = "main";
 
   if (!token || !repo) {
     return res.status(503).json({
@@ -230,10 +234,51 @@ async function startInspection({
 
   if (!response.ok) {
     const body = await safeJson(response);
+    console.error("[ARI Visual Inspector Dispatch Failed]", {
+      status: response.status,
+      message: body?.message || null,
+      errors: Array.isArray(body?.errors)
+        ? body.errors.slice(0, 8).map(item => ({
+            resource: clean(item?.resource, 120),
+            field: clean(item?.field, 120),
+            code: clean(item?.code, 120),
+            message: clean(item?.message, 500)
+          }))
+        : [],
+      repo,
+      branch,
+      workflow: WORKFLOW_FILE,
+      visualMode,
+      inputKeys: [
+        "request_id",
+        "base_url",
+        "target_path",
+        "viewports",
+        "auth_mode",
+        "instruction",
+        "actions_b64",
+        "live_grant"
+      ]
+    });
+
     return res.status(response.status).json({
       success: false,
+      status: "failed",
       code: "VISUAL_WORKFLOW_DISPATCH_FAILED",
-      error: body?.message || "Could not start ARI visual inspection."
+      error: body?.message || "Could not start ARI visual inspection.",
+      dispatch: {
+        status: response.status,
+        branch,
+        workflow: WORKFLOW_FILE,
+        errors: Array.isArray(body?.errors)
+          ? body.errors.slice(0, 8).map(item => ({
+              resource: clean(item?.resource, 120),
+              field: clean(item?.field, 120),
+              code: clean(item?.code, 120),
+              message: clean(item?.message, 500)
+            }))
+          : []
+      }
     });
   }
 
