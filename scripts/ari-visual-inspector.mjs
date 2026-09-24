@@ -33,6 +33,19 @@ try {
     const consoleErrors = [];
     const failedRequests = [];
 
+    await page.route("**/*", async route => {
+      const request = route.request();
+      if (
+        request.isNavigationRequest() &&
+        request.frame() === page.mainFrame() &&
+        !isAllowedTopLevelNavigation(request.url(), baseUrl)
+      ) {
+        await route.abort("blockedbyclient");
+        return;
+      }
+      await route.fallback();
+    });
+
     page.on("pageerror", error => {
       if (consoleErrors.length < 30) consoleErrors.push(`pageerror: ${clean(error?.message, 500)}`);
     });
@@ -136,6 +149,39 @@ function normalizeBaseUrl(value) {
   url.search = "";
   url.hash = "";
   return url.toString();
+}
+
+function isAllowedTopLevelNavigation(value, initialBaseUrl) {
+  let target;
+  let initial;
+
+  try {
+    target = new URL(String(value || ""));
+    initial = new URL(String(initialBaseUrl || ""));
+  } catch {
+    return false;
+  }
+
+  if (target.protocol !== "https:") return false;
+
+  const targetHost = target.hostname.toLowerCase();
+  const initialHost = initial.hostname.toLowerCase();
+
+  if (
+    initialHost === "www.calbuddyhealth.com" ||
+    initialHost === "calbuddyhealth.com"
+  ) {
+    return (
+      targetHost === "www.calbuddyhealth.com" ||
+      targetHost === "calbuddyhealth.com"
+    );
+  }
+
+  if (initialHost.endsWith(".vercel.app")) {
+    return targetHost === initialHost;
+  }
+
+  return false;
 }
 
 function normalizePath(value) {
