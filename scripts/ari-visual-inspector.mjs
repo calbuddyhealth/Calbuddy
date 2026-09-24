@@ -155,13 +155,25 @@ try {
 }
 
 const report = {
-  version: "1.2.0",
+  version: "1.3.0",
   requestId,
   generatedAt: new Date().toISOString(),
   baseUrl,
   targetPath,
   instruction,
   authMode,
+  aiProcessingAuthorization:
+    authMode === "live_owner"
+      ? sanitizeScopedAIProcessingAuthorization(
+          liveSession?.aiProcessingAuthorization,
+          requestId
+        )
+      : {
+          authorized: true,
+          scope: "visual_sandbox_inspection",
+          requestId,
+          expiresAt: Date.now() + 10 * 60 * 1000
+        },
   actionsApplied: actions,
   captures
 };
@@ -303,9 +315,19 @@ async function installLiveOwnerSession(page, delegated = {}) {
   const expiresAt = Number.isFinite(expiresAtMs)
     ? Math.floor(expiresAtMs / 1000)
     : Math.floor(Date.now() / 1000) + 600;
+  const scopedAuthorization = sanitizeScopedAIProcessingAuthorization(
+    delegated?.aiProcessingAuthorization,
+    requestId
+  );
 
   if (!accessToken || !user?.id) {
     throw new Error("Live Owner session exchange returned incomplete authentication.");
+  }
+
+  if (!scopedAuthorization.authorized) {
+    throw new Error(
+      "Live Owner session exchange did not include valid scoped AI-processing authorization."
+    );
   }
 
   const session = {
@@ -324,12 +346,40 @@ async function installLiveOwnerSession(page, delegated = {}) {
   };
 
   await page.addInitScript(
-    ({ key, value }) => {
+    ({ key, value, aiProcessingAuthorization }) => {
       localStorage.setItem(key, JSON.stringify(value));
       window.__ARI_VISUAL_LIVE_OWNER = true;
+      window.__ARI_SCOPED_AI_PROCESSING_AUTHORIZATION =
+        aiProcessingAuthorization;
     },
-    { key: storageKey, value: session }
+    {
+      key: storageKey,
+      value: session,
+      aiProcessingAuthorization: scopedAuthorization
+    }
   );
+}
+
+function sanitizeScopedAIProcessingAuthorization(value, expectedRequestId) {
+  const authorization =
+    value && typeof value === "object"
+      ? value
+      : {};
+  const requestIdValue = clean(authorization?.requestId, 120);
+  const expiresAt = Number(authorization?.expiresAt || 0);
+  const authorized =
+    authorization?.authorized === true &&
+    clean(authorization?.scope, 120) === "visual_owner_inspection" &&
+    requestIdValue === clean(expectedRequestId, 120) &&
+    Number.isFinite(expiresAt) &&
+    expiresAt > Date.now();
+
+  return {
+    authorized,
+    scope: authorized ? "visual_owner_inspection" : "",
+    requestId: authorized ? requestIdValue : "",
+    expiresAt: authorized ? expiresAt : 0
+  };
 }
 
 function normalizePath(value) {

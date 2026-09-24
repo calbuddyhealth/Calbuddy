@@ -27,7 +27,7 @@
       }
 
       const script = document.createElement("script");
-      script.src = "js/ai-processing-consent.js?v=1.1.0";
+      script.src = "js/ai-processing-consent.js?v=1.1.1";
       script.dataset.ariNutritionConsent = "1";
       script.onload = () => {
         restoreNutritionComposerCopy();

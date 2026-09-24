@@ -311,6 +311,39 @@ test.describe("ARI XP App Store browser smoke", () => {
     expect(errors).toEqual([]);
   });
 
+  test("Live Owner scoped AI authorization bypasses the consent dialog without persisting consent", async ({ page }) => {
+    const errors = collectBrowserErrors(page);
+
+    await page.addInitScript(() => {
+      window.__ARI_VISUAL_LIVE_OWNER = true;
+      window.__ARI_SCOPED_AI_PROCESSING_AUTHORIZATION = {
+        authorized: true,
+        scope: "visual_owner_inspection",
+        requestId: "vis_smoke_live_owner",
+        expiresAt: Date.now() + 5 * 60 * 1000
+      };
+    });
+
+    await installAppStubs(page);
+    await page.goto(`${BASE_URL}/home.html`, { waitUntil: "domcontentloaded" });
+
+    await expect(page.locator("#ariAiConsentDialog")).toHaveCount(0);
+    await expect(page.locator("#ariInput")).toBeEnabled();
+    await expect(page.locator("#ariSendBtn")).toBeEnabled();
+
+    const source = await page.evaluate(() => window.AriAIConsent.authorizationSource());
+    expect(source).toBe("visual_owner_inspection");
+
+    const metadata = await page.evaluate(async () => {
+      const client = window.calbuddySupabase || window.supabaseClient || window.CalBuddy?.supabase;
+      const result = await client.auth.getSession();
+      return result?.data?.session?.user?.user_metadata || {};
+    });
+    expect(metadata.ari_ai_processing_consent).toBeUndefined();
+    expect(metadata.ari_ai_processing_consent_version).toBeUndefined();
+    expect(errors).toEqual([]);
+  });
+
   test("account deletion UI requires typing DELETE before scheduling", async ({ page }) => {
     const errors = collectBrowserErrors(page);
     await installAppStubs(page);

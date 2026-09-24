@@ -8,12 +8,14 @@ const api = fs.readFileSync("api/ari-visual-inspector.js", "utf8");
 const worker = fs.readFileSync("scripts/ari-visual-inspector.mjs", "utf8");
 const workflow = fs.readFileSync(".github/workflows/ari-visual-inspector.yml", "utf8");
 const isolation = fs.readFileSync("js/account-isolation-guard.js", "utf8");
+const consent = fs.readFileSync("js/ai-processing-consent.js", "utf8");
 
 test("Live Owner implementation stays syntactically valid", () => {
   for (const path of [
     "calbuddy-core.js",
     "api/ari-visual-inspector.js",
-    "scripts/ari-visual-inspector.mjs"
+    "scripts/ari-visual-inspector.mjs",
+    "js/ai-processing-consent.js"
   ]) {
     execFileSync(process.execPath, ["--check", path], { stdio: "pipe" });
   }
@@ -72,4 +74,27 @@ test("the delegated worker receives no refresh token from the owner browser", ()
   assert.doesNotMatch(api, /refresh_token:\s*payload/);
   assert.match(api, /accessToken: payload\.accessToken/);
   assert.match(api, /mutationAuthority: false/);
+});
+
+test("Live Owner carries scoped AI-processing authorization without changing permanent consent metadata", () => {
+  assert.match(api, /scope:\s*"visual_owner_inspection"/);
+  assert.match(api, /liveOwnerExpiresAt/);
+  assert.match(api, /hasScopedLiveOwnerAIProcessingAuthorization/);
+  assert.match(api, /visionBlockedByConsent: true/);
+
+  const liveInstall = worker.slice(
+    worker.indexOf("async function installLiveOwnerSession"),
+    worker.indexOf("function normalizePath")
+  );
+  assert.match(liveInstall, /__ARI_SCOPED_AI_PROCESSING_AUTHORIZATION/);
+  assert.match(liveInstall, /visual_owner_inspection/);
+  assert.match(liveInstall, /user_metadata:\s*\{\}/);
+  assert.doesNotMatch(liveInstall, /ari_ai_processing_consent:\s*true/);
+
+  assert.match(consent, /scopedVisualAuthorization/);
+  assert.match(consent, /__ARI_VISUAL_LIVE_OWNER/);
+  assert.match(consent, /__ARI_SCOPED_AI_PROCESSING_AUTHORIZATION/);
+  assert.match(consent, /visual_owner_inspection/);
+  assert.match(consent, /authorizationSource/);
+  assert.match(consent, /version:\s*"1\.1\.1"/);
 });
