@@ -117,6 +117,18 @@ test("chat runtime can detect, route, resume and use visual inspection evidence"
   assert.match(core, /CalBuddy\.handleDeveloperIntent/);
 });
 
+test("visual evidence questions use the completed inspection directly instead of re-entering the model pipeline", () => {
+  assert.match(core, /CalBuddy\.isVisualEvidenceExplanationRequest/);
+  assert.match(core, /CalBuddy\.buildVisualEvidenceFollowUpReply/);
+  assert.match(core, /source:\s*"calbuddy_visual_evidence_followup"/);
+  assert.match(core, /reusedVisualEvidence:\s*true/);
+
+  const fastPathStart = core.indexOf("Fast path for questions about a just-completed visual inspection");
+  const hydrateStart = core.indexOf('mark("before getUserContext")', fastPathStart);
+  assert.ok(fastPathStart >= 0, "visual evidence fast path should exist");
+  assert.ok(hydrateStart > fastPathStart, "visual evidence fast path should run before full app-context hydration");
+});
+
 test("visual route maps important ARI XP screens", () => {
   for (const path of [
     "/home.html",
