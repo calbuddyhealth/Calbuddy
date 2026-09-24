@@ -54,6 +54,7 @@ export function deriveRelationshipContinuity({
 
   const recentSharedEvents = timelineEvents
     .filter((item) => item?.at)
+    .sort((a, b) => dateValue(b?.at) - dateValue(a?.at))
     .slice(0, 8)
     .map((item) => ({
       at: item.at,
