@@ -240,7 +240,7 @@ function appendOrderedScript(id, src) {
 }
 
 function bootstrapAccountIsolation() {
-  appendOrderedScript(ARI_ACCOUNT_ISOLATION_SCRIPT_ID, "js/account-isolation-guard.js?v=1.0.1");
+  appendOrderedScript(ARI_ACCOUNT_ISOLATION_SCRIPT_ID, "js/account-isolation-guard.js?v=1.0.2");
 }
 
 function bootstrapCanonicalMealLedger() {

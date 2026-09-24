@@ -5,7 +5,7 @@
 window.Ari = window.Ari || {};
 
 window.AriRebirthCapabilityRegistryEngine = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   inspect(input = {}) {
     const summary = input.summary || input || {};
@@ -174,6 +174,7 @@ window.AriRebirthCapabilityRegistryEngine = {
         riskLevel: "medium",
         allowedActions: [
           "navigate_read_only_sandbox",
+          "navigate_temporary_live_owner_session",
           "bounded_ui_interaction",
           "capture_mobile_desktop_screenshots",
           "inspect_dom_layout_console",
@@ -181,6 +182,7 @@ window.AriRebirthCapabilityRegistryEngine = {
         ],
         forbiddenActions: [
           "mutate_real_user_data",
+          "reuse_owner_credentials_outside_short_lived_visual_grants",
           "submit_real_production_forms",
           "claim_visual_result_without_completed_run"
         ]

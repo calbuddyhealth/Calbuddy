@@ -39,6 +39,11 @@ on:
         required: false
         default: ""
         type: string
+      live_grant:
+        description: Short-lived encrypted Live Owner browser grant
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -71,4 +76,5 @@ jobs:
           ARI_VISUAL_AUTH_MODE: ${{ inputs.auth_mode }}
           ARI_VISUAL_INSTRUCTION: ${{ inputs.instruction }}
           ARI_VISUAL_ACTIONS_B64: ${{ inputs.actions_b64 }}
+          ARI_VISUAL_LIVE_GRANT: ${{ inputs.live_grant }}
         run: node scripts/ari-visual-inspector.mjs

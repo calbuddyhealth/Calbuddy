@@ -7,6 +7,11 @@ const viewportMode = clean(process.env.ARI_VISUAL_VIEWPORTS, 40) || "mobile";
 const authMode = clean(process.env.ARI_VISUAL_AUTH_MODE, 40) || "mock_owner";
 const actions = parseActions(process.env.ARI_VISUAL_ACTIONS_B64 || "");
 const instruction = clean(process.env.ARI_VISUAL_INSTRUCTION, 1200);
+const liveGrant = clean(process.env.ARI_VISUAL_LIVE_GRANT, 20_000);
+const liveSession =
+  authMode === "live_owner"
+    ? await exchangeLiveOwnerGrant({ baseUrl, requestId, grant: liveGrant })
+    : null;
 
 const viewports = viewportMode === "both"
   ? [
@@ -32,6 +37,7 @@ try {
     const page = await context.newPage();
     const consoleErrors = [];
     const failedRequests = [];
+    const blockedMutations = [];
 
     await page.route("**/*", async route => {
       const request = route.request();
@@ -43,6 +49,22 @@ try {
         await route.abort("blockedbyclient");
         return;
       }
+
+      if (
+        authMode === "live_owner" &&
+        shouldBlockLiveMutation(request)
+      ) {
+        if (blockedMutations.length < 40) {
+          blockedMutations.push({
+            url: clean(request.url(), 500),
+            method: request.method(),
+            reason: "live_owner_read_only_guard"
+          });
+        }
+        await route.abort("blockedbyclient");
+        return;
+      }
+
       await route.fallback();
     });
 
@@ -66,6 +88,8 @@ try {
 
     if (authMode === "mock_owner") {
       await installReadOnlyOwnerSandbox(page);
+    } else if (authMode === "live_owner") {
+      await installLiveOwnerSession(page, liveSession);
     }
 
     const initialUrl = new URL(targetPath, baseUrl).toString();
@@ -97,6 +121,7 @@ try {
       navigation,
       consoleErrors,
       failedRequests,
+      blockedMutations,
       screenshotDataUrl: `data:image/jpeg;base64,${screenshot.toString("base64")}`
     });
 
@@ -107,7 +132,7 @@ try {
 }
 
 const report = {
-  version: "1.0.0",
+  version: "1.1.0",
   requestId,
   generatedAt: new Date().toISOString(),
   baseUrl,
@@ -182,6 +207,106 @@ function isAllowedTopLevelNavigation(value, initialBaseUrl) {
   }
 
   return false;
+}
+
+async function exchangeLiveOwnerGrant({ baseUrl, requestId, grant }) {
+  if (!grant) throw new Error("Live Owner inspection is missing its delegated browser grant.");
+
+  const endpoint = new URL("/api/ari-visual-inspector", baseUrl).toString();
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent": "ARI-Visual-Inspector/1.1"
+    },
+    body: JSON.stringify({
+      action: "exchange_live_grant",
+      requestId,
+      grant
+    })
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data?.success !== true || !data?.accessToken) {
+    throw new Error(
+      data?.error ||
+      "ARI Live Owner browser grant could not be exchanged."
+    );
+  }
+
+  return data;
+}
+
+function shouldBlockLiveMutation(request) {
+  const method = String(request.method() || "GET").toUpperCase();
+  if (["GET", "HEAD", "OPTIONS"].includes(method)) return false;
+
+  let url;
+  try {
+    url = new URL(request.url());
+  } catch {
+    return true;
+  }
+
+  if (
+    method === "POST" &&
+    url.hostname.endsWith(".supabase.co")
+  ) {
+    const rpcMatch = url.pathname.match(/\/rest\/v1\/rpc\/([^/?]+)/i);
+    const rpcName = String(rpcMatch?.[1] || "").toLowerCase();
+
+    if (
+      rpcName &&
+      /^(get_|list_|search_|lookup_|resolve_|is_|has_|ari_(get|list|search|read)_|ari_circle_(my_|list_|messages_list$|xp_summary$|profile_xp_activity$|get_|search_|resolve_))/.test(rpcName)
+    ) {
+      return false;
+    }
+
+    if (url.pathname.includes("/storage/v1/object/sign/")) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+async function installLiveOwnerSession(page, delegated = {}) {
+  const accessToken = clean(delegated?.accessToken, 20_000);
+  const storageKey = clean(delegated?.storageKey, 160) || "calbuddy-auth-session";
+  const user = delegated?.user && typeof delegated.user === "object"
+    ? delegated.user
+    : {};
+  const expiresAtMs = Date.parse(String(delegated?.expiresAt || ""));
+  const expiresAt = Number.isFinite(expiresAtMs)
+    ? Math.floor(expiresAtMs / 1000)
+    : Math.floor(Date.now() / 1000) + 600;
+
+  if (!accessToken || !user?.id) {
+    throw new Error("Live Owner session exchange returned incomplete authentication.");
+  }
+
+  const session = {
+    access_token: accessToken,
+    token_type: "bearer",
+    expires_in: Math.max(60, expiresAt - Math.floor(Date.now() / 1000)),
+    expires_at: expiresAt,
+    refresh_token: "ari-live-owner-read-only-no-refresh",
+    user: {
+      id: String(user.id),
+      email: String(user.email || ""),
+      aud: "authenticated",
+      role: "authenticated",
+      user_metadata: {}
+    }
+  };
+
+  await page.addInitScript(
+    ({ key, value }) => {
+      localStorage.setItem(key, JSON.stringify(value));
+      window.__ARI_VISUAL_LIVE_OWNER = true;
+    },
+    { key: storageKey, value: session }
+  );
 }
 
 function normalizePath(value) {

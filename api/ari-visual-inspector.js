@@ -1,5 +1,12 @@
-import { randomUUID } from "node:crypto";
 import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+  randomUUID
+} from "node:crypto";
+import {
+  extractBearerToken,
   sendOwnerAuthorizationError,
   setOwnerSecurityHeaders,
   verifyOwnerRequest
@@ -10,6 +17,10 @@ const WORKFLOW_FILE = "ari-visual-inspector.yml";
 const MAX_INSTRUCTION = 1200;
 const MAX_ACTIONS = 8;
 const MAX_LOG_CHARS = 5_000_000;
+const LIVE_GRANT_TTL_MS = 3 * 60 * 1000;
+const LIVE_MIN_ACCESS_TTL_MS = 8 * 60 * 1000;
+const LIVE_AUTH_STORAGE_KEY = "calbuddy-auth-session";
+const LIVE_GRANT_VERSION = "vlg1";
 
 export default async function handler(req, res) {
   setOwnerSecurityHeaders(res);
@@ -20,6 +31,23 @@ export default async function handler(req, res) {
       code: "METHOD_NOT_ALLOWED",
       error: "Method not allowed."
     });
+  }
+
+  const action = clean(req.body?.action, 40).toLowerCase() || "start";
+
+  // The remote Playwright worker cannot carry the owner's normal browser
+  // Authorization header. Live Owner mode instead receives a short-lived,
+  // encrypted capability grant bound to one visual request and ARI XP origin.
+  if (action === "exchange_live_grant") {
+    try {
+      return await exchangeLiveGrant({ req, res });
+    } catch (error) {
+      return res.status(Number(error?.status) || 401).json({
+        success: false,
+        code: error?.code || "LIVE_OWNER_GRANT_INVALID",
+        error: error?.message || "The Live Owner browser grant is invalid."
+      });
+    }
   }
 
   const authorization = await verifyOwnerRequest(req);
@@ -38,8 +66,6 @@ export default async function handler(req, res) {
       error: "ARI visual inspection requires the existing GitHub developer connection."
     });
   }
-
-  const action = clean(req.body?.action, 40).toLowerCase() || "start";
 
   try {
     if (action === "start") {
@@ -71,12 +97,84 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.error("[ARI Visual Inspector Error]", error);
-    return res.status(500).json({
+    return res.status(Number(error?.status) || 500).json({
       success: false,
-      code: "ARI_VISUAL_INSPECTOR_FAILED",
+      code: error?.code || "ARI_VISUAL_INSPECTOR_FAILED",
       error: error?.message || "ARI visual inspection failed."
     });
   }
+}
+
+async function exchangeLiveGrant({ req, res }) {
+  const grant = clean(req.body?.grant, 20_000);
+  const requestId = clean(req.body?.requestId, 120);
+
+  if (!grant || !requestId) {
+    throw liveGrantError(
+      400,
+      "LIVE_OWNER_GRANT_REQUIRED",
+      "A Live Owner browser grant and request ID are required."
+    );
+  }
+
+  const payload = decryptLiveOwnerGrant(grant);
+  const now = Date.now();
+
+  if (payload?.requestId !== requestId) {
+    throw liveGrantError(
+      403,
+      "LIVE_OWNER_GRANT_REQUEST_MISMATCH",
+      "The Live Owner grant does not belong to this visual inspection."
+    );
+  }
+
+  if (!Number.isFinite(Number(payload?.grantExpiresAt)) || Number(payload.grantExpiresAt) <= now) {
+    throw liveGrantError(
+      401,
+      "LIVE_OWNER_GRANT_EXPIRED",
+      "The Live Owner browser grant expired before it was exchanged."
+    );
+  }
+
+  if (!Number.isFinite(Number(payload?.accessTokenExpiresAt)) || Number(payload.accessTokenExpiresAt) <= now + 60_000) {
+    throw liveGrantError(
+      401,
+      "LIVE_OWNER_ACCESS_EXPIRED",
+      "The delegated owner access token is no longer usable."
+    );
+  }
+
+  const grantedBaseUrl = normalizeBaseUrl(payload?.baseUrl);
+  const grantedHost = new URL(grantedBaseUrl).host.toLowerCase();
+  const requestHost = clean(
+    req.headers?.["x-forwarded-host"] ||
+    req.headers?.host,
+    500
+  ).split(",")[0].trim().toLowerCase();
+
+  if (!requestHost || requestHost !== grantedHost) {
+    throw liveGrantError(
+      403,
+      "LIVE_OWNER_GRANT_ORIGIN_MISMATCH",
+      "The Live Owner grant can only be exchanged by its assigned ARI XP origin."
+    );
+  }
+
+  res.setHeader("Cache-Control", "private, no-store, max-age=0");
+
+  return res.status(200).json({
+    success: true,
+    requestId,
+    accessToken: payload.accessToken,
+    expiresAt: new Date(Number(payload.accessTokenExpiresAt)).toISOString(),
+    storageKey: LIVE_AUTH_STORAGE_KEY,
+    user: {
+      id: clean(payload?.user?.id, 120),
+      email: clean(payload?.user?.email, 320)
+    },
+    readOnly: true,
+    mutationAuthority: false
+  });
 }
 
 async function startInspection({
@@ -98,6 +196,16 @@ async function startInspection({
   const instruction = clean(req.body?.instruction, MAX_INSTRUCTION);
   const actions = normalizeActions(req.body?.actions);
   const actionsB64 = Buffer.from(JSON.stringify(actions), "utf8").toString("base64");
+  const visualMode = normalizeVisualMode(req.body?.visualMode);
+  const liveGrant =
+    visualMode === "live_owner"
+      ? createLiveOwnerGrant({
+          req,
+          authorization,
+          requestId,
+          baseUrl
+        })
+      : "";
 
   const response = await githubFetch(
     `https://api.github.com/repos/${repo}/actions/workflows/${WORKFLOW_FILE}/dispatches`,
@@ -111,9 +219,10 @@ async function startInspection({
           base_url: baseUrl,
           target_path: targetPath,
           viewports,
-          auth_mode: "mock_owner",
+          auth_mode: visualMode === "live_owner" ? "live_owner" : "mock_owner",
           instruction,
-          actions_b64: actionsB64
+          actions_b64: actionsB64,
+          live_grant: liveGrant
         }
       })
     }
@@ -135,9 +244,14 @@ async function startInspection({
     targetPath,
     baseUrl,
     viewports,
-    readOnlySandbox: true,
+    visualMode,
+    readOnlySandbox: visualMode !== "live_owner",
+    liveOwner: visualMode === "live_owner",
     authorizationMode: authorization.mode,
-    message: `ARI visual inspection started for ${targetPath}.`
+    message:
+      visualMode === "live_owner"
+        ? `ARI Live Owner inspection started for ${targetPath} using the owner's current authenticated app state with server mutations blocked.`
+        : `ARI visual inspection started for ${targetPath} in the read-only sandbox.`
   });
 }
 
@@ -239,7 +353,9 @@ async function inspectionStatus({
     requestId,
     runId: run.id,
     authorizationMode: authorization.mode,
-    readOnlySandbox: true,
+    readOnlySandbox: report?.authMode !== "live_owner",
+    liveOwner: report?.authMode === "live_owner",
+    visualMode: report?.authMode === "live_owner" ? "live_owner" : "sandbox",
     visualAnalysis,
     evidence: compactReport(report),
     message: visualAnalysis?.summary || "ARI completed the visual inspection."
@@ -349,7 +465,11 @@ async function analyzeVisualEvidence({ report, instruction, userId }) {
 
   const systemPrompt = `
 You are ARI XP's Visual App Inspector.
-You are looking at screenshots captured by a read-only Playwright owner sandbox plus exact DOM/layout evidence.
+You are looking at screenshots captured by ${
+    report?.authMode === "live_owner"
+      ? "a temporary Live Owner Playwright session using the owner's real authenticated ARI XP state; browser-side server mutations are blocked"
+      : "a read-only Playwright owner sandbox using simulated data"
+  }, plus exact DOM/layout evidence.
 
 Your job is to visually inspect the UI, not merely summarize markup.
 Prioritize:
@@ -477,6 +597,7 @@ function compactReport(report) {
       navigation: Array.isArray(item.navigation) ? item.navigation.slice(0, 40) : [],
       consoleErrors: item.consoleErrors || [],
       failedRequests: item.failedRequests || [],
+      blockedMutations: item.blockedMutations || [],
       screenshotAvailable: Boolean(item.screenshotDataUrl)
     }))
   };
@@ -497,6 +618,11 @@ function structuralFindings(report) {
     }
     if (Array.isArray(capture?.failedRequests) && capture.failedRequests.length) {
       findings.push(`${id}: ${capture.failedRequests.length} failed request(s).`);
+    }
+    if (Array.isArray(capture?.blockedMutations) && capture.blockedMutations.length) {
+      findings.push(
+        `${id}: ${capture.blockedMutations.length} production mutation request(s) were blocked by Live Owner inspection.`
+      );
     }
   }
   return findings.slice(0, 12);
@@ -540,6 +666,142 @@ function normalizePath(value) {
 function normalizeViewports(value) {
   const mode = clean(value, 40).toLowerCase();
   return ["mobile", "desktop", "both"].includes(mode) ? mode : "mobile";
+}
+
+function normalizeVisualMode(value) {
+  return clean(value, 40).toLowerCase() === "live_owner"
+    ? "live_owner"
+    : "sandbox";
+}
+
+function createLiveOwnerGrant({
+  req,
+  authorization,
+  requestId,
+  baseUrl
+}) {
+  const accessToken = extractBearerToken(req);
+  if (!accessToken) {
+    throw liveGrantError(
+      401,
+      "LIVE_OWNER_AUTH_REQUIRED",
+      "Live Owner inspection requires the current verified owner session."
+    );
+  }
+
+  const jwt = parseJwtPayload(accessToken);
+  const accessTokenExpiresAt = Number(jwt?.exp || 0) * 1000;
+  const now = Date.now();
+
+  if (!accessTokenExpiresAt || accessTokenExpiresAt - now < LIVE_MIN_ACCESS_TTL_MS) {
+    throw liveGrantError(
+      409,
+      "LIVE_OWNER_TOKEN_TOO_CLOSE_TO_EXPIRY",
+      "Refresh the owner session before starting Live Owner inspection."
+    );
+  }
+
+  const grantExpiresAt = Math.min(
+    now + LIVE_GRANT_TTL_MS,
+    accessTokenExpiresAt - 60_000
+  );
+
+  const payload = {
+    version: LIVE_GRANT_VERSION,
+    requestId,
+    baseUrl,
+    accessToken,
+    accessTokenExpiresAt,
+    grantExpiresAt,
+    user: {
+      id: authorization?.user?.id || "",
+      email: authorization?.user?.email || ""
+    }
+  };
+
+  return encryptLiveOwnerPayload(payload);
+}
+
+function encryptLiveOwnerPayload(payload) {
+  const key = liveGrantKey();
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([
+    cipher.update(JSON.stringify(payload), "utf8"),
+    cipher.final()
+  ]);
+  const tag = cipher.getAuthTag();
+
+  return [
+    LIVE_GRANT_VERSION,
+    iv.toString("base64url"),
+    ciphertext.toString("base64url"),
+    tag.toString("base64url")
+  ].join(".");
+}
+
+function decryptLiveOwnerGrant(grant) {
+  const parts = String(grant || "").split(".");
+  if (parts.length !== 4 || parts[0] !== LIVE_GRANT_VERSION) {
+    throw liveGrantError(401, "LIVE_OWNER_GRANT_INVALID", "Invalid Live Owner browser grant.");
+  }
+
+  try {
+    const iv = Buffer.from(parts[1], "base64url");
+    const ciphertext = Buffer.from(parts[2], "base64url");
+    const tag = Buffer.from(parts[3], "base64url");
+    if (iv.length !== 12 || tag.length !== 16 || !ciphertext.length) {
+      throw new Error("invalid_grant_shape");
+    }
+
+    const decipher = createDecipheriv("aes-256-gcm", liveGrantKey(), iv);
+    decipher.setAuthTag(tag);
+    const plaintext = Buffer.concat([
+      decipher.update(ciphertext),
+      decipher.final()
+    ]).toString("utf8");
+
+    return JSON.parse(plaintext);
+  } catch {
+    throw liveGrantError(401, "LIVE_OWNER_GRANT_INVALID", "Invalid Live Owner browser grant.");
+  }
+}
+
+function liveGrantKey() {
+  const secret = clean(
+    process.env.ARI_VISUAL_LIVE_GRANT_SECRET ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    20_000
+  );
+
+  if (!secret) {
+    throw liveGrantError(
+      503,
+      "LIVE_OWNER_GRANT_NOT_CONFIGURED",
+      "Live Owner visual delegation is not configured."
+    );
+  }
+
+  return createHash("sha256")
+    .update(`ari-visual-live-owner-v1::${secret}`, "utf8")
+    .digest();
+}
+
+function parseJwtPayload(token) {
+  try {
+    const payload = String(token || "").split(".")[1];
+    if (!payload) return null;
+    return JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function liveGrantError(status, code, message) {
+  const error = new Error(message);
+  error.status = status;
+  error.code = code;
+  return error;
 }
 
 function normalizeActions(value) {

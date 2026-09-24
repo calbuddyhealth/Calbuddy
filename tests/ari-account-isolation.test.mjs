@@ -227,6 +227,7 @@ test("visual inspector state cannot survive an account switch", async () => {
     requestId: "vis_user_a",
     targetPath: "/ari-circle.html"
   }));
+  ctx.local.setItem("calbuddyVisualLiveOwnerSession", JSON.stringify({ mode: "live_owner", userId: "user-a", expiresAt: Date.now() + 60000 }));
   ctx.local.setItem("calbuddyLastVisualInspection", JSON.stringify({
     requestId: "vis_user_a_done",
     targetPath: "/home.html"
@@ -237,6 +238,7 @@ test("visual inspector state cannot survive an account switch", async () => {
 
   assert.equal(ctx.local.getItem("calbuddyPendingVisualInspection"), null);
   assert.equal(ctx.local.getItem("calbuddyLastVisualInspection"), null);
+  assert.equal(ctx.local.getItem("calbuddyVisualLiveOwnerSession"), null);
 });
 
 test("sign-out/account deactivation clears active browser state", async () => {
@@ -261,7 +263,7 @@ test("Nutrition surface cannot render Training or activity pending actions", () 
 });
 
 test("auth boots account isolation without reinstalling a legacy semantic router", () => {
-  assert.match(authSource, /account-isolation-guard\.js\?v=1\.0\.1/);
+  assert.match(authSource, /account-isolation-guard\.js\?v=1\.0\.2/);
   assert.equal(authSource.includes("bootstrapAriWorkoutActionForNutrition"), false);
   assert.equal(authSource.includes("bootstrapAriCentralIntentRouter"), false);
   assert.equal(authSource.includes("ari-central-intent-router.js"), false);
