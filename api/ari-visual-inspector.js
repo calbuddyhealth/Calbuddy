@@ -386,9 +386,33 @@ async function inspectionStatus({
     });
   }
 
+  const resolvedInstruction = instruction || report.instruction || "";
+  const coverage = evaluateVisualCoverage({
+    report,
+    instruction: resolvedInstruction
+  });
+
+  if (coverage.wholeAppRequested && !coverage.complete) {
+    return res.status(200).json({
+      success: false,
+      status: "failed",
+      requestId,
+      runId: run.id,
+      authorizationMode: authorization.mode,
+      readOnlySandbox: report?.authMode !== "live_owner",
+      liveOwner: report?.authMode === "live_owner",
+      visualMode: report?.authMode === "live_owner" ? "live_owner" : "sandbox",
+      code: "VISUAL_TOUR_INCOMPLETE",
+      coverage,
+      evidence: compactReport(report),
+      error:
+        `The whole-app visual tour was incomplete: captured ${coverage.capturedRoutes} of ${coverage.expectedRoutes} expected route checkpoints. I won't describe that as a full-app inspection.`
+    });
+  }
+
   const visualAnalysis = await analyzeVisualEvidence({
     report,
-    instruction: instruction || report.instruction,
+    instruction: resolvedInstruction,
     userId: authorization.user?.id || null
   });
 
@@ -401,6 +425,7 @@ async function inspectionStatus({
     readOnlySandbox: report?.authMode !== "live_owner",
     liveOwner: report?.authMode === "live_owner",
     visualMode: report?.authMode === "live_owner" ? "live_owner" : "sandbox",
+    coverage,
     visualAnalysis,
     evidence: compactReport(report),
     message: visualAnalysis?.summary || "ARI completed the visual inspection."
@@ -654,6 +679,70 @@ function compactReport(report) {
   };
 }
 
+function evaluateVisualCoverage({ report, instruction = "" } = {}) {
+  const wholeAppRequested =
+    /\b(entire app|whole app|full app|all (?:the )?(?:app )?pages|navigate (?:the )?(?:entire |whole |full )?app|look through (?:the )?(?:entire |whole |full )?app|tour (?:the )?app)\b/i.test(
+      String(instruction || "")
+    );
+
+  const captures = Array.isArray(report?.captures) ? report.captures : [];
+  const actions = Array.isArray(report?.actionsApplied) ? report.actionsApplied : [];
+  const visitActions = actions.filter(action => action?.type === "visit_path");
+  const visitedCheckpoints = captures.filter(capture =>
+    String(capture?.checkpoint || "").startsWith("visit:")
+  );
+
+  const expectedVisitedRoutes = wholeAppRequested ? 7 : visitActions.length;
+  const expectedRoutes = wholeAppRequested ? 8 : Math.max(1, expectedVisitedRoutes + 1);
+  const capturedRoutes = captures.length;
+
+  const expectedPaths = wholeAppRequested
+    ? [
+        "/goals.html",
+        "/nutrition.html",
+        "/ari-training.html",
+        "/progress.html",
+        "/ari-circle-feed.html",
+        "/profile.html",
+        "/owner-ai-controls.html"
+      ]
+    : visitActions.map(action => String(action?.path || "")).filter(Boolean);
+
+  const capturedPaths = new Set(
+    captures
+      .map(capture => {
+        try {
+          return new URL(String(capture?.url || "")).pathname;
+        } catch {
+          return "";
+        }
+      })
+      .filter(Boolean)
+  );
+
+  const missingPaths = expectedPaths.filter(path => !capturedPaths.has(path));
+  const complete =
+    !wholeAppRequested ||
+    (
+      visitActions.length >= expectedVisitedRoutes &&
+      visitedCheckpoints.length >= expectedVisitedRoutes &&
+      capturedRoutes >= expectedRoutes &&
+      missingPaths.length === 0
+    );
+
+  return {
+    wholeAppRequested,
+    complete,
+    expectedRoutes,
+    capturedRoutes,
+    expectedVisitedRoutes,
+    appliedVisitActions: visitActions.length,
+    capturedVisitCheckpoints: visitedCheckpoints.length,
+    expectedPaths,
+    missingPaths
+  };
+}
+
 function structuralFindings(report) {
   const findings = [];
   for (const capture of Array.isArray(report?.captures) ? report.captures : []) {
@@ -862,9 +951,17 @@ function normalizeActions(value) {
   const items = Array.isArray(value) ? value : [];
   return items.slice(0, MAX_ACTIONS).map(item => {
     const type = clean(item?.type, 40).toLowerCase();
-    if (!["click_text", "click_role", "fill_label", "press", "scroll", "wait"].includes(type)) {
+    if (!["click_text", "click_role", "fill_label", "press", "scroll", "wait", "visit_path"].includes(type)) {
       return null;
     }
+
+    const path =
+      type === "visit_path"
+        ? normalizeActionPath(item?.path)
+        : "";
+
+    if (type === "visit_path" && !path) return null;
+
     return {
       type,
       text: clean(item?.text, 180),
@@ -873,10 +970,19 @@ function normalizeActions(value) {
       label: clean(item?.label, 180),
       value: clean(item?.value, 500),
       key: clean(item?.key, 40),
+      path,
       amount: Math.max(-2000, Math.min(2000, Number(item?.amount) || 0)),
       ms: Math.max(0, Math.min(3000, Number(item?.ms) || 0))
     };
   }).filter(Boolean);
+}
+
+function normalizeActionPath(value) {
+  const raw = clean(value, 500);
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.includes("..")) {
+    return "";
+  }
+  return raw;
 }
 
 function normalizeStringArray(value, maxItems, maxLength) {
