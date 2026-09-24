@@ -7,6 +7,22 @@ import {
 } from "./_lib/ari-vnext/adaptive-strategy.js";
 import { reflectOnAdaptiveStrategy } from "./_lib/ari-vnext/adaptive-strategy-reflection.js";
 import {
+  buildCognitiveOperatingFrame,
+  ARI_COGNITIVE_OS_VERSION
+} from "./_lib/ari-vnext/cognitive-operating-system.js";
+import {
+  buildCognitiveTrajectory,
+  evaluateCognitiveTurn
+} from "./_lib/ari-vnext/cognitive-evaluator.js";
+import {
+  loadCognitiveTrajectorySummary,
+  persistCognitiveTrajectory
+} from "./_lib/ari-vnext/cognitive-trajectory-store.js";
+import {
+  compileProceduralSkills,
+  ARI_PROCEDURAL_SKILL_VERSION
+} from "./_lib/ari-vnext/procedural-skill-compiler.js";
+import {
   prepareAdaptiveStrategiesForTurn,
   recordAdaptiveStrategyUses,
   upsertAdaptiveStrategyProposal
@@ -265,7 +281,19 @@ export default async function handler(req, res) {
       userId: auth.userId,
       route: routePreview
     });
-
+    const trajectorySummaryPromise = deepCognitionEnabled
+      ? loadCognitiveTrajectorySummary({
+          userId: auth.userId,
+          limit: 24
+        })
+      : Promise.resolve({
+          version: "1.0.0",
+          sampleCount: 0,
+          averageScore: null,
+          recurringWeaknesses: [],
+          recurringStrengths: [],
+          lastScore: null
+        });
 
     const [
       retrievedRaw,
@@ -280,7 +308,8 @@ export default async function handler(req, res) {
       institutionalMemory,
       agentPerformance,
       projectGoals,
-      dreamingContext
+      dreamingContext,
+      trajectoryHistory
     ] = await Promise.all([
       shouldLoadMemory
         ? retrieveRelevantMemories({
@@ -314,7 +343,8 @@ export default async function handler(req, res) {
       deepCognitionEnabled
         ? loadGoals({ userId: auth.userId, limit: 40 })
         : Promise.resolve([]),
-      dreamingContextPromise
+      dreamingContextPromise,
+      trajectorySummaryPromise
     ]);
 
     const goalCreation = goalCandidate
@@ -486,6 +516,47 @@ export default async function handler(req, res) {
         })
       : null;
 
+    const proceduralSkills = deepCognitionEnabled
+      ? compileProceduralSkills({
+          adaptiveStrategies: adaptiveStrategyState,
+          institutionalMemory,
+          dreaming: dreamingContext,
+          route: routePreview,
+          message: turn.message,
+          limit: 8
+        })
+      : {
+          version: ARI_PROCEDURAL_SKILL_VERSION,
+          active: false,
+          count: 0,
+          skills: [],
+          sourceCounts: {
+            adaptiveStrategy: 0,
+            institutionalMemory: 0,
+            dreaming: 0
+          }
+        };
+
+    const cognitiveOperatingSystem = cognitiveLoopEnabled
+      ? buildCognitiveOperatingFrame({
+          turn,
+          route: routePreview,
+          cognitiveWorkspace,
+          worldModel: persistedWorldModel,
+          convictionLearning,
+          goals: loadedGoals,
+          dreaming: dreamingContext,
+          adaptiveStrategies: adaptiveStrategyState,
+          institutionalMemory,
+          agentPerformance,
+          decisionState,
+          temporalTimeline,
+          relevantMemory: turn.memory || "",
+          trajectoryHistory,
+          proceduralSkills
+        })
+      : null;
+
     const worldModelForTurn = cognitiveWorkspace
       ? {
           ...(persistedWorldModel || {}),
@@ -509,6 +580,9 @@ export default async function handler(req, res) {
       },
       ...(experimentLedger ? { experimentLedger } : {}),
       ...(worldModelForTurn ? { userWorldModel: worldModelForTurn } : {}),
+      ...(cognitiveOperatingSystem ? { cognitiveOperatingSystem } : {}),
+      ...(proceduralSkills?.active ? { proceduralSkills } : {}),
+      cognitiveTrajectoryHistory: trajectoryHistory,
       ...(dreamingContext?.insights?.length ? { dreaming: dreamingContext } : {}),
       ...(deepCognitionEnabled && (!fitnessRoute || routePreview.developer) ? { convictionLearning } : {}),
       ...(decisionState ? { decisionState } : {}),
@@ -696,6 +770,24 @@ export default async function handler(req, res) {
           coachingState: result?.coachingState || null,
           longitudinalState: result?.longitudinalState || null
         });
+
+    const cognitiveEvaluation = cognitiveLoopEnabled
+      ? evaluateCognitiveTurn({
+          frame: cognitiveOperatingSystem,
+          turn,
+          route: routePreview,
+          result
+        })
+      : null;
+    const cognitiveTrajectory = cognitiveEvaluation
+      ? buildCognitiveTrajectory({
+          frame: cognitiveOperatingSystem,
+          evaluation: cognitiveEvaluation,
+          turn,
+          route: routePreview,
+          result
+        })
+      : null;
 
     const nextCognitiveState = cognitiveLoopEnabled
       ? advanceCognitiveState({
@@ -1009,6 +1101,12 @@ export default async function handler(req, res) {
     const cognitiveStateTask = cognitiveStatePersistenceEligible
       ? persistAriCognitiveState({ userId: auth.userId, state: nextCognitiveState })
       : Promise.resolve(false);
+    const cognitiveTrajectoryTask = cognitiveTrajectory
+      ? persistCognitiveTrajectory({
+          userId: auth.userId,
+          trajectory: cognitiveTrajectory
+        })
+      : Promise.resolve({ stored: false, reason: "cognitive_loop_inactive" });
     const strategyUseTask = deepCognitionEnabled && adaptiveStrategyState?.active?.length
       ? recordAdaptiveStrategyUses({
           userId: auth.userId,
@@ -1043,7 +1141,7 @@ export default async function handler(req, res) {
 
     const [
       , , turnPersistence, durablePersistence, worldPersistence, cognitivePersistence,
-      strategyUsePersistence, strategySignalPersistence, decisionPersistence,
+      cognitiveTrajectoryPersistence, strategyUsePersistence, strategySignalPersistence, decisionPersistence,
       communicationResolution, communicationPersistence, institutionalLearningPersistence,
       agentPerformanceLearningPersistence, councilOutcomeFeedbackPersistence
     ] = await Promise.allSettled([
@@ -1053,6 +1151,7 @@ export default async function handler(req, res) {
       durableMemoryTask,
       worldModelTask,
       cognitiveStateTask,
+      cognitiveTrajectoryTask,
       strategyUseTask,
       strategySignalTask,
       decisionJournalTask,
@@ -1067,6 +1166,9 @@ export default async function handler(req, res) {
     const durableMemoryStored = durablePersistence.status === "fulfilled" && durablePersistence.value?.stored === true;
     const worldModelStored = worldPersistence.status === "fulfilled" && worldPersistence.value === true;
     const cognitiveStateStored = cognitivePersistence.status === "fulfilled" && cognitivePersistence.value === true;
+    const cognitiveTrajectoryStored =
+      cognitiveTrajectoryPersistence.status === "fulfilled" &&
+      cognitiveTrajectoryPersistence.value?.stored === true;
     const adaptiveStrategyUsesStored = strategyUsePersistence.status === "fulfilled" ? Number(strategyUsePersistence.value?.stored || 0) : 0;
     const adaptiveStrategySignalsStored = strategySignalPersistence.status === "fulfilled"
       ? strategySignalPersistence.value.filter((item) => item?.stored).length
@@ -1157,6 +1259,35 @@ export default async function handler(req, res) {
       },
       temporalTimeline,
       proactiveInsights,
+      cognitiveOperatingSystem: cognitiveLoopEnabled
+        ? {
+            active: true,
+            version: ARI_COGNITIVE_OS_VERSION,
+            stages: cognitiveOperatingSystem?.stages || [],
+            planMode: cognitiveOperatingSystem?.planning?.mode || null,
+            specialistRoles: cognitiveOperatingSystem?.specialists?.roles || [],
+            verificationRequired: cognitiveOperatingSystem?.verification?.required === true,
+            requiredEvidence: cognitiveOperatingSystem?.verification?.requiredEvidence || [],
+            trajectoryHistorySamples: Number(trajectoryHistory?.sampleCount || 0),
+            trajectoryAverageScore: trajectoryHistory?.averageScore ?? null,
+            evaluationScore: cognitiveEvaluation?.score ?? null,
+            evaluationStatus: cognitiveEvaluation?.status || null,
+            failedChecks: cognitiveEvaluation?.failedChecks || [],
+            trajectoryStored: cognitiveTrajectoryStored,
+            hiddenChainOfThoughtStored: false
+          }
+        : { active: false, version: ARI_COGNITIVE_OS_VERSION },
+      proceduralSkills: {
+        active: proceduralSkills?.active === true,
+        version: ARI_PROCEDURAL_SKILL_VERSION,
+        count: Number(proceduralSkills?.count || 0),
+        sourceCounts: proceduralSkills?.sourceCounts || {
+          adaptiveStrategy: 0,
+          institutionalMemory: 0,
+          dreaming: 0
+        },
+        keys: (proceduralSkills?.skills || []).slice(0, 8).map((skill) => skill?.key).filter(Boolean)
+      },
       cognitiveLoop: cognitiveLoopEnabled
         ? {
             active: true,
