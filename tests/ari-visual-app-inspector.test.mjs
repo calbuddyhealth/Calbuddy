@@ -170,7 +170,8 @@ test("whole-app inspection becomes a bounded multi-page visual tour", () => {
   assert.match(worker, /version: "1\.3\.0"/);
   assert.match(api, /evaluateVisualCoverage/);
   assert.match(api, /VISUAL_TOUR_INCOMPLETE/);
-  assert.match(api, /I won't describe that as a full-app inspection/);
+  assert.match(api, /Missing checkpoints:/);
+  assert.match(api, /capturedVisitCheckpoints/);
 });
 
 test("captured route redirects count as completed visual checkpoints", () => {
