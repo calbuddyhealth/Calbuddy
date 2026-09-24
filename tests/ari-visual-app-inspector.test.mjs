@@ -75,6 +75,10 @@ test("chat runtime can detect, route, resume and use visual inspection evidence"
   assert.match(core, /CalBuddy\.isVisualInspectionCommand/);
   assert.match(core, /CalBuddy\.inferVisualInspectionPath/);
   assert.match(core, /CalBuddy\.inferVisualViewports/);
+  assert.match(core, /CalBuddy\.inferVisualActions/);
+  assert.match(core, /click_role/);
+  assert.match(core, /click_text/);
+  assert.match(core, /scroll/);
   assert.match(core, /CalBuddy\.runVisualInspection/);
   assert.match(core, /calbuddyPendingVisualInspection/);
   assert.match(core, /DETERMINISTIC OWNER VISUAL INSPECTION/);
