@@ -15,7 +15,7 @@ const nutrition = read("nutrition.html");
 const contextGuard = read("ari/vnext/ari-vnext-context-guard.js");
 
 assert.match(runtime, /const DEFAULT_MODE = "vnext"/, "vNext must remain the default Ari runtime");
-assert.match(runtime, /const VERSION = "1\.6\.1"/);
+assert.match(runtime, /const VERSION = "1\.6\.2"/);
 assert.match(runtime, /ari-vnext-action-adapter\.js\?v=1\.5\.0/);
 assert.doesNotMatch(runtime, /ari-vnext-meal-plan-adapter|ari-whole-workout-replacement/);
 assert.match(runtime, /ari-vnext-context-guard\.js\?v=1\.2\.4/);
@@ -24,8 +24,8 @@ assert.match(runtime, /ari-vnext-initiative\.js\?v=1\.2\.1/);
 
 assert.doesNotMatch(auth, /ari-central-intent-router\.js|ari-meal-action\.js/);
 assert.match(auth, /ari-nutrition-action-ui\.js\?v=1\.3\.0/);
-assert.match(home, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.6\.1/);
-assert.match(nutrition, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.6\.1/);
+assert.match(home, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.6\.2/);
+assert.match(nutrition, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.6\.2/);
 
 assert.match(contextGuard, /window\.AriVNextContextGuard =/);
 assert.doesNotMatch(contextGuard, /readTodayPlannedMeals|nutrition_plan_items|mealPlan:\s*\{/);

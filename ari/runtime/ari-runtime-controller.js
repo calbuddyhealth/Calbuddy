@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.6.1
+// Version: 1.6.2
 // Purpose:
 //   Make Ari vNext the single semantic/action authority on Home + Nutrition.
 //   Legacy CalBuddy/Rebirth remains a read-only emergency response fallback.
@@ -34,7 +34,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.6.1";
+  const VERSION = "1.6.2";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
@@ -50,6 +50,25 @@
   const legacy = {
     askAri: typeof CalBuddy.askAri === "function" ? CalBuddy.askAri.bind(CalBuddy) : null
   };
+
+  // CalBuddy's pre-cutover pending-action executor remains the trusted
+  // application write boundary. It is not a semantic fallback and it never
+  // interprets user intent; vNext only delegates an already-prepared exact
+  // local owner-control action to it after explicit confirmation.
+  const trustedCalBuddyActions = {
+    confirm:
+      typeof CalBuddy.confirmPendingAction === "function"
+        ? CalBuddy.confirmPendingAction.bind(CalBuddy)
+        : null,
+    cancel:
+      typeof CalBuddy.cancelPendingAction === "function"
+        ? CalBuddy.cancelPendingAction.bind(CalBuddy)
+        : null
+  };
+
+  const LOCAL_OWNER_CONTROL_ACTIONS = new Set([
+    "enable_visual_live_owner_session"
+  ]);
 
   let dependencyPromise = null;
   let initiativeCheckPromise = null;
@@ -285,6 +304,110 @@
       console.warn("Ari vNext user context unavailable:", error?.message || error);
     }
     return {};
+  }
+
+  function localOwnerControlPending() {
+    const pending = CalBuddy.getPendingAction?.() || null;
+    const type = clean(pending?.action_type || pending?.type);
+    if (!pending || !LOCAL_OWNER_CONTROL_ACTIONS.has(type)) return null;
+    if (pending?.vnext_action_id || pending?.vnext_pending_action) return null;
+    return pending;
+  }
+
+  function isAffirmative(message = "") {
+    if (typeof CalBuddy.isYes === "function") return CalBuddy.isYes(message);
+    return /^(?:yes|y|yeah|yep|confirm|do it|go ahead|enable it)[.!\s]*$/i.test(clean(message));
+  }
+
+  function isNegative(message = "") {
+    if (typeof CalBuddy.isNo === "function") return CalBuddy.isNo(message);
+    return /^(?:no|n|nope|cancel|never mind|nevermind|stop)[.!\s]*$/i.test(clean(message));
+  }
+
+  async function runOwnerVisualPreflight({ message = "", input = {}, signal = null } = {}) {
+    const localPending = localOwnerControlPending();
+
+    if (localPending && isAffirmative(message)) {
+      if (!trustedCalBuddyActions.confirm) {
+        return {
+          success: false,
+          ready: false,
+          code: "LOCAL_OWNER_CONFIRMATION_UNAVAILABLE",
+          reply: "The Live Owner confirmation handler is unavailable. Nothing changed."
+        };
+      }
+      const result = await trustedCalBuddyActions.confirm();
+      return {
+        ...(result || {}),
+        source: "ari_vnext_local_owner_control_confirmation"
+      };
+    }
+
+    if (localPending && isNegative(message)) {
+      const result = trustedCalBuddyActions.cancel
+        ? trustedCalBuddyActions.cancel()
+        : (CalBuddy.clearPendingAction?.(), { success: true, reply: "Cancelled." });
+      return {
+        ...(result || {}),
+        source: "ari_vnext_local_owner_control_cancel"
+      };
+    }
+
+    const isEnable =
+      typeof CalBuddy.isLiveOwnerEnableCommand === "function" &&
+      CalBuddy.isLiveOwnerEnableCommand(message);
+    const isDisable =
+      typeof CalBuddy.isLiveOwnerDisableCommand === "function" &&
+      CalBuddy.isLiveOwnerDisableCommand(message);
+    const isVisual =
+      typeof CalBuddy.isVisualInspectionCommand === "function" &&
+      CalBuddy.isVisualInspectionCommand(message);
+
+    if (!isEnable && !isDisable && !isVisual) return null;
+    if (!legacy.askAri) {
+      return {
+        success: false,
+        ready: false,
+        code: "OWNER_VISUAL_HANDLER_UNAVAILABLE",
+        reply: "ARI's visual owner-control handler is unavailable in this build."
+      };
+    }
+
+    const userContext =
+      input?.userContext ||
+      input?.context ||
+      await getUserContext();
+
+    throwIfAborted(signal);
+
+    if (userContext?.ownerMode !== true) {
+      return {
+        success: false,
+        ready: true,
+        code: "OWNER_ACCESS_DENIED",
+        reply: "Live Owner and Visual App Inspector controls require verified Owner Mode."
+      };
+    }
+
+    const result = await legacy.askAri({
+      ...input,
+      message,
+      userContext,
+      readOnlyFallback: false
+    });
+
+    throwIfAborted(signal);
+
+    return result
+      ? {
+          ...result,
+          source:
+            result?.source ||
+            (isVisual
+              ? "ari_vnext_owner_visual_preflight"
+              : "ari_vnext_live_owner_control_preflight")
+        }
+      : null;
   }
 
   function isExperimentAction(name = "") {
@@ -532,6 +655,13 @@
     }
 
     try {
+      const ownerVisualPreflight = await runOwnerVisualPreflight({
+        message,
+        input,
+        signal
+      });
+      if (ownerVisualPreflight) return ownerVisualPreflight;
+
       await ensureVNext(signal);
       throwIfAborted(signal);
       await markInitiativeEngaged();
@@ -572,6 +702,15 @@
   }
 
   async function confirmPendingAction() {
+    const localPending = localOwnerControlPending();
+    if (localPending && trustedCalBuddyActions.confirm) {
+      const result = await trustedCalBuddyActions.confirm();
+      return {
+        ...(result || {}),
+        source: "ari_vnext_local_owner_control_confirmation"
+      };
+    }
+
     if (getMode() !== "vnext") {
       return {
         success: false,
@@ -637,6 +776,15 @@
   }
 
   function cancelPendingAction() {
+    const localPending = localOwnerControlPending();
+    if (localPending && trustedCalBuddyActions.cancel) {
+      const result = trustedCalBuddyActions.cancel();
+      return {
+        ...(result || {}),
+        source: "ari_vnext_local_owner_control_cancel"
+      };
+    }
+
     window.AriVNextBridge?.clearPendingAction?.();
     CalBuddy.clearPendingAction?.();
     return { success: true, cancelled: true, reply: "Cancelled. That pending change was not saved." };
