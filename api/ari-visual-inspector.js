@@ -475,7 +475,7 @@ async function analyzeVisualEvidence({ report, instruction, userId }) {
     };
   }
 
-  const captures = Array.isArray(report?.captures) ? report.captures.slice(0, 2) : [];
+  const captures = Array.isArray(report?.captures) ? report.captures.slice(0, 8) : [];
   const images = captures
     .map(item => clean(item?.screenshotDataUrl, 2_000_000))
     .filter(value => value.startsWith("data:image/"))
@@ -493,13 +493,14 @@ async function analyzeVisualEvidence({ report, instruction, userId }) {
       targetPath: report?.targetPath || null,
       actionsApplied: report?.actionsApplied || [],
       captures: captures.map(item => ({
+        checkpoint: item.checkpoint || null,
         viewport: item.viewport,
         url: item.url,
         title: item.title,
-        bodyText: clean(item.bodyText, 3500),
+        bodyText: clean(item.bodyText, 1500),
         metrics: item.metrics,
-        interactive: Array.isArray(item.interactive) ? item.interactive.slice(0, 40) : [],
-        navigation: Array.isArray(item.navigation) ? item.navigation.slice(0, 30) : [],
+        interactive: Array.isArray(item.interactive) ? item.interactive.slice(0, 20) : [],
+        navigation: Array.isArray(item.navigation) ? item.navigation.slice(0, 16) : [],
         consoleErrors: item.consoleErrors || [],
         failedRequests: item.failedRequests || []
       }))
@@ -523,6 +524,7 @@ Prioritize:
 - awkward spacing, hierarchy, density, alignment, and responsiveness
 - controls that are hidden, duplicated, visually confusing, or difficult to reach
 - differences between mobile and desktop when both are provided
+- differences across routes when a bounded whole-app tour is provided; name the route for each route-specific finding
 - console/network evidence when it materially explains the visual problem
 
 Do not claim you edited code.
@@ -592,9 +594,12 @@ Return only JSON:
     metadata: {
       targetPath: report?.targetPath || null,
       captureCount: captures.length,
-      viewportMode:
-        captures.length > 1 ? "both" : captures[0]?.viewport?.id || "unknown",
-      readOnlySandbox: true
+      viewportMode: (() => {
+        const ids = [...new Set(captures.map(item => item?.viewport?.id).filter(Boolean))];
+        return ids.length > 1 ? "both" : ids[0] || "unknown";
+      })(),
+      routeCaptureCount: captures.length,
+      readOnlySandbox: report?.authMode !== "live_owner"
     }
   }).catch(() => null);
 
@@ -634,12 +639,13 @@ function compactReport(report) {
     authMode: report?.authMode || null,
     actionsApplied: report?.actionsApplied || [],
     captures: (Array.isArray(report?.captures) ? report.captures : []).map(item => ({
+      checkpoint: item.checkpoint || null,
       viewport: item.viewport,
       url: item.url,
       title: item.title,
       metrics: item.metrics,
-      interactive: Array.isArray(item.interactive) ? item.interactive.slice(0, 50) : [],
-      navigation: Array.isArray(item.navigation) ? item.navigation.slice(0, 40) : [],
+      interactive: Array.isArray(item.interactive) ? item.interactive.slice(0, 20) : [],
+      navigation: Array.isArray(item.navigation) ? item.navigation.slice(0, 16) : [],
       consoleErrors: item.consoleErrors || [],
       failedRequests: item.failedRequests || [],
       blockedMutations: item.blockedMutations || [],
@@ -651,7 +657,10 @@ function compactReport(report) {
 function structuralFindings(report) {
   const findings = [];
   for (const capture of Array.isArray(report?.captures) ? report.captures : []) {
-    const id = capture?.viewport?.id || "viewport";
+    const id = [
+      capture?.checkpoint || capture?.url || "route",
+      capture?.viewport?.id || "viewport"
+    ].join(" · ");
     const metrics = capture?.metrics || {};
     if (metrics.horizontalOverflow) {
       findings.push(

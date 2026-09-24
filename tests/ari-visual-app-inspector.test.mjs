@@ -82,6 +82,8 @@ test("browser worker uses a read-only owner sandbox and captures real visual evi
   assert.match(worker, /installLiveOwnerSession/);
   assert.match(worker, /shouldBlockLiveMutation/);
   assert.match(worker, /blockedMutations/);
+  assert.match(worker, /ari_ai_processing_consent: true/);
+  assert.match(worker, /ari_ai_processing_consent_version: "2"/);
   assert.doesNotMatch(worker, /SUPABASE_SERVICE_ROLE_KEY|GITHUB_TOKEN|OPENAI_API_KEY/);
 });
 
@@ -101,7 +103,12 @@ test("chat runtime can detect, route, resume and use visual inspection evidence"
   assert.match(core, /CalBuddy\.inferVisualActions/);
   assert.match(core, /click_role/);
   assert.match(core, /click_text/);
+  assert.match(core, /visit_path/);
   assert.match(core, /scroll/);
+  assert.match(core, /CalBuddy\.isWholeAppVisualInspection/);
+  assert.match(core, /CalBuddy\.isVisualInspectionFollowUp/);
+  assert.match(core, /CalBuddy\.getRecentVisualInspection/);
+  assert.match(core, /reusedVisualEvidence/);
   assert.match(core, /CalBuddy\.runVisualInspection/);
   assert.match(core, /calbuddyPendingVisualInspection/);
   assert.match(core, /DETERMINISTIC OWNER VISUAL INSPECTION/);
@@ -126,6 +133,24 @@ test("visual route maps important ARI XP screens", () => {
   ]) {
     assert.ok(core.includes(path), `missing visual route ${path}`);
   }
+});
+
+test("whole-app inspection becomes a bounded multi-page visual tour", () => {
+  for (const path of [
+    "/goals.html",
+    "/nutrition.html",
+    "/ari-training.html",
+    "/progress.html",
+    "/ari-circle-feed.html",
+    "/profile.html",
+    "/owner-ai-controls.html"
+  ]) {
+    assert.ok(core.includes(path), `missing whole-app tour path ${path}`);
+  }
+  assert.match(worker, /"visit_path"/);
+  assert.match(worker, /captureCurrentPage/);
+  assert.match(worker, /checkpoint:/);
+  assert.match(worker, /version: "1\.2\.0"/);
 });
 
 test("workflow installs Chromium and runs only the bounded inspector worker", () => {

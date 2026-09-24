@@ -205,12 +205,16 @@ CalBuddy.runVisualInspection = async function ({
 
     if (status?.status === "completed") {
       localStorage.removeItem("calbuddyPendingVisualInspection");
+      const completedSession = await CalBuddy.getCurrentSession().catch(() => null);
       localStorage.setItem(
         "calbuddyLastVisualInspection",
         JSON.stringify({
           requestId,
           completedAt: new Date().toISOString(),
+          userId: completedSession?.user?.id || null,
           targetPath,
+          instruction,
+          visualMode: status.visualMode || visualMode || "sandbox",
           visualAnalysis: status.visualAnalysis || null,
           evidence: status.evidence || null
         })
@@ -2078,6 +2082,55 @@ CalBuddy.isLiveOwnerDisableCommand = function (message = "") {
   );
 };
 
+CalBuddy.getRecentVisualInspection = function ({
+  maxAgeMs = 30 * 60 * 1000
+} = {}) {
+  const saved = localStorage.getItem("calbuddyLastVisualInspection");
+  if (!saved) return null;
+
+  try {
+    const value = JSON.parse(saved);
+    const completedAtMs = Date.parse(String(value?.completedAt || ""));
+    if (
+      !value?.requestId ||
+      !Number.isFinite(completedAtMs) ||
+      Date.now() - completedAtMs > Math.max(60_000, Number(maxAgeMs) || 0)
+    ) {
+      localStorage.removeItem("calbuddyLastVisualInspection");
+      return null;
+    }
+
+    if (!value?.visualAnalysis && !value?.evidence) return null;
+    return value;
+  } catch {
+    localStorage.removeItem("calbuddyLastVisualInspection");
+    return null;
+  }
+};
+
+CalBuddy.isWholeAppVisualInspection = function (message = "") {
+  const text = String(message || "").toLowerCase();
+  return /\b(entire app|whole app|full app|all (?:the )?(?:app )?pages|navigate (?:the )?(?:entire |whole |full )?app|look through (?:the )?(?:entire |whole |full )?app|tour (?:the )?app)\b/i.test(text);
+};
+
+CalBuddy.isVisualInspectionFollowUp = function (message = "") {
+  if (!CalBuddy.getRecentVisualInspection()) return false;
+  const text = String(message || "").toLowerCase().trim();
+  if (!text) return false;
+
+  return (
+    /\b(specific )?examples?\b/i.test(text) ||
+    /\bwhat did you (?:see|notice|find|think)\b/i.test(text) ||
+    /\bwhat (?:issues|problems|bugs|defects)\b/i.test(text) ||
+    /\banything else\b/i.test(text) ||
+    /\b(?:based on|from) what you (?:saw|noticed|found)\b/i.test(text) ||
+    /\b(?:the|that) (?:visual )?inspection\b/i.test(text) ||
+    /\b(?:those|these) (?:issues|problems|bugs|screens|screenshots?)\b/i.test(text) ||
+    /\b(?:fix|explain|show|describe|tell me more about) (?:that|those|it|them)\b/i.test(text) ||
+    /\bthe screenshots?\b/i.test(text)
+  );
+};
+
 CalBuddy.messageRequiresLiveOwner = function (message = "") {
   const text = String(message || "").toLowerCase();
   return (
@@ -2099,7 +2152,11 @@ CalBuddy.isVisualInspectionCommand = function (message = "") {
   const explicitResume =
     /\b(check|resume|finish|status)\b.*\bvisual inspection\b/i.test(text);
 
-  return explicitResume || (visualSignal && appSignal);
+  return (
+    explicitResume ||
+    CalBuddy.isVisualInspectionFollowUp(message) ||
+    (visualSignal && appSignal)
+  );
 };
 
 CalBuddy.inferVisualInspectionPath = function (message = "") {
@@ -2132,6 +2189,21 @@ CalBuddy.inferVisualActions = function (message = "") {
   const raw = String(message || "").trim();
   const text = raw.toLowerCase();
   const actions = [];
+
+  if (CalBuddy.isWholeAppVisualInspection(message)) {
+    for (const path of [
+      "/goals.html",
+      "/nutrition.html",
+      "/ari-training.html",
+      "/progress.html",
+      "/ari-circle-feed.html",
+      "/profile.html",
+      "/owner-ai-controls.html"
+    ]) {
+      actions.push({ type: "visit_path", path });
+    }
+    return actions;
+  }
 
   if (/\b(open|show)\s+(?:the\s+)?menu\b/i.test(raw)) {
     actions.push({
@@ -2188,6 +2260,10 @@ CalBuddy.inferVisualViewports = function (message = "") {
   const desktop = /\b(desktop|laptop|computer|1440|browser width)\b/.test(text);
   if (mobile && !desktop) return "mobile";
   if (desktop && !mobile) return "desktop";
+  // Whole-app tours are intentionally bounded to one representative viewport
+  // unless the owner explicitly names desktop/mobile. This keeps the visual
+  // evidence package small enough to recover reliably from the worker.
+  if (CalBuddy.isWholeAppVisualInspection(message)) return "mobile";
   return "both";
 };
 
@@ -2593,6 +2669,8 @@ if (
   mark("before owner visual inspection");
 
   const pendingVisual = CalBuddy.getPendingVisualInspection();
+  const recentVisual = CalBuddy.getRecentVisualInspection();
+  const isVisualFollowUp = CalBuddy.isVisualInspectionFollowUp(message);
   const wantsResume =
     /\b(check|resume|finish|status)\b.*\bvisual inspection\b/i.test(
       String(message || "")
@@ -2601,7 +2679,9 @@ if (
   const targetPath =
     pendingVisual?.targetPath && wantsResume
       ? pendingVisual.targetPath
-      : CalBuddy.inferVisualInspectionPath(message);
+      : isVisualFollowUp && recentVisual?.targetPath
+        ? recentVisual.targetPath
+        : CalBuddy.inferVisualInspectionPath(message);
 
   const liveOwnerActive = await CalBuddy.isVisualLiveOwnerSessionActive();
   const requestedLiveOwner = CalBuddy.messageRequiresLiveOwner(message);
@@ -2625,27 +2705,42 @@ if (
   const resolvedVisualMode =
     pendingVisual?.visualMode && wantsResume
       ? pendingVisual.visualMode
-      : liveOwnerActive
-        ? "live_owner"
-        : "sandbox";
+      : isVisualFollowUp && recentVisual?.visualMode
+        ? recentVisual.visualMode
+        : liveOwnerActive
+          ? "live_owner"
+          : "sandbox";
 
-  const visualResult = await CalBuddy.runVisualInspection({
-    message:
-      pendingVisual?.instruction && wantsResume
-        ? pendingVisual.instruction
-        : message,
-    targetPath,
-    viewports: CalBuddy.inferVisualViewports(message),
-    actions:
-      wantsResume
-        ? []
-        : CalBuddy.inferVisualActions(message),
-    resumeRequestId:
-      wantsResume
-        ? pendingVisual?.requestId || null
-        : null,
-    visualMode: resolvedVisualMode
-  });
+  const visualResult =
+    isVisualFollowUp && recentVisual && !wantsResume
+      ? {
+          success: true,
+          status: "completed",
+          requestId: recentVisual.requestId,
+          targetPath: recentVisual.targetPath || targetPath,
+          visualMode: recentVisual.visualMode || resolvedVisualMode,
+          visualAnalysis: recentVisual.visualAnalysis || null,
+          evidence: recentVisual.evidence || null,
+          reusedVisualEvidence: true,
+          originalInstruction: recentVisual.instruction || null
+        }
+      : await CalBuddy.runVisualInspection({
+          message:
+            pendingVisual?.instruction && wantsResume
+              ? pendingVisual.instruction
+              : message,
+          targetPath,
+          viewports: CalBuddy.inferVisualViewports(message),
+          actions:
+            wantsResume
+              ? []
+              : CalBuddy.inferVisualActions(message),
+          resumeRequestId:
+            wantsResume
+              ? pendingVisual?.requestId || null
+              : null,
+          visualMode: resolvedVisualMode
+        });
 
   mark("after owner visual inspection");
 
@@ -2685,10 +2780,14 @@ if (
 
   const visualPrompt = `OWNER VISUAL APP INSPECTION
 
-Original owner request:
+Current owner request:
 ${message}
 
+Original visual-inspection request:
+${visualResult?.originalInstruction || recentVisual?.instruction || message}
+
 A real browser worker navigated ARI XP and a vision model inspected the captured screenshot(s).
+Evidence reused from the immediately prior completed inspection: ${visualResult?.reusedVisualEvidence === true ? "yes" : "no"}.
 Visual mode: ${visualResult?.visualMode || resolvedVisualMode}.
 If the mode is live_owner, the screenshots and reads came from the owner's real authenticated ARI XP state while browser-side production mutations were blocked. If the mode is sandbox, simulated owner data was used.
 
