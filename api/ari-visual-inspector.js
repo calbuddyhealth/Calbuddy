@@ -27,9 +27,9 @@ export default async function handler(req, res) {
     return sendOwnerAuthorizationError(res, authorization);
   }
 
-  const token = clean(process.env.GITHUB_TOKEN, 8000);
+  const token = clean(process.env.APP_HEALTH_GITHUB_TOKEN || process.env.GITHUB_TOKEN, 8000);
   const repo = clean(process.env.GITHUB_REPO, 300);
-  const branch = clean(process.env.GITHUB_BRANCH, 200) || "main";
+  const branch = clean(process.env.ARI_VISUAL_BRANCH || process.env.APP_HEALTH_BRANCH || process.env.GITHUB_BRANCH, 200) || "main";
 
   if (!token || !repo) {
     return res.status(503).json({
