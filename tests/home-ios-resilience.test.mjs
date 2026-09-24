@@ -8,7 +8,7 @@ const latencyHotfix = fs.readFileSync("js/ari-latency-hotfix.js", "utf8");
 
 test("home loads the repaired iOS request resilience layer and latency guard after home.js", () => {
   const homeIndex = home.indexOf('js/home.js?v=3.4.2');
-  const resilienceIndex = home.indexOf('js/home-resilience.js?v=1.6.2');
+  const resilienceIndex = home.indexOf('js/home-resilience.js?v=1.6.3');
   const latencyIndex = home.indexOf('js/ari-latency-hotfix.js?v=1.1.0');
 
   assert.ok(homeIndex >= 0, "home.js should be loaded");
@@ -45,6 +45,13 @@ test("in-progress duplicate turns are rechecked without starting a second model 
   assert.match(resilience, /MAX_PROCESSING_RECHECKS\s*=\s*8/);
   assert.match(resilience, /PROCESSING_RECHECK_MS\s*=\s*800/);
   assert.match(resilience, /processingChecks/);
+});
+
+test("pending retries keep the composer locked so a second turn cannot overwrite the first", () => {
+  const execute = resilience.match(/async function executePendingTurn\(pending,[\s\S]*?async function recoverPendingTurn/)?.[0] || "";
+  assert.match(execute, /setAriComposerThinking\(true\);\s*schedulePendingRecovery\(PROCESSING_RECHECK_MS\)/);
+  assert.match(execute, /setAriComposerThinking\(true\);\s*schedulePendingRecovery\(\)/);
+  assert.doesNotMatch(execute, /setAriComposerThinking\(false\);\s*schedulePendingRecovery/);
 });
 
 test("fresh document loads clear stale pending turns before recovery can auto-resend", () => {

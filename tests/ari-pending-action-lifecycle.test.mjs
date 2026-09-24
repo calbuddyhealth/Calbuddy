@@ -23,7 +23,7 @@ test("successful vNext confirmations clear the legacy pending-action mirror", ()
 });
 
 test("Home requires and cache-busts the quota-aware runtime path", () => {
-  assert.match(resilience, /Version: 1\.6\.2/);
+  assert.match(resilience, /Version: 1\.6\.3/);
   assert.match(resilience, /REQUIRED_RUNTIME_VERSION = "1\.6\.2"/);
-  assert.match(home, /js\/home-resilience\.js\?v=1\.6\.2/);
+  assert.match(home, /js\/home-resilience\.js\?v=1\.6\.3/);
 });
