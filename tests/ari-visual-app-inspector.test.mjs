@@ -29,7 +29,8 @@ test("owner visual inspector API is authenticated and GitHub-workflow backed", (
   assert.match(api, /action === "status"/);
   assert.match(api, /display_title/);
   assert.match(api, /ARI_VISUAL_RESULT_CHUNK:/);
-  assert.match(api, /actions\/jobs\/\$\{job\.id\}\/logs/);\n  assert.match(api, /unique\.size !== total/);
+  assert.match(api, /actions\/jobs\/\$\{job\.id\}\/logs/);
+  assert.match(api, /unique\.size !== total/);
 });
 
 test("visual inspector is restricted to ARI XP production or Vercel preview hosts", () => {
