@@ -25,7 +25,8 @@ test("owner visual inspector API is authenticated and GitHub-workflow backed", (
   assert.match(api, /sendOwnerAuthorizationError/);
   assert.match(api, /ari-visual-inspector\.yml/);
   assert.match(api, /APP_HEALTH_GITHUB_TOKEN \|\| process\.env\.GITHUB_TOKEN/);
-  assert.match(api, /ARI_VISUAL_BRANCH \|\| process\.env\.APP_HEALTH_BRANCH \|\| process\.env\.GITHUB_BRANCH/);
+  assert.match(api, /const branch = "main"/);
+  assert.doesNotMatch(api, /ARI_VISUAL_BRANCH \|\| process\.env\.APP_HEALTH_BRANCH \|\| process\.env\.GITHUB_BRANCH/);
   assert.match(api, /workflow_dispatch/);
   assert.match(api, /action === "start"/);
   assert.match(api, /action === "status"/);
@@ -37,6 +38,21 @@ test("owner visual inspector API is authenticated and GitHub-workflow backed", (
   assert.match(api, /aes-256-gcm/);
   assert.match(api, /LIVE_GRANT_TTL_MS/);
   assert.match(api, /extractBearerToken/);
+  assert.match(api, /ARI Visual Inspector Dispatch Failed/);
+  assert.match(api, /VISUAL_WORKFLOW_DISPATCH_FAILED/);
+  assert.match(api, /inputKeys:/);
+});
+
+test("visual inspector HTTP failures stay structured instead of collapsing into the vNext runtime catch", () => {
+  assert.match(core, /httpStatus: response\.status/);
+  assert.match(core, /ARI_VISUAL_INSPECTOR_HTTP_ERROR/);
+  assert.doesNotMatch(
+    core.slice(
+      core.indexOf("CalBuddy.requestVisualInspector = async function"),
+      core.indexOf("CalBuddy.runVisualInspection = async function")
+    ),
+    /throw new Error/
+  );
 });
 
 test("visual inspector is restricted to ARI XP production or Vercel preview hosts", () => {
