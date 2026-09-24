@@ -330,8 +330,10 @@
             retries: Math.max(0, Number(latest.retries || 0) - 1),
             processingChecks
           });
-          finishAriThinkingSequence();
-          setAriComposerThinking(false);
+          // Keep the composer locked while the same turn is still pending.
+          // Re-enabling it here allows a second send to overwrite the durable
+          // recovery slot before this turn has produced an assistant reply.
+          setAriComposerThinking(true);
           schedulePendingRecovery(PROCESSING_RECHECK_MS);
           return;
         }
@@ -339,8 +341,9 @@
 
       const transient = isTransientRequestError(error);
       if (transient && Number(latest.retries || 0) < MAX_BACKGROUND_RETRIES) {
-        finishAriThinkingSequence();
-        setAriComposerThinking(false);
+        // A transient retry still owns the conversation turn. Keep the composer
+        // in STOP/thinking mode until recovery succeeds, fails, or is cancelled.
+        setAriComposerThinking(true);
         schedulePendingRecovery();
         return;
       }
