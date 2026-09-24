@@ -1092,6 +1092,54 @@ CalBuddy.isDurableAction = function (action = null) {
   return Boolean(action?.id && (action?.vnext_action_id || action?.source_turn_id || action?.user_id));
 };
 
+CalBuddy.createGithubEditPendingAction = async function (
+  developerIntent = {},
+  { sourceTurnId = null } = {}
+) {
+  const githubEdit = developerIntent?.githubEdit || {};
+  const filePath = String(githubEdit?.filePath || "").trim();
+  const operation = githubEdit?.operation || "replace";
+
+  if (!filePath) return null;
+
+  if (
+    operation === "replace" &&
+    (!githubEdit?.find || githubEdit?.replace === undefined || githubEdit?.replace === null)
+  ) {
+    return null;
+  }
+
+  if (
+    operation === "full_replace" &&
+    (typeof githubEdit?.newContent !== "string" || !githubEdit.newContent.trim())
+  ) {
+    return null;
+  }
+
+  if (!["replace", "full_replace"].includes(operation)) return null;
+
+  return await CalBuddy.createPendingAction({
+    action_type: "github_edit_request",
+    payload: {
+      githubEdit: {
+        mode: "commit",
+        filePath,
+        operation,
+        find: githubEdit.find,
+        replace: githubEdit.replace,
+        newContent: githubEdit.newContent,
+        replaceAll: githubEdit.replaceAll === true
+      },
+      title: developerIntent?.title || `Ari code update: ${filePath}`,
+      summary: developerIntent?.summary || "Apply Ari's validated code patch.",
+      developerIntentSource: developerIntent?.source || null
+    },
+    confirmation_text:
+      `Apply Ari's proposed code change to ${filePath} and commit it to the configured GitHub branch?`,
+    source_turn_id: sourceTurnId
+  });
+};
+
 CalBuddy.createPendingAction = async function ({
   action_type,
   payload,
@@ -1445,6 +1493,94 @@ CalBuddy.executeAction = async function (action) {
   if (type === "log_calories_burned") return await CalBuddy.logCaloriesBurned(payload);
   if (type === "change_reset_time") return await CalBuddy.changeResetTime(payload);
   if (type === "update_profile" || type === "update_goal_profile") return await CalBuddy.updateProfile(payload);
+  if (type === "github_edit_request") {
+    const context = await CalBuddy.getUserContext();
+
+    if (context.ownerMode !== true) {
+      return {
+        success: false,
+        code: "OWNER_ACCESS_DENIED",
+        reply: "GitHub code changes require verified Owner Mode."
+      };
+    }
+
+    const githubEdit = payload.githubEdit || action.githubEdit || payload;
+    const filePath = String(githubEdit?.filePath || "").trim();
+    const operation = githubEdit?.operation || "replace";
+
+    if (!filePath) {
+      return {
+        success: false,
+        code: "MISSING_FILE_PATH",
+        reply: "I cannot apply that code change because the validated file path is missing."
+      };
+    }
+
+    if (
+      operation === "replace" &&
+      (!githubEdit?.find || githubEdit?.replace === undefined || githubEdit?.replace === null)
+    ) {
+      return {
+        success: false,
+        code: "MISSING_FIND_REPLACE",
+        reply: "I cannot apply that code change because the validated exact find/replace patch is incomplete."
+      };
+    }
+
+    if (
+      operation === "full_replace" &&
+      (typeof githubEdit?.newContent !== "string" || !githubEdit.newContent.trim())
+    ) {
+      return {
+        success: false,
+        code: "MISSING_NEW_CONTENT",
+        reply: "I cannot apply that code change because the validated replacement content is missing."
+      };
+    }
+
+    if (!["replace", "full_replace"].includes(operation)) {
+      return {
+        success: false,
+        code: "UNSUPPORTED_GITHUB_EDIT_OPERATION",
+        reply: "I cannot apply that code change because its edit operation is not supported."
+      };
+    }
+
+    const result = await CalBuddy.sendGithubEditRequest({
+      mode: "commit",
+      filePath,
+      operation,
+      find: githubEdit.find,
+      replace: githubEdit.replace,
+      newContent: githubEdit.newContent,
+      replaceAll: githubEdit.replaceAll === true,
+      commitMessage:
+        payload.title ||
+        action.title ||
+        `Ari owner-authorized update ${filePath}`,
+      confirmationText: "CONFIRM GITHUB EDIT"
+    });
+
+    if (!result?.success) {
+      return {
+        success: false,
+        code: result?.code || "GITHUB_EDIT_FAILED",
+        result,
+        reply: result?.error || "The owner-authorized GitHub edit did not complete."
+      };
+    }
+
+    localStorage.removeItem("calbuddyPendingGithubEdit");
+    localStorage.setItem("calbuddyLastGithubEditResult", JSON.stringify(result));
+
+    return {
+      success: true,
+      result,
+      reply:
+        result?.message ||
+        `GitHub commit created for ${filePath} after owner confirmation.`
+    };
+  }
   if (type === "owner_code_task" || type === "developer_task" || type === "design_change") {
   const context = await CalBuddy.getUserContext();
 
@@ -2383,6 +2519,26 @@ if (
       "calbuddyPendingGithubEdit",
       JSON.stringify(response.developerIntent)
     );
+
+    if (
+      !response.pendingAction &&
+      response.developerIntent.type === "github_edit_request"
+    ) {
+      const pendingGithubEdit = await CalBuddy.createGithubEditPendingAction(
+        response.developerIntent,
+        {
+          sourceTurnId:
+            response.turnId ||
+            response.sourceTurnId ||
+            response.source_turn_id ||
+            null
+        }
+      );
+
+      if (pendingGithubEdit) {
+        response.pendingAction = pendingGithubEdit;
+      }
+    }
   }
 
   window.dispatchEvent(
