@@ -1949,6 +1949,60 @@ CalBuddy.inferVisualInspectionPath = function (message = "") {
   return "/home.html";
 };
 
+CalBuddy.inferVisualActions = function (message = "") {
+  const raw = String(message || "").trim();
+  const text = raw.toLowerCase();
+  const actions = [];
+
+  if (/\b(open|show)\s+(?:the\s+)?menu\b/i.test(raw)) {
+    actions.push({
+      type: "click_role",
+      role: "button",
+      name: "Open ARI navigation"
+    });
+  }
+
+  const quotedActionPattern =
+    /\b(?:click|tap|press|select|open)\s+(?:the\s+)?(?:button\s+|link\s+|tab\s+)?["“']([^"”']{1,100})["”']/gi;
+
+  let quotedMatch;
+  while (
+    actions.length < 6 &&
+    (quotedMatch = quotedActionPattern.exec(raw))
+  ) {
+    const label = String(quotedMatch[1] || "").trim();
+    if (!label || /^app$/i.test(label)) continue;
+    actions.push({
+      type: "click_text",
+      text: label
+    });
+  }
+
+  const namedButtonPattern =
+    /\b(?:click|tap|press)\s+(?:the\s+)?([a-z0-9][a-z0-9 &+\-]{1,60}?)\s+(?:button|tab|link)\b/gi;
+
+  let buttonMatch;
+  while (
+    actions.length < 6 &&
+    (buttonMatch = namedButtonPattern.exec(raw))
+  ) {
+    const label = String(buttonMatch[1] || "").trim();
+    if (!label) continue;
+    actions.push({
+      type: "click_text",
+      text: label
+    });
+  }
+
+  if (/\bscroll\s+down\b/i.test(text)) {
+    actions.push({ type: "scroll", amount: 700 });
+  } else if (/\bscroll\s+up\b/i.test(text)) {
+    actions.push({ type: "scroll", amount: -700 });
+  }
+
+  return actions.slice(0, 8);
+};
+
 CalBuddy.inferVisualViewports = function (message = "") {
   const text = String(message || "").toLowerCase();
   const mobile = /\b(phone|iphone|mobile|393|390|430)\b/.test(text);
@@ -2347,6 +2401,10 @@ if (
         : message,
     targetPath,
     viewports: CalBuddy.inferVisualViewports(message),
+    actions:
+      wantsResume
+        ? []
+        : CalBuddy.inferVisualActions(message),
     resumeRequestId:
       wantsResume
         ? pendingVisual?.requestId || null
