@@ -154,6 +154,12 @@ CalBuddy.runVisualInspection = async function ({
   let requestId = String(resumeRequestId || "").trim();
 
   if (!requestId) {
+    if (visualMode === "live_owner") {
+      try {
+        await (window.calbuddySupabase || CalBuddy.supabase)?.auth?.refreshSession?.();
+      } catch {}
+    }
+
     const started = await CalBuddy.requestVisualInspector({
       action: "start",
       targetPath,
