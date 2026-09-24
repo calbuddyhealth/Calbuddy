@@ -120,9 +120,10 @@ test("new GitHub proposals clear legacy GitHub-only state and cancellation canno
 });
 
 test("Ari self-model knows owner-confirmed chat code editing is a real capability", () => {
-  assert.match(selfModel, /ARI_SELF_MODEL_VERSION = "1\.4\.1"/);
+  assert.match(selfModel, /ARI_SELF_MODEL_VERSION = "1\.4\.2"/);
   assert.match(selfModel, /ownerConfirmedChatCodeEditsSupported:\s*true/);
-  assert.match(selfModel, /owner-gated GitHub edit workflow/);
+  assert.match(selfModel, /owner-gated developer tools/);
+  assert.match(selfModel, /github_edit_request/);
   assert.match(selfModel, /chat pending-action confirmation flow/);
-  assert.match(selfModel, /never claim a commit or deployment happened until the action result confirms success/);
+  assert.match(selfModel, /Never claim a visual inspection, commit, or deployment happened until its action result confirms success/);
 });

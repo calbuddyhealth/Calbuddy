@@ -243,6 +243,7 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
     "ari-owner-intelligence-controls.js",
     "ari-signals-scan.js",
     "ari-signals.js",
+    "ari-visual-inspector.js",
     "ari-vnext-circle-context.js",
     "ari-vnext-experiments.js",
     "ari-vnext-expert.js",
@@ -277,6 +278,7 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
   assert.equal(names.has("ari-autonomy-cycle.js"), true, "owner autonomy cycle must remain an explicit reviewed server API surface");
   assert.equal(names.has("ari-community-cycle.js"), true, "Agent Community autonomy must remain an explicit reviewed server API surface");
   assert.equal(names.has("ari-dreaming-cycle.js"), true, "owner Dreaming cycle must remain an explicit reviewed server API surface");
+  assert.equal(names.has("ari-visual-inspector.js"), true, "owner visual inspector must remain an explicit reviewed server API surface");
   assert.equal(names.has("ari-vnext-isolation-lab.js"), true, "owner isolation lab must remain an explicit reviewed server API surface");
 
   for (const removed of [

@@ -219,6 +219,26 @@ test("vNext confirmed execution blocks an action owned by a different account", 
   assert.equal(ctx.getAdapterExecutions(), 0);
 });
 
+test("visual inspector state cannot survive an account switch", async () => {
+  const ctx = makeSandbox();
+  await settle();
+
+  ctx.local.setItem("calbuddyPendingVisualInspection", JSON.stringify({
+    requestId: "vis_user_a",
+    targetPath: "/ari-circle.html"
+  }));
+  ctx.local.setItem("calbuddyLastVisualInspection", JSON.stringify({
+    requestId: "vis_user_a_done",
+    targetPath: "/home.html"
+  }));
+
+  ctx.setUser("user-b");
+  ctx.sandbox.window.AriAccountIsolation.activateUser("user-b");
+
+  assert.equal(ctx.local.getItem("calbuddyPendingVisualInspection"), null);
+  assert.equal(ctx.local.getItem("calbuddyLastVisualInspection"), null);
+});
+
 test("sign-out/account deactivation clears active browser state", async () => {
   const ctx = makeSandbox();
   await settle();
@@ -241,7 +261,7 @@ test("Nutrition surface cannot render Training or activity pending actions", () 
 });
 
 test("auth boots account isolation without reinstalling a legacy semantic router", () => {
-  assert.match(authSource, /account-isolation-guard\.js\?v=1\.0\.0/);
+  assert.match(authSource, /account-isolation-guard\.js\?v=1\.0\.1/);
   assert.equal(authSource.includes("bootstrapAriWorkoutActionForNutrition"), false);
   assert.equal(authSource.includes("bootstrapAriCentralIntentRouter"), false);
   assert.equal(authSource.includes("ari-central-intent-router.js"), false);

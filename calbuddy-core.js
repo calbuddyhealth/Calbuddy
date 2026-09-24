@@ -119,6 +119,118 @@ CalBuddy.getOwnerRequestHeaders = async function () {
     Authorization: `Bearer ${accessToken}`
   };
 };
+
+CalBuddy.requestVisualInspector = async function (body = {}) {
+  const headers = await CalBuddy.getOwnerRequestHeaders();
+  const response = await fetch("/api/ari-visual-inspector", {
+    method: "POST",
+    headers,
+    cache: "no-store",
+    body: JSON.stringify(body || {})
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok && data?.status !== "failed") {
+    throw new Error(
+      data?.error ||
+      data?.message ||
+      "ARI visual inspection request failed."
+    );
+  }
+
+  return data;
+};
+
+CalBuddy.runVisualInspection = async function ({
+  message = "",
+  targetPath = "/home.html",
+  viewports = "both",
+  actions = [],
+  resumeRequestId = null
+} = {}) {
+  const instruction = String(message || "").trim();
+
+  let requestId = String(resumeRequestId || "").trim();
+
+  if (!requestId) {
+    const started = await CalBuddy.requestVisualInspector({
+      action: "start",
+      targetPath,
+      viewports,
+      actions,
+      instruction
+    });
+
+    if (!started?.success || !started?.requestId) {
+      return started;
+    }
+
+    requestId = started.requestId;
+    localStorage.setItem(
+      "calbuddyPendingVisualInspection",
+      JSON.stringify({
+        requestId,
+        targetPath,
+        viewports,
+        instruction,
+        startedAt: new Date().toISOString()
+      })
+    );
+  }
+
+  const maxPolls = 40;
+  const pollDelayMs = 2250;
+
+  for (let attempt = 0; attempt < maxPolls; attempt += 1) {
+    const status = await CalBuddy.requestVisualInspector({
+      action: "status",
+      requestId,
+      instruction
+    });
+
+    if (status?.status === "completed") {
+      localStorage.removeItem("calbuddyPendingVisualInspection");
+      localStorage.setItem(
+        "calbuddyLastVisualInspection",
+        JSON.stringify({
+          requestId,
+          completedAt: new Date().toISOString(),
+          targetPath,
+          visualAnalysis: status.visualAnalysis || null,
+          evidence: status.evidence || null
+        })
+      );
+      return status;
+    }
+
+    if (status?.status === "failed" || status?.success === false) {
+      localStorage.removeItem("calbuddyPendingVisualInspection");
+      return status;
+    }
+
+    await new Promise(resolve => setTimeout(resolve, pollDelayMs));
+  }
+
+  return {
+    success: true,
+    status: "in_progress",
+    requestId,
+    targetPath,
+    message:
+      "The visual browser worker is still running. Ari can resume this exact inspection without starting over."
+  };
+};
+
+CalBuddy.getPendingVisualInspection = function () {
+  const saved = localStorage.getItem("calbuddyPendingVisualInspection");
+  if (!saved) return null;
+  try {
+    return JSON.parse(saved);
+  } catch {
+    localStorage.removeItem("calbuddyPendingVisualInspection");
+    return null;
+  }
+};
 CalBuddy.verifyOwnerSession = async function ({ force = false } = {}) {
   const session = await CalBuddy.getCurrentSession();
   const userId = String(session?.user?.id || "").trim();
@@ -1795,6 +1907,111 @@ CalBuddy.cancelPendingAction = function () {
   };
 };
 
+CalBuddy.isVisualInspectionCommand = function (message = "") {
+  const text = String(message || "").toLowerCase().trim();
+
+  const visualSignal =
+    /\b(look at|look through|visually|visual inspect|inspect the app|inspect this|navigate|open the app|open this page|screenshot|see what|what .* look|looks? cut off|cut off|cropped|overflow|overlapping|zoomed|too crowded|layout|screen|ui)\b/i.test(text);
+
+  const appSignal =
+    /\b(app|ari xp|home|homepage|circle|training|workout|goals|meals|nutrition|progress|profile|owner|page|screen|menu|host|connect|feed|messages|meetup)\b/i.test(text) ||
+    /\b[a-z0-9_-]+\.html\b/i.test(text);
+
+  const explicitResume =
+    /\b(check|resume|finish|status)\b.*\bvisual inspection\b/i.test(text);
+
+  return explicitResume || (visualSignal && appSignal);
+};
+
+CalBuddy.inferVisualInspectionPath = function (message = "") {
+  const text = String(message || "").toLowerCase();
+
+  const explicit = text.match(/\b([a-z0-9_-]+\.html(?:\?[^\s]+)?)\b/i);
+  if (explicit?.[1]) return `/${explicit[1].replace(/^\/+/, "")}`;
+
+  if (/\b(messages?|dm|direct messages?)\b/.test(text) && /\bcircle\b/.test(text)) {
+    return "/ari-circle-messages.html";
+  }
+  if (/\b(feed|post|posts)\b/.test(text) && /\bcircle\b/.test(text)) {
+    return "/ari-circle-feed.html";
+  }
+  if (/\b(meetup|host|jump in|connect)\b/.test(text) && /\bcircle\b/.test(text)) {
+    return "/ari-circle-meetup.html";
+  }
+  if (/\bcircle\b/.test(text)) return "/ari-circle.html";
+  if (/\b(training|workout|exercise)\b/.test(text)) return "/ari-training.html";
+  if (/\b(meal|meals|nutrition|food)\b/.test(text)) return "/nutrition.html";
+  if (/\b(progress)\b/.test(text)) return "/progress.html";
+  if (/\b(goals?|calorie goal|weight goal)\b/.test(text)) return "/goals.html";
+  if (/\b(owner|owner mode|intelligence controls)\b/.test(text)) return "/owner-ai-controls.html";
+  if (/\b(profile)\b/.test(text)) return "/profile.html";
+
+  return "/home.html";
+};
+
+CalBuddy.inferVisualActions = function (message = "") {
+  const raw = String(message || "").trim();
+  const text = raw.toLowerCase();
+  const actions = [];
+
+  if (/\b(open|show)\s+(?:the\s+)?menu\b/i.test(raw)) {
+    actions.push({
+      type: "click_role",
+      role: "button",
+      name: "Open ARI navigation"
+    });
+  }
+
+  const quotedActionPattern =
+    /\b(?:click|tap|press|select|open)\s+(?:the\s+)?(?:button\s+|link\s+|tab\s+)?["“']([^"”']{1,100})["”']/gi;
+
+  let quotedMatch;
+  while (
+    actions.length < 6 &&
+    (quotedMatch = quotedActionPattern.exec(raw))
+  ) {
+    const label = String(quotedMatch[1] || "").trim();
+    if (!label || /^app$/i.test(label)) continue;
+    actions.push({
+      type: "click_text",
+      text: label
+    });
+  }
+
+  const namedButtonPattern =
+    /\b(?:click|tap|press)\s+(?:the\s+)?([a-z0-9][a-z0-9 &+\-]{1,60}?)\s+(?:button|tab|link)\b/gi;
+
+  let buttonMatch;
+  while (
+    actions.length < 6 &&
+    (buttonMatch = namedButtonPattern.exec(raw))
+  ) {
+    const label = String(buttonMatch[1] || "").trim();
+    if (!label) continue;
+    actions.push({
+      type: "click_text",
+      text: label
+    });
+  }
+
+  if (/\bscroll\s+down\b/i.test(text)) {
+    actions.push({ type: "scroll", amount: 700 });
+  } else if (/\bscroll\s+up\b/i.test(text)) {
+    actions.push({ type: "scroll", amount: -700 });
+  }
+
+  return actions.slice(0, 8);
+};
+
+CalBuddy.inferVisualViewports = function (message = "") {
+  const text = String(message || "").toLowerCase();
+  const mobile = /\b(phone|iphone|mobile|393|390|430)\b/.test(text);
+  const desktop = /\b(desktop|laptop|computer|1440|browser width)\b/.test(text);
+  if (mobile && !desktop) return "mobile";
+  if (desktop && !mobile) return "desktop";
+  return "both";
+};
+
 CalBuddy.isDeveloperCommand = function (message = "") {
   const text = String(message || "").toLowerCase().trim();
 
@@ -2150,6 +2367,177 @@ const userContext =
   await CalBuddy.getUserContext();
 
 mark("after getUserContext");
+
+/* -----------------------------
+DETERMINISTIC OWNER VISUAL INSPECTION
+
+Owner-only visual requests run through a read-only Playwright sandbox.
+The returned screenshots are interpreted by the vision model, then handed
+back to Ari Rebirth so visual evidence can drive repository investigation.
+----------------------------- */
+
+if (
+  !readOnlyFallback &&
+  userContext.ownerMode === true &&
+  CalBuddy.isVisualInspectionCommand(message)
+) {
+  mark("before owner visual inspection");
+
+  const pendingVisual = CalBuddy.getPendingVisualInspection();
+  const wantsResume =
+    /\b(check|resume|finish|status)\b.*\bvisual inspection\b/i.test(
+      String(message || "")
+    );
+
+  const targetPath =
+    pendingVisual?.targetPath && wantsResume
+      ? pendingVisual.targetPath
+      : CalBuddy.inferVisualInspectionPath(message);
+
+  const visualResult = await CalBuddy.runVisualInspection({
+    message:
+      pendingVisual?.instruction && wantsResume
+        ? pendingVisual.instruction
+        : message,
+    targetPath,
+    viewports: CalBuddy.inferVisualViewports(message),
+    actions:
+      wantsResume
+        ? []
+        : CalBuddy.inferVisualActions(message),
+    resumeRequestId:
+      wantsResume
+        ? pendingVisual?.requestId || null
+        : null
+  });
+
+  mark("after owner visual inspection");
+
+  if (visualResult?.status === "in_progress") {
+    finishTiming();
+    return {
+      reply:
+        visualResult.message ||
+        "The visual browser worker is still running. Ask me to check the visual inspection and I’ll resume the same run.",
+      emotion: "thinking",
+      pendingAction: null,
+      memoryCandidate: null,
+      developerIntent: null,
+      visualInspection: visualResult
+    };
+  }
+
+  if (!visualResult?.success) {
+    finishTiming();
+    return {
+      reply:
+        visualResult?.error ||
+        visualResult?.message ||
+        "I could not complete the visual inspection.",
+      emotion: "concerned",
+      pendingAction: null,
+      memoryCandidate: null,
+      developerIntent: null,
+      visualInspection: visualResult
+    };
+  }
+
+  const visualContext = {
+    visualAnalysis: visualResult.visualAnalysis || null,
+    evidence: visualResult.evidence || null
+  };
+
+  const visualPrompt = `OWNER VISUAL APP INSPECTION
+
+Original owner request:
+${message}
+
+A real read-only browser worker navigated ARI XP and a vision model inspected the captured screenshot(s).
+
+VISUAL EVIDENCE:
+${JSON.stringify(visualContext, null, 2).slice(0, 18000)}
+
+Use this as real visual/browser evidence.
+- Do not say you cannot see or navigate the app.
+- Do not claim code was changed merely because the screen was inspected.
+- If the owner only asked to inspect/explain, answer directly from this evidence.
+- If the owner asked to fix/change the UI, continue into the normal developer workflow: search/read the relevant repository code, then prepare an exact patch only when evidence supports it.
+- Treat selectors, IDs, labels, overflow measurements, console errors, and searchHints above as investigation clues, not guessed code.`;
+
+  if (
+    window.AriRebirthAppBridge &&
+    typeof window.AriRebirthAppBridge.ask === "function"
+  ) {
+    const visualReasoning = await window.AriRebirthAppBridge.ask(
+      visualPrompt,
+      {
+        source: "calbuddy-core-visual-inspector",
+        page: targetPath,
+        history: history.slice(-10),
+        userContext,
+        ownerMode: true,
+        ariPermissions: userContext.ariPermissions || {},
+        visualInspection: visualContext
+      }
+    );
+
+    const visualDeveloperIntent =
+      visualReasoning?.developerIntent ||
+      visualReasoning?.summary?.developerIntent ||
+      null;
+
+    if (
+      CalBuddy.shouldHandleDeveloperIntent({
+        message,
+        developerIntent: visualDeveloperIntent,
+        userContext
+      })
+    ) {
+      const handledVisualDeveloperIntent =
+        await CalBuddy.handleDeveloperIntent({
+          developerIntent: visualDeveloperIntent,
+          originalMessage: `${message}\n\nVISUAL INSPECTION:\n${JSON.stringify(visualContext).slice(0, 12000)}`,
+          userContext,
+          history
+        });
+
+      if (handledVisualDeveloperIntent) {
+        finishTiming();
+        return {
+          ...handledVisualDeveloperIntent,
+          visualInspection: visualResult,
+          rebirthSummary: visualReasoning?.summary || null
+        };
+      }
+    }
+
+    finishTiming();
+    return {
+      reply:
+        visualReasoning?.reply ||
+        visualResult?.visualAnalysis?.summary ||
+        "I visually inspected the requested ARI XP screen.",
+      emotion: visualReasoning?.emotion || "thinking",
+      pendingAction: null,
+      memoryCandidate: null,
+      developerIntent: visualDeveloperIntent,
+      visualInspection: visualResult,
+      rebirthSummary: visualReasoning?.summary || null
+    };
+  }
+
+  finishTiming();
+  return {
+    reply:
+      visualResult?.visualAnalysis?.summary ||
+      "I visually inspected the requested ARI XP screen.",
+    emotion: "thinking",
+    pendingAction: null,
+    memoryCandidate: null,
+    developerIntent: null,
+    visualInspection: visualResult
+  };
+}
 
 /* -----------------------------
 DETERMINISTIC OWNER GITHUB ROUTING

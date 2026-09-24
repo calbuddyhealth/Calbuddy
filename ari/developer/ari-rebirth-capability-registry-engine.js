@@ -5,7 +5,7 @@
 window.Ari = window.Ari || {};
 
 window.AriRebirthCapabilityRegistryEngine = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   inspect(input = {}) {
     const summary = input.summary || input || {};
@@ -67,6 +67,7 @@ window.AriRebirthCapabilityRegistryEngine = {
     if (this.hasAny(t, ["barcode", "scan food", "scanner"])) return "barcode_scanning";
     if (this.hasAny(t, ["photo", "image", "food picture", "analyze image"])) return "photo_food_analysis";
     if (this.hasAny(t, ["knowledge", "anatomy", "education", "learn"])) return "knowledge_search";
+    if (this.hasAny(t, ["visual inspect", "look at the app", "navigate the app", "screenshot", "layout", "overflow", "cropped", "cut off"])) return "visual_app_inspection";
     if (this.hasAny(t, ["github", "repo", "code", "commit", "edit file"])) return "github_code_tools";
     if (this.hasAny(t, ["meal", "log food", "calories"])) return "meal_logging";
     if (this.hasAny(t, ["weight", "weigh"])) return "weight_logging";
@@ -156,6 +157,33 @@ window.AriRebirthCapabilityRegistryEngine = {
         riskLevel: "high",
         allowedActions: ["search_repo", "read_file", "preview_edit", "commit_after_confirmation"],
         forbiddenActions: ["secret_commit", "edit_without_verified_owner", "guess_patch"]
+      },
+      {
+        name: "visual_app_inspection",
+        status: "available",
+        category: "developer",
+        ownerFiles: [
+          "calbuddy-core.js",
+          "api/ari-visual-inspector.js",
+          "scripts/ari-visual-inspector.mjs",
+          ".github/workflows/ari-visual-inspector.yml"
+        ],
+        reusableFor: ["ui_debugging", "responsive_layout_testing", "post_patch_verification", "visual_regression_investigation"],
+        requiresUserPermission: true,
+        requiresConfirmation: false,
+        riskLevel: "medium",
+        allowedActions: [
+          "navigate_read_only_sandbox",
+          "bounded_ui_interaction",
+          "capture_mobile_desktop_screenshots",
+          "inspect_dom_layout_console",
+          "vision_analyze_screenshots"
+        ],
+        forbiddenActions: [
+          "mutate_real_user_data",
+          "submit_real_production_forms",
+          "claim_visual_result_without_completed_run"
+        ]
       },
       {
         name: "barcode_scanning",
