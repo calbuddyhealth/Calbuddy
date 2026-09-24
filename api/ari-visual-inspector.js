@@ -177,7 +177,22 @@ async function exchangeLiveGrant({ req, res }) {
       email: clean(payload?.user?.email, 320)
     },
     readOnly: true,
-    mutationAuthority: false
+    mutationAuthority: false,
+    aiProcessingAuthorization: {
+      authorized:
+        payload?.aiProcessingAuthorization?.authorized === true,
+      scope: clean(
+        payload?.aiProcessingAuthorization?.scope,
+        120
+      ),
+      requestId: clean(
+        payload?.aiProcessingAuthorization?.requestId,
+        120
+      ),
+      expiresAt: Number(
+        payload?.aiProcessingAuthorization?.expiresAt || 0
+      )
+    }
   });
 }
 
@@ -207,7 +222,8 @@ async function startInspection({
           req,
           authorization,
           requestId,
-          baseUrl
+          baseUrl,
+          liveOwnerExpiresAt: Number(req.body?.liveOwnerExpiresAt || 0)
         })
       : "";
 
@@ -488,6 +504,24 @@ async function readVisualReportFromRun({ token, repo, runId }) {
 }
 
 async function analyzeVisualEvidence({ report, instruction, userId }) {
+  if (
+    report?.authMode === "live_owner" &&
+    !hasScopedLiveOwnerAIProcessingAuthorization(report)
+  ) {
+    return {
+      summary:
+        "The Live Owner browser captured the app, but its scoped AI-processing authorization was missing or expired, so the screenshots were not sent for AI vision analysis.",
+      findings: structuralFindings(report),
+      likelyCause: null,
+      recommendedNextStep:
+        "Start a new Live Owner inspection so a fresh visual_owner_inspection authorization can be issued.",
+      searchHints: [],
+      confidence: "high",
+      visionUsed: false,
+      visionBlockedByConsent: true
+    };
+  }
+
   const apiKey = clean(process.env.OPENAI_API_KEY, 8000);
   if (!apiKey) {
     return {
@@ -654,6 +688,17 @@ Return only JSON:
   }
 }
 
+function hasScopedLiveOwnerAIProcessingAuthorization(report) {
+  const authorization = report?.aiProcessingAuthorization || {};
+  return (
+    authorization?.authorized === true &&
+    authorization?.scope === "visual_owner_inspection" &&
+    clean(authorization?.requestId, 120) === clean(report?.requestId, 120) &&
+    Number.isFinite(Number(authorization?.expiresAt)) &&
+    Number(authorization.expiresAt) > Date.now()
+  );
+}
+
 function compactReport(report) {
   return {
     version: report?.version || null,
@@ -662,6 +707,21 @@ function compactReport(report) {
     baseUrl: report?.baseUrl || null,
     targetPath: report?.targetPath || null,
     authMode: report?.authMode || null,
+    aiProcessingAuthorization: {
+      authorized:
+        report?.aiProcessingAuthorization?.authorized === true,
+      scope: clean(
+        report?.aiProcessingAuthorization?.scope,
+        120
+      ) || null,
+      requestId: clean(
+        report?.aiProcessingAuthorization?.requestId,
+        120
+      ) || null,
+      expiresAt: Number(
+        report?.aiProcessingAuthorization?.expiresAt || 0
+      ) || null
+    },
     actionsApplied: report?.actionsApplied || [],
     captures: (Array.isArray(report?.captures) ? report.captures : []).map(item => ({
       checkpoint: item.checkpoint || null,
@@ -821,7 +881,8 @@ function createLiveOwnerGrant({
   req,
   authorization,
   requestId,
-  baseUrl
+  baseUrl,
+  liveOwnerExpiresAt = 0
 }) {
   const accessToken = extractBearerToken(req);
   if (!accessToken) {
@@ -849,6 +910,17 @@ function createLiveOwnerGrant({
     accessTokenExpiresAt - 60_000
   );
 
+  const delegatedSessionExpiresAt =
+    Number.isFinite(Number(liveOwnerExpiresAt)) &&
+    Number(liveOwnerExpiresAt) > now
+      ? Number(liveOwnerExpiresAt)
+      : accessTokenExpiresAt - 60_000;
+
+  const aiProcessingExpiresAt = Math.min(
+    delegatedSessionExpiresAt,
+    accessTokenExpiresAt - 60_000
+  );
+
   const payload = {
     version: LIVE_GRANT_VERSION,
     requestId,
@@ -856,6 +928,12 @@ function createLiveOwnerGrant({
     accessToken,
     accessTokenExpiresAt,
     grantExpiresAt,
+    aiProcessingAuthorization: {
+      authorized: true,
+      scope: "visual_owner_inspection",
+      requestId,
+      expiresAt: aiProcessingExpiresAt
+    },
     user: {
       id: authorization?.user?.id || "",
       email: authorization?.user?.email || ""
