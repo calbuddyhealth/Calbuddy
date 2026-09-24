@@ -96,34 +96,57 @@ try {
     await page.goto(initialUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
     await page.waitForTimeout(900);
 
-    for (const action of actions) {
-      await executeSafeAction(page, action);
-      await page.waitForTimeout(250);
+    const visitActions = actions.filter(action => action.type === "visit_path");
+
+    // A whole-app request is a bounded tour, not one final screenshot after
+    // several navigations. Capture the initial route and every explicit
+    // visit_path checkpoint so Ari has evidence from each primary surface.
+    if (visitActions.length) {
+      captures.push(
+        await captureCurrentPage({
+          page,
+          viewport,
+          consoleErrors,
+          failedRequests,
+          blockedMutations,
+          checkpoint: "initial",
+          tourMode: true
+        })
+      );
     }
 
-    const metrics = await collectMetrics(page);
-    const interactive = await collectInteractive(page);
-    const navigation = await collectNavigation(page);
-    const bodyText = clean(await page.locator("body").innerText().catch(() => ""), 6000);
-    const screenshot = await page.screenshot({
-      type: "jpeg",
-      quality: viewport.id === "mobile" ? 48 : 42,
-      fullPage: viewport.id === "mobile"
-    });
+    for (const action of actions) {
+      await executeSafeAction(page, action, baseUrl);
+      await page.waitForTimeout(action.type === "visit_path" ? 650 : 250);
 
-    captures.push({
-      viewport,
-      url: clean(page.url(), 800),
-      title: clean(await page.title().catch(() => ""), 300),
-      bodyText,
-      metrics,
-      interactive,
-      navigation,
-      consoleErrors,
-      failedRequests,
-      blockedMutations,
-      screenshotDataUrl: `data:image/jpeg;base64,${screenshot.toString("base64")}`
-    });
+      if (action.type === "visit_path") {
+        captures.push(
+          await captureCurrentPage({
+            page,
+            viewport,
+            consoleErrors,
+            failedRequests,
+            blockedMutations,
+            checkpoint: `visit:${action.path}`,
+            tourMode: true
+          })
+        );
+      }
+    }
+
+    if (!visitActions.length) {
+      captures.push(
+        await captureCurrentPage({
+          page,
+          viewport,
+          consoleErrors,
+          failedRequests,
+          blockedMutations,
+          checkpoint: "final",
+          tourMode: false
+        })
+      );
+    }
 
     await context.close();
   }
@@ -132,7 +155,7 @@ try {
 }
 
 const report = {
-  version: "1.1.0",
+  version: "1.2.0",
   requestId,
   generatedAt: new Date().toISOString(),
   baseUrl,
@@ -330,7 +353,7 @@ function parseActions(encoded) {
 
 function normalizeAction(item = {}) {
   const type = clean(item.type, 40).toLowerCase();
-  if (!["click_text", "click_role", "fill_label", "press", "scroll", "wait"].includes(type)) return null;
+  if (!["click_text", "click_role", "fill_label", "press", "scroll", "wait", "visit_path"].includes(type)) return null;
   return {
     type,
     text: clean(item.text, 180),
@@ -339,12 +362,28 @@ function normalizeAction(item = {}) {
     label: clean(item.label, 180),
     value: clean(item.value, 500),
     key: clean(item.key, 40),
+    path: normalizeVisitPath(item.path),
     amount: Math.max(-2000, Math.min(2000, Number(item.amount) || 0)),
     ms: Math.max(0, Math.min(3000, Number(item.ms) || 0))
   };
 }
 
-async function executeSafeAction(page, action) {
+function normalizeVisitPath(value) {
+  const raw = clean(value, 400);
+  if (!raw || !raw.startsWith("/") || raw.includes("..") || /^\/\//.test(raw)) return "";
+  return raw;
+}
+
+async function executeSafeAction(page, action, baseUrl) {
+  if (action.type === "visit_path" && action.path) {
+    const destination = new URL(action.path, baseUrl).toString();
+    if (!isAllowedTopLevelNavigation(destination, baseUrl)) return;
+    await page.goto(destination, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000
+    }).catch(() => {});
+    return;
+  }
   if (action.type === "click_text" && action.text) {
     const locator = page.getByText(action.text, { exact: false }).first();
     if (await locator.count()) await locator.click({ timeout: 4000 }).catch(() => {});
@@ -373,6 +412,46 @@ async function executeSafeAction(page, action) {
   if (action.type === "wait") {
     await page.waitForTimeout(action.ms || 500);
   }
+}
+
+async function captureCurrentPage({
+  page,
+  viewport,
+  consoleErrors,
+  failedRequests,
+  blockedMutations,
+  checkpoint = "final",
+  tourMode = false
+} = {}) {
+  const metrics = await collectMetrics(page);
+  const interactive = await collectInteractive(page);
+  const navigation = await collectNavigation(page);
+  const bodyText = clean(
+    await page.locator("body").innerText().catch(() => ""),
+    tourMode ? 4200 : 6000
+  );
+  const screenshot = await page.screenshot({
+    type: "jpeg",
+    quality: tourMode
+      ? (viewport.id === "mobile" ? 36 : 32)
+      : (viewport.id === "mobile" ? 48 : 42),
+    fullPage: viewport.id === "mobile"
+  });
+
+  return {
+    checkpoint: clean(checkpoint, 160),
+    viewport,
+    url: clean(page.url(), 800),
+    title: clean(await page.title().catch(() => ""), 300),
+    bodyText,
+    metrics,
+    interactive,
+    navigation,
+    consoleErrors: [...consoleErrors],
+    failedRequests: [...failedRequests],
+    blockedMutations: [...blockedMutations],
+    screenshotDataUrl: `data:image/jpeg;base64,${screenshot.toString("base64")}`
+  };
 }
 
 async function collectMetrics(page) {
@@ -492,7 +571,12 @@ async function installReadOnlyOwnerSandbox(page) {
   const user = {
     id: "visual-owner-0001",
     email: "visual-owner@arixp.test",
-    user_metadata: { display_name: "ARI Visual Owner" }
+    user_metadata: {
+      display_name: "ARI Visual Owner",
+      ari_ai_processing_consent: true,
+      ari_ai_processing_consent_version: "2",
+      ari_ai_processing_consented_at: "2026-09-24T00:00:00.000Z"
+    }
   };
   const session = { access_token: "visual-owner-token", user };
 
