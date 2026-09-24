@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.1";
+  const VERSION = "1.0.2";
   const ACTIVE_SESSION_KEY = "arixp_active_user_id_v1";
   const STORAGE_OWNER_KEY = "arixp_browser_state_owner_v1";
   const SCOPED_PREFIX = "arixp:u:";
@@ -15,7 +15,8 @@
     "ariLastIntentDecision",
     "calbuddyPendingGithubEdit",
     "calbuddyPendingVisualInspection",
-    "calbuddyLastVisualInspection"
+    "calbuddyLastVisualInspection",
+    "calbuddyVisualLiveOwnerSession"
   ]);
 
   const TRANSIENT_SESSION_KEYS = Object.freeze([
