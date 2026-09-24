@@ -6,7 +6,7 @@ import { beliefSystemInstruction } from "./belief-system.js";
 import { convictionInstruction } from "./conviction-learning.js";
 import { dreamingContextToInstruction } from "./dreaming-core.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.17.0";
+export const CONTEXT_ROUTER_VERSION = "1.18.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -81,6 +81,18 @@ export function buildRelevantContext(turn = {}, route = {}) {
     user: pickObject(source?.user, ["displayName", "firstName", "age", "sex", "height", "activityLevel"])
   };
 
+  // Persistent memory is protected conversational context. If retrieval or a
+  // verified memory action supplied it, keep it model-facing regardless of
+  // how much optional cognition/world-model context is also available.
+  if (turn?.memory) selected.relevantMemory = String(turn.memory).slice(0, 8000);
+
+  if (source?.memoryCapability && typeof source.memoryCapability === "object") {
+    selected.memoryCapability = pickObject(source.memoryCapability, [
+      "persistentUserMemory", "explicitRememberSupported", "requestDetected",
+      "status", "requestedCount", "storedCount", "failedCount"
+    ]);
+  }
+
   if (source?.accountEntitlements && typeof source.accountEntitlements === "object") {
     selected.accountEntitlements = pickObject(source.accountEntitlements, [
       "version", "status", "ageBand", "ageVerified", "teenMode", "appAllowed", "circleAllowed", "circleMinimumAge"
@@ -153,50 +165,100 @@ export function buildRelevantContext(turn = {}, route = {}) {
     selected.temporalTimeline = source.temporalTimeline;
   }
 
-  if (turn?.memory && (
-    route.memory ||
-    route.training ||
-    route.nutrition ||
-    route.goals ||
-    route.developer ||
-    route.currentInfo ||
-    route.followUp
-  )) {
-    selected.relevantMemory = turn.memory;
-  }
-
   return selected;
 }
 
 export function contextToText(context = {}) {
   try {
-    const rules = cognitiveContextRules(context);
-    if (!context.convictionLearning?.goals?.length) {
-      const json = JSON.stringify(context, null, 2).slice(0, 22500);
-      return [rules, json].filter(Boolean).join("\n\n").slice(0, 24000);
-    }
-    const priority = [
-      "dreaming",
-      "convictionLearning",
-      "decisionState",
-      "temporalTimeline",
-      "institutionalMemory",
-      "agentPerformance",
-      "userWorldModel",
-      "relevantMemory"
-    ];
-    const ordered = {};
-    for (const key of priority) {
-      if (context[key] !== undefined) ordered[key] = compactContextField(key, context[key]);
-    }
-    for (const [key, value] of Object.entries(context)) {
-      if (!(key in ordered)) ordered[key] = compactContextField(key, value);
-    }
-    const json = JSON.stringify(ordered, null, 2).slice(0, 22500);
-    return [rules, json].filter(Boolean).join("\n\n").slice(0, 24000);
+    const protectedContext = buildProtectedContext(context);
+    const protectedJson = JSON.stringify(protectedContext, null, 2);
+    const rules = cognitiveContextRules(context).slice(0, 6500);
+
+    const sectionHeader = "PROTECTED CONTINUITY CONTEXT — preserve and use this before optional cognition:";
+    const rulesHeader = "COGNITIVE/BEHAVIOR RULES:";
+    const supplementalHeader = "SUPPLEMENTAL CONTEXT:";
+    const fixed = [
+      sectionHeader,
+      protectedJson,
+      rules ? rulesHeader : "",
+      rules
+    ].filter(Boolean).join("\n\n");
+
+    const remaining = Math.max(0, 24000 - fixed.length - supplementalHeader.length - 4);
+    const supplementalJson = buildSupplementalContextText(context, remaining);
+
+    return [
+      fixed,
+      supplementalJson ? supplementalHeader : "",
+      supplementalJson
+    ].filter(Boolean).join("\n\n");
   } catch {
     return "{}";
   }
+}
+
+function buildProtectedContext(context = {}) {
+  const output = {};
+
+  if (context.relevantMemory !== undefined) {
+    output.relevantMemory = String(context.relevantMemory || "").slice(0, 8000);
+  }
+
+  if (context.memoryCapability && typeof context.memoryCapability === "object") {
+    output.memoryCapability = pickObject(context.memoryCapability, [
+      "persistentUserMemory", "explicitRememberSupported", "requestDetected",
+      "status", "requestedCount", "storedCount", "failedCount"
+    ]);
+  }
+
+  if (context.user !== undefined) output.user = compactContextField("user", context.user);
+  if (context.surface !== undefined) output.surface = context.surface;
+  if (context.accountEntitlements !== undefined) {
+    output.accountEntitlements = compactContextField("accountEntitlements", context.accountEntitlements);
+  }
+  if (context.intelligenceEntitlement !== undefined) {
+    output.intelligenceEntitlement = compactContextField("intelligenceEntitlement", context.intelligenceEntitlement);
+  }
+
+  return output;
+}
+
+function buildSupplementalContextText(context = {}, maxChars = 0) {
+  if (maxChars < 20) return "";
+
+  const protectedKeys = new Set([
+    "relevantMemory",
+    "memoryCapability",
+    "user",
+    "surface",
+    "accountEntitlements",
+    "intelligenceEntitlement"
+  ]);
+  const priority = [
+    "userWorldModel",
+    "dreaming",
+    "convictionLearning",
+    "decisionState",
+    "temporalTimeline",
+    "institutionalMemory",
+    "agentPerformance"
+  ];
+  const orderedKeys = [
+    ...priority,
+    ...Object.keys(context).filter((key) => !priority.includes(key))
+  ].filter((key, index, items) => !protectedKeys.has(key) && items.indexOf(key) === index);
+
+  const fitted = {};
+  for (const key of orderedKeys) {
+    if (context[key] === undefined) continue;
+    const candidate = { ...fitted, [key]: compactContextField(key, context[key]) };
+    const text = JSON.stringify(candidate, null, 2);
+    if (text.length <= maxChars) {
+      fitted[key] = candidate[key];
+    }
+  }
+
+  return Object.keys(fitted).length ? JSON.stringify(fitted, null, 2) : "";
 }
 
 function compactContextField(key, value) {
@@ -214,6 +276,31 @@ function compactContextField(key, value) {
       if (key === "userWorldModel") {
         if (Array.isArray(copy.preferences?.items)) copy.preferences.items = copy.preferences.items.slice(0, 18);
         if (Array.isArray(copy.constraints?.items)) copy.constraints.items = copy.constraints.items.slice(0, 18);
+
+        // sourceSummary is durable telemetry, not primary conversational
+        // evidence. Keep compact signals but never let raw curiosity/autonomy
+        // traces crowd user memories out of the model prompt.
+        if (copy.sourceSummary && typeof copy.sourceSummary === "object") {
+          const summary = copy.sourceSummary;
+          copy.sourceSummary = {
+            profile: summary.profile || null,
+            durableMemoryLines: summary.durableMemoryLines ?? null,
+            longitudinalTraining: summary.longitudinalTraining || null,
+            longitudinalWeight: summary.longitudinalWeight || null,
+            experimentOutcomes: summary.experimentOutcomes || null,
+            curiosityState: summarizePromptState(summary.curiosityState),
+            autonomyRuntime: summarizePromptState(summary.autonomyRuntime)
+          };
+        }
+
+        if (JSON.stringify(copy).length > 8500 && copy.sourceSummary) {
+          copy.sourceSummary = {
+            profile: copy.sourceSummary.profile || null,
+            durableMemoryLines: copy.sourceSummary.durableMemoryLines ?? null,
+            curiosityState: summarizePromptState(copy.sourceSummary.curiosityState),
+            autonomyRuntime: summarizePromptState(copy.sourceSummary.autonomyRuntime)
+          };
+        }
       }
       return copy;
     } catch {
@@ -221,6 +308,19 @@ function compactContextField(key, value) {
     }
   }
   return value;
+}
+
+function summarizePromptState(value) {
+  if (!value || typeof value !== "object") return value ?? null;
+  const summary = {};
+  for (const key of [
+    "active", "enabled", "mode", "status", "version", "count", "totalCount",
+    "questionCount", "activeQuestionCount", "recentCount", "lastUpdatedAt",
+    "updatedAt", "lastRunAt"
+  ]) {
+    if (value[key] !== undefined && value[key] !== null) summary[key] = value[key];
+  }
+  return Object.keys(summary).length ? summary : { available: true };
 }
 
 function cognitiveContextRules(context = {}) {
