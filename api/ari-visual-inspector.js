@@ -584,6 +584,7 @@ Prioritize:
 - controls that are hidden, duplicated, visually confusing, or difficult to reach
 - differences between mobile and desktop when both are provided
 - differences across routes when a bounded whole-app tour is provided; name the route for each route-specific finding
+- when a checkpoint requested one route but the captured URL redirected elsewhere, treat that redirect as an observed route outcome and explain it; do not call the checkpoint missing
 - console/network evidence when it materially explains the visual problem
 
 Do not claim you edited code.
