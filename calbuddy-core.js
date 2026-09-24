@@ -1765,6 +1765,11 @@ CalBuddy.confirmPendingAction = async function () {
 
 CalBuddy.cancelPendingAction = function () {
   const action = CalBuddy.getPendingAction();
+
+  if ((action?.action_type || action?.type) === "github_edit_request") {
+    localStorage.removeItem("calbuddyPendingGithubEdit");
+  }
+
   if (action) CalBuddy.clearPendingActionStateFor(action);
   else CalBuddy.clearPendingAction();
 
@@ -2088,17 +2093,36 @@ CalBuddy.exposeSupabaseToAri();
 if (!message || !message.trim()) {
     throw new Error("Message is required.");
   }
-  const pendingGithubEdit = localStorage.getItem("calbuddyPendingGithubEdit");
-
-if (!readOnlyFallback && pendingGithubEdit && CalBuddy.isYes(message)) {
-  return await CalBuddy.confirmPendingGithubEdit();
-}
   const pending = CalBuddy.getPendingAction();
   if (!readOnlyFallback && pending && CalBuddy.isYes(message)) {
     return await CalBuddy.confirmPendingAction();
   }
   if (!readOnlyFallback && pending && CalBuddy.isNo(message)) {
     return CalBuddy.cancelPendingAction();
+  }
+
+  // Backward compatibility only: old builds stored GitHub edits outside the
+  // normal pending-action lifecycle. Never let a casual "yes" resurrect one.
+  const pendingGithubEdit = localStorage.getItem("calbuddyPendingGithubEdit");
+  const exactLegacyGithubConfirmation =
+    String(message || "").trim().toUpperCase() === "CONFIRM GITHUB EDIT";
+
+  if (
+    !readOnlyFallback &&
+    !pending &&
+    pendingGithubEdit &&
+    exactLegacyGithubConfirmation
+  ) {
+    return await CalBuddy.confirmPendingGithubEdit();
+  }
+
+  if (
+    !readOnlyFallback &&
+    !pending &&
+    pendingGithubEdit &&
+    CalBuddy.isNo(message)
+  ) {
+    localStorage.removeItem("calbuddyPendingGithubEdit");
   }
   mark("before getUserContext");
 
@@ -2515,10 +2539,9 @@ if (
   CalBuddy.saveDeveloperIntentLocally(response.developerIntent);
 
   if (response.developerIntent.githubEdit) {
-    localStorage.setItem(
-      "calbuddyPendingGithubEdit",
-      JSON.stringify(response.developerIntent)
-    );
+    // New code edits use the normal pending-action lifecycle. Clear any stale
+    // legacy GitHub-only proposal so there is exactly one confirmation source.
+    localStorage.removeItem("calbuddyPendingGithubEdit");
 
     if (
       !response.pendingAction &&
