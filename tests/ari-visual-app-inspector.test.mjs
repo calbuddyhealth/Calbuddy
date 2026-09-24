@@ -28,8 +28,8 @@ test("owner visual inspector API is authenticated and GitHub-workflow backed", (
   assert.match(api, /action === "start"/);
   assert.match(api, /action === "status"/);
   assert.match(api, /display_title/);
-  assert.match(api, /ARI_VISUAL_RESULT:/);
-  assert.match(api, /actions\/jobs\/\$\{job\.id\}\/logs/);
+  assert.match(api, /ARI_VISUAL_RESULT_CHUNK:/);
+  assert.match(api, /actions\/jobs\/\$\{job\.id\}\/logs/);\n  assert.match(api, /unique\.size !== total/);
 });
 
 test("visual inspector is restricted to ARI XP production or Vercel preview hosts", () => {
@@ -51,7 +51,7 @@ test("browser worker uses a read-only owner sandbox and captures real visual evi
   assert.match(worker, /failedRequests/);
   assert.match(worker, /collectInteractive/);
   assert.match(worker, /collectNavigation/);
-  assert.match(worker, /ARI_VISUAL_RESULT:/);
+  assert.match(worker, /ARI_VISUAL_RESULT_CHUNK:/);
   assert.doesNotMatch(worker, /SUPABASE_SERVICE_ROLE_KEY|GITHUB_TOKEN|OPENAI_API_KEY/);
 });
 
