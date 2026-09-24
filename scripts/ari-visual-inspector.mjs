@@ -106,7 +106,12 @@ const report = {
 };
 
 const encoded = Buffer.from(JSON.stringify(report), "utf8").toString("base64");
-console.log(`ARI_VISUAL_RESULT:${encoded}`);
+const chunkSize = 48_000;
+const chunkCount = Math.max(1, Math.ceil(encoded.length / chunkSize));
+for (let index = 0; index < chunkCount; index += 1) {
+  const chunk = encoded.slice(index * chunkSize, (index + 1) * chunkSize);
+  console.log(`ARI_VISUAL_RESULT_CHUNK:${index + 1}/${chunkCount}:${chunk}`);
+}
 
 function clean(value, max = 500) {
   return String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, max);
