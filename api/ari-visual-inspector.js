@@ -422,7 +422,7 @@ async function inspectionStatus({
       coverage,
       evidence: compactReport(report),
       error:
-        `The whole-app visual tour was incomplete: captured ${coverage.capturedRoutes} of ${coverage.expectedRoutes} expected route checkpoints. I won't describe that as a full-app inspection.`
+        `The whole-app visual tour was incomplete: captured ${coverage.capturedRoutes} of ${coverage.expectedRoutes} route captures, with ${coverage.capturedVisitCheckpoints} of ${coverage.expectedVisitedRoutes} requested visit checkpoints recorded. Missing checkpoints: ${coverage.missingCheckpoints?.join(", ") || "none"}.`
     });
   }
 
@@ -584,6 +584,7 @@ Prioritize:
 - controls that are hidden, duplicated, visually confusing, or difficult to reach
 - differences between mobile and desktop when both are provided
 - differences across routes when a bounded whole-app tour is provided; name the route for each route-specific finding
+- when a checkpoint requested one route but the captured URL redirected elsewhere, treat that redirect as an observed route outcome and explain it; do not call the checkpoint missing
 - console/network evidence when it materially explains the visual problem
 
 Do not claim you edited code.
@@ -768,26 +769,51 @@ function evaluateVisualCoverage({ report, instruction = "" } = {}) {
       ]
     : visitActions.map(action => String(action?.path || "")).filter(Boolean);
 
-  const capturedPaths = new Set(
-    captures
-      .map(capture => {
-        try {
-          return new URL(String(capture?.url || "")).pathname;
-        } catch {
-          return "";
-        }
-      })
+  const expectedCheckpoints = expectedPaths.map(path => `visit:${path}`);
+  const capturedCheckpointNames = new Set(
+    visitedCheckpoints
+      .map(capture => String(capture?.checkpoint || ""))
       .filter(Boolean)
   );
 
-  const missingPaths = expectedPaths.filter(path => !capturedPaths.has(path));
+  const missingCheckpoints = expectedCheckpoints.filter(
+    checkpoint => !capturedCheckpointNames.has(checkpoint)
+  );
+
+  const redirectedRoutes = visitedCheckpoints
+    .map(capture => {
+      const checkpoint = String(capture?.checkpoint || "");
+      const requestedPath = checkpoint.startsWith("visit:")
+        ? checkpoint.slice("visit:".length)
+        : "";
+
+      let actualPath = "";
+      let actualUrl = "";
+      try {
+        const url = new URL(String(capture?.url || ""));
+        actualPath = url.pathname;
+        actualUrl = `${url.pathname}${url.search}`;
+      } catch {}
+
+      if (!requestedPath || !actualPath || requestedPath === actualPath) {
+        return null;
+      }
+
+      return {
+        requestedPath,
+        actualPath,
+        actualUrl
+      };
+    })
+    .filter(Boolean);
+
   const complete =
     !wholeAppRequested ||
     (
       visitActions.length >= expectedVisitedRoutes &&
       visitedCheckpoints.length >= expectedVisitedRoutes &&
       capturedRoutes >= expectedRoutes &&
-      missingPaths.length === 0
+      missingCheckpoints.length === 0
     );
 
   return {
@@ -799,7 +825,9 @@ function evaluateVisualCoverage({ report, instruction = "" } = {}) {
     appliedVisitActions: visitActions.length,
     capturedVisitCheckpoints: visitedCheckpoints.length,
     expectedPaths,
-    missingPaths
+    expectedCheckpoints,
+    missingCheckpoints,
+    redirectedRoutes
   };
 }
 
@@ -826,6 +854,19 @@ function structuralFindings(report) {
       findings.push(
         `${id}: ${capture.blockedMutations.length} production mutation request(s) were blocked by Live Owner inspection.`
       );
+    }
+
+    const checkpoint = String(capture?.checkpoint || "");
+    if (checkpoint.startsWith("visit:")) {
+      const requestedPath = checkpoint.slice("visit:".length);
+      try {
+        const actual = new URL(String(capture?.url || ""));
+        if (requestedPath && actual.pathname && requestedPath !== actual.pathname) {
+          findings.push(
+            `${id}: requested ${requestedPath} redirected to ${actual.pathname}${actual.search}; the redirect was captured as the route outcome rather than treated as a missing checkpoint.`
+          );
+        }
+      } catch {}
     }
   }
   return findings.slice(0, 12);
