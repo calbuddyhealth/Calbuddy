@@ -106,10 +106,10 @@ test("browser bridge syncs IANA timezone, renders remaining questions, and bypas
 });
 
 test("runtime and Home require the quota-aware bridge and runtime versions", () => {
-  assert.match(runtime, /const VERSION = "1\.6\.1"/);
+  assert.match(runtime, /const VERSION = "1\.6\.2"/);
   assert.match(runtime, /ari-vnext-bridge\.js\?v=1\.10\.0/);
   assert.match(runtime, /versionAtLeast\(window\.AriVNextBridge\?\.version, "1\.10\.0"\)/);
-  assert.match(resilience, /REQUIRED_RUNTIME_VERSION = "1\.6\.1"/);
+  assert.match(resilience, /REQUIRED_RUNTIME_VERSION = "1\.6\.2"/);
 });
 
 test("database quota boundary is atomic, local-day aware, and service-role only", () => {
