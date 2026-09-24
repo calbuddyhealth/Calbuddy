@@ -1,0 +1,72 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import test from "node:test";
+
+const core = fs.readFileSync("calbuddy-core.js", "utf8");
+const selfModel = fs.readFileSync("api/_lib/ari-vnext/self-model.js", "utf8");
+
+function sliceBetween(source, startNeedle, endNeedle) {
+  const start = source.indexOf(startNeedle);
+  assert.notEqual(start, -1, `Missing start marker: ${startNeedle}`);
+  const end = source.indexOf(endNeedle, start);
+  assert.notEqual(end, -1, `Missing end marker: ${endNeedle}`);
+  return source.slice(start, end);
+}
+
+test("validated GitHub edit intents become owner-confirmable chat actions", () => {
+  assert.match(
+    core,
+    /CalBuddy\.createGithubEditPendingAction\s*=\s*async function/
+  );
+  assert.match(
+    core,
+    /action_type:\s*"github_edit_request"/
+  );
+  assert.match(
+    core,
+    /response\.developerIntent\.type\s*===\s*"github_edit_request"/
+  );
+  assert.match(
+    core,
+    /response\.pendingAction\s*=\s*pendingGithubEdit/
+  );
+  assert.match(
+    core,
+    /Apply Ari's proposed code change to \$\{filePath\} and commit it to the configured GitHub branch\?/
+  );
+});
+
+test("confirmed GitHub edit actions re-check owner mode and use the verified edit endpoint", () => {
+  const block = sliceBetween(
+    core,
+    'if (type === "github_edit_request")',
+    'if (type === "owner_code_task"'
+  );
+
+  assert.match(block, /context\.ownerMode\s*!==\s*true/);
+  assert.match(block, /OWNER_ACCESS_DENIED/);
+  assert.match(block, /CalBuddy\.sendGithubEditRequest/);
+  assert.match(block, /mode:\s*"commit"/);
+  assert.match(block, /confirmationText:\s*"CONFIRM GITHUB EDIT"/);
+  assert.match(block, /MISSING_FIND_REPLACE/);
+});
+
+test("client GitHub request still delegates authorization to the server", () => {
+  const block = sliceBetween(
+    core,
+    "CalBuddy.sendGithubEditRequest = async function",
+    "CalBuddy.readGithubFile = async function"
+  );
+
+  assert.match(block, /delete safePayload\.owner_access/);
+  assert.match(block, /getOwnerRequestHeaders\(\)/);
+  assert.match(block, /\/api\/ari-github-edit/);
+});
+
+test("Ari self-model knows owner-confirmed chat code editing is a real capability", () => {
+  assert.match(selfModel, /ARI_SELF_MODEL_VERSION = "1\.4\.1"/);
+  assert.match(selfModel, /ownerConfirmedChatCodeEditsSupported:\s*true/);
+  assert.match(selfModel, /owner-gated GitHub edit workflow/);
+  assert.match(selfModel, /chat pending-action confirmation flow/);
+  assert.match(selfModel, /never claim a commit or deployment happened until the action result confirms success/);
+});
