@@ -261,7 +261,7 @@ test("Nutrition surface cannot render Training or activity pending actions", () 
 });
 
 test("auth boots account isolation without reinstalling a legacy semantic router", () => {
-  assert.match(authSource, /account-isolation-guard\\.js\\?v=1\\.0\\.1/);
+  assert.match(authSource, /account-isolation-guard\.js\?v=1\.0\.1/);
   assert.equal(authSource.includes("bootstrapAriWorkoutActionForNutrition"), false);
   assert.equal(authSource.includes("bootstrapAriCentralIntentRouter"), false);
   assert.equal(authSource.includes("ari-central-intent-router.js"), false);
