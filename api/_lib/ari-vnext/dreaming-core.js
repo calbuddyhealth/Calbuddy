@@ -31,7 +31,8 @@ export function dreamEvidenceFingerprint(evidence = {}) {
     evidence.communicationOutcomes,
     evidence.communityInteractions,
     evidence.strategies,
-    evidence.institutionalMemory
+    evidence.institutionalMemory,
+    evidence.cognitiveTrajectories
   ]) {
     for (const item of Array.isArray(group) ? group : []) {
       if (item?.ref) records.push([clean(item.ref, 220), item.at || item.updatedAt || item.updated_at || item.createdAt || item.created_at || ""]);
@@ -56,7 +57,8 @@ export function latestDreamEvidenceAt(evidence = {}) {
     evidence.communicationOutcomes,
     evidence.communityInteractions,
     evidence.strategies,
-    evidence.institutionalMemory
+    evidence.institutionalMemory,
+    evidence.cognitiveTrajectories
   ]) {
     for (const item of Array.isArray(group) ? group : []) {
       add(item?.at || item?.updatedAt || item?.updated_at || item?.resolvedAt || item?.resolved_at || item?.createdAt || item?.created_at);
@@ -78,6 +80,7 @@ export function collectEvidenceRefs(evidence = {}) {
     evidence.communityInteractions,
     evidence.strategies,
     evidence.institutionalMemory,
+    evidence.cognitiveTrajectories,
     evidence.priorDreamInsights
   ]) {
     for (const item of Array.isArray(group) ? group : []) {
@@ -262,6 +265,7 @@ export function buildDreamModelPayload(evidence = {}) {
     communityInteractions: (evidence.communityInteractions || []).slice(0, 20),
     strategies: (evidence.strategies || []).slice(0, 16),
     institutionalMemory: (evidence.institutionalMemory || []).slice(0, 12),
+    cognitiveTrajectories: (evidence.cognitiveTrajectories || []).slice(0, 32),
     priorDreamInsights: (evidence.priorDreamInsights || []).slice(0, 12)
   };
 }
