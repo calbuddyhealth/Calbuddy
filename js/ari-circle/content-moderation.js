@@ -14,7 +14,7 @@
 
   const VERSION = "1.5.2";
   const MODERATION_API = "/api/ari-circle-moderation";
-  const CONSENT_SCRIPT = "js/ai-processing-consent.js?v=1.1.0";
+  const CONSENT_SCRIPT = "js/ai-processing-consent.js?v=1.1.1";
   const AI_CONSENT_KEY = "ari_ai_processing_consent";
   const AI_CONSENT_VERSION_KEY = "ari_ai_processing_consent_version";
   const REQUIRED_AI_CONSENT_VERSION = "2";
