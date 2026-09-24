@@ -24,6 +24,8 @@ test("owner visual inspector API is authenticated and GitHub-workflow backed", (
   assert.match(api, /verifyOwnerRequest\(req\)/);
   assert.match(api, /sendOwnerAuthorizationError/);
   assert.match(api, /ari-visual-inspector\.yml/);
+  assert.match(api, /APP_HEALTH_GITHUB_TOKEN \|\| process\.env\.GITHUB_TOKEN/);
+  assert.match(api, /ARI_VISUAL_BRANCH \|\| process\.env\.APP_HEALTH_BRANCH \|\| process\.env\.GITHUB_BRANCH/);
   assert.match(api, /workflow_dispatch/);
   assert.match(api, /action === "start"/);
   assert.match(api, /action === "status"/);
@@ -42,6 +44,10 @@ test("visual inspector is restricted to ARI XP production or Vercel preview host
 
 test("browser worker uses a read-only owner sandbox and captures real visual evidence", () => {
   assert.match(worker, /installReadOnlyOwnerSandbox/);
+  assert.match(worker, /isAllowedTopLevelNavigation/);
+  assert.match(worker, /request\.isNavigationRequest\(\)/);
+  assert.match(worker, /route\.abort\("blockedbyclient"\)/);
+  assert.match(worker, /route\.fallback\(\)/);
   assert.match(worker, /owner_access: true/);
   assert.match(worker, /visualSandbox: true/);
   assert.match(worker, /readOnly: true/);
