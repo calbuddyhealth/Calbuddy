@@ -6,6 +6,8 @@ import { actionReplyRequiresProposal, guardUnpreparedActionReply } from "./actio
 import { adviserMemoToInstruction, runCortexAdviser } from "./cortex-adviser.js";
 import { multiAgentCouncilToInstruction, publicMultiAgentCouncil, runAriMultiAgentCouncil } from "./multi-agent-orchestrator.js";
 import { institutionalMemoryToInstruction } from "./institutional-memory.js";
+import { cognitiveOperatingFrameToInstruction } from "./cognitive-operating-system.js";
+import { proceduralSkillsToInstruction } from "./procedural-skill-compiler.js";
 import { ARI_PERSONA } from "./persona.js";
 import { coachingStateToInstruction, deriveCoachingState } from "./coaching-state.js";
 import { communicationProfileToInstruction, resolvePersonalizedCommunicationProfile } from "./communication-profile.js";
@@ -226,6 +228,12 @@ export async function runAriVNext(turn = {}) {
   const institutionalMemoryInstruction = institutionalMemoryToInstruction(
     turn?.context?.institutionalMemory || null
   );
+  const cognitiveOperatingInstruction = cognitiveOperatingFrameToInstruction(
+    turn?.context?.cognitiveOperatingSystem || null
+  );
+  const proceduralSkillsInstruction = proceduralSkillsToInstruction(
+    turn?.context?.proceduralSkills || null
+  );
   const input = buildInput(turn);
   const multiAgentCouncil = await runAriMultiAgentCouncil({
     turn,
@@ -245,6 +253,8 @@ export async function runAriVNext(turn = {}) {
   const adviserInstruction = adviserMemoToInstruction(cortexAdviser);
   const instructions = [
     baseInstructions,
+    cognitiveOperatingInstruction,
+    proceduralSkillsInstruction,
     actionContinuationToInstruction(actionContinuation),
     institutionalMemoryInstruction,
     adviserInstruction,
