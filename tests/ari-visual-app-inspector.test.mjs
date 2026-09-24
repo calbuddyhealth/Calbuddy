@@ -106,6 +106,7 @@ test("chat runtime can detect, route, resume and use visual inspection evidence"
   assert.match(core, /visit_path/);
   assert.match(core, /scroll/);
   assert.match(core, /CalBuddy\.isWholeAppVisualInspection/);
+  assert.match(core, /CalBuddy\.isExplicitVisualSandboxRequest/);
   assert.match(core, /CalBuddy\.isVisualInspectionFollowUp/);
   assert.match(core, /CalBuddy\.getRecentVisualInspection/);
   assert.match(core, /reusedVisualEvidence/);
@@ -159,10 +160,22 @@ test("whole-app inspection becomes a bounded multi-page visual tour", () => {
   ]) {
     assert.ok(core.includes(path), `missing whole-app tour path ${path}`);
   }
+  assert.match(api, /"visit_path"/);
+  assert.match(api, /normalizeActionPath/);
   assert.match(worker, /"visit_path"/);
   assert.match(worker, /captureCurrentPage/);
   assert.match(worker, /checkpoint:/);
   assert.match(worker, /version: "1\.2\.0"/);
+  assert.match(api, /evaluateVisualCoverage/);
+  assert.match(api, /VISUAL_TOUR_INCOMPLETE/);
+  assert.match(api, /I won't describe that as a full-app inspection/);
+});
+
+test("explicit sandbox wording overrides an active Live Owner visual session", () => {
+  assert.match(core, /CalBuddy\.isExplicitVisualSandboxRequest/);
+  assert.match(core, /this is\|that's\|that is\|treat this as/);
+  assert.match(core, /explicitSandbox\s*\?\s*"sandbox"/);
+  assert.match(core, /if \(CalBuddy\.isExplicitVisualSandboxRequest\(message\)\) return false/);
 });
 
 test("workflow installs Chromium and runs only the bounded inspector worker", () => {
