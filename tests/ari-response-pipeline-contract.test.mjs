@@ -134,7 +134,7 @@ test("vNext context guard stays syntactically valid and free of duplicated decla
 test("runtime publishes canonical and compatibility identities together", () => {
   const { sandbox, events } = runtimeSandbox();
   assert.equal(sandbox.window.Ari.Runtime, sandbox.window.AriRuntime);
-  assert.equal(sandbox.window.Ari.Runtime.version, "1.6.1");
+  assert.equal(sandbox.window.Ari.Runtime.version, "1.6.2");
   assert.equal(typeof sandbox.window.Ari.Runtime.ask, "function");
   assert.ok(events.some((event) => event.type === "ari:runtimeReady"));
 });
