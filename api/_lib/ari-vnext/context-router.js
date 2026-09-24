@@ -110,6 +110,18 @@ export function buildRelevantContext(turn = {}, route = {}) {
     selected.userWorldModel = source.userWorldModel;
   }
 
+  if (source?.cognitiveOperatingSystem && typeof source.cognitiveOperatingSystem === "object") {
+    selected.cognitiveOperatingSystem = source.cognitiveOperatingSystem;
+  }
+
+  if (source?.proceduralSkills && typeof source.proceduralSkills === "object") {
+    selected.proceduralSkills = source.proceduralSkills;
+  }
+
+  if (source?.cognitiveTrajectoryHistory && typeof source.cognitiveTrajectoryHistory === "object") {
+    selected.cognitiveTrajectoryHistory = source.cognitiveTrajectoryHistory;
+  }
+
   if (source?.convictionLearning && typeof source.convictionLearning === "object") {
     selected.convictionLearning = source.convictionLearning;
   }
@@ -235,6 +247,9 @@ function buildSupplementalContextText(context = {}, maxChars = 0) {
     "intelligenceEntitlement"
   ]);
   const priority = [
+    "cognitiveOperatingSystem",
+    "proceduralSkills",
+    "cognitiveTrajectoryHistory",
     "userWorldModel",
     "dreaming",
     "convictionLearning",
@@ -267,6 +282,12 @@ function compactContextField(key, value) {
   if (value && typeof value === "object") {
     try {
       const copy = JSON.parse(JSON.stringify(value));
+      if (key === "cognitiveOperatingSystem") {
+        if (copy.executive?.currentObjective) copy.executive.currentObjective = String(copy.executive.currentObjective).slice(0, 360);
+        if (Array.isArray(copy.specialists?.roles)) copy.specialists.roles = copy.specialists.roles.slice(0, 8);
+        if (Array.isArray(copy.epistemic?.missingEvidence)) copy.epistemic.missingEvidence = copy.epistemic.missingEvidence.slice(0, 8);
+      }
+      if (key === "proceduralSkills" && Array.isArray(copy.skills)) copy.skills = copy.skills.slice(0, 8);
       if (key === "dreaming" && Array.isArray(copy.insights)) copy.insights = copy.insights.slice(0, 5);
       if (key === "convictionLearning" && Array.isArray(copy.goals)) {
         copy.goals = copy.goals.slice(0, 3);
