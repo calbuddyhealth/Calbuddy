@@ -266,14 +266,32 @@ async function readVisualReportFromRun({ token, repo, runId }) {
   if (!logsResponse.ok) return null;
 
   const logs = (await logsResponse.text()).slice(-MAX_LOG_CHARS);
-  const marker = "ARI_VISUAL_RESULT:";
-  const index = logs.lastIndexOf(marker);
-  if (index < 0) return null;
+  const marker = "ARI_VISUAL_RESULT_CHUNK:";
+  const chunks = [];
 
-  const encoded = logs
-    .slice(index + marker.length)
-    .split(/\r?\n/)[0]
-    .trim();
+  for (const line of logs.split(/\r?\n/)) {
+    const markerIndex = line.indexOf(marker);
+    if (markerIndex < 0) continue;
+
+    const payload = line.slice(markerIndex + marker.length).trim();
+    const match = payload.match(/^(\d+)\/(\d+):([A-Za-z0-9+/=]+)$/);
+    if (!match) continue;
+
+    chunks.push({
+      index: Number(match[1]),
+      total: Number(match[2]),
+      data: match[3]
+    });
+  }
+
+  if (!chunks.length) return null;
+  const total = chunks[0].total;
+  const unique = new Map(chunks.map(chunk => [chunk.index, chunk]));
+  if (!Number.isInteger(total) || total < 1 || unique.size !== total) return null;
+
+  const encoded = Array.from({ length: total }, (_, index) =>
+    unique.get(index + 1)?.data || ""
+  ).join("");
 
   try {
     const json = Buffer.from(encoded, "base64").toString("utf8");
