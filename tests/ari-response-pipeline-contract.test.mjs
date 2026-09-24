@@ -193,7 +193,7 @@ test("bridge syncs quota timezone then forwards Home AbortSignal to /api/ari-vne
 
 test("Home loader is version-aware, dual-namespace aware, and bounded", () => {
   assert.match(resilienceSource, /window\.AriRuntime, window\.Ari\?\.Runtime/);
-  assert.match(resilienceSource, /REQUIRED_RUNTIME_VERSION\s*=\s*"1\.6\.1"/);
+  assert.match(resilienceSource, /REQUIRED_RUNTIME_VERSION\s*=\s*"1\.6\.2"/);
   assert.match(resilienceSource, /RUNTIME_LOAD_TIMEOUT_MS\s*=\s*5000/);
   assert.match(resilienceSource, /loadRuntimeController\(\{ signal \}\)/);
   assert.match(resilienceSource, /ARI_TURN_IN_PROGRESS/);
