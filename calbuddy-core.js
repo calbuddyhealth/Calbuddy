@@ -166,13 +166,22 @@ CalBuddy.runVisualInspection = async function ({
       } catch {}
     }
 
+    const liveOwnerState =
+      visualMode === "live_owner"
+        ? CalBuddy.getVisualLiveOwnerSession?.()
+        : null;
+
     const started = await CalBuddy.requestVisualInspector({
       action: "start",
       targetPath,
       viewports,
       actions,
       instruction,
-      visualMode
+      visualMode,
+      liveOwnerExpiresAt:
+        visualMode === "live_owner"
+          ? Number(liveOwnerState?.expiresAt || 0)
+          : null
     });
 
     if (!started?.success || !started?.requestId) {
@@ -368,7 +377,7 @@ CalBuddy.enableVisualLiveOwnerSession = async function ({
     success: true,
     state,
     reply:
-      `Live Owner Session is active for about ${minutes} minutes. Visual inspections can now use your real ARI XP account state; browser-side production mutations remain blocked.`
+      `Live Owner Session is active for about ${minutes} minutes. Visual inspections can now use your real ARI XP account state; AI processing is temporarily authorized only for this scoped visual inspection, and browser-side production mutations remain blocked.`
   };
 };
 
