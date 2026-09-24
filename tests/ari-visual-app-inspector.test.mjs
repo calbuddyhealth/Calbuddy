@@ -33,6 +33,10 @@ test("owner visual inspector API is authenticated and GitHub-workflow backed", (
   assert.match(api, /ARI_VISUAL_RESULT_CHUNK:/);
   assert.match(api, /actions\/jobs\/\$\{job\.id\}\/logs/);
   assert.match(api, /unique\.size !== total/);
+  assert.match(api, /exchange_live_grant/);
+  assert.match(api, /aes-256-gcm/);
+  assert.match(api, /LIVE_GRANT_TTL_MS/);
+  assert.match(api, /extractBearerToken/);
 });
 
 test("visual inspector is restricted to ARI XP production or Vercel preview hosts", () => {
@@ -59,6 +63,9 @@ test("browser worker uses a read-only owner sandbox and captures real visual evi
   assert.match(worker, /collectInteractive/);
   assert.match(worker, /collectNavigation/);
   assert.match(worker, /ARI_VISUAL_RESULT_CHUNK:/);
+  assert.match(worker, /installLiveOwnerSession/);
+  assert.match(worker, /shouldBlockLiveMutation/);
+  assert.match(worker, /blockedMutations/);
   assert.doesNotMatch(worker, /SUPABASE_SERVICE_ROLE_KEY|GITHUB_TOKEN|OPENAI_API_KEY/);
 });
 
@@ -111,17 +118,20 @@ test("workflow installs Chromium and runs only the bounded inspector worker", ()
   assert.match(workflow, /@playwright\/test@1\.55\.0/);
   assert.match(workflow, /playwright install --with-deps chromium/);
   assert.match(workflow, /node scripts\/ari-visual-inspector\.mjs/);
+  assert.match(workflow, /live_grant:/);
+  assert.match(workflow, /ARI_VISUAL_LIVE_GRANT/);
 });
 
 test("Ari self-model and capability registry know visual inspection is available", () => {
-  assert.match(selfModel, /ARI_SELF_MODEL_VERSION = "1\.4\.2"/);
+  assert.match(selfModel, /ARI_SELF_MODEL_VERSION = "1\.4\.3"/);
   assert.match(selfModel, /ownerVisualAppInspectionSupported: true/);
   assert.match(selfModel, /Visual App Inspector/);
-  assert.match(selfModel, /read-only Playwright browser sandbox/);
+  assert.match(selfModel, /temporary Live Owner Session/);
 
-  assert.match(registry, /version: "1\.1\.0"/);
+  assert.match(registry, /version: "1\.2\.0"/);
   assert.match(registry, /name: "visual_app_inspection"/);
   assert.match(registry, /navigate_read_only_sandbox/);
+  assert.match(registry, /navigate_temporary_live_owner_session/);
   assert.match(registry, /vision_analyze_screenshots/);
   assert.match(registry, /mutate_real_user_data/);
 });
