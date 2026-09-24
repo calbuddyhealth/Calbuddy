@@ -1,7 +1,7 @@
 /* =====================================================
    ARI XP
    File: js/ai-processing-consent.js
-   Version: 1.1.0
+   Version: 1.1.1
    Purpose:
    Require explicit user permission before ARI XP sends personal
    data to OpenAI for AI responses or ARI Circle safety screening.
@@ -40,6 +40,32 @@
       metadata[CONSENT_KEY] === true &&
       String(metadata[VERSION_KEY] || "") === CONSENT_VERSION
     );
+  }
+
+  function scopedVisualAuthorization() {
+    if (window.__ARI_VISUAL_LIVE_OWNER !== true) return null;
+
+    const authorization =
+      window.__ARI_SCOPED_AI_PROCESSING_AUTHORIZATION &&
+      typeof window.__ARI_SCOPED_AI_PROCESSING_AUTHORIZATION === "object"
+        ? window.__ARI_SCOPED_AI_PROCESSING_AUTHORIZATION
+        : null;
+
+    if (
+      authorization?.authorized !== true ||
+      String(authorization?.scope || "") !== "visual_owner_inspection" ||
+      !String(authorization?.requestId || "").trim() ||
+      !Number.isFinite(Number(authorization?.expiresAt)) ||
+      Number(authorization.expiresAt) <= Date.now()
+    ) {
+      return null;
+    }
+
+    return authorization;
+  }
+
+  function hasEffectiveConsent(user) {
+    return hasCurrentConsent(user) || Boolean(scopedVisualAuthorization());
   }
 
   function lockComposer() {
@@ -321,7 +347,7 @@
       if (error) throw error;
 
       state.user = data?.session?.user || null;
-      state.allowed = hasCurrentConsent(state.user);
+      state.allowed = hasEffectiveConsent(state.user);
 
       if (state.allowed) {
         unlockComposer();
@@ -335,9 +361,15 @@
   }
 
   window.AriAIConsent = Object.freeze({
-    version: "1.1.0",
+    version: "1.1.1",
     consentVersion: CONSENT_VERSION,
     isAllowed: () => state.allowed === true,
+    authorizationSource: () =>
+      hasCurrentConsent(state.user)
+        ? "persistent_user_consent"
+        : scopedVisualAuthorization()
+          ? "visual_owner_inspection"
+          : "none",
     show: showConsent,
     revoke: revokeConsent,
     refresh: init
