@@ -35,7 +35,7 @@ export async function loadDreamingEvidence({ userId, now = new Date(), days = 14
       : [];
 
   const [
-    turns, cognitiveRows, goals, goalEvents, decisions, communication, community, strategies, institutional, priorDreams
+    turns, cognitiveRows, goals, goalEvents, decisions, communication, community, strategies, institutional, priorDreams, trajectories
   ] = await Promise.all([
     readTable(config, "ari_conversation_turns", {
       user_id: `eq.${id}`,
@@ -104,6 +104,13 @@ export async function loadDreamingEvidence({ userId, now = new Date(), days = 14
       select: "id,insight_key,kind,domain,title,summary,confidence,evidence_refs,evidence_basis,action,transfer_conditions,disconfirmers,updated_at",
       order: "updated_at.desc",
       limit: "20"
+    }),
+    readTable(config, "ari_vnext_cognitive_trajectories", {
+      user_id: `eq.${id}`,
+      created_at: `gte.${start.toISOString()}`,
+      select: "id,turn_id,domain,plan_mode,route,sources,planner,verification,evaluation,outcome,learning,created_at",
+      order: "created_at.desc",
+      limit: "40"
     })
   ]);
 
@@ -147,6 +154,23 @@ export async function loadDreamingEvidence({ userId, now = new Date(), days = 14
     strategies: strategies.map(row => ({ ref: `strategy:${row.id}`, ...compact(row, 2400) })),
     institutionalMemory: institutional.map(row => ({ ref: `institutional:${row.id}`, ...compact(row, 2200) })),
     priorDreamInsights: priorDreams.map(normalizeInsightRow).filter(Boolean),
+    cognitiveTrajectories: trajectories.map(row => ({
+      ref: `trajectory:${clean(row.id || row.turn_id, 160)}`,
+      id: clean(row.id, 120),
+      turnId: clean(row.turn_id, 180),
+      domain: clean(row.domain, 60),
+      planMode: clean(row.plan_mode, 60),
+      route: safeObject(row.route),
+      sources: safeObject(row.sources),
+      planner: safeObject(row.planner),
+      verification: safeObject(row.verification),
+      evaluation: safeObject(row.evaluation),
+      outcome: safeObject(row.outcome),
+      learning: safeObject(row.learning),
+      at: row.created_at || null,
+      sanitizedEvaluationOnly: true,
+      hiddenChainOfThoughtStored: false
+    })),
     updatedAt: end.toISOString()
   };
   evidence.counts = evidenceCounts(evidence);
@@ -378,6 +402,7 @@ function evidenceCounts(evidence) {
     strategies: evidence.strategies.length,
     institutionalMemory: evidence.institutionalMemory.length,
     priorDreamInsights: evidence.priorDreamInsights.length,
+    cognitiveTrajectories: evidence.cognitiveTrajectories.length,
     cognitiveState: evidence.cognitiveState ? 1 : 0,
     worldModel: evidence.worldModel ? 1 : 0
   };
@@ -385,7 +410,7 @@ function evidenceCounts(evidence) {
 
 function emptyEvidence(now, days) {
   const end = validDate(now);
-  return { version: ARI_DREAMING_VERSION, window: { start: new Date(end.getTime() - (Number(days) || 14) * 86400000).toISOString(), end: end.toISOString() }, conversations: [], goals: [], goalEvents: [], decisions: [], communicationOutcomes: [], communityInteractions: [], strategies: [], institutionalMemory: [], priorDreamInsights: [], cognitiveState: null, worldModel: null, counts: {} };
+  return { version: ARI_DREAMING_VERSION, window: { start: new Date(end.getTime() - (Number(days) || 14) * 86400000).toISOString(), end: end.toISOString() }, conversations: [], goals: [], goalEvents: [], decisions: [], communicationOutcomes: [], communityInteractions: [], strategies: [], institutionalMemory: [], priorDreamInsights: [], cognitiveTrajectories: [], cognitiveState: null, worldModel: null, counts: {} };
 }
 function compact(value, max = 2400) {
   try { return JSON.parse(JSON.stringify(value).slice(0, max)); } catch { return safeObject(value); }
