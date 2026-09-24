@@ -1830,10 +1830,30 @@ CalBuddy.shouldHandleDeveloperIntent = function ({
 
   const explicitDeveloperCommand = CalBuddy.isDeveloperCommand(message);
 
+  const hasValidatedGithubEdit =
+    developerIntent.type === "github_edit_request" &&
+    Boolean(developerIntent.githubEdit?.filePath) &&
+    (
+      (
+        (developerIntent.githubEdit?.operation || "replace") === "replace" &&
+        Boolean(developerIntent.githubEdit?.find) &&
+        developerIntent.githubEdit?.replace !== undefined &&
+        developerIntent.githubEdit?.replace !== null
+      ) ||
+      (
+        developerIntent.githubEdit?.operation === "full_replace" &&
+        typeof developerIntent.githubEdit?.newContent === "string" &&
+        Boolean(developerIntent.githubEdit.newContent.trim())
+      )
+    ) &&
+    developerIntent.safety?.ownerRequired === true &&
+    developerIntent.safety?.requiresConfirmation === true;
+
+  if (hasValidatedGithubEdit) return true;
+
   const hasExecutableGithubWork =
     developerIntent.type === "github_read_request" ||
     developerIntent.type === "github_search_request" ||
-    Boolean(developerIntent.githubEdit) ||
     (Array.isArray(developerIntent.steps) &&
       developerIntent.steps.some(step =>
         step.tool === "github_read" ||
