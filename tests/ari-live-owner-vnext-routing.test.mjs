@@ -15,7 +15,7 @@ test("vNext preserves the trusted CalBuddy action boundary separately from legac
   assert.match(runtime, /const trustedCalBuddyActions =/);
   assert.match(runtime, /typeof CalBuddy\.confirmPendingAction === "function"/);
   assert.match(runtime, /typeof CalBuddy\.cancelPendingAction === "function"/);
-  assert.doesNotMatch(runtime, /legacy\.confirmPendingAction|trustedCalBuddyActions\\.cancel/);
+  assert.doesNotMatch(runtime, /legacy\.confirmPendingAction|legacy\.cancelPendingAction/);
   assert.match(runtime, /LOCAL_OWNER_CONTROL_ACTIONS/);
   assert.match(runtime, /enable_visual_live_owner_session/);
 });
@@ -34,9 +34,9 @@ test("Live Owner enable, disable, and visual requests are intercepted before mod
 
 test("typed Yes and Cancel stay on the same local owner-control action", () => {
   assert.match(runtime, /localPending && isAffirmative\(message\)/);
-  assert.match(runtime, /legacy\.confirmPendingAction\(\)/);
+  assert.match(runtime, /trustedCalBuddyActions\.confirm\(\)/);
   assert.match(runtime, /localPending && isNegative\(message\)/);
-  assert.match(runtime, /trustedCalBuddyActions\\.cancel/);
+  assert.match(runtime, /trustedCalBuddyActions\.cancel/);
   assert.match(runtime, /ari_vnext_local_owner_control_confirmation/);
   assert.match(runtime, /ari_vnext_local_owner_control_cancel/);
 });
