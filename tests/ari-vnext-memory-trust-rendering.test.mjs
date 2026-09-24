@@ -7,6 +7,7 @@ import {
   isMemoryRecallRequest,
   prepareExplicitMemoryAction
 } from "../api/_lib/ari-vnext/memory-action.js";
+import { buildRelevantContext, contextToText } from "../api/_lib/ari-vnext/context-router.js";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -57,6 +58,83 @@ test("question after a memory statement stays out of the saved fact", () => {
   assert.equal(action.requested, true);
   assert.equal(action.memoryOnly, false);
   assert.deepEqual(action.facts, ["I prefer evening workouts"]);
+});
+
+test("referential remember resolves only the immediately available user statement", () => {
+  const action = prepareExplicitMemoryAction("I want you to remember that", {
+    history: [
+      { role: "assistant", content: "You are a cardiologist in Los Angeles." },
+      { role: "user", content: "I'm a psych nurse at NMCSD and an active-duty O-3." },
+      { role: "assistant", content: "Understood." }
+    ]
+  });
+
+  assert.equal(action.requested, true);
+  assert.equal(action.status, "pending");
+  assert.equal(action.requestedCount, 1);
+  assert.deepEqual(action.facts, ["I'm a psych nurse at NMCSD and an active-duty O-3"]);
+  assert.doesNotMatch(action.facts.join(" "), /cardiologist|Los Angeles/i);
+});
+
+test("standalone referential token is never stored as a fake memory", () => {
+  const action = prepareExplicitMemoryAction("Remember it", { history: [] });
+
+  assert.equal(action.requested, true);
+  assert.equal(action.requestedCount, 0);
+  assert.equal(action.status, "no_facts");
+  assert.deepEqual(action.facts, []);
+});
+
+test("memory capability and retrieved memory are always model-facing", () => {
+  const context = buildRelevantContext({
+    surface: "home",
+    memory: "User memory: Jose works as a psychiatric nurse at NMCSD.",
+    context: {
+      memoryCapability: {
+        persistentUserMemory: true,
+        explicitRememberSupported: true,
+        requestDetected: false,
+        status: "not_requested",
+        requestedCount: 0,
+        storedCount: 0,
+        failedCount: 0
+      },
+      userWorldModel: {
+        sourceSummary: {
+          curiosityState: { questions: Array.from({ length: 500 }, (_, i) => `question-${i}`) },
+          autonomyRuntime: { recent: Array.from({ length: 500 }, (_, i) => `trace-${i}`) }
+        }
+      }
+    }
+  }, { casualConversation: false });
+
+  assert.equal(context.memoryCapability.persistentUserMemory, true);
+  assert.match(context.relevantMemory, /psychiatric nurse at NMCSD/);
+});
+
+test("large world model cannot truncate protected relevant memory", () => {
+  const hugeTrace = "VERY_LARGE_AUTONOMY_TRACE ".repeat(2000);
+  const text = contextToText({
+    relevantMemory: "User memory: Jose works as a psychiatric nurse at NMCSD.",
+    memoryCapability: {
+      persistentUserMemory: true,
+      explicitRememberSupported: true
+    },
+    userWorldModel: {
+      identity: { displayName: "Jose" },
+      sourceSummary: {
+        durableMemoryLines: 24,
+        curiosityState: { questions: [hugeTrace] },
+        autonomyRuntime: { recent: [hugeTrace] }
+      }
+    }
+  });
+
+  assert.match(text, /psychiatric nurse at NMCSD/);
+  assert.match(text, /persistentUserMemory/);
+  assert.match(text, /PROTECTED CONTINUITY CONTEXT/);
+  assert.ok(text.length <= 24000);
+  assert.doesNotMatch(text, /VERY_LARGE_AUTONOMY_TRACE/);
 });
 
 test("verified acknowledgement reports actual save result and never denies memory capability", () => {

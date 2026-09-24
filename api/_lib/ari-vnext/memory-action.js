@@ -1,10 +1,12 @@
 import { persistDurableMemory } from "./continuity-service.js";
 
-export const ARI_MEMORY_ACTION_VERSION = "1.1.0";
+export const ARI_MEMORY_ACTION_VERSION = "1.2.0";
 
 const TRIGGER_PATTERN = /\b(?:please\s+)?(remember(?:\s+that)?|don['’]?t\s+forget(?:\s+that)?|do\s+not\s+forget(?:\s+that)?|keep\s+in\s+mind(?:\s+that)?)\b/i;
 const FOLLOWUP_REQUEST_PATTERN = /\b(?:and|also|then)\s+(?:tell|explain|answer|show|give|help|what|why|how|can|could|would|should|do)\b/i;
 const QUESTION_FOLLOWUP_PATTERN = /(?:^|[.!;]\s+)(?:what|why|how|can|could|would|should|do|does|is|are|will|tell|explain|show|give|help)\b/i;
+const REFERENTIAL_MEMORY_PATTERN = /^(?:that|this|it|those|these|the\s+(?:above|previous|last)\s+(?:thing|message|statement)|what\s+i\s+(?:just\s+)?(?:said|told\s+you))?[.!?\s]*$/i;
+const MEANINGLESS_MEMORY_PATTERN = /^(?:it|that|this|those|these|them|something|anything|stuff|thing|things)$/i;
 
 const RECALL_QUESTION_PATTERN = /^(?:(?:do|did)\s+you\s+remember\b|what\s+(?:do|did)\s+you\s+remember\b|remember\s+when\b|remember\s+(?:the|our|my)\b.*\?)/i;
 
@@ -13,7 +15,7 @@ export function isMemoryRecallRequest(message = "") {
   return Boolean(raw && RECALL_QUESTION_PATTERN.test(raw));
 }
 
-export function prepareExplicitMemoryAction(message = "") {
+export function prepareExplicitMemoryAction(message = "", { history = [] } = {}) {
   const raw = String(message ?? "").replace(/\r\n?/g, "\n").trim();
   if (isMemoryRecallRequest(raw)) return emptyAction("recall_not_write");
   const match = TRIGGER_PATTERN.exec(raw);
@@ -33,7 +35,10 @@ export function prepareExplicitMemoryAction(message = "") {
     ? content.slice(0, Math.min(...cutPoints)).replace(/[\s,;.!]+$/g, "").trim()
     : content;
 
-  const facts = splitMemoryFacts(factContent);
+  const resolvedFactContent = shouldResolveReferentialMemory(factContent)
+    ? resolvePreviousUserStatement(history)
+    : factContent;
+  const facts = splitMemoryFacts(resolvedFactContent);
   const triggerNearStart = (match.index || 0) <= 40;
   const hasQuestion = /\?/.test(content);
   const hasFollowupRequest = Boolean(followupMatch || questionFollowupMatch);
@@ -60,7 +65,7 @@ export async function executeExplicitMemoryAction({
   route = {},
   privacyControls = null
 } = {}) {
-  const prepared = prepareExplicitMemoryAction(message);
+  const prepared = prepareExplicitMemoryAction(message, { history });
   if (!prepared.requested || !prepared.facts.length) return prepared;
 
   const results = await Promise.all(
@@ -164,8 +169,30 @@ function splitMemoryFacts(content = "") {
   return Array.from(new Set(
     parts
       .map((value) => cleanFact(value))
-      .filter((value) => value.length >= 2)
+      .filter(isMeaningfulMemoryFact)
   )).slice(0, 10);
+}
+
+function shouldResolveReferentialMemory(content = "") {
+  return REFERENTIAL_MEMORY_PATTERN.test(String(content ?? "").trim());
+}
+
+function resolvePreviousUserStatement(history = []) {
+  const items = Array.isArray(history) ? history : [];
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    if (String(item?.role || "").toLowerCase() !== "user") continue;
+    const content = String(item?.content ?? item?.message ?? "").replace(/\r\n?/g, "\n").trim();
+    if (content && !isMemoryRecallRequest(content)) return content.slice(0, 1800);
+  }
+  return "";
+}
+
+function isMeaningfulMemoryFact(value = "") {
+  const fact = String(value || "").trim();
+  if (fact.length < 2) return false;
+  if (MEANINGLESS_MEMORY_PATTERN.test(fact)) return false;
+  return /[a-z0-9]/i.test(fact);
 }
 
 function stripListPrefix(value = "") {
