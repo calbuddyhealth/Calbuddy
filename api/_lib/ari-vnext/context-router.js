@@ -331,6 +331,18 @@ function cognitiveContextRules(context = {}) {
     lines.push(conversationInstruction);
   }
 
+  if (context?.memoryCapability?.persistentUserMemory === true || context?.relevantMemory) {
+    lines.push(
+      "CONTINUITY GROUNDING RULES:",
+      "- Persistent user memory is available when memoryCapability says it is available. Never claim that Ari lacks persistent memory in that case.",
+      "- Resolve pronouns and shorthand such as 'that', 'it', 'she', 'he', 'the thing', or 'what we discussed' from the supplied conversation and relevant memory before answering.",
+      "- Never claim to remember, recognize, or know what the user means unless the supplied conversation or relevant memory supports that claim.",
+      "- If two materially different referents remain plausible, ask the smallest useful clarification instead of choosing one for conversational smoothness.",
+      "- Current explicit user statements outrank conflicting older memories. Treat newer corrections as updates rather than silently selecting an older fact.",
+      "- Verified memory-action status is authoritative for whether a requested memory write actually succeeded."
+    );
+  }
+
   if (context?.accountEntitlements?.teenMode === true) {
     lines.push(
       "ACCOUNT AGE RULES:",
