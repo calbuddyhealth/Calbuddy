@@ -7,7 +7,7 @@ const resilience = await readFile(new URL("../js/home-resilience.js", import.met
 const home = await readFile(new URL("../home.html", import.meta.url), "utf8");
 
 test("successful vNext confirmations clear the legacy pending-action mirror", () => {
-  assert.match(runtime, /const VERSION = "1\.6\.1"/);
+  assert.match(runtime, /const VERSION = "1\.6\.2"/);
 
   const buttonConfirm = runtime.match(
     /async function confirmPendingAction\(\)[\s\S]*?function cancelPendingAction\(\)/
@@ -23,7 +23,7 @@ test("successful vNext confirmations clear the legacy pending-action mirror", ()
 });
 
 test("Home requires and cache-busts the quota-aware runtime path", () => {
-  assert.match(resilience, /Version: 1\.6\.1/);
-  assert.match(resilience, /REQUIRED_RUNTIME_VERSION = "1\.6\.1"/);
-  assert.match(home, /js\/home-resilience\.js\?v=1\.6\.1/);
+  assert.match(resilience, /Version: 1\.6\.2/);
+  assert.match(resilience, /REQUIRED_RUNTIME_VERSION = "1\.6\.2"/);
+  assert.match(home, /js\/home-resilience\.js\?v=1\.6\.2/);
 });
