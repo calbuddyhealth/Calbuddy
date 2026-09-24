@@ -130,12 +130,18 @@ CalBuddy.requestVisualInspector = async function (body = {}) {
   });
   const data = await response.json().catch(() => ({}));
 
-  if (!response.ok && data?.status !== "failed") {
-    throw new Error(
-      data?.error ||
-      data?.message ||
-      "ARI visual inspection request failed."
-    );
+  if (!response.ok) {
+    return {
+      ...data,
+      success: false,
+      status: data?.status || "failed",
+      httpStatus: response.status,
+      code: data?.code || "ARI_VISUAL_INSPECTOR_HTTP_ERROR",
+      error:
+        data?.error ||
+        data?.message ||
+        "ARI visual inspection request failed."
+    };
   }
 
   return data;
