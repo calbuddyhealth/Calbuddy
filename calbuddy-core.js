@@ -2131,6 +2131,112 @@ CalBuddy.isVisualInspectionFollowUp = function (message = "") {
   );
 };
 
+CalBuddy.isVisualEvidenceExplanationRequest = function (message = "") {
+  if (!CalBuddy.isVisualInspectionFollowUp(message)) return false;
+  const text = String(message || "").toLowerCase().trim();
+  if (!text) return false;
+
+  // Requests to change the app still need the developer workflow. Pure questions
+  // about what ARI just saw should be answered directly from stored evidence.
+  const mutationIntent =
+    /\b(fix|change|update|edit|patch|remove|replace|implement|make it|do it|correct|redesign|adjust)\b/i.test(text);
+
+  return !mutationIntent;
+};
+
+CalBuddy.buildVisualEvidenceFollowUpReply = function (
+  inspection = null,
+  message = ""
+) {
+  const analysis = inspection?.visualAnalysis || {};
+  const evidence = inspection?.evidence || {};
+  const findings = Array.isArray(analysis?.findings)
+    ? analysis.findings.map(item => String(item || "").trim()).filter(Boolean)
+    : [];
+
+  const structural = [];
+  for (const capture of Array.isArray(evidence?.captures) ? evidence.captures : []) {
+    const route = String(capture?.url || capture?.checkpoint || "screen")
+      .replace(/^https?:\/\/[^/]+/i, "") || "screen";
+    const metrics = capture?.metrics || {};
+
+    if (metrics.horizontalOverflow === true) {
+      structural.push(
+        `${route}: horizontal overflow of about ${Number(metrics.overflowPixels || 0)} px.`
+      );
+    }
+
+    const offscreenCount = Array.isArray(metrics.offscreen)
+      ? metrics.offscreen.length
+      : 0;
+    if (offscreenCount > 0) {
+      structural.push(
+        `${route}: ${offscreenCount} measured element${offscreenCount === 1 ? "" : "s"} extended outside the viewport.`
+      );
+    }
+
+    const fixedWidthCount = Array.isArray(metrics.fixedWidthSuspects)
+      ? metrics.fixedWidthSuspects.length
+      : 0;
+    if (fixedWidthCount > 0) {
+      structural.push(
+        `${route}: ${fixedWidthCount} fixed/min-width element${fixedWidthCount === 1 ? "" : "s"} looked suspicious for that viewport.`
+      );
+    }
+
+    const consoleErrors = Array.isArray(capture?.consoleErrors)
+      ? capture.consoleErrors.filter(Boolean)
+      : [];
+    if (consoleErrors.length > 0) {
+      structural.push(
+        `${route}: browser console reported ${consoleErrors.length} error${consoleErrors.length === 1 ? "" : "s"}.`
+      );
+    }
+  }
+
+  const examples = [...findings, ...structural]
+    .filter((value, index, array) => array.indexOf(value) === index)
+    .slice(0, 8);
+
+  const wantsExamples =
+    /\b(examples?|specific|areas? of improvement|issues?|problems?|what did you (?:see|notice|find))\b/i.test(
+      String(message || "")
+    );
+
+  const lines = [];
+  const summary = String(analysis?.summary || "").trim();
+
+  if (summary && !wantsExamples) {
+    lines.push(summary);
+  }
+
+  if (examples.length > 0) {
+    if (wantsExamples) lines.push("Specific examples from the visual inspection:");
+    for (const item of examples) lines.push(`- ${item}`);
+  } else if (summary) {
+    lines.push(summary);
+    lines.push(
+      "The stored inspection did not contain more specific route-level findings than that summary."
+    );
+  } else {
+    lines.push(
+      "I still have the completed visual inspection, but it did not preserve enough interpreted findings to give you specific examples from that run."
+    );
+  }
+
+  const likelyCause = String(analysis?.likelyCause || "").trim();
+  if (likelyCause && /\bwhy|cause|reason\b/i.test(String(message || ""))) {
+    lines.push(`Likely cause: ${likelyCause}`);
+  }
+
+  const nextStep = String(analysis?.recommendedNextStep || "").trim();
+  if (nextStep && /\bwhat should|next|improve|recommend\b/i.test(String(message || ""))) {
+    lines.push(`Next step: ${nextStep}`);
+  }
+
+  return lines.join("\n");
+};
+
 CalBuddy.messageRequiresLiveOwner = function (message = "") {
   const text = String(message || "").toLowerCase();
   return (
@@ -2616,6 +2722,46 @@ if (!message || !message.trim()) {
   ) {
     localStorage.removeItem("calbuddyPendingGithubEdit");
   }
+  // Fast path for questions about a just-completed visual inspection.
+  // The expensive application-context/model pipeline is unnecessary here because
+  // the browser + vision result is already verified and stored locally.
+  if (
+    !readOnlyFallback &&
+    CalBuddy.isVisualEvidenceExplanationRequest(message)
+  ) {
+    const recentVisual = CalBuddy.getRecentVisualInspection();
+    const ownerVerified = await CalBuddy.verifyOwnerSession();
+
+    if (ownerVerified && recentVisual) {
+      const reply = CalBuddy.buildVisualEvidenceFollowUpReply(
+        recentVisual,
+        message
+      );
+
+      if (reply) {
+        finishTiming();
+        return {
+          reply,
+          emotion: "thinking",
+          pendingAction: null,
+          memoryCandidate: null,
+          developerIntent: null,
+          visualInspection: {
+            success: true,
+            status: "completed",
+            requestId: recentVisual.requestId,
+            targetPath: recentVisual.targetPath || null,
+            visualMode: recentVisual.visualMode || "sandbox",
+            reusedVisualEvidence: true,
+            visualAnalysis: recentVisual.visualAnalysis || null,
+            evidence: recentVisual.evidence || null
+          },
+          source: "calbuddy_visual_evidence_followup"
+        };
+      }
+    }
+  }
+
   mark("before getUserContext");
 
 const userContext =
