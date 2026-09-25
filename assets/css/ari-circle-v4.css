@@ -644,39 +644,6 @@ body {
 /* About becomes a simple stack; empty legacy sections simply disappear. */
 #circle-about,
 #circle-interests,
-#circle-icebreakers {
-  margin: 10px 12px !important;
-  padding: 16px 18px !important;
-  border: 1px solid rgba(37,71,145,.08) !important;
-  border-radius: 19px !important;
-  background: rgba(255,255,255,.98) !important;
-  box-shadow: var(--circle4-shadow-soft) !important;
-}
-
-#circle-about .circle-section-eyebrow,
-#circle-interests .circle-section-eyebrow,
-#circle-icebreakers .circle-section-eyebrow {
-  display: none !important;
-}
-
-#circle-about .circle-section-header,
-#circle-interests .circle-section-header,
-#circle-icebreakers .circle-section-header {
-  margin-bottom: 9px !important;
-}
-
-#circle-about h2,
-#circle-interests h2,
-#circle-icebreakers h2 {
-  font-size: 1.02rem !important;
-}
-
-.circle-v3-safety-gate {
-  margin: 10px 12px 14px !important;
-  border-radius: 20px !important;
-  box-shadow: var(--circle4-shadow-soft) !important;
-}
-
 @media (max-width: 520px) {
   .feed-page,
   .partner-page,
