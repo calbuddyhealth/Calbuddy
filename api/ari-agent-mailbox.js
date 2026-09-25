@@ -8,7 +8,7 @@ import {
   mailboxStatus,
   readAgentMailboxMessage,
   sendAgentMailboxMessage
-} from "../server/ari-artifactory-mailbox.js";
+} from "../server/ari-supabase-agent-mailbox.js";
 
 export default async function handler(req, res) {
   setOwnerSecurityHeaders(res);
@@ -35,7 +35,8 @@ export default async function handler(req, res) {
 
       if (action === "read") {
         const result = await readAgentMailboxMessage({
-          path: String(query.path || "")
+          userId: authorization.user?.id || "",
+          messageId: String(query.messageId || "")
         });
         return res.status(result.success ? 200 : statusFor(result)).json(result);
       }
@@ -44,7 +45,8 @@ export default async function handler(req, res) {
         recipient: String(query.recipient || ""),
         sender: String(query.sender || ""),
         kind: String(query.kind || ""),
-        limit: Number(query.limit) || 50
+        limit: Number(query.limit) || 50,
+        userId: authorization.user?.id || ""
       });
       return res.status(result.success ? 200 : statusFor(result)).json(result);
     }
@@ -54,12 +56,13 @@ export default async function handler(req, res) {
     if (action !== "send") {
       return res.status(400).json({
         success: false,
-        code: "ARTIFACTORY_MAILBOX_ACTION_INVALID",
+        code: "AGENT_MAILBOX_ACTION_INVALID",
         error: "Unsupported mailbox action."
       });
     }
 
     const result = await sendAgentMailboxMessage({
+      userId: authorization.user?.id || "",
       sender: body.sender || "owner",
       recipient: body.recipient || "ari-orchestrator",
       kind: body.kind || "status",
@@ -78,14 +81,14 @@ export default async function handler(req, res) {
   } catch (error) {
     return res.status(500).json({
       success: false,
-      code: "ARTIFACTORY_MAILBOX_API_FAILED",
+      code: "AGENT_MAILBOX_API_FAILED",
       error: error?.message || "Agent mailbox request failed."
     });
   }
 }
 
 function statusFor(result = {}) {
-  if (result.code === "ARTIFACTORY_MAILBOX_NOT_CONFIGURED") return 503;
+  if (result.code === "AGENT_MAILBOX_NOT_CONFIGURED") return 503;
   if (/INVALID|TOO_LARGE/.test(String(result.code || ""))) return 400;
   if (Number(result.status) >= 400 && Number(result.status) <= 599) return Number(result.status);
   return 502;
