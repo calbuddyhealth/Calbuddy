@@ -141,9 +141,8 @@
     nav.className = "circle-v3-nav";
     nav.setAttribute("aria-label", "ARI Circle sections");
     nav.innerHTML = `
-      <a href="ari-circle-feed.html">Feed</a>
-      <a href="ari-circle-meetup.html">Meet Up</a>
-      <a href="ari-circle-quests.html">Quests</a>
+      <a href="ari-circle-meetup.html">Connect</a>
+      <a href="ari-circle.html">Profile</a>
     `;
     main.insertBefore(nav, profile);
   }
@@ -180,7 +179,7 @@
     postsPanel.innerHTML = `
       <header class="circle-v3-panel__header">
         <div><h2>Posts</h2></div>
-        ${state.isOwner ? '<a class="circle-v3-panel__link" href="ari-circle-feed.html">Share</a>' : ''}
+        ${state.isOwner ? '<a class="circle-v3-panel__link" href="ari-circle.html">Profile</a>' : ''}
       </header>
       <div id="circleV3Posts" class="circle-v3-posts" aria-live="polite"></div>
     `;
