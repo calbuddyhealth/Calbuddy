@@ -5,7 +5,6 @@ import { advancedConversationInstruction } from "./conversation-contract.js";
 import { beliefSystemInstruction } from "./belief-system.js";
 import { convictionInstruction } from "./conviction-learning.js";
 import { dreamingContextToInstruction } from "./dreaming-core.js";
-import { executionWorkspaceToInstruction } from "./execution-session.js";
 
 export const CONTEXT_ROUTER_VERSION = "1.19.0";
 
@@ -403,9 +402,6 @@ function cognitiveContextRules(context = {}) {
   const beliefState = cognitiveWorkspace?.beliefSystem || null;
   const beliefInstruction = beliefSystemInstruction(beliefState);
   if (beliefInstruction) lines.push(beliefInstruction);
-
-  const executionInstruction = executionWorkspaceToInstruction(cognitiveWorkspace?.executionWorkspace || null);
-  if (executionInstruction) lines.push(executionInstruction);
 
   const dreamingInstruction = dreamingContextToInstruction(context?.dreaming || null);
   if (dreamingInstruction) lines.push(dreamingInstruction);
