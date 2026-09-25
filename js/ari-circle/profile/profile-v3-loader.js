@@ -101,7 +101,7 @@ if (!document.getElementById(V4_STYLE_ID)) {
   const link = document.createElement("link");
   link.id = V4_STYLE_ID;
   link.rel = "stylesheet";
-  link.href = "assets/css/ari-circle-v4.css?v=4.0.1";
+  link.href = "assets/css/ari-circle-v4.css?v=4.0.2";
   document.head.append(link);
 }
 
