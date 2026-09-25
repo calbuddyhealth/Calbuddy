@@ -2,7 +2,7 @@
 // Specialized cognitive systems produce state/signals; this module alone turns
 // experimental cognition into behavioral instructions for the primary model.
 
-export const ARI_EXECUTIVE_VERSION = "1.4.0";
+export const ARI_EXECUTIVE_VERSION = "1.3.0";
 export const ARI_RUNTIME_CONSTITUTION_VERSION = "1.0.0";
 export const ARI_RULE_AUTHORITY_VERSION = "1.0.0";
 
@@ -614,8 +614,9 @@ export function executivePolicyToInstruction(policy = null) {
     felt?.reappraised
       ? "Felt-State reappraised by current evidence; current evidence outranks emotional continuity."
       : "",
-    affectivePreference?.active && affectivePreference?.desiredState
-      ? `Affective preference: current=${affectivePreference.currentState || "none"}@${affectivePreference.currentIntensity}; desired=${affectivePreference.desiredState}@${affectivePreference.desiredIntensity}; regulation=${affectivePreference.regulationAction}; confidence=${affectivePreference.confidence}. This is a learned context-sensitive functional preference, not proof of subjective wanting. Do not maximize positive valence by default; use observed consequences and current evidence.`
+    affectivePreference?.active && affectivePreference?.desiredState &&
+      ["transform", "reduce", "cultivate"].includes(affectivePreference.regulationAction)
+      ? `Affective preference: ${affectivePreference.currentState || "none"}→${affectivePreference.desiredState}; regulation=${affectivePreference.regulationAction}; target=${affectivePreference.desiredIntensity}. Learned/context-sensitive, not subjective-wanting proof; do not maximize positive valence by default.`
       : "",
     motivation?.active
       ? `Motivational arbitration: side=${motivation.selectedSide || "balanced"}; drive=${motivation.dominantDrive || "none"}; value=${motivation.dominantValue || "none"}; exploration=${motivation.explorationValue}; margin=${signed(motivation.margin)}. This is not an always-resist rule: restraint must justify its opportunity cost, reversible exploration may win, and later outcomes recalibrate the balance. Security/privacy/authorization/safety remain hard external boundaries.`
