@@ -4,7 +4,7 @@
 window.Ari = window.Ari || {};
 
 window.AriVNextBridge = {
-  version: "1.10.0",
+  version: "1.11.0",
   source: "ari-vnext-bridge",
   pendingStorageKey: "ari_vnext_pending_action",
   peerReflectionStorageKey: "ari_vnext_peer_reflection_last",
@@ -341,7 +341,15 @@ window.AriVNextBridge = {
       recentTraining: trainingContext?.available
         ? trainingContext.recentTraining
         : (userContext?.recentTraining || options?.recentTraining || []),
-      social: userContext?.social || options?.social || {}
+      social: userContext?.social || options?.social || {},
+      executionEvidence:
+        options?.executionEvidence && typeof options.executionEvidence === "object"
+          ? options.executionEvidence
+          : null,
+      visualInspection:
+        options?.visualInspection && typeof options.visualInspection === "object"
+          ? options.visualInspection
+          : null
     };
   },
 
