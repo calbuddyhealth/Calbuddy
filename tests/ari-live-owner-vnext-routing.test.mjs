@@ -49,5 +49,5 @@ test("the deterministic core still owns Live Owner execution and server verifica
 });
 
 test("runtime 1.6.4 is the canonical runtime version", () => {
-  assert.match(runtime, /const VERSION = "1\.6\.3"/);
+  assert.match(runtime, /const VERSION = "1\.6\.4"/);
 });
