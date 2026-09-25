@@ -189,12 +189,12 @@ test("metacognition preserves Cortex, Reward, and Omega state while Ari Executiv
   });
   const instruction = metacognitionToInstruction(state);
 
-  assert.equal(ARI_METACOGNITION_VERSION, "1.5.0");
+  assert.equal(ARI_METACOGNITION_VERSION, "1.6.0");
   assert.equal(state.cortex.active, true);
   assert.equal(state.omegaRCT.active, true);
   assert.equal(state.cortex.omegaRCT.version, "1.2.0");
   assert.equal(state.executivePolicy.authority.singleRuntimeDecisionAuthority, true);
-  assert.match(instruction, /ARI EXECUTIVE v1\.1\.0/);
+  assert.match(instruction, /ARI EXECUTIVE v1\.2\.0/);
   assert.match(instruction, /Cortex signal:/i);
   assert.match(instruction, /General reasoning remains available and specialized orchestration must earn control/i);
   assert.match(instruction, /Ω-RCT signal:/i);
