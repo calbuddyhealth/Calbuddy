@@ -56,6 +56,7 @@ export async function sendAgentMailboxMessage({
   subject = "",
   payload = {},
   metadata = {},
+  idempotencyKey = null,
   fetchImpl = globalThis.fetch
 } = {}) {
   const config = getSupabaseMailboxConfiguration();
@@ -86,6 +87,17 @@ export async function sendAgentMailboxMessage({
       code: normalized.code,
       message: normalized.message
     };
+  }
+
+  const idempotency = clean(idempotencyKey, 180) || null;
+  if (idempotency) {
+    const existing = await findMailboxMessageByIdempotency({
+      config,
+      userId: ownerUserId,
+      idempotencyKey: idempotency,
+      fetchImpl
+    });
+    if (existing) return { ...existing, duplicate: true };
   }
 
   const messageId = randomUUID();
@@ -128,10 +140,11 @@ export async function sendAgentMailboxMessage({
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Prefer: "return=representation"
+        Prefer: idempotency ? "resolution=ignore-duplicates,return=representation" : "return=representation"
       },
       body: JSON.stringify({
         id: messageId,
+        idempotency_key: idempotency,
         user_id: ownerUserId,
         schema_version: "ari.agent.mailbox.v2",
         thread_id: effectiveThreadId,
@@ -147,7 +160,10 @@ export async function sendAgentMailboxMessage({
         created_at: createdAt
       })
     },
-    fetchImpl
+    fetchImpl,
+    idempotency
+      ? `?on_conflict=user_id,idempotency_key`
+      : ""
   );
 
   if (!response.ok) {
@@ -159,7 +175,17 @@ export async function sendAgentMailboxMessage({
     };
   }
 
-  const row = Array.isArray(response.data) ? response.data[0] : response.data;
+  let row = Array.isArray(response.data) ? response.data[0] : response.data;
+  if (!row && idempotency) {
+    const existing = await findMailboxMessageByIdempotency({
+      config,
+      userId: ownerUserId,
+      idempotencyKey: idempotency,
+      fetchImpl
+    });
+    if (existing) return { ...existing, duplicate: true };
+  }
+
   return {
     success: true,
     version: ARI_SUPABASE_MAILBOX_VERSION,
@@ -171,7 +197,9 @@ export async function sendAgentMailboxMessage({
     subject: normalized.subject,
     createdAt: clean(row?.created_at, 120) || createdAt,
     sha256,
-    bytes
+    bytes,
+    idempotencyKey: idempotency,
+    duplicate: false
   };
 }
 
@@ -210,7 +238,7 @@ export async function listAgentMailboxMessages({
   }
 
   const params = new URLSearchParams({
-    select: "id,thread_id,reply_to,sender,recipient,kind,subject,payload,metadata,message_bytes,content_sha256,created_at",
+    select: "id,idempotency_key,thread_id,reply_to,sender,recipient,kind,subject,payload,metadata,message_bytes,content_sha256,created_at",
     user_id: `eq.${ownerUserId}`,
     order: "created_at.desc",
     limit: String(boundedLimit)
@@ -322,6 +350,46 @@ export function mailboxStatus() {
   };
 }
 
+
+async function findMailboxMessageByIdempotency({
+  config,
+  userId,
+  idempotencyKey,
+  fetchImpl
+} = {}) {
+  if (!config || !userId || !idempotencyKey) return null;
+  const params = new URLSearchParams({
+    select: "id,idempotency_key,thread_id,reply_to,sender,recipient,kind,subject,payload,metadata,message_bytes,content_sha256,created_at",
+    user_id: `eq.${userId}`,
+    idempotency_key: `eq.${idempotencyKey}`,
+    limit: "1"
+  });
+  const response = await supabaseFetch(
+    config,
+    `/rest/v1/${config.table}?${params.toString()}`,
+    { method: "GET" },
+    fetchImpl
+  );
+  if (!response.ok) return null;
+  const row = Array.isArray(response.data) ? response.data[0] : null;
+  const message = rowToMessage(row);
+  if (!message) return null;
+  return {
+    success: true,
+    version: ARI_SUPABASE_MAILBOX_VERSION,
+    messageId: message.messageId,
+    threadId: message.threadId,
+    sender: message.sender,
+    recipient: message.recipient,
+    kind: message.kind,
+    subject: message.subject,
+    createdAt: message.createdAt,
+    sha256: message.sha256,
+    bytes: message.bytes,
+    idempotencyKey: message.idempotencyKey
+  };
+}
+
 function rowToMessage(row) {
   if (!row || typeof row !== "object") return null;
   const sender = normalizeAgent(row.sender);
@@ -336,6 +404,7 @@ function rowToMessage(row) {
 
   return {
     messageId,
+    idempotencyKey: clean(row.idempotency_key, 180) || null,
     threadId: clean(row.thread_id, 120),
     replyTo: clean(row.reply_to, 120) || null,
     sender,
@@ -419,7 +488,7 @@ function cloneSafeJson(value) {
   }
 }
 
-async function supabaseFetch(config, path, options, fetchImpl) {
+async function supabaseFetch(config, path, options, fetchImpl, suffix = "") {
   if (typeof fetchImpl !== "function") {
     return { ok: false, status: 503, message: "Supabase mailbox transport is unavailable.", data: null };
   }
@@ -427,7 +496,7 @@ async function supabaseFetch(config, path, options, fetchImpl) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12_000);
   try {
-    const response = await fetchImpl(`${config.url}${path}`, {
+    const response = await fetchImpl(`${config.url}${path}${suffix}`, {
       ...options,
       headers: {
         apikey: config.serviceRoleKey,

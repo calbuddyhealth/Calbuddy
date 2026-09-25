@@ -20,7 +20,7 @@ export async function loadAgentTaskSession({
   if (!id || !execId || !config) return null;
 
   const params = new URLSearchParams({
-    select: "id,user_id,execution_session_id,conversation_id,root_turn_id,last_turn_id,goal,success_criteria,status,plan,verification,synthesis,next_step,round_count,max_rounds,created_at,updated_at,completed_at",
+    select: "id,user_id,execution_session_id,conversation_id,root_turn_id,last_turn_id,goal,success_criteria,status,plan,verification,synthesis,next_step,round_count,max_rounds,background_enabled,background_started_at,background_last_run_at,created_at,updated_at,completed_at",
     user_id: `eq.${id}`,
     execution_session_id: `eq.${execId}`,
     limit: "1"
@@ -113,7 +113,7 @@ export async function updateAgentTaskSession({
 
   const normalized = normalizeSessionPatch(patch);
   if (!Object.keys(normalized).length) {
-    const session = await loadAgentTaskSessionById({ userId: id, taskId: task });
+    const session = await loadAgentTaskSessionByIdInternal({ userId: id, taskId: task });
     return { stored: false, session, reason: "empty_patch" };
   }
 
@@ -142,6 +142,10 @@ export async function updateAgentTaskSession({
   }
 }
 
+export async function loadAgentTaskSessionById({ userId, taskId } = {}) {
+  return await loadAgentTaskSessionByIdInternal({ userId, taskId });
+}
+
 export async function loadAgentTaskWorkers({
   userId,
   taskId
@@ -152,7 +156,7 @@ export async function loadAgentTaskWorkers({
   if (!id || !task || !config) return [];
 
   const params = new URLSearchParams({
-    select: "id,task_id,worker_key,role,objective,round,followup,status,mailbox_message_id,provider_model,error_code,created_at,started_at,completed_at,updated_at",
+    select: "id,task_id,worker_key,role,objective,round,followup,status,job_type,tool_scope,queue_message_id,retry_count,next_retry_at,last_error,mailbox_message_id,provider_model,error_code,queued_at,created_at,started_at,completed_at,updated_at",
     user_id: `eq.${id}`,
     task_id: `eq.${task}`,
     order: "round.asc,created_at.asc",
@@ -295,6 +299,11 @@ export function publicAgentTaskSession(session = null, workers = []) {
     workerCount: list.length,
     completedWorkers: list.filter(item => item.status === "completed").length,
     failedWorkers: list.filter(item => item.status === "failed").length,
+    queuedWorkers: list.filter(item => item.status === "planned" && item.queueMessageId).length,
+    runningWorkers: list.filter(item => item.status === "running").length,
+    backgroundEnabled: value.backgroundEnabled === true,
+    backgroundStartedAt: value.backgroundStartedAt,
+    backgroundLastRunAt: value.backgroundLastRunAt,
     mailboxThreadId: value.id,
     nextStep: value.nextStep,
     updatedAt: value.updatedAt,
@@ -308,13 +317,13 @@ export function isOpenAgentTaskSession(session = null) {
   return Boolean(value && OPEN_STATUSES.has(value.status));
 }
 
-async function loadAgentTaskSessionById({ userId, taskId } = {}) {
+async function loadAgentTaskSessionByIdInternal({ userId, taskId } = {}) {
   const id = cleanUserId(userId);
   const task = cleanUuid(taskId);
   const config = supabaseConfig();
   if (!id || !task || !config) return null;
   const params = new URLSearchParams({
-    select: "id,user_id,execution_session_id,conversation_id,root_turn_id,last_turn_id,goal,success_criteria,status,plan,verification,synthesis,next_step,round_count,max_rounds,created_at,updated_at,completed_at",
+    select: "id,user_id,execution_session_id,conversation_id,root_turn_id,last_turn_id,goal,success_criteria,status,plan,verification,synthesis,next_step,round_count,max_rounds,background_enabled,background_started_at,background_last_run_at,created_at,updated_at,completed_at",
     user_id: `eq.${id}`,
     id: `eq.${task}`,
     limit: "1"
@@ -354,6 +363,9 @@ function normalizeSession(row) {
     nextStep: clean(row.next_step ?? row.nextStep, 1200) || null,
     roundCount: boundedInt(row.round_count ?? row.roundCount, 0, 0, 4),
     maxRounds: boundedInt(row.max_rounds ?? row.maxRounds, 2, 1, 4),
+    backgroundEnabled: row.background_enabled === true || row.backgroundEnabled === true,
+    backgroundStartedAt: clean(row.background_started_at ?? row.backgroundStartedAt, 120) || null,
+    backgroundLastRunAt: clean(row.background_last_run_at ?? row.backgroundLastRunAt, 120) || null,
     createdAt: clean(row.created_at ?? row.createdAt, 120) || null,
     updatedAt: clean(row.updated_at ?? row.updatedAt, 120) || null,
     completedAt: clean(row.completed_at ?? row.completedAt, 120) || null,
@@ -389,9 +401,16 @@ function normalizeWorker(row) {
     round: boundedInt(row.round, 0, 0, 4),
     followup: row.followup === true,
     status: normalizeWorkerStatus(row.status),
+    jobType: normalizeJobType(row.job_type ?? row.jobType),
+    toolScope: normalizeToolScope(row.tool_scope ?? row.toolScope),
+    queueMessageId: Number.isFinite(Number(row.queue_message_id ?? row.queueMessageId)) ? Number(row.queue_message_id ?? row.queueMessageId) : null,
+    retryCount: boundedInt(row.retry_count ?? row.retryCount, 0, 0, 20),
+    nextRetryAt: clean(row.next_retry_at ?? row.nextRetryAt, 120) || null,
+    lastError: clean(row.last_error ?? row.lastError, 1000) || null,
     mailboxMessageId: cleanUuid(row.mailbox_message_id ?? row.mailboxMessageId) || null,
     providerModel: clean(row.provider_model ?? row.providerModel, 160) || null,
     errorCode: clean(row.error_code ?? row.errorCode, 240) || null,
+    queuedAt: clean(row.queued_at ?? row.queuedAt, 120) || null,
     createdAt: clean(row.created_at ?? row.createdAt, 120) || null,
     startedAt: clean(row.started_at ?? row.startedAt, 120) || null,
     completedAt: clean(row.completed_at ?? row.completedAt, 120) || null,
@@ -404,6 +423,16 @@ function normalizeSessionStatus(value) {
   return ["planning", "running", "verifying", "waiting", "completed", "failed", "abandoned"].includes(text)
     ? text
     : "planning";
+}
+
+function normalizeJobType(value) {
+  const text = clean(value, 40).toLowerCase();
+  return ["specialist","resolver","verifier"].includes(text) ? text : "specialist";
+}
+
+function normalizeToolScope(value) {
+  const text = clean(value, 40).toLowerCase();
+  return ["analysis","web","developer_read"].includes(text) ? text : "analysis";
 }
 
 function normalizeWorkerStatus(value) {

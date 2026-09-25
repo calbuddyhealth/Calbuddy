@@ -2,6 +2,10 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
+      "path": "/api/ari-agent-worker",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/ari-circle-moderation-worker",
       "schedule": "* * * * *"
     },

@@ -400,8 +400,12 @@ test("memory-search evidence stays useful without persisting raw memory text", (
 test("execution runtime modules remain syntactically valid", () => {
   for (const path of [
     "api/ari-vnext.js",
+    "api/ari-agent-worker.js",
     "api/_lib/ari-vnext/execution-session.js",
     "api/_lib/ari-vnext/agent-task-store.js",
+    "api/_lib/ari-vnext/agent-queue.js",
+    "api/_lib/ari-vnext/background-specialist.js",
+    "api/_lib/ari-vnext/background-agent-runtime.js",
     "api/_lib/ari-vnext/developer-workspace.js",
     "api/_lib/ari-vnext/model-policy.js",
     "api/_lib/ari-vnext/reward-core.js",

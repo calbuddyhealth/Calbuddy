@@ -5,6 +5,7 @@
 // mutation tools, and cannot recursively create unbounded descendants.
 
 import { agentPerformanceToCoordinatorInstruction } from "./agent-performance.js";
+import { enqueueAgentJob } from "./agent-queue.js";
 import {
   createAgentTaskSession,
   isOpenAgentTaskSession,
@@ -21,7 +22,7 @@ import {
 
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 
-export const ARI_MULTI_AGENT_VERSION = "2.0.0";
+export const ARI_MULTI_AGENT_VERSION = "2.1.0";
 
 const DEFAULT_MAX_WORKERS = 3;
 const HARD_MAX_WORKERS = 4;
@@ -303,6 +304,132 @@ export async function runAriMultiAgentCouncil({
   }
 
   const pendingTasks = tasks.filter(task => !durableCompleted.has(clean(task?.id, 80)));
+
+  if (shouldQueueBackgroundCouncil({ route, taskSession })) {
+    const round = Math.max(1, Number(taskSession?.roundCount || 0) || 1);
+    const queueInput = {
+      request: clean(turn?.message, 6500),
+      route: {
+        developer: route?.developer === true,
+        currentInfo: route?.currentInfo === true,
+        complexity: clean(route?.complexity, 40) || null
+      },
+      safety: {
+        highStakes: safety?.highStakes === true
+      },
+      plan: {
+        useWebResearch: plan?.useWebResearch === true,
+        targetWorkers: Number(plan?.targetWorkers || 0)
+      }
+    };
+
+    const enqueueResults = await Promise.all(
+      pendingTasks.map((task, index) => {
+        const workerKey = clean(task?.id, 80) || `agent_${index + 1}`;
+        return enqueueAgentJob({
+          userId: turn?.userId,
+          taskId: taskSession.id,
+          workerKey,
+          jobType: "specialist",
+          role: task?.role || "specialist",
+          objective: task?.objective || "Analyze the assigned developer task.",
+          round,
+          followup: task?.followup === true,
+          toolScope: "developer_read",
+          input: queueInput,
+          maxAttempts: boundedInt(process.env.ARI_ASYNC_WORKER_MAX_ATTEMPTS, 3, 1, 6)
+        }).catch(error => ({
+          queued: false,
+          reason: clean(error?.code || error?.message, 160) || "enqueue_failed",
+          workerKey
+        }));
+      })
+    );
+
+    const queuedCount = enqueueResults.filter(item => item?.queued === true).length;
+    const planPatch = {
+      ...(taskSession?.plan || durablePlanSnapshot(plan, tasks)),
+      tasks,
+      background: true,
+      backgroundVersion: "1.0.0",
+      queuedAt: new Date().toISOString()
+    };
+
+    const updated = await updateAgentTaskSession({
+      userId: turn?.userId,
+      taskId: taskSession.id,
+      patch: {
+        status: queuedCount > 0 || pendingTasks.length === 0 ? "running" : "waiting",
+        plan: planPatch,
+        roundCount: round,
+        lastTurnId: turn?.turnId || null,
+        nextStep: queuedCount > 0
+          ? "Background specialists are queued. Their read-only findings will be reconciled automatically before Ari uses them."
+          : "No new specialist job was queued. Inspect the durable worker state before choosing the next action."
+      }
+    }).catch(() => null);
+
+    taskSession = updated?.session || {
+      ...taskSession,
+      status: queuedCount > 0 ? "running" : taskSession.status,
+      plan: planPatch,
+      roundCount: round,
+      nextStep: queuedCount > 0
+        ? "Background specialists are queued. Their read-only findings will be reconciled automatically before Ari uses them."
+        : taskSession.nextStep
+    };
+    durableWorkers = await loadAgentTaskWorkers({
+      userId: turn?.userId,
+      taskId: taskSession.id
+    }).catch(() => durableWorkers);
+
+    const publicTask = publicAgentTaskSession(
+      { ...taskSession, resumed },
+      durableWorkers
+    );
+
+    return {
+      version: ARI_MULTI_AGENT_VERSION,
+      active: true,
+      plan,
+      tasks,
+      workspace: workspace.filter(item => item?.success && item?.text).map(publicWorkerResult),
+      synthesis: clean(taskSession?.synthesis, 9000),
+      provider: null,
+      degraded: false,
+      backgroundExecution: true,
+      queue: {
+        requested: pendingTasks.length,
+        queued: queuedCount,
+        results: enqueueResults.slice(0, HARD_MAX_WORKERS + HARD_MAX_FOLLOWUPS).map(item => ({
+          workerKey: clean(item?.worker_key || item?.workerKey, 80) || null,
+          queued: item?.queued === true,
+          reason: clean(item?.reason, 120) || null
+        }))
+      },
+      durableTask: publicTask
+        ? {
+            ...publicTask,
+            readyForAriSynthesis: taskSession?.verification?.ready === true,
+            verifiedSynthesisAvailable:
+              taskSession?.verification?.ready === true &&
+              Boolean(clean(taskSession?.synthesis, 20)),
+            unresolvedCount: Array.isArray(taskSession?.verification?.unresolved)
+              ? taskSession.verification.unresolved.length
+              : 0,
+            backgroundExecution: true
+          }
+        : null,
+      authority: {
+        finalSynthesis: "ari",
+        councilIsAdvisory: true,
+        appWritesExecuted: false,
+        backgroundWorkersReadOnly: true,
+        hiddenChainOfThoughtStored: false
+      }
+    };
+  }
+
   const firstWave = await Promise.all(
     pendingTasks.map((task, index) =>
       runAndPersistSpecialist({
@@ -552,7 +679,12 @@ export async function runAriMultiAgentCouncil({
 }
 
 export function multiAgentCouncilToInstruction(council = null) {
-  if (!council?.active || !clean(council?.synthesis, 20)) return "";
+  if (!council?.active) return "";
+  const synthesisAvailable = Boolean(clean(council?.synthesis, 20));
+  const backgroundQueued =
+    council?.backgroundExecution === true ||
+    council?.durableTask?.backgroundExecution === true;
+  if (!synthesisAvailable && !backgroundQueued) return "";
 
   const roles = (Array.isArray(council?.workspace) ? council.workspace : [])
     .map((item) => clean(item?.role, 80))
@@ -562,6 +694,9 @@ export function multiAgentCouncilToInstruction(council = null) {
   return [
     "ARI MULTI-AGENT COUNCIL — ADVISORY SHARED WORKSPACE",
     `Council version ${council.version || ARI_MULTI_AGENT_VERSION}.`,
+    backgroundQueued && !synthesisAvailable
+      ? "Background specialist work has been durably queued and may continue after this HTTP request ends. No reconciled specialist result is available in this turn yet. Do not invent findings or imply that the queued work already finished."
+      : "",
     roles.length ? `Specialists consulted: ${roles.join(", ")}.` : "Specialists were consulted.",
     council?.durableTask?.id
       ? `Durable task session: ${council.durableTask.id}; mailbox thread: ${council.durableTask.mailboxThreadId || council.durableTask.id}; status: ${council.durableTask.status || "waiting"}; round ${Number(council.durableTask.roundCount || 0)} of ${Number(council.durableTask.maxRounds || 0)}.`
@@ -579,8 +714,11 @@ export function multiAgentCouncilToInstruction(council = null) {
     "For freshness-sensitive claims, use Ari's own live research capability for final verification when available; specialist web findings are leads, not a substitute for final source verification.",
     "No specialist was authorized to perform ARI XP application mutations. Never claim a specialist changed app state.",
     "Do not expose hidden chain-of-thought. You may summarize material findings, evidence, disagreements, and uncertainty.",
-    "RECONCILED COUNCIL SYNTHESIS:",
-    clean(council.synthesis, 9000)
+    synthesisAvailable ? "RECONCILED COUNCIL SYNTHESIS:" : "",
+    synthesisAvailable ? clean(council.synthesis, 9000) : "",
+    backgroundQueued && !synthesisAvailable
+      ? "Current next step: let the queued read-only specialists finish; a verifier will reconcile their mailbox evidence automatically. Ari may continue other safe work but must not treat the council as verified yet."
+      : ""
   ].filter(Boolean).join("\n").slice(0, 12000);
 }
 
@@ -615,6 +753,12 @@ export function publicMultiAgentCouncil(council = null) {
           workerCount: Number(council.durableTask.workerCount || 0),
           completedWorkers: Number(council.durableTask.completedWorkers || 0),
           failedWorkers: Number(council.durableTask.failedWorkers || 0),
+          queuedWorkers: Number(council.durableTask.queuedWorkers || 0),
+          runningWorkers: Number(council.durableTask.runningWorkers || 0),
+          backgroundExecution: council.durableTask.backgroundExecution === true,
+          backgroundEnabled: council.durableTask.backgroundEnabled === true,
+          backgroundStartedAt: council.durableTask.backgroundStartedAt || null,
+          backgroundLastRunAt: council.durableTask.backgroundLastRunAt || null,
           mailboxThreadId: council.durableTask.mailboxThreadId || null,
           readyForAriSynthesis: council.durableTask.readyForAriSynthesis === true,
           unresolvedCount: Number(council.durableTask.unresolvedCount || 0),
@@ -951,6 +1095,15 @@ async function persistVerifierMessage({
       providerModel: clean(verification?.provider?.model, 120) || null
     }
   });
+}
+
+function shouldQueueBackgroundCouncil({ route = {}, taskSession = null } = {}) {
+  if (!taskSession?.id) return false;
+  if (process.env.ARI_DURABLE_AGENT_ASYNC_ENABLED === "false") return false;
+  return (
+    route?.developer === true &&
+    route?.intelligenceEntitlement?.ownerEligible === true
+  );
 }
 
 function durableExecutionAnchor(turn = {}) {
