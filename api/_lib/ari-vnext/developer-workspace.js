@@ -7,9 +7,9 @@ import {
   listAgentMailboxMessages,
   readAgentMailboxMessage,
   sendAgentMailboxMessage
-} from "../../../server/ari-artifactory-mailbox.js";
+} from "../../../server/ari-supabase-agent-mailbox.js";
 
-export const ARI_DEVELOPER_WORKSPACE_VERSION = "1.2.0";
+export const ARI_DEVELOPER_WORKSPACE_VERSION = "1.3.0";
 
 const WORKFLOW_FILE = "ari-vnext-tests.yml";
 const MAX_READ_BYTES = 140_000;
@@ -57,6 +57,7 @@ export async function executeDeveloperWorkspaceTool({
 
   if (applicationAction === "agent_mailbox_list") {
     return await listAgentMailboxMessages({
+      userId,
       recipient: args.recipient,
       sender: args.sender,
       kind: args.kind,
@@ -65,11 +66,12 @@ export async function executeDeveloperWorkspaceTool({
   }
 
   if (applicationAction === "agent_mailbox_read") {
-    return await readAgentMailboxMessage({ path: args.path });
+    return await readAgentMailboxMessage({ userId, messageId: args.messageId });
   }
 
   if (applicationAction === "agent_mailbox_send") {
     return await sendAgentMailboxMessage({
+      userId,
       sender: args.sender,
       recipient: args.recipient,
       kind: args.kind,
@@ -218,16 +220,16 @@ export function developerToolResultToExecutionEvidence(result = {}, applicationA
         id: result?.messageId || null,
         kind: "agent_mailbox_send",
         summary: result?.success
-          ? `Artifactory mailbox message ${clean(result.messageId, 60)} sent from ${clean(result.sender, 48)} to ${clean(result.recipient, 48)} as ${clean(result.kind, 80)}.`
-          : `Artifactory mailbox send failed: ${result?.code || "unknown error"}.`,
-        source: "jfrog_artifactory",
+          ? `Supabase mailbox message ${clean(result.messageId, 60)} sent from ${clean(result.sender, 48)} to ${clean(result.recipient, 48)} as ${clean(result.kind, 80)}.`
+          : `Supabase mailbox send failed: ${result?.code || "unknown error"}.`,
+        source: "supabase_postgres",
         verified: result?.success === true
       }],
       artifacts: result?.success ? [{
         id: result.messageId || null,
         kind: "agent_mailbox_message",
         label: result.subject || result.kind || "agent message",
-        ref: result.path || result.messageId || null,
+        ref: result.messageId || null,
         verified: true
       }] : []
     };
@@ -239,9 +241,9 @@ export function developerToolResultToExecutionEvidence(result = {}, applicationA
         id: result?.version ? `agent_mailbox_list:${result.version}` : null,
         kind: "agent_mailbox_list",
         summary: result?.success
-          ? `Artifactory mailbox returned ${Number(result.count || 0)} message(s).`
-          : `Artifactory mailbox list failed: ${result?.code || "unknown error"}.`,
-        source: "jfrog_artifactory",
+          ? `Supabase mailbox returned ${Number(result.count || 0)} message(s).`
+          : `Supabase mailbox list failed: ${result?.code || "unknown error"}.`,
+        source: "supabase_postgres",
         verified: result?.success === true
       }]
     };
@@ -254,16 +256,16 @@ export function developerToolResultToExecutionEvidence(result = {}, applicationA
         id: message.messageId || null,
         kind: "agent_mailbox_read",
         summary: result?.success
-          ? `Read Artifactory mailbox message ${clean(message.messageId, 60)} from ${clean(message.sender, 48)} to ${clean(message.recipient, 48)} (${clean(message.kind, 80)}).`
-          : `Artifactory mailbox read failed: ${result?.code || "unknown error"}.`,
-        source: "jfrog_artifactory",
+          ? `Read Supabase mailbox message ${clean(message.messageId, 60)} from ${clean(message.sender, 48)} to ${clean(message.recipient, 48)} (${clean(message.kind, 80)}).`
+          : `Supabase mailbox read failed: ${result?.code || "unknown error"}.`,
+        source: "supabase_postgres",
         verified: result?.success === true
       }],
       artifacts: result?.success ? [{
         id: message.messageId || null,
         kind: "agent_mailbox_message",
         label: message.subject || message.kind || "agent message",
-        ref: result.path || null,
+        ref: message.messageId || null,
         verified: true
       }] : []
     };
