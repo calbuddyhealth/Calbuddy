@@ -54,6 +54,9 @@ const LOW_RISK_PRIMARY_FAST_PATHS = new Set([
   "owner_repo_search",
   "owner_repo_read",
   "owner_repo_ci_status",
+  "owner_agent_mailbox_list",
+  "owner_agent_mailbox_read",
+  "owner_agent_mailbox_send",
   "propose_owner_github_edit"
 ]);
 
@@ -79,14 +82,20 @@ const OWNER_DEVELOPER_ACTIONS = new Set([
   "repo_search",
   "repo_read",
   "repo_ci_status",
+  "agent_mailbox_list",
+  "agent_mailbox_read",
+  "agent_mailbox_send",
   "github_edit"
 ]);
 
-const OWNER_DEVELOPER_READ_ACTIONS = new Set([
+const OWNER_DEVELOPER_DIRECT_ACTIONS = new Set([
   "memory_search",
   "repo_search",
   "repo_read",
-  "repo_ci_status"
+  "repo_ci_status",
+  "agent_mailbox_list",
+  "agent_mailbox_read",
+  "agent_mailbox_send"
 ]);
 
 export async function runAriVNext(turn = {}) {
@@ -966,7 +975,16 @@ async function executeOwnerDeveloperWorkspaceTurn({
 
   const developerTools = tools.filter((tool) =>
     tool?.type === "function" &&
-    ["owner_repo_search", "owner_repo_read", "owner_repo_ci_status", "propose_owner_github_edit"].includes(String(tool?.name || ""))
+    [
+      "owner_memory_search",
+      "owner_repo_search",
+      "owner_repo_read",
+      "owner_repo_ci_status",
+      "owner_agent_mailbox_list",
+      "owner_agent_mailbox_read",
+      "owner_agent_mailbox_send",
+      "propose_owner_github_edit"
+    ].includes(String(tool?.name || ""))
   );
   const readTools = developerTools.filter((tool) => String(tool?.name || "") !== "propose_owner_github_edit");
   const editTool = developerTools.find((tool) => String(tool?.name || "") === "propose_owner_github_edit") || null;
@@ -1123,7 +1141,7 @@ async function executeOwnerDeveloperWorkspaceTurn({
       }, multiAgentCouncil);
     }
 
-    if (!OWNER_DEVELOPER_READ_ACTIONS.has(action)) {
+    if (!OWNER_DEVELOPER_DIRECT_ACTIONS.has(action)) {
       throw new Error("Ari selected an unexpected operation inside the developer execution workspace.");
     }
 
@@ -1153,7 +1171,7 @@ async function executeOwnerDeveloperWorkspaceTurn({
     response = await callResponses({
       turn,
       policy: modelPolicy,
-      instructions: instructions + "\nOWNER DEVELOPER EXECUTION WORKSPACE\nThe preceding function output is observed repository/CI/memory evidence. Let that evidence determine the next step. You may search owner memory for a prior analogy, search the repository, read another exact file, check CI, or prepare one exact isolated-branch edit. Do not repeat a failed step unchanged. Do not claim a test passed unless repo_ci_status reports conclusion=success.",
+      instructions: instructions + "\nOWNER DEVELOPER EXECUTION WORKSPACE\nThe preceding function output is observed repository/CI/memory/mailbox evidence. Let that evidence determine the next step. You may search owner memory for a prior analogy, search the repository, read another exact file, check CI, inspect the configured Artifactory mailbox, send a bounded handoff/finding/question to another authorized Ari/SOL worker, or prepare one exact isolated-branch edit. Artifactory is an explicit audited channel, never a sandbox escape or arbitrary network proxy. Do not repeat a failed step unchanged. Do not claim a test passed unless repo_ci_status reports conclusion=success.",
       input: continuationInput,
       tools: developerTools
     });
@@ -1271,9 +1289,11 @@ function developerEvidenceNextStep(evidence = {}) {
   if (verification?.status === "failed") return "Use the failed verification as evidence, change the approach, and run a different bounded check.";
   if (verification?.status === "passed") return "Use the passing verification together with the exact observed code state before deciding whether the investigation is complete.";
   const observations = Array.isArray(evidence?.observations) ? evidence.observations : [];
+  if (observations.some(item => item?.kind === "agent_mailbox_send")) return "Check for a reply or continue with local verification while the handoff remains auditable.";
+  if (observations.some(item => item?.kind === "agent_mailbox_list")) return "Read the most relevant mailbox message or continue the investigation if none applies.";
   if (observations.some(item => item?.kind === "repository_search")) return "Read the most relevant exact source file before proposing a change.";
   if (observations.some(item => item?.kind === "repository_read")) return "Compare the observed implementation against competing explanations and choose the smallest discriminating check or exact patch.";
-  return "Inspect the current repository state before selecting a change.";
+  return "Inspect the current repository state or the configured agent mailbox before selecting a change.";
 }
 
 function formatMacro(value) {
