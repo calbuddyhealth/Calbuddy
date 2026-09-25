@@ -151,17 +151,18 @@ test("owner cognitive-loop contract is isolated from ordinary and premium Advanc
   assert.doesNotMatch(premiumInstruction, /OWNER COGNITIVE LOOP/);
 });
 
-test("current-information Advanced Ari keeps the flagship model and enables live-search policy", () => {
+test("current-information Advanced Ari keeps flagship reasoning while enabling live search", () => {
   const policy = resolveModelPolicy({
-    complexity: "fast",
+    complexity: "deep",
     currentInfo: true,
-    intelligenceEntitlement: advancedEntitlement("balanced")
+    intelligenceEntitlement: advancedEntitlement("adaptive")
   });
 
   assert.equal(policy.model, "gpt-5.6");
-  assert.equal(policy.mode, "current");
+  assert.equal(policy.mode, "deep");
+  assert.equal(policy.freshness, "live");
   assert.equal(policy.liveSearchRequired, true);
-  assert.equal(policy.reasoningEffort, "medium");
+  assert.equal(policy.reasoningEffort, "high");
 });
 
 test("Ari stable identity attributes Ari and ARI XP to Jose Onofre Erostico", () => {
