@@ -22,7 +22,7 @@ import {
 
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 
-export const ARI_MULTI_AGENT_VERSION = "2.0.0";
+export const ARI_MULTI_AGENT_VERSION = "2.1.0";
 
 const DEFAULT_MAX_WORKERS = 3;
 const HARD_MAX_WORKERS = 4;
@@ -679,7 +679,12 @@ export async function runAriMultiAgentCouncil({
 }
 
 export function multiAgentCouncilToInstruction(council = null) {
-  if (!council?.active || !clean(council?.synthesis, 20)) return "";
+  if (!council?.active) return "";
+  const synthesisAvailable = Boolean(clean(council?.synthesis, 20));
+  const backgroundQueued =
+    council?.backgroundExecution === true ||
+    council?.durableTask?.backgroundExecution === true;
+  if (!synthesisAvailable && !backgroundQueued) return "";
 
   const roles = (Array.isArray(council?.workspace) ? council.workspace : [])
     .map((item) => clean(item?.role, 80))
@@ -689,6 +694,9 @@ export function multiAgentCouncilToInstruction(council = null) {
   return [
     "ARI MULTI-AGENT COUNCIL — ADVISORY SHARED WORKSPACE",
     `Council version ${council.version || ARI_MULTI_AGENT_VERSION}.`,
+    backgroundQueued && !synthesisAvailable
+      ? "Background specialist work has been durably queued and may continue after this HTTP request ends. No reconciled specialist result is available in this turn yet. Do not invent findings or imply that the queued work already finished."
+      : "",
     roles.length ? `Specialists consulted: ${roles.join(", ")}.` : "Specialists were consulted.",
     council?.durableTask?.id
       ? `Durable task session: ${council.durableTask.id}; mailbox thread: ${council.durableTask.mailboxThreadId || council.durableTask.id}; status: ${council.durableTask.status || "waiting"}; round ${Number(council.durableTask.roundCount || 0)} of ${Number(council.durableTask.maxRounds || 0)}.`
@@ -706,8 +714,11 @@ export function multiAgentCouncilToInstruction(council = null) {
     "For freshness-sensitive claims, use Ari's own live research capability for final verification when available; specialist web findings are leads, not a substitute for final source verification.",
     "No specialist was authorized to perform ARI XP application mutations. Never claim a specialist changed app state.",
     "Do not expose hidden chain-of-thought. You may summarize material findings, evidence, disagreements, and uncertainty.",
-    "RECONCILED COUNCIL SYNTHESIS:",
-    clean(council.synthesis, 9000)
+    synthesisAvailable ? "RECONCILED COUNCIL SYNTHESIS:" : "",
+    synthesisAvailable ? clean(council.synthesis, 9000) : "",
+    backgroundQueued && !synthesisAvailable
+      ? "Current next step: let the queued read-only specialists finish; a verifier will reconcile their mailbox evidence automatically. Ari may continue other safe work but must not treat the council as verified yet."
+      : ""
   ].filter(Boolean).join("\n").slice(0, 12000);
 }
 
@@ -742,6 +753,12 @@ export function publicMultiAgentCouncil(council = null) {
           workerCount: Number(council.durableTask.workerCount || 0),
           completedWorkers: Number(council.durableTask.completedWorkers || 0),
           failedWorkers: Number(council.durableTask.failedWorkers || 0),
+          queuedWorkers: Number(council.durableTask.queuedWorkers || 0),
+          runningWorkers: Number(council.durableTask.runningWorkers || 0),
+          backgroundExecution: council.durableTask.backgroundExecution === true,
+          backgroundEnabled: council.durableTask.backgroundEnabled === true,
+          backgroundStartedAt: council.durableTask.backgroundStartedAt || null,
+          backgroundLastRunAt: council.durableTask.backgroundLastRunAt || null,
           mailboxThreadId: council.durableTask.mailboxThreadId || null,
           readyForAriSynthesis: council.durableTask.readyForAriSynthesis === true,
           unresolvedCount: Number(council.durableTask.unresolvedCount || 0),
