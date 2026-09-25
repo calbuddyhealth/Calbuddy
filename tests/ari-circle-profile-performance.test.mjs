@@ -33,7 +33,7 @@ test("legacy profile posts are no longer loaded into the active profile experien
 });
 
 test("Profile loader brings in showcase, friends, and compatibility shell without XP", () => {
-  assert.match(profileLoader, /profile-gallery-v1\.js\?v=2\.0\.0/);
+  assert.match(profileLoader, /profile-gallery-v1\.js\?v=2\.1\.0/);
   assert.match(profileLoader, /profile-friends\.js\?v=1\.0\.0/);
   assert.match(profileLoader, /profile-v4\.js\?v=4\.5\.0/);
   assert.match(profileLoader, /v4-ui\.js\?v=5\.6\.0/);
@@ -44,7 +44,7 @@ test("Showcase hard-caps at four while allowing image video and text", () => {
   assert.match(galleryMigration, /position between 1 and 4/i);
   assert.match(galleryMigration, /unique \(user_id, position\)/i);
   assert.match(profileGallery, /\[1,2,3,4\]/);
-  assert.match(profileGallery, /const VERSION = "2\.0\.0"/);
+  assert.match(profileGallery, /const VERSION = "2\.1\.0"/);
   assert.match(profileGallery, /MAX_IMAGE_BYTES = 20 \* 1024 \* 1024/);
   assert.match(profileGallery, /MAX_VIDEO_BYTES = 50 \* 1024 \* 1024/);
   assert.match(profileGallery, /MAX_VIDEO_SECONDS = 30/);
