@@ -39,7 +39,10 @@ export function routeContext(turn = {}) {
   const memory = PATTERNS.memory.test(semanticText) || followUp;
   const health = PATTERNS.health.test(semanticText);
   const currentInfo = needsCurrentInfo(semanticText);
-  const developer = PATTERNS.developer.test(semanticText);
+  const developer =
+    PATTERNS.developer.test(semanticText) ||
+    Boolean(turn?.context?.visualInspection) ||
+    Boolean(turn?.context?.executionEvidence);
   const casualConversation = isCasualConversation({
     message,
     followUp,
