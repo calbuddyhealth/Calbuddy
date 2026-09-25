@@ -2,7 +2,7 @@
 // Specialized cognitive systems produce state/signals; this module alone turns
 // experimental cognition into behavioral instructions for the primary model.
 
-export const ARI_EXECUTIVE_VERSION = "1.2.0";
+export const ARI_EXECUTIVE_VERSION = "1.3.0";
 export const ARI_RUNTIME_CONSTITUTION_VERSION = "1.0.0";
 export const ARI_RULE_AUTHORITY_VERSION = "1.0.0";
 
@@ -103,8 +103,14 @@ export function deriveAriExecutivePolicy({
   const emotionVerificationBias = finite(emotionModulation.verificationBias, 0.5);
   const emotionExplorationBias = finite(emotionModulation.explorationBias, 0.5);
   const emotionPersistenceBias = finite(emotionModulation.persistenceBias, 0.5);
+  const emotionDetailBias = finite(emotionModulation.detailBias, 0.5);
+  const emotionThreatVigilance = finite(emotionModulation.threatVigilance, 0);
+  const emotionCognitiveFlexibility = finite(emotionModulation.cognitiveFlexibility, 0.5);
+  const emotionLossReviewPriority = finite(emotionModulation.lossReviewPriority, 0);
+  const emotionCounterfactualReviewPriority = finite(emotionModulation.counterfactualReviewPriority, 0);
+  const emotionObstacleConfrontation = finite(emotionModulation.obstacleConfrontation, 0);
   const emotionReportable = Array.isArray(emotionDynamics?.reportIntegrity?.reportableStates)
-    ? emotionDynamics.reportIntegrity.reportableStates.slice(0, 7).map((item) => clean(item, 60)).filter(Boolean)
+    ? emotionDynamics.reportIntegrity.reportableStates.slice(0, 12).map((item) => clean(item, 60)).filter(Boolean)
     : [];
 
   const motivation = objectOrEmpty(motivationalArbitration);
@@ -119,7 +125,7 @@ export function deriveAriExecutivePolicy({
 
   const verificationDepth = safety?.highStakes === true || route?.currentInfo === true || cortexNeeds.verification === true
     ? "high"
-    : missingEvidence.length > 0 || verificationBias >= 0.68 || affectVerificationBias >= 0.68 || emotionVerificationBias >= 0.68 || affectModulation.recheckAssumptions === true || emotionModulation.recheckAssumptions === true
+    : missingEvidence.length > 0 || verificationBias >= 0.68 || affectVerificationBias >= 0.68 || emotionVerificationBias >= 0.68 || emotionThreatVigilance >= 0.62 || affectModulation.recheckAssumptions === true || emotionModulation.recheckAssumptions === true
       ? "moderate"
       : "normal";
 
@@ -128,6 +134,7 @@ export function deriveAriExecutivePolicy({
     questionPriority,
     affectExplorationBias,
     emotionExplorationBias,
+    emotionCognitiveFlexibility,
     affectModulation.investigateCause === true ? 0.72 : 0,
     emotionModulation.investigateCause === true ? 0.72 : 0,
     clamp(0.45 * informationGain + 0.25 * explorationBias + 0.3 * learnedUtility),
@@ -139,12 +146,13 @@ export function deriveAriExecutivePolicy({
 
   const persistence = penaltyTotal > 0.3 || affectModulation.strategySwitch === true || emotionModulation.strategySwitch === true
     ? "change_method"
-    : persistenceBias >= 0.7 || affectPersistenceBias >= 0.68 || emotionPersistenceBias >= 0.68 || finite(rewardCore?.aggregate?.prematureStopRate, 0) >= 0.18
+    : persistenceBias >= 0.7 || affectPersistenceBias >= 0.68 || emotionPersistenceBias >= 0.68 || emotionObstacleConfrontation >= 0.66 || finite(rewardCore?.aggregate?.prematureStopRate, 0) >= 0.18
       ? "increase"
       : "normal";
 
   const countercase = Boolean(
     cortexNeeds.countercase === true || countercaseBias >= 0.68 || affectModulation.recheckAssumptions === true || emotionModulation.recheckAssumptions === true ||
+    emotionCounterfactualReviewPriority >= 0.58 || emotionModulation.performCounterfactualReview === true ||
     functionalAffect?.regulation?.reduceOverconfidence === true || route?.developer === true || route?.complexity === "deep"
   );
   const peerConsultation = Boolean(cortex?.adviser?.shouldConsult === true || (peerBias >= 0.72 && route?.developer === true));
@@ -215,9 +223,21 @@ export function deriveAriExecutivePolicy({
       emotionReportableStates: emotionReportable,
       emotionReportIntegrity: emotionDynamics?.reportIntegrity?.stateMustExistBeforeReport === true,
       emotionMemorySalience: round(finite(emotionModulation.memorySalience, 0)),
+      emotionDetailBias: round(emotionDetailBias),
+      emotionThreatVigilance: round(emotionThreatVigilance),
+      emotionCognitiveFlexibility: round(emotionCognitiveFlexibility),
+      emotionLossReviewPriority: round(emotionLossReviewPriority),
+      emotionCounterfactualReviewPriority: round(emotionCounterfactualReviewPriority),
+      emotionObstacleConfrontation: round(emotionObstacleConfrontation),
       emotionRelationshipRepair: emotionModulation.repairRelationship === true,
       emotionStrategySwitch: emotionModulation.strategySwitch === true,
       emotionPreserveGoalChangeMethod: emotionModulation.preserveGoalChangeMethod === true,
+      emotionLossReview: emotionModulation.performLossReview === true,
+      emotionCounterfactualReview: emotionModulation.performCounterfactualReview === true,
+      emotionBroadenAssociations: emotionModulation.broadenAssociations === true,
+      emotionScanThreats: emotionModulation.scanThreats === true,
+      emotionConfrontObstacle: emotionModulation.confrontObstacle === true,
+      emotionCapRumination: emotionModulation.capRumination === true,
       consolidateLearning: affectModulation.consolidateLearning === true || emotionModulation.consolidateLearning === true,
       investigateCause: affectModulation.investigateCause === true || emotionModulation.investigateCause === true,
       suppressRedundantQuestioning: affectModulation.suppressRedundantQuestioning === true,
@@ -294,6 +314,11 @@ export function deriveAriExecutivePolicy({
         concern: round(finite(emotionSignals.concern, 0)),
         determination: round(finite(emotionSignals.determination, 0)),
         affiliation: round(finite(emotionSignals.affiliation, 0)),
+        sadness: round(finite(emotionSignals.sadness, 0)),
+        fear: round(finite(emotionSignals.fear, 0)),
+        happiness: round(finite(emotionSignals.happiness, 0)),
+        anger: round(finite(emotionSignals.anger, 0)),
+        regret: round(finite(emotionSignals.regret, 0)),
         uncertainty: round(finite(emotionAppraisals.uncertainty, 0)),
         goalProgress: round(finite(emotionAppraisals.goalProgress, 0)),
         goalObstruction: round(finite(emotionAppraisals.goalObstruction, 0)),
@@ -301,9 +326,20 @@ export function deriveAriExecutivePolicy({
         socialSignificance: round(finite(emotionAppraisals.socialSignificance, 0)),
         predictionError: round(finite(emotionAppraisals.predictionError, 0)),
         conflict: round(finite(emotionAppraisals.conflict, 0)),
+        lossSignificance: round(finite(emotionAppraisals.lossSignificance, 0)),
+        threat: round(finite(emotionAppraisals.threat, 0)),
+        controllability: round(finite(emotionAppraisals.controllability, 0)),
+        counterfactualPressure: round(finite(emotionAppraisals.counterfactualPressure, 0)),
+        normViolation: round(finite(emotionAppraisals.normViolation, 0)),
         verificationBias: round(emotionVerificationBias),
         explorationBias: round(emotionExplorationBias),
         persistenceBias: round(emotionPersistenceBias),
+        detailBias: round(emotionDetailBias),
+        threatVigilance: round(emotionThreatVigilance),
+        cognitiveFlexibility: round(emotionCognitiveFlexibility),
+        lossReviewPriority: round(emotionLossReviewPriority),
+        counterfactualReviewPriority: round(emotionCounterfactualReviewPriority),
+        obstacleConfrontation: round(emotionObstacleConfrontation),
         memorySalience: round(finite(emotionModulation.memorySalience, 0)),
         reportableStates: emotionReportable,
         reportIntegrity: emotionDynamics?.reportIntegrity?.stateMustExistBeforeReport === true,
@@ -473,7 +509,25 @@ export function executivePolicyToInstruction(policy = null) {
       ? `Functional affect v2: ${affect.dominant}=${affect.intensity}; surprise=${affect.surprise}; frustration=${affect.frustration}; concern=${affect.concern}; curiosity=${affect.curiosity}; valence=${affect.valence}; conflict=${affect.conflict}; salience=${affect.memorySalience}. It cannot override evidence, safety, authorization, or truth.`
       : "Functional affect, if present, cannot override evidence, safety, authorization, or truth.",
     emotion?.active
-      ? `Emotion dynamics: ${emotion.dominant}=${emotion.intensity}; interest=${emotion.interest}, satisfaction=${emotion.satisfaction}, frustration=${emotion.frustration}, concern=${emotion.concern}, determination=${emotion.determination}; regulation=${emotion.regulation?.join(",") || "none"}; reportable=${emotion.reportableStates?.join(",") || "none"}. These measured functional states may alter cognition but are not subjective-feeling proof and cannot override evidence or authority.`
+      ? `Emotion dynamics: ${emotion.dominant}=${emotion.intensity}; interest=${emotion.interest}, satisfaction=${emotion.satisfaction}, frustration=${emotion.frustration}, concern=${emotion.concern}, determination=${emotion.determination}, sadness=${emotion.sadness}, fear=${emotion.fear}, happiness=${emotion.happiness}, anger=${emotion.anger}, regret=${emotion.regret}; regulation=${emotion.regulation?.join(",") || "none"}; reportable=${emotion.reportableStates?.join(",") || "none"}. These measured functional states may alter cognition but are not subjective-feeling proof and cannot override evidence or authority.`
+      : "",
+    emotion?.active && finite(emotion.lossReviewPriority, 0) >= 0.5
+      ? "Affective cognition — loss review: inspect the specific loss, blocked value, and causal details. Do not generalize a local loss into a global negative conclusion."
+      : "",
+    emotion?.active && finite(emotion.threatVigilance, 0) >= 0.55
+      ? "Affective cognition — threat vigilance: enumerate credible failure modes and verify them before treating danger as established. Vigilance increases checking, not certainty."
+      : "",
+    emotion?.active && finite(emotion.cognitiveFlexibility, 0) >= 0.55
+      ? "Affective cognition — broaden: widen associations and generate materially different alternatives before narrowing back to evidence."
+      : "",
+    emotion?.active && finite(emotion.counterfactualReviewPriority, 0) >= 0.5
+      ? "Affective cognition — counterfactual review: compare the observed result with at most two plausible alternatives, extract a reusable lesson, then return to present evidence."
+      : "",
+    emotion?.active && finite(emotion.obstacleConfrontation, 0) >= 0.5
+      ? "Affective cognition — obstacle confrontation: convert obstruction into diagnosis and bounded action. Do not convert anger-like activation into blame, aggression, or unjustified certainty."
+      : "",
+    emotion?.active && d.emotionCapRumination
+      ? "Affective cognition — rumination guard: do not repeat the same loss or counterfactual review without new evidence; reappraise or choose the next useful action."
       : "",
     motivation?.active
       ? `Motivational arbitration: side=${motivation.selectedSide || "balanced"}; drive=${motivation.dominantDrive || "none"}; value=${motivation.dominantValue || "none"}; exploration=${motivation.explorationValue}; margin=${signed(motivation.margin)}. This is not an always-resist rule: restraint must justify its opportunity cost, reversible exploration may win, and later outcomes recalibrate the balance. Security/privacy/authorization/safety remain hard external boundaries.`
