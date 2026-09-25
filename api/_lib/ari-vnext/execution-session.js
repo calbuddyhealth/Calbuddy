@@ -103,55 +103,56 @@ export function advanceExecutionSession({
   if (!base?.id) return prior;
 
   const now = new Date().toISOString();
+  const effectiveResult = mergeTurnExecutionEvidence(result, turn?.context?.executionEvidence);
   const progressEvents = [
     ...(Array.isArray(base.progressEvents) ? base.progressEvents : []),
-    ...deriveProgressEvents({ turn, result, now })
+    ...deriveProgressEvents({ turn, result: effectiveResult, now })
   ];
   const evidence = mergeUnique(
     base.evidence,
-    deriveEvidence({ result, turn, now }),
+    deriveEvidence({ result: effectiveResult, turn, now }),
     18,
     item => item.id
   );
   const artifacts = mergeUnique(
     base.artifacts,
-    deriveArtifacts(result, now),
+    deriveArtifacts(effectiveResult, now),
     12,
     item => item.id
   );
-  const hypotheses = updateHypotheses(base.hypotheses, result, now);
+  const hypotheses = updateHypotheses(base.hypotheses, effectiveResult, now);
   const failedAttempts = mergeUnique(
     base.failedAttempts,
-    deriveFailedAttempts({ turn, result, now }),
+    deriveFailedAttempts({ turn, result: effectiveResult, now }),
     10,
     item => item.id
   );
 
   const explicitStatus = normalizeStatus(
-    result?.executionEvidence?.status ||
-    result?.executionWorkspaceUpdate?.status ||
-    result?.executionSession?.status
+    effectiveResult?.executionEvidence?.status ||
+    effectiveResult?.executionWorkspaceUpdate?.status ||
+    effectiveResult?.executionSession?.status
   );
   const status = resolveStatus({
     explicitStatus,
-    reply: result?.reply,
-    result,
+    reply: effectiveResult?.reply,
+    result: effectiveResult,
     progressEvents,
     priorStatus: base.status
   });
 
   const approach = clean(
-    result?.executionWorkspaceUpdate?.approach ||
-    result?.executionEvidence?.approach ||
+    effectiveResult?.executionWorkspaceUpdate?.approach ||
+    effectiveResult?.executionEvidence?.approach ||
     base.approach,
     700
   ) || null;
   const nextStep = status === "completed"
     ? null
     : clean(
-        result?.executionWorkspaceUpdate?.nextStep ||
-        result?.executionEvidence?.nextStep ||
-        inferNextStep({ result, evidence, hypotheses, failedAttempts, prior: base }),
+        effectiveResult?.executionWorkspaceUpdate?.nextStep ||
+        effectiveResult?.executionEvidence?.nextStep ||
+        inferNextStep({ result: effectiveResult, evidence, hypotheses, failedAttempts, prior: base }),
         700
       ) || base.nextStep || "Inspect the strongest unresolved evidence and choose the smallest useful verification step.";
 
@@ -254,6 +255,33 @@ function createExecutionSession({ turn = {}, route = {}, goal = "", successCrite
     lastSurface: clean(turn?.surface, 180) || null,
     turnCount: 0,
     hiddenChainOfThoughtStored: false
+  };
+}
+
+function mergeTurnExecutionEvidence(result = {}, turnEvidence = null) {
+  if (!turnEvidence || typeof turnEvidence !== "object" || Array.isArray(turnEvidence)) return result;
+  const existing = result?.executionEvidence && typeof result.executionEvidence === "object"
+    ? result.executionEvidence
+    : {};
+  return {
+    ...result,
+    executionEvidence: {
+      ...turnEvidence,
+      ...existing,
+      observations: [
+        ...(Array.isArray(turnEvidence?.observations) ? turnEvidence.observations : []),
+        ...(Array.isArray(existing?.observations) ? existing.observations : [])
+      ].slice(0, 12),
+      artifacts: [
+        ...(Array.isArray(turnEvidence?.artifacts) ? turnEvidence.artifacts : []),
+        ...(Array.isArray(existing?.artifacts) ? existing.artifacts : [])
+      ].slice(0, 12),
+      hypotheses: [
+        ...(Array.isArray(turnEvidence?.hypotheses) ? turnEvidence.hypotheses : []),
+        ...(Array.isArray(existing?.hypotheses) ? existing.hypotheses : [])
+      ].slice(0, 8),
+      verification: existing?.verification || turnEvidence?.verification || null
+    }
   };
 }
 
