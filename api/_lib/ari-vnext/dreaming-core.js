@@ -4,7 +4,7 @@
 
 import { createHash } from "node:crypto";
 
-export const ARI_DREAMING_VERSION = "1.0.0";
+export const ARI_DREAMING_VERSION = "1.1.0";
 export const DREAM_INSIGHT_KINDS = Object.freeze([
   "communication",
   "relationship",
@@ -31,7 +31,8 @@ export function dreamEvidenceFingerprint(evidence = {}) {
     evidence.communicationOutcomes,
     evidence.communityInteractions,
     evidence.strategies,
-    evidence.institutionalMemory
+    evidence.institutionalMemory,
+    evidence.experiences
   ]) {
     for (const item of Array.isArray(group) ? group : []) {
       if (item?.ref) records.push([clean(item.ref, 220), item.at || item.updatedAt || item.updated_at || item.createdAt || item.created_at || ""]);
@@ -56,7 +57,8 @@ export function latestDreamEvidenceAt(evidence = {}) {
     evidence.communicationOutcomes,
     evidence.communityInteractions,
     evidence.strategies,
-    evidence.institutionalMemory
+    evidence.institutionalMemory,
+    evidence.experiences
   ]) {
     for (const item of Array.isArray(group) ? group : []) {
       add(item?.at || item?.updatedAt || item?.updated_at || item?.resolvedAt || item?.resolved_at || item?.createdAt || item?.created_at);
@@ -78,6 +80,7 @@ export function collectEvidenceRefs(evidence = {}) {
     evidence.communityInteractions,
     evidence.strategies,
     evidence.institutionalMemory,
+    evidence.experiences,
     evidence.priorDreamInsights
   ]) {
     for (const item of Array.isArray(group) ? group : []) {
@@ -269,6 +272,7 @@ export function buildDreamModelPayload(evidence = {}) {
     communityInteractions: (evidence.communityInteractions || []).slice(0, 20),
     strategies: (evidence.strategies || []).slice(0, 16),
     institutionalMemory: (evidence.institutionalMemory || []).slice(0, 12),
+    experiences: (evidence.experiences || []).slice(0, 20),
     priorDreamInsights: (evidence.priorDreamInsights || []).slice(0, 12)
   };
 }

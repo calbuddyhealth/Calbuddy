@@ -7,8 +7,9 @@ import { behavioralIdentityToInstruction } from "./behavioral-identity.js";
 import { communicationClosureToInstruction } from "./communication-closure.js";
 import { convictionInstruction } from "./conviction-learning.js";
 import { dreamingContextToInstruction } from "./dreaming-core.js";
+import { experienceContextToInstruction } from "./experience-core.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.22.0";
+export const CONTEXT_ROUTER_VERSION = "1.23.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -125,6 +126,10 @@ export function buildRelevantContext(turn = {}, route = {}) {
 
   if (source?.dreaming && typeof source.dreaming === "object" && Array.isArray(source.dreaming.insights)) {
     selected.dreaming = source.dreaming;
+  }
+
+  if (source?.experiences && typeof source.experiences === "object" && Array.isArray(source.experiences.experiences)) {
+    selected.experiences = source.experiences;
   }
 
   if (route?.developer && source?.executionEvidence && typeof source.executionEvidence === "object") {
@@ -431,6 +436,9 @@ function cognitiveContextRules(context = {}) {
 
   const dreamingInstruction = dreamingContextToInstruction(context?.dreaming || null);
   if (dreamingInstruction) lines.push(dreamingInstruction);
+
+  const experienceInstruction = experienceContextToInstruction(context?.experiences || null);
+  if (experienceInstruction) lines.push(experienceInstruction);
 
   if (context?.convictionLearning) {
     lines.push(convictionInstruction(context.convictionLearning));

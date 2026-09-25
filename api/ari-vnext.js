@@ -99,6 +99,7 @@ import {
 } from "./_lib/ari-vnext/conviction-learning.js";
 import { ensureGoal, loadGoals, saveGoalEvent } from "./_lib/ari-vnext/goal-store.js";
 import { loadDreamingContext } from "./_lib/ari-vnext/dreaming-store.js";
+import { loadExperienceContext } from "./_lib/ari-vnext/experience-store.js";
 import { syncAgentTaskSessionWithExecution } from "./_lib/ari-vnext/agent-task-store.js";
 
 const AUTH_TIMEOUT_MS = Number(process.env.ARI_AUTH_TIMEOUT_MS) > 0
@@ -239,6 +240,9 @@ export default async function handler(req, res) {
     const dreamingContextPromise = intelligenceEntitlement?.ownerEligible === true
       ? loadDreamingContext({ userId: auth.userId, message: turn.message, route: routePreview, limit: 5 })
       : Promise.resolve({ version: "1.0.0", active: false, insights: [], lastDreamAt: null });
+    const experienceContextPromise = intelligenceEntitlement?.ownerEligible === true
+      ? loadExperienceContext({ userId: auth.userId, message: turn.message, route: routePreview, limit: 4 })
+      : Promise.resolve({ version: "1.0.0", active: false, experiences: [], experienceCount: 0 });
     const strategyPreparationPromise = deepCognitionEnabled
       ? prepareAdaptiveStrategiesForTurn({
           userId: auth.userId,
@@ -285,7 +289,8 @@ export default async function handler(req, res) {
       institutionalMemory,
       agentPerformance,
       projectGoals,
-      dreamingContext
+      dreamingContext,
+      experienceContext
     ] = await Promise.all([
       shouldLoadMemory
         ? retrieveRelevantMemories({
@@ -319,7 +324,8 @@ export default async function handler(req, res) {
       deepCognitionEnabled
         ? loadGoals({ userId: auth.userId, limit: 40 })
         : Promise.resolve([]),
-      dreamingContextPromise
+      dreamingContextPromise,
+      experienceContextPromise
     ]);
 
     const goalCreation = goalCandidate
@@ -484,6 +490,7 @@ export default async function handler(req, res) {
             userWorldModel: persistedWorldModel,
             convictionLearning,
             dreaming: dreamingContext,
+            experiences: experienceContext,
             decisionState,
             temporalTimeline,
             relevantMemory: turn.memory || ""
@@ -515,6 +522,7 @@ export default async function handler(req, res) {
       ...(experimentLedger ? { experimentLedger } : {}),
       ...(worldModelForTurn ? { userWorldModel: worldModelForTurn } : {}),
       ...(dreamingContext?.insights?.length ? { dreaming: dreamingContext } : {}),
+      ...(experienceContext?.active ? { experiences: experienceContext } : {}),
       ...(deepCognitionEnabled && (!fitnessRoute || routePreview.developer) ? { convictionLearning } : {}),
       ...(decisionState ? { decisionState } : {}),
       ...(decisionOutcomeLearning?.resolved ? { decisionOutcomeLearning } : {}),
@@ -751,6 +759,7 @@ export default async function handler(req, res) {
             cognitiveWorkspace,
             executionSession: nextCognitiveState?.executionSession || null,
             dreaming: dreamingContext,
+            experiences: experienceContext,
             convictionLearning: goalOutcomePersistence?.goal
               ? summarizeGoals([goalOutcomePersistence.goal, ...loadedGoals.filter(goal => goal.id !== trackedGoal?.id)], {
                   message: turn.message, activeGoalId: trackedGoal?.id

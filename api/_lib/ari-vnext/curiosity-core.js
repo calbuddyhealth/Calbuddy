@@ -319,11 +319,15 @@ function deriveSignals({ state, route, context, workspace, missingEvidence, topi
   const correction = salienceIds.has("current_user_correction");
   const tensionCount = Array.isArray(context?.userWorldModel?.tensions) ? context.userWorldModel.tensions.length : 0;
   const predictionWeakness = Number(context?.decisionState?.calibration?.sampleSize || 0) >= 3 && Number(context?.decisionState?.calibration?.accuracy ?? 1) < 0.7;
+  const experiencePredictionError = clamp(Number(context?.experiences?.maxPredictionError || 0));
   const unresolvedCount = state.questions.filter((item) => item.status === "open").length;
   const knownTopics = new Set(state.interests.filter((item) => item.weight >= 0.35).map((item) => item.topic));
   const novelTopics = topics.filter((topic) => !knownTopics.has(topic));
 
-  const surprise = correction ? 1 : predictionWeakness ? 0.72 : tensionCount ? 0.62 : 0.18;
+  const surprise = Math.max(
+    correction ? 1 : predictionWeakness ? 0.72 : tensionCount ? 0.62 : 0.18,
+    experiencePredictionError
+  );
   const uncertainty = clamp(
     (Array.isArray(missingEvidence) ? missingEvidence.length : 0) * 0.18 +
     (/limited|low|uncertain/.test(priorConfidence) ? 0.55 : /partial|cautious|mixed/.test(priorConfidence) ? 0.32 : 0.08)
@@ -343,7 +347,8 @@ function deriveSignals({ state, route, context, workspace, missingEvidence, topi
     unfinishedBusiness: round(unfinishedBusiness),
     associationOpportunity: round(associationOpportunity),
     correctionDetected: correction,
-    predictionWeaknessDetected: predictionWeakness,
+    predictionWeaknessDetected: predictionWeakness || experiencePredictionError >= 0.55,
+    experiencePredictionError: round(experiencePredictionError),
     tensionCount,
     novelTopicCount: novelTopics.length
   };
@@ -400,6 +405,21 @@ function generateCandidateQuestions({ state, topics, signals, context, workspace
       storesPrivateTranscript: false
     });
   };
+
+  if (Number(signals.experiencePredictionError || 0) >= 0.45) {
+    add(
+      "experience_prediction_error",
+      primaryTopic,
+      "Which assumption or method best explains the recent prediction error, and what evidence would distinguish the alternatives?",
+      {
+        informationGain: 0.9,
+        relevance: Math.max(0.72, signals.relevance),
+        novelty: Math.max(0.5, signals.novelty),
+        surprise: signals.experiencePredictionError,
+        cost: 0.16
+      }
+    );
+  }
 
   if (signals.correctionDetected) {
     add(

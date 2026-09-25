@@ -25,6 +25,7 @@ on:
       - "api/ari-vnext.js"
       - "api/ari-vnext-circle-context.js"
       - "api/ari-vnext-initiative.js"
+      - "api/ari-experience-cycle.js"
       - "api/_lib/ari-vnext/**"
       - "ari/vnext/**"
       - "ari/runtime/ari-runtime-controller.js"
@@ -43,6 +44,7 @@ on:
       - "js/nutrition-transaction-client.js"
       - "js/ari-nutrition-data-quality.js"
       - "supabase/migrations/*nutrition*.sql"
+      - "supabase/migrations/*experience*.sql"
       - "supabase/migrations/*continuity*.sql"
       - "supabase/migrations/*action_network*.sql"
       - "supabase/migrations/*mission_v2*.sql"
@@ -60,6 +62,7 @@ on:
       - "tests/ari-personalization.test.mjs"
       - "tests/nutrition-*.test.mjs"
       - ".github/workflows/ari-vnext-tests.yml"
+      - "vercel.json"
   pull_request:
     branches:
       - main
@@ -80,6 +83,7 @@ on:
       - "api/ari-vnext.js"
       - "api/ari-vnext-circle-context.js"
       - "api/ari-vnext-initiative.js"
+      - "api/ari-experience-cycle.js"
       - "api/_lib/ari-vnext/**"
       - "ari/vnext/**"
       - "ari/runtime/ari-runtime-controller.js"
@@ -98,6 +102,7 @@ on:
       - "js/nutrition-transaction-client.js"
       - "js/ari-nutrition-data-quality.js"
       - "supabase/migrations/*nutrition*.sql"
+      - "supabase/migrations/*experience*.sql"
       - "supabase/migrations/*continuity*.sql"
       - "supabase/migrations/*action_network*.sql"
       - "supabase/migrations/*mission_v2*.sql"
@@ -110,6 +115,7 @@ on:
       - "tests/ari-personalization.test.mjs"
       - "tests/nutrition-*.test.mjs"
       - ".github/workflows/ari-vnext-tests.yml"
+      - "vercel.json"
   workflow_dispatch:
 
 permissions:
