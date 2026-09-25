@@ -2,7 +2,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const API = "/api/ari-signals";
   const APP_ID = "com.arixp.app";
   let signals = [];
@@ -210,6 +210,7 @@
       detailSection("WHAT I MEAN", detail.whatItMeans),
       detailSection("WHY I SENT THIS", detail.whySent || signal?.whyNow),
       detailSection("RELATED GOAL", detail.relatedGoal),
+      predictionReviewSection(detail.reviewPacket),
       detailSection("CURRENT STATE", detail.currentState),
       detailSection("WHAT I NEED FROM JOSE", detail.requestFromJose),
       detailSection("WHAT I NEED FROM CHATGPT", detail.requestFromChatGPT),
@@ -332,7 +333,8 @@
           followUpPrompt: signal.followUpPrompt,
           action: signal.action,
           context: signal.context,
-          domain: signal.domain
+          domain: signal.domain,
+          reviewPacket: signal?.detail?.reviewPacket || null
         }
       }
     }));
