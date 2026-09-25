@@ -54,7 +54,7 @@ test("every mapped application action has a trusted executor implementation", ()
 });
 
 test("runtime readiness guarantees optional executor layers instead of merely advertising them", () => {
-  assert.match(runtime, /ari-vnext-action-adapter\.js\?v=1\.5\.0/);
+  assert.match(runtime, /ari-vnext-action-adapter\.js\?v=1\.6\.0/);
   assert.match(actionAdapter, /mapWorkoutReplacementValidated/);
   assert.match(actionAdapter, /executeValidatedWorkoutReplacement/);
   assert.doesNotMatch(runtime, /ari-whole-workout-replacement/);
