@@ -1,13 +1,13 @@
 // js/ari-circle/profile/profile-editor.js
-// ARI Circle — Profile Editor V2.1.0
+// ARI Circle — Profile Editor V2.2.0
 //
-// The profile is intentionally compact: one identity card, one selected
-// icebreaker, and four showcase slots managed separately by profile-gallery-v1.
+// The profile is intentionally compact: identity, about, interests,
+// and four showcase slots managed separately by profile-gallery-v1.
 
 import CircleStore from "../core/circle-store.js";
 import CircleEvents, { EVENT_NAMES } from "../core/circle-events.js";
 
-const VERSION = "2.1.0";
+const VERSION = "2.2.0";
 const SOURCE = "ari-circle/profile/profile-editor";
 const AUTOSAVE_DELAY_MS = 650;
 const PROFILE_SAVED_EVENT = "circle:profile-saved";
@@ -116,19 +116,6 @@ const PROFILE_FIELDS = Object.freeze([
   }
 ]);
 
-const ICEBREAKER_FIELDS = Object.freeze([
-  { key: "ask_me_about", label: "Ask me about..." },
-  { key: "current_obsession", label: "My current obsession is..." },
-  { key: "dream_trip", label: "My dream trip is..." },
-  { key: "make_me_laugh", label: "The best way to make me laugh is..." },
-  { key: "comfort_show_movie", label: "My comfort show or movie is..." },
-  { key: "song_every_word", label: "A song I know every word to is..." },
-  { key: "unpopular_opinion", label: "An unpopular opinion I have is..." },
-  { key: "want_to_learn", label: "Something I want to learn is..." },
-  { key: "weirdly_good_at", label: "I'm weirdly good at..." },
-  { key: "perfect_night", label: "My perfect night looks like..." }
-]);
-
 function normalizeString(value) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -173,29 +160,6 @@ function getNestedProfileValue(profile, key) {
   return "";
 }
 
-function normalizeIcebreakerMap(profile) {
-  const raw = profile?.icebreakers || profile?.break_the_ice || profile?.breakTheIce || {};
-  const output = {};
-
-  if (Array.isArray(raw)) {
-    for (const item of raw) {
-      if (!item || typeof item !== "object") continue;
-      const key = normalizeString(item.key || item.id || item.type || "");
-      const answer = normalizeString(item.answer || item.value || item.text || "");
-      if (key && answer) output[key] = answer;
-    }
-    return output;
-  }
-
-  if (raw && typeof raw === "object") {
-    for (const [key, value] of Object.entries(raw)) {
-      const answer = normalizeString(String(value ?? ""));
-      if (answer) output[key] = answer;
-    }
-  }
-  return output;
-}
-
 const ProfileEditor = {
   version: VERSION,
   source: SOURCE,
@@ -219,9 +183,7 @@ const ProfileEditor = {
     dialog: null,
     form: null,
     fields: null,
-    saveStatus: null,
-    icebreakerQuestion: null,
-    icebreakerAnswer: null
+    saveStatus: null
   },
 
   init() {
@@ -263,10 +225,9 @@ const ProfileEditor = {
     });
     this.dom.form.addEventListener("change", event => {
       const control = event.target;
-      const isIcebreakerQuestion = control?.name === "icebreaker.key";
       const immediate =
-        !isIcebreakerQuestion &&
-        (control?.tagName === "SELECT" || control?.type === "date");
+        control?.tagName === "SELECT" ||
+        control?.type === "date";
       this.scheduleAutoSave({ immediate });
     });
 
@@ -287,13 +248,6 @@ const ProfileEditor = {
       }
       this.dom.fields.append(this.createField(field));
     }
-
-    this.dom.fields.append(this.createSectionHeading("Break the Ice"));
-
-    const iceIntro = document.createElement("p");
-    iceIntro.className = "circle-editor-section-note";
-    iceIntro.textContent = "Choose one question to show on your profile.";
-    this.dom.fields.append(iceIntro, this.createIcebreakerControls());
 
     this.state.fieldsBuilt = true;
   },
@@ -349,65 +303,6 @@ const ProfileEditor = {
     return wrapper;
   },
 
-  createIcebreakerControls() {
-    const wrap = document.createElement("div");
-    wrap.className = "circle-editor-icebreaker-single";
-
-    const questionLabel = document.createElement("label");
-    questionLabel.className = "circle-editor-field";
-    const questionTitle = document.createElement("span");
-    questionTitle.className = "circle-editor-field__label";
-    questionTitle.textContent = "Question";
-    const question = document.createElement("select");
-    question.className = "circle-editor-field__input";
-    question.name = "icebreaker.key";
-    question.id = "circle-editor-icebreaker-question";
-
-    const empty = document.createElement("option");
-    empty.value = "";
-    empty.textContent = "Choose a question";
-    question.append(empty);
-
-    for (const field of ICEBREAKER_FIELDS) {
-      const option = document.createElement("option");
-      option.value = field.key;
-      option.textContent = field.label;
-      question.append(option);
-    }
-    questionLabel.append(questionTitle, question);
-
-    const answerLabel = document.createElement("label");
-    answerLabel.className = "circle-editor-field";
-    const answerTitle = document.createElement("span");
-    answerTitle.className = "circle-editor-field__label";
-    answerTitle.textContent = "Your answer";
-    const answer = document.createElement("textarea");
-    answer.className = "circle-editor-field__input";
-    answer.name = "icebreaker.answer";
-    answer.id = "circle-editor-icebreaker-answer";
-    answer.rows = 3;
-    answer.maxLength = 220;
-    answer.placeholder = "Write one answer";
-    answerLabel.append(answerTitle, answer);
-
-    const sync = () => {
-      const nextQuestion = question.value;
-      const previousQuestion = question.dataset.previousValue || "";
-      answer.disabled = !nextQuestion;
-      if (!nextQuestion || (previousQuestion && previousQuestion !== nextQuestion)) {
-        answer.value = "";
-      }
-      question.dataset.previousValue = nextQuestion;
-    };
-    question.addEventListener("change", sync);
-    sync();
-
-    this.dom.icebreakerQuestion = question;
-    this.dom.icebreakerAnswer = answer;
-    wrap.append(questionLabel, answerLabel);
-    return wrap;
-  },
-
   populate() {
     const context = CircleStore.get("context");
     if (!context?.isOwner) return false;
@@ -436,19 +331,7 @@ const ProfileEditor = {
       control.value = value;
     }
 
-    const icebreakers = normalizeIcebreakerMap(profile);
-    const selected = ICEBREAKER_FIELDS.find(field => icebreakers[field.key]) ||
-      Object.keys(icebreakers).map(key => ({ key })).find(Boolean) ||
-      null;
 
-    if (this.dom.icebreakerQuestion) {
-      this.dom.icebreakerQuestion.value = selected?.key || "";
-      this.dom.icebreakerQuestion.dataset.previousValue = selected?.key || "";
-    }
-    if (this.dom.icebreakerAnswer) {
-      this.dom.icebreakerAnswer.disabled = !selected?.key;
-      this.dom.icebreakerAnswer.value = selected?.key ? (icebreakers[selected.key] || "") : "";
-    }
 
     this.state.lastSavedSnapshot = this.profileSnapshot(this.collectProfile());
     this.state.suppressAutoSave = false;
@@ -566,11 +449,6 @@ const ProfileEditor = {
 
     const getValue = name => normalizeString(form.elements.namedItem(name)?.value || "");
     const handle = normalizeHandle(getValue("handle"));
-    const icebreakerKey = getValue("icebreaker.key");
-    const icebreakerAnswer = getValue("icebreaker.answer");
-    const icebreakers = icebreakerKey && icebreakerAnswer
-      ? { [icebreakerKey]: icebreakerAnswer }
-      : {};
 
     return {
       display_name: getValue("display_name"),
@@ -584,8 +462,7 @@ const ProfileEditor = {
       favorite_song: getValue("favorite_song"),
       favorite_food: getValue("favorite_food"),
       favorite_movie: getValue("favorite_movie"),
-      favorite_hobby: getValue("favorite_hobby"),
-      icebreakers
+      favorite_hobby: getValue("favorite_hobby")
     };
   },
 
@@ -656,10 +533,10 @@ const ProfileEditor = {
       pendingSave: this.state.pendingSave,
       dialogFound: Boolean(this.dom.dialog),
       formFound: Boolean(this.dom.form),
-      singleIcebreaker: true
+      breakTheIceRemoved: true
     };
   }
 };
 
-export { ProfileEditor, PROFILE_FIELDS, ICEBREAKER_FIELDS };
+export { ProfileEditor, PROFILE_FIELDS };
 export default ProfileEditor;
