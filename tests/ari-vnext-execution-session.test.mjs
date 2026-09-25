@@ -9,7 +9,7 @@ import {
   summarizeExecutionSession
 } from "../api/_lib/ari-vnext/execution-session.js";
 import { developerToolResultToExecutionEvidence } from "../api/_lib/ari-vnext/developer-workspace.js";
-import { getAriTools, validateToolCall } from "../api/_lib/ari-vnext/tools.js";
+import { getAriTools, toolToApplicationAction, validateToolCall } from "../api/_lib/ari-vnext/tools.js";
 import { advanceRewardState } from "../api/_lib/ari-vnext/reward-core.js";
 
 function developerTurn(overrides = {}) {
@@ -268,7 +268,7 @@ test("owner SOL receives bounded repository workspace tools while ordinary users
     }
   };
   const names = getAriTools(ownerRoute).map(tool => tool.name);
-  for (const name of ["owner_repo_search", "owner_repo_read", "owner_repo_ci_status", "propose_owner_github_edit"]) {
+  for (const name of ["owner_memory_search", "owner_repo_search", "owner_repo_read", "owner_repo_ci_status", "propose_owner_github_edit"]) {
     assert.ok(names.includes(name), name);
   }
 
@@ -282,6 +282,15 @@ test("owner SOL receives bounded repository workspace tools while ordinary users
     }
   }).map(tool => tool.name);
   assert.equal(ordinaryNames.includes("owner_repo_read"), false);
+  assert.equal(ordinaryNames.includes("owner_memory_search"), false);
+
+  const memorySearch = validateToolCall({
+    name: "owner_memory_search",
+    arguments: JSON.stringify({ query: "previous architecture failure lesson" })
+  }, ownerRoute);
+  assert.equal(memorySearch.valid, true);
+  assert.equal(memorySearch.arguments.query, "previous architecture failure lesson");
+  assert.equal(toolToApplicationAction("owner_memory_search"), "memory_search");
 
   const validated = validateToolCall({
     name: "propose_owner_github_edit",
@@ -354,6 +363,38 @@ test("Reward Core learns from a useful failed execution test", () => {
   assert.ok(reward.lastEvent.progressStates.includes("useful_failure"));
   assert.ok(reward.lastEvent.progressStates.includes("hypothesis_eliminated"));
   assert.ok(reward.lastEvent.dimensions.informationGain > 0.45);
+});
+
+
+
+test("memory-search evidence stays useful without persisting raw memory text", () => {
+  const evidence = developerToolResultToExecutionEvidence({
+    success: true,
+    evidenceId: "memory-search-1",
+    query: "prior architecture lesson",
+    resultCount: 2,
+    matches: [
+      {
+        id: "m1",
+        topic: "developer",
+        content: "A prior private memory containing details that must not enter persistent execution state."
+      },
+      {
+        id: "m2",
+        topic: "strategy",
+        content: "Another private memory body."
+      }
+    ]
+  }, "memory_search");
+
+  assert.equal(evidence.observations.length, 1);
+  assert.equal(evidence.observations[0].kind, "memory_search");
+  assert.equal(evidence.observations[0].verified, true);
+  assert.match(evidence.observations[0].summary, /2 relevant match/);
+  assert.match(evidence.observations[0].summary, /developer/);
+  assert.match(evidence.observations[0].summary, /strategy/);
+  assert.doesNotMatch(evidence.observations[0].summary, /prior private memory|another private memory body/i);
+  assert.equal(evidence.artifacts, undefined);
 });
 
 test("execution runtime modules remain syntactically valid", () => {
