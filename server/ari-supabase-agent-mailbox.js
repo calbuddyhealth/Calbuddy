@@ -180,6 +180,7 @@ export async function listAgentMailboxMessages({
   recipient = "",
   sender = "",
   kind = "",
+  threadId = "",
   limit = 50,
   fetchImpl = globalThis.fetch
 } = {}) {
@@ -199,6 +200,7 @@ export async function listAgentMailboxMessages({
   const wantedRecipient = cleanAgentFilter(recipient);
   const wantedSender = cleanAgentFilter(sender);
   const wantedKind = clean(kind, 80).toLowerCase();
+  const wantedThreadId = clean(threadId, 120);
   if (wantedKind && !SAFE_KIND.has(wantedKind)) {
     return {
       success: false,
@@ -216,6 +218,7 @@ export async function listAgentMailboxMessages({
   if (wantedRecipient) params.set("recipient", `eq.${wantedRecipient}`);
   if (wantedSender) params.set("sender", `eq.${wantedSender}`);
   if (wantedKind) params.set("kind", `eq.${wantedKind}`);
+  if (wantedThreadId) params.set("thread_id", `eq.${wantedThreadId}`);
 
   const response = await supabaseFetch(
     config,
