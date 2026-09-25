@@ -8,6 +8,10 @@ import {
   serializeFunctionalAffectState
 } from "./functional-affect-core.js";
 import { beliefSystemInstruction, deriveBeliefSystem } from "./belief-system.js";
+import {
+  advanceExecutionSession,
+  deriveExecutionWorkspace
+} from "./execution-session.js";
 import { advanceRewardState, deriveRewardState, normalizeRewardState } from "./reward-core.js";
 import {
   buildMotivationalOutcomeReflection,
@@ -15,8 +19,8 @@ import {
   summarizeMotivationalLearning
 } from "./motivational-arbitration.js";
 
-export const ARI_COGNITIVE_LOOP_VERSION = "0.7.0";
-export const ARI_COGNITIVE_STATE_VERSION = "0.6.0";
+export const ARI_COGNITIVE_LOOP_VERSION = "0.8.0";
+export const ARI_COGNITIVE_STATE_VERSION = "0.7.0";
 export const ARI_JUDGMENT_CONSTITUTION_VERSION = "1.0.0";
 
 const CORE_VALUES = Object.freeze([
@@ -100,6 +104,12 @@ export function deriveCognitiveWorkspace({
     route,
     prior: prior?.beliefSystem || null
   });
+  const executionWorkspace = deriveExecutionWorkspace({
+    previous: prior?.executionSession || null,
+    turn,
+    route,
+    context
+  });
 
   return {
     version: ARI_COGNITIVE_LOOP_VERSION,
@@ -121,6 +131,7 @@ export function deriveCognitiveWorkspace({
     rewardCore,
     affectState: prior.affectState || null,
     beliefSystem,
+    executionWorkspace,
     motivationalContinuity: {
       enabled: true,
       sampleSize: motivationalLearning.sampleSize,
@@ -252,6 +263,12 @@ export function advanceCognitiveState({
     ...priorMotivationalHistory
   ]);
   const nextMotivationalLearning = summarizeMotivationalLearning(nextMotivationalHistory);
+  const nextExecutionSession = advanceExecutionSession({
+    previous: prior?.executionSession || null,
+    workspace: workspace?.executionWorkspace || null,
+    turn,
+    result
+  });
 
   return {
     version: ARI_COGNITIVE_STATE_VERSION,
@@ -270,6 +287,7 @@ export function advanceCognitiveState({
       unresolvedValueConflict: Boolean(workspace?.conscience?.activeSignals?.some((item) => item?.level === "high"))
     },
     beliefSystem: workspace?.beliefSystem || prior?.beliefSystem || null,
+    executionSession: nextExecutionSession,
     judgment: {
       constitutionVersion: ARI_JUDGMENT_CONSTITUTION_VERSION,
       storedCount: nextJudgments.length,
@@ -341,6 +359,7 @@ function meaningfulCognitiveSignature(state = {}) {
   const continuity = state?.continuity || {};
   const motivation = state?.motivationalLearning || {};
   const lastOutcome = state?.lastOutcome || {};
+  const executionSession = state?.executionSession || null;
 
   return {
     openLoops: (Array.isArray(state?.openLoops) ? state.openLoops : []).slice(0, 8).map((item) => ({
@@ -371,7 +390,14 @@ function meaningfulCognitiveSignature(state = {}) {
     continuity: {
       familiarity: clean(continuity?.familiarity, 60) || null,
       persistentRecognition: continuity?.persistentRecognition === true
-    }
+    },
+    executionSession: executionSession?.id ? {
+      id: clean(executionSession.id, 180),
+      status: clean(executionSession.status, 40),
+      nextStep: clean(executionSession.nextStep, 240),
+      progressCount: Array.isArray(executionSession.progressEvents) ? executionSession.progressEvents.length : 0,
+      evidenceCount: Array.isArray(executionSession.evidence) ? executionSession.evidence.length : 0
+    } : null
   };
 }
 
