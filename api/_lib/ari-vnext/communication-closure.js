@@ -212,6 +212,8 @@ export function advanceCommunicationClosure({
     version: ARI_COMMUNICATION_CLOSURE_VERSION,
     state,
     terminalState: terminalStateFor(state),
+    currentOwner: componentOwnerForState(state, base.componentOwners),
+    failureOwner: deriveFailureOwner({ state, result, executionSession }),
     selectedInterpretation: interpretation.text,
     interpretationSource: interpretation.source,
     acceptanceCriteria,
@@ -249,6 +251,8 @@ export function summarizeCommunicationClosure(value = null) {
     level: closure.level,
     state: closure.state,
     terminalState: closure.terminalState,
+    currentOwner: closure.currentOwner,
+    failureOwner: closure.failureOwner,
     selectedInterpretation: closure.selectedInterpretation,
     criteria: closure.acceptanceCriteria.map(item => ({
       id: item.id,
@@ -256,8 +260,12 @@ export function summarizeCommunicationClosure(value = null) {
       label: item.label
     })),
     evidenceCount: closure.evidence.length,
+    unverifiedClaimCount: closure.unverifiedClaims.length,
     correctionCount: closure.corrections.length,
     dependencyInvalidationCount: closure.dependencyInvalidations.length,
+    lessonCount: closure.lessons.length,
+    beliefUpdateCount: closure.beliefUpdates.length,
+    strategyUpdateCount: closure.strategyUpdates.length,
     userAcceptance: closure.userAcceptance,
     expectedOutcome: closure.expectedOutcome,
     observedOutcome: closure.observedOutcome,
@@ -287,6 +295,8 @@ function createClosureLoop({ turn = {}, level = 1, route = {}, executionWorkspac
     level: clampInt(level, 1, 3),
     state: "interpreted",
     terminalState: "open",
+    currentOwner: "ari_primary_runtime",
+    failureOwner: null,
     userRequest,
     selectedInterpretation,
     interpretationSource: session?.goal ? "execution_goal" : "literal_request",
@@ -920,6 +930,31 @@ function hasVerifiedCompletionEvidence({ result = {}, executionSession = null, e
   return false;
 }
 
+
+function componentOwnerForState(state = "unknown", owners = {}) {
+  if (["received", "interpreted"].includes(state)) return clean(owners?.interpretation, 120) || "ari_primary_runtime";
+  if (["contracted", "planned"].includes(state)) return clean(owners?.contract, 120) || "ari_runtime";
+  if (state === "executing") return clean(owners?.execution, 120) || "authorized_tool_or_runtime";
+  if (["observed", "verified", "partial"].includes(state)) return clean(owners?.verification, 120) || "independent_evidence";
+  if (state === "outcome_pending") return clean(owners?.outcome, 120) || "runtime_plus_observed_world";
+  if (state === "blocked") return clean(owners?.execution, 120) || "authorized_tool_or_runtime";
+  return null;
+}
+
+function deriveFailureOwner({ state = "unknown", result = {}, executionSession = null } = {}) {
+  if (!["failed", "blocked", "partial"].includes(state)) return null;
+  const explicit = clean(
+    result?.failure?.source ||
+    result?.executionEvidence?.failureSource ||
+    result?.actionPreparation?.code,
+    180
+  );
+  if (explicit) return explicit;
+  if (executionSession?.status === "blocked") return "execution_session";
+  if (result?.success === false) return "ari_runtime";
+  return null;
+}
+
 function terminalStateFor(state = "unknown") {
   if (["closed", "verified"].includes(state)) return "verified";
   if (state === "outcome_pending") return "open";
@@ -944,6 +979,8 @@ function normalizeCommunicationClosure(value = null) {
     level: clampInt(value?.level, 1, 3),
     state,
     terminalState: clean(value?.terminalState, 40) || terminalStateFor(state),
+    currentOwner: clean(value?.currentOwner, 120) || null,
+    failureOwner: clean(value?.failureOwner, 180) || null,
     userRequest: clean(value?.userRequest, 6000),
     selectedInterpretation: clean(value?.selectedInterpretation, 1200),
     interpretationSource: clean(value?.interpretationSource, 120) || null,
