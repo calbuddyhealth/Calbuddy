@@ -223,6 +223,33 @@ test("developer reasoning receives decision history outside fitness routes", () 
   assert.match(selected.relevantMemory, /architecture discussion/i);
 });
 
+test("relationship continuity keeps the newest shared events when timeline input is unordered", () => {
+  const events = [
+    { at: "2026-09-01T00:00:00Z", type: "conversation", domain: "general", label: "oldest" },
+    { at: "2026-09-10T00:00:00Z", type: "conversation", domain: "general", label: "new-10" },
+    { at: "2026-09-03T00:00:00Z", type: "conversation", domain: "general", label: "old-3" },
+    { at: "2026-09-09T00:00:00Z", type: "conversation", domain: "general", label: "new-9" },
+    { at: "2026-09-05T00:00:00Z", type: "conversation", domain: "general", label: "mid-5" },
+    { at: "2026-09-08T00:00:00Z", type: "conversation", domain: "general", label: "new-8" },
+    { at: "2026-09-02T00:00:00Z", type: "conversation", domain: "general", label: "old-2" },
+    { at: "2026-09-07T00:00:00Z", type: "conversation", domain: "general", label: "new-7" },
+    { at: "2026-09-04T00:00:00Z", type: "conversation", domain: "general", label: "old-4" },
+    { at: "2026-09-06T00:00:00Z", type: "conversation", domain: "general", label: "new-6" }
+  ];
+
+  const continuity = deriveRelationshipContinuity({
+    temporalTimeline: { events }
+  });
+
+  assert.equal(continuity.recentSharedEvents.length, 8);
+  assert.deepEqual(
+    continuity.recentSharedEvents.map((item) => item.label),
+    ["new-10", "new-9", "new-8", "new-7", "new-6", "mid-5", "old-4", "old-3"]
+  );
+  assert.equal(continuity.recentSharedEvents.some((item) => item.label === "oldest"), false);
+  assert.equal(continuity.recentSharedEvents.some((item) => item.label === "old-2"), false);
+});
+
 test("relationship continuity uses explicit long-horizon review dates", () => {
   const continuity = deriveRelationshipContinuity({
     decisionState: {
