@@ -12,7 +12,7 @@
   const VERSION = "2.0.0";
   const BUCKET = "ari-circle-post-media";
   const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
-  const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+  const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
   const MAX_VIDEO_SECONDS = 30;
   const MAX_TEXT_LENGTH = 600;
   const SIGNED_SECONDS = 60 * 60;
