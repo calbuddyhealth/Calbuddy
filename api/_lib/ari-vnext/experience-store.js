@@ -170,10 +170,11 @@ function serializeExperience(value = {}, userId = "") {
   const investigation = compactObject(value?.investigation, 5200);
   const observedOutcome = compactObject(value?.observedOutcome ?? value?.observed_outcome, 3200);
   const metadata = {
+    ...(compactObject(value?.metadata, 1800) || {}),
     version: ARI_EXPERIENCE_ENGINE_VERSION,
     hiddenChainOfThoughtStored: false,
     rawModelOutputStored: false,
-    ...(compactObject(value?.metadata, 1800) || {})
+    externalMutationAuthority: false
   };
 
   return {
