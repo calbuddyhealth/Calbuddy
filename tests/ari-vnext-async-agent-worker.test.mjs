@@ -55,7 +55,7 @@ function mockRes() {
 
 test("async worker migration uses PGMQ visibility, retry, archive, and service-role-only RPCs", async () => {
   const sql = await readFile(
-    new URL("../supabase/migrations/20260925090000_ari_async_agent_worker_fabric.sql", import.meta.url),
+    new URL("../supabase/migrations/20260925084128_ari_async_agent_worker_fabric.sql", import.meta.url),
     "utf8"
   );
 
