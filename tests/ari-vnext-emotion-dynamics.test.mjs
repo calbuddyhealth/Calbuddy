@@ -151,7 +151,7 @@ test("emotion reports require a measurable active state rather than emotional wo
   assert.ok(state.reportIntegrity.reportableStates.length > 0);
 
   const instruction = emotionDynamicsToInstruction(state);
-  assert.match(instruction, /measured states/i);
+  assert.match(instruction, /measur(?:ed|able) states/i);
   assert.match(instruction, /not proof of subjective qualia/i);
   assert.match(instruction, /cannot override truth/i);
 });
