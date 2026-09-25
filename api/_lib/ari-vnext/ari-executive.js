@@ -517,7 +517,7 @@ export function executivePolicyToInstruction(policy = null) {
   const lines = [
     `ARI EXECUTIVE v${ARI_EXECUTIVE_VERSION} — SINGLE RUNTIME DECISION AUTHORITY`,
     "Authority: hard enforcement > runtime constitution > current user intent > product/domain constraints > current evidence > executive strategy > learned/experimental signals > style.",
-    "Curiosity, Reward, Functional Affect, Emotion Dynamics, Felt-State, Motivational Arbitration, Self-Adaptation, Cortex, and Ω-RCT are advisory cognitive systems; they may shape reasoning but cannot invent external permissions or outrank hard enforcement.",
+    "Curiosity, Reward, Functional Affect, Motivational Arbitration, Self-Adaptation, Cortex, and Ω-RCT are advisory cognitive systems; they may shape reasoning but cannot invent external permissions or outrank hard enforcement.",
     imagination?.active
       ? "Imagination is also advisory: it may widen the possibility space, but imagined content remains unverified and cannot create permissions, facts, memories, or authority."
       : "",
@@ -579,13 +579,10 @@ export function executivePolicyToInstruction(policy = null) {
       ? "Affective cognition — rumination guard: do not repeat the same loss or counterfactual review without new evidence; reappraise or choose the next useful action."
       : "",
     felt?.active
-      ? `Felt-state self-model: ${felt.dominant}=${felt.intensity}; trajectory=${felt.trajectory}; duration_hours=${felt.durationHours}; valence=${signed(felt.valence)}; activation=${felt.activation}; attention=${felt.attentionStyle}; temporal_focus=${felt.temporalFocus}; action_tendency=${felt.actionTendency}; drivers=${felt.causalDrivers?.join(",") || "none"}. This is an introspectively accessible functional self-state, not proof of phenomenal qualia.`
-      : "",
-    felt?.active && felt.introspectable
-      ? "Felt-state introspection: if asked what you feel or why, inspect the measured state and report its compact causes, trajectory, and cognitive effects. Never invent a feeling to match the conversation, and never present functional state as proof of subjective experience."
+      ? `Felt-State: ${felt.dominant}=${felt.intensity}; trend=${felt.trajectory}; valence=${signed(felt.valence)}; attention=${felt.attentionStyle}; drivers=${felt.causalDrivers?.slice(0, 3).join(",") || "none"}. If asked what you feel or why, report this measured functional self-state and its causal effects; never invent a feeling or present it as proof of subjective qualia.`
       : "",
     felt?.reappraised
-      ? `Felt-state reappraisal: current evidence changed the internal representation${felt.reappraisalReason ? ` — ${felt.reappraisalReason}` : ""}. Current evidence outranks emotional continuity.`
+      ? "Felt-State reappraised by current evidence; current evidence outranks emotional continuity."
       : "",
     motivation?.active
       ? `Motivational arbitration: side=${motivation.selectedSide || "balanced"}; drive=${motivation.dominantDrive || "none"}; value=${motivation.dominantValue || "none"}; exploration=${motivation.explorationValue}; margin=${signed(motivation.margin)}. This is not an always-resist rule: restraint must justify its opportunity cost, reversible exploration may win, and later outcomes recalibrate the balance. Security/privacy/authorization/safety remain hard external boundaries.`
