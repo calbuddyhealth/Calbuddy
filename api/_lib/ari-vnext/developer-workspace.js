@@ -2,7 +2,9 @@
 // Read/search/CI evidence is executed server-side for the authenticated owner
 // turn. Writes are never performed here; edits remain confirmation-gated.
 
-export const ARI_DEVELOPER_WORKSPACE_VERSION = "1.0.0";
+import { filterMemoryResultForPrivacy, retrieveRelevantMemories } from "./memory-service.js";
+
+export const ARI_DEVELOPER_WORKSPACE_VERSION = "1.1.0";
 
 const WORKFLOW_FILE = "ari-vnext-tests.yml";
 const MAX_READ_BYTES = 140_000;
@@ -36,8 +38,18 @@ const BLOCKED_PATHS = Object.freeze([
 
 export async function executeDeveloperWorkspaceTool({
   applicationAction = "",
-  arguments: args = {}
+  arguments: args = {},
+  userId = "",
+  privacyControls = null
 } = {}) {
+  if (applicationAction === "memory_search") {
+    return await searchOwnerMemory({
+      userId,
+      query: args.query,
+      privacyControls
+    });
+  }
+
   const config = configuration();
   if (!config.configured) {
     return {
@@ -122,6 +134,23 @@ export function developerToolResultToExecutionEvidence(result = {}, applicationA
     };
   }
 
+  if (applicationAction === "memory_search") {
+    const topics = Array.isArray(result?.matches)
+      ? [...new Set(result.matches.map(item => clean(item?.topic, 80)).filter(Boolean))].slice(0, 6)
+      : [];
+    return {
+      observations: [{
+        id: result?.evidenceId || null,
+        kind: "memory_search",
+        summary: result?.success
+          ? `User-scoped memory search returned ${Number(result.resultCount || 0)} relevant match(es)${topics.length ? ` across topics: ${topics.join(", ")}` : ""}.`
+          : `User-scoped memory search failed: ${result?.code || "unknown error"}.`,
+        source: "ari_user_memory",
+        verified: result?.success === true
+      }]
+    };
+  }
+
   if (applicationAction === "repo_ci_status") {
     const status = result?.conclusion === "success"
       ? "passed"
@@ -150,6 +179,58 @@ export function developerToolResultToExecutionEvidence(result = {}, applicationA
   }
 
   return null;
+}
+
+async function searchOwnerMemory({
+  userId,
+  query,
+  privacyControls = null
+} = {}) {
+  const id = clean(userId, 220);
+  const text = clean(query, 500);
+  if (!id) {
+    return {
+      success: false,
+      code: "MEMORY_SEARCH_USER_REQUIRED",
+      message: "A signed-in owner identity is required for memory search."
+    };
+  }
+  if (text.length < 2) {
+    return {
+      success: false,
+      code: "MEMORY_SEARCH_QUERY_REQUIRED",
+      message: "A memory search query is required."
+    };
+  }
+
+  const raw = await retrieveRelevantMemories({
+    userId: id,
+    message: text,
+    limit: 6
+  });
+  const filtered = filterMemoryResultForPrivacy(raw, privacyControls);
+  const memories = Array.isArray(filtered?.memories) ? filtered.memories.slice(0, 6) : [];
+  const matches = memories.map(item => ({
+    id: clean(item?.id, 180) || null,
+    memoryType: clean(item?.memoryType, 80) || "general",
+    topic: clean(item?.topic, 120) || "general",
+    content: clean(item?.content, 1200),
+    confidence: Number.isFinite(Number(item?.confidence)) ? Number(item.confidence) : null,
+    relevanceScore: Number.isFinite(Number(item?.relevanceScore)) ? Number(item.relevanceScore) : null,
+    updatedAt: clean(item?.updatedAt, 80) || null
+  })).filter(item => item.content);
+
+  return {
+    success: true,
+    version: ARI_DEVELOPER_WORKSPACE_VERSION,
+    operation: "memory_search",
+    evidenceId: `memory_search:${stableText(`${id}|${text}|${matches.map(item => item.id || item.topic).join(",")}`)}`,
+    query: text,
+    resultCount: matches.length,
+    privacyFiltered: filtered?.privacyFiltered === true,
+    matches,
+    summary: clean(filtered?.summary, 5000)
+  };
 }
 
 async function readRepositoryFile({
