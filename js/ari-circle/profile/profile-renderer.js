@@ -528,9 +528,18 @@ const ProfileRenderer = {
 
     const cover = document.getElementById("circle-cover");
     const profileCard = document.getElementById("circle-profile");
-    const templateName = coverUrl?.startsWith("template:")
+    const allowedTemplates = new Set([
+      "midnight",
+      "arctic-glass",
+      "electric-dusk",
+      "champagne"
+    ]);
+    const requestedTemplate = coverUrl?.startsWith("template:")
       ? coverUrl.slice("template:".length)
-      : (coverUrl ? "custom" : "pearl");
+      : "";
+    const templateName = requestedTemplate
+      ? (allowedTemplates.has(requestedTemplate) ? requestedTemplate : "default")
+      : (coverUrl ? "custom" : "default");
 
     if (cover) cover.dataset.profileTemplate = templateName || "pearl";
     if (profileCard) profileCard.dataset.profileTemplate = templateName || "pearl";

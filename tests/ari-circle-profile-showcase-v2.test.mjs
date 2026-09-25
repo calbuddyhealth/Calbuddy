@@ -12,25 +12,37 @@ const circleHtml = fs.readFileSync("ari-circle.html", "utf8");
 const circleApi = fs.readFileSync("js/ari-circle/data/circle-api.js", "utf8");
 const migration = fs.readFileSync("supabase/migrations/20260925161000_ari_circle_profile_showcase_v2.sql", "utf8");
 
-test("Edit Profile exposes curated backgrounds without replacing the avatar", () => {
+test("Edit Profile exposes only the four curated backgrounds plus Default", () => {
   assert.match(editor, /key: "cover_url"/);
-  for (const theme of ["aurora","coastal","sunset","violet","midnight"]) {
+  assert.match(editor, /value: "", label: "Default"/);
+  for (const theme of ["midnight","arctic-glass","electric-dusk","champagne"]) {
     assert.match(editor, new RegExp(`template:${theme}`));
     assert.match(profileCss, new RegExp(`data-profile-template="${theme}"`));
   }
+  for (const retired of ["aurora","coastal","sunset","violet"]) {
+    assert.doesNotMatch(editor, new RegExp(`template:${retired}`));
+    assert.doesNotMatch(profileCss, new RegExp(`data-profile-template="${retired}"`));
+  }
+  assert.match(renderer, /allowedTemplates = new Set/);
   assert.match(renderer, /coverUrl\?\.startsWith\("template:"\)/);
   assert.doesNotMatch(editor, /avatar_url/);
 });
 
 test("profile background templates fill the entire identity card through the action buttons", () => {
   assert.match(renderer, /profileCard\.dataset\.profileTemplate = templateName/);
-  assert.match(profileCss, /\.circle-profile\[data-profile-template="aurora"\]/);
+  assert.match(profileCss, /\.circle-profile\[data-profile-template="arctic-glass"\]/);
   assert.match(profileCss, /--circle-profile-theme:/);
   assert.match(profileCss, /background-size: 100% 100%/);
   assert.match(profileCss, /\.circle-profile__body[\s\S]*background: transparent !important/);
   assert.match(profileCss, /\.circle-profile__cover[\s\S]*background: transparent !important/);
   assert.match(profileCss, /data-profile-template="midnight"[\s\S]*\.circle-profile__name/);
   assert.doesNotMatch(profileCss, /#fff 168px/);
+});
+
+test("main profile photo is rendered as a true circle", () => {
+  assert.match(profileCss, /circle-profile__avatar-button,[\s\S]*border-radius: 50% !important/);
+  assert.match(profileCss, /circle-profile__avatar-wrap[\s\S]*border-radius: 50% !important/);
+  assert.doesNotMatch(profileCss, /circle-profile__avatar-fallback[\s\S]{0,220}border-radius: 28px !important/);
 });
 
 test("built-in profile templates disable legacy cover overlays so no horizontal seam is rendered", () => {
