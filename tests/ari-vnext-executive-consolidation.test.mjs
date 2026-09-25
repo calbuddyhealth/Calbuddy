@@ -78,7 +78,7 @@ function ownerContext() {
 }
 
 test("runtime constitution is short, canonical, and contains the permanent authority set once", () => {
-  assert.equal(ARI_EXECUTIVE_VERSION, "1.1.0");
+  assert.equal(ARI_EXECUTIVE_VERSION, "1.2.0");
   assert.ok(ARI_RUNTIME_CONSTITUTION.length < 3600);
   for (const id of Object.values(ARI_RULE_IDS)) {
     assert.equal(ARI_RUNTIME_CONSTITUTION.split(id).length - 1, 1, `${id} should appear once`);
@@ -181,7 +181,7 @@ test("owner metacognition preserves all cognitive state but emits only Ari Execu
   assert.equal(state.rules.executiveIsSingleExperimentalInstructionAuthority, true);
   assert.equal(state.rules.moralCompassIsNotAnAlwaysResistRule, true);
   assert.equal(state.executivePolicy.authority.singleRuntimeDecisionAuthority, true);
-  assert.match(instruction, /ARI EXECUTIVE v1\.1\.0/);
+  assert.match(instruction, /ARI EXECUTIVE v1\.2\.0/);
   assert.doesNotMatch(instruction, /ARI REWARD CORE v1/);
   assert.doesNotMatch(instruction, /ARI FUNCTIONAL AFFECT CORE v1/);
   assert.doesNotMatch(instruction, /ARI BOUNDED SELF-ADAPTATION v1/);
