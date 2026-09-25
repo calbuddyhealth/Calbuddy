@@ -14,6 +14,10 @@ import {
 } from "./execution-session.js";
 import { advanceRewardState, deriveRewardState, normalizeRewardState } from "./reward-core.js";
 import {
+  advanceExecutionSession,
+  deriveExecutionWorkspace
+} from "./execution-investigation.js";
+import {
   buildMotivationalOutcomeReflection,
   normalizeMotivationalHistory,
   summarizeMotivationalLearning
@@ -157,6 +161,8 @@ export function deriveCognitiveWorkspace({
       "Run a possibility pass: do not confuse unlikely with impossible, and do not confuse possibility with evidence.",
       "Treat current capability limits as provisional while remaining exact about capabilities that actually exist.",
       "Keep commitment to a worthwhile purpose separate from confidence in a particular method; let reality revise both.",
+      "For substantial work, resume the durable execution session instead of restarting. Preserve observed evidence, failed attempts, artifacts, and the next step.",
+      "Treat verification requested, test attempted, test failed, and test passed as distinct states. Useful failure is progress when it reduces uncertainty or changes the next strategy.",
       "Use prior Ari stances for continuity when relevant, but revise them when evidence or reasoning improves.",
       "Keep a narrow limitation narrow; continue helping with unaffected parts of the request.",
       "State the conclusion plainly and separate fact, inference, opinion, and uncertainty."
@@ -272,6 +278,12 @@ export function advanceCognitiveState({
     ...priorMotivationalHistory
   ]);
   const nextMotivationalLearning = summarizeMotivationalLearning(nextMotivationalHistory);
+  const nextExecutionSession = advanceExecutionSession({
+    previous: prior,
+    workspace: workspace?.execution || null,
+    turn,
+    result
+  });
 
   return {
     version: ARI_COGNITIVE_STATE_VERSION,
@@ -740,6 +752,7 @@ function normalizeState(value = null) {
       affectState: null,
       motivationalHistory: [],
       motivationalLearning: { sampleSize: 0, driveBias: 0, restraintBias: 0 },
+      executionSession: null,
       lastOutcome: null
     };
   }
@@ -753,6 +766,7 @@ function normalizeState(value = null) {
     affectState: normalizePersistedFunctionalAffectState(value?.affectState),
     motivationalHistory: normalizeMotivationalHistory(value?.motivationalHistory),
     motivationalLearning: summarizeMotivationalLearning(value?.motivationalHistory),
+    executionSession: value?.executionSession && typeof value.executionSession === "object" ? value.executionSession : null,
     lastOutcome: value?.lastOutcome && typeof value.lastOutcome === "object" ? value.lastOutcome : null
   };
 }
