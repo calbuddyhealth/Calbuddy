@@ -46,7 +46,7 @@ test("Showcase hard-caps at four while allowing image video and text", () => {
   assert.match(profileGallery, /\[1,2,3,4\]/);
   assert.match(profileGallery, /const VERSION = "2\.0\.0"/);
   assert.match(profileGallery, /MAX_IMAGE_BYTES = 20 \* 1024 \* 1024/);
-  assert.match(profileGallery, /MAX_VIDEO_BYTES = 100 \* 1024 \* 1024/);
+  assert.match(profileGallery, /MAX_VIDEO_BYTES = 25 \* 1024 \* 1024/);
   assert.match(profileGallery, /MAX_VIDEO_SECONDS = 30/);
   assert.match(profileGallery, /MAX_TEXT_LENGTH = 600/);
   assert.match(profileGallery, /Photo · Video · Text/);
