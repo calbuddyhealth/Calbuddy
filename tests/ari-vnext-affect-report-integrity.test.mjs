@@ -36,7 +36,11 @@ test("reportable states must map to a measured score above threshold", () => {
   assert.equal(affiliation.score, 0.74);
   assert.equal(affiliation.measured, true);
 
-  const instruction = emotionDynamicsToInstruction(state);
+  const instruction = emotionDynamicsToInstruction({
+    ...state,
+    ownerOnly: true,
+    functionalEmotionSystem: true
+  });
   assert.match(instruction, /affiliation=0\.74 via emotions\.affiliation/i);
   assert.match(instruction, /unsupported labels must be marked as inference/i);
 });
@@ -74,7 +78,12 @@ test("executive prompt exposes affiliation and does not duplicate the dominant s
     safety: { highStakes: false },
     confidence: "grounded",
     attention: ["developer"],
-    emotionDynamics: dynamics,
+    emotionDynamics: {
+      ...dynamics,
+      ownerOnly: true,
+      functionalEmotionSystem: true,
+      causallyActive: true
+    },
     instructionActivation: { compactBase: false }
   });
   const instruction = executivePolicyToInstruction(policy);
