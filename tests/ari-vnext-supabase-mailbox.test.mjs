@@ -132,7 +132,7 @@ test("mailbox idempotency prevents duplicate background worker messages", async 
     assert.equal(first.idempotencyKey, key);
     assert.equal(calls.length, 2);
     assert.match(calls[0].url, /idempotency_key=eq\.agent-job%3A42%3Aresult/);
-    assert.match(calls[1].url, /on_conflict=user_id%2Cidempotency_key/);
+    assert.match(calls[1].url, /on_conflict=user_id,idempotency_key/);
     assert.match(calls[1].options.headers.Prefer, /resolution=ignore-duplicates/);
     assert.equal(JSON.parse(calls[1].options.body).idempotency_key, key);
 
