@@ -2216,6 +2216,54 @@ function publicCortexAdviser(run = null) {
 
 function withInternalCouncil(payload = {}, council = null) {
   if (!payload || typeof payload !== "object" || !council?.active) return payload;
+
+  const durableTask = council?.durableTask || null;
+  if (durableTask?.id) {
+    const existingEvidence =
+      payload?.executionEvidence && typeof payload.executionEvidence === "object"
+        ? payload.executionEvidence
+        : {};
+    const existingObservations = Array.isArray(existingEvidence.observations)
+      ? existingEvidence.observations
+      : [];
+    const existingArtifacts = Array.isArray(existingEvidence.artifacts)
+      ? existingEvidence.artifacts
+      : [];
+
+    payload.executionEvidence = {
+      ...existingEvidence,
+      observations: [
+        ...existingObservations,
+        {
+          id: durableTask.id,
+          kind: "multi_agent_coordination",
+          summary: durableTask.readyForAriSynthesis === true
+            ? `Durable multi-agent task ${durableTask.id} reconciled ${Number(durableTask.completedWorkers || 0)} specialist result(s) and produced an Ari-usable synthesis.`
+            : `Durable multi-agent task ${durableTask.id} remains open after round ${Number(durableTask.roundCount || 0)} with ${Number(durableTask.unresolvedCount || 0)} unresolved issue(s).`,
+          source: "ari_durable_multi_agent",
+          verified: durableTask.readyForAriSynthesis === true
+        }
+      ].slice(-12),
+      artifacts: [
+        ...existingArtifacts,
+        {
+          id: durableTask.id,
+          kind: "agent_task_session",
+          label: "Durable Ari multi-agent task",
+          ref: durableTask.mailboxThreadId || durableTask.id,
+          verified: durableTask.readyForAriSynthesis === true
+        }
+      ].slice(-12)
+    };
+
+    payload.executionWorkspaceUpdate = {
+      ...(payload?.executionWorkspaceUpdate && typeof payload.executionWorkspaceUpdate === "object"
+        ? payload.executionWorkspaceUpdate
+        : {}),
+      nextStep: durableTask.nextStep || payload?.executionWorkspaceUpdate?.nextStep || null
+    };
+  }
+
   Object.defineProperty(payload, "_multiAgentCouncil", {
     value: council,
     enumerable: false,
