@@ -137,7 +137,6 @@ test("visual route maps important ARI XP screens", () => {
     "/home.html",
     "/ari-circle.html",
     "/ari-circle-messages.html",
-    "/ari-circle-feed.html",
     "/ari-circle-meetup.html",
     "/ari-training.html",
     "/nutrition.html",
@@ -156,7 +155,8 @@ test("whole-app inspection becomes a bounded multi-page visual tour", () => {
     "/nutrition.html",
     "/ari-training.html",
     "/progress.html",
-    "/ari-circle-feed.html",
+    "/ari-circle-meetup.html",
+    "/ari-circle.html",
     "/profile.html",
     "/owner-ai-controls.html"
   ]) {
