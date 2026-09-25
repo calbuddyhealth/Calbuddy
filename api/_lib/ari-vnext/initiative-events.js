@@ -2,7 +2,7 @@
 
 import { maybeDeliverAriSignalPush } from "./ari-signals.js";
 
-export const ARI_INITIATIVE_EVENTS_VERSION = "1.3.0";
+export const ARI_INITIATIVE_EVENTS_VERSION = "1.4.0";
 const TABLE = "ari_vnext_initiative_events";
 
 export async function listRecentInitiatives({ userId, limit = 20 } = {}) {
@@ -59,14 +59,31 @@ export function formatAutonomyOwnerBriefing(candidate = null) {
     const artifact = verifiedAutonomousCommitArtifact(candidate?.artifact);
     if (!artifact) return null;
 
+    const context = clean(candidate.context, 620);
+    const followUpPrompt = `Review evidence: ${clean(candidate.followUpPrompt, 680)} Commit ${artifact.commitSha.slice(0, 12)} on ${artifact.branch}.`;
     return {
       ...candidate,
       artifact,
       priority: "high",
       opener: "I created an isolated code improvement that is ready for review.",
-      context: clean(candidate.context, 620),
-      followUpPrompt: `Review evidence: ${clean(candidate.followUpPrompt, 680)} Commit ${artifact.commitSha.slice(0, 12)} on ${artifact.branch}.`,
+      context,
+      followUpPrompt,
       action: "review_autonomous_commit",
+      ownerBrief: {
+        whatItMeans: context || "I created an isolated change and have verifiable commit evidence ready for review.",
+        whySent: "The change is isolated from production and now needs owner review before anything moves toward main.",
+        relatedGoal: extractBriefField(candidate.followUpPrompt, "Goal") || clean(candidate.domain, 180) || "Autonomous development",
+        currentState: context,
+        requestFromJose: "Decide whether this change should move forward after the evidence and integration risk are reviewed.",
+        requestFromChatGPT: clean(candidate.followUpPrompt, 760) || "Review the change, evidence, tests, and integration risk before merge.",
+        suggestedNextStep: "Review the isolated commit and its evidence before deciding whether to merge it.",
+        evidence: [{
+          type: "github_commit",
+          label: `Commit ${artifact.commitSha.slice(0, 12)} on ${artifact.branch}`,
+          url: artifact.commitUrl,
+          status: artifact.status
+        }]
+      },
       cooldownHours: 24
     };
   }
@@ -74,13 +91,25 @@ export function formatAutonomyOwnerBriefing(candidate = null) {
   if (reasonId !== "ari_autonomous_research_cycle") return candidate;
   if (!autonomyResearchNeedsOwner(candidate)) return null;
 
+  const context = clean(candidate.context, 620);
+  const helpRequest = clean(candidate.followUpPrompt, 760);
   return {
     ...candidate,
     priority: "high",
     opener: "I need Jose + ChatGPT on one of my development goals.",
-    context: clean(candidate.context, 620),
-    followUpPrompt: `What I want help with: ${clean(candidate.followUpPrompt, 760)}`,
+    context,
+    followUpPrompt: `What I want help with: ${helpRequest}`,
     action: "collaborate_on_autonomous_goal",
+    ownerBrief: {
+      whatItMeans: context || helpRequest || "I reached a point in this development goal where outside review would help me continue safely.",
+      whySent: "My autonomous research found a blocker or broader change that I should not resolve silently inside isolated branch authority.",
+      relatedGoal: extractBriefField(helpRequest, "Goal") || clean(candidate.domain, 180) || "Autonomous development",
+      currentState: context,
+      requestFromJose: "Confirm the outcome you want, any owner constraints, and whether this goal should move forward.",
+      requestFromChatGPT: helpRequest || "Review the architecture, challenge my current approach, and help identify the safest next experiment.",
+      suggestedNextStep: "Review the goal context together, then choose the smallest evidence-producing next step.",
+      evidence: compactBriefEvidence(helpRequest)
+    },
     cooldownHours: 24
   };
 }
@@ -174,9 +203,50 @@ function compactCandidate(candidate = {}) {
     action: clean(candidate.action, 120),
     context: clean(candidate.context, 900),
     artifact: verifiedAutonomousCommitArtifact(candidate?.artifact),
+    ownerBrief: compactOwnerBrief(candidate?.ownerBrief),
     cooldownHours: clampInt(candidate.cooldownHours, 12, 168, 48),
     requiresLanguageModelCall: false
   };
+}
+
+function compactOwnerBrief(value = null) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const evidence = Array.isArray(value.evidence)
+    ? value.evidence.slice(0, 6).map((item) => ({
+        type: clean(item?.type, 60),
+        label: clean(item?.label, 320),
+        url: clean(item?.url, 1000),
+        status: clean(item?.status, 80)
+      })).filter((item) => item.label || item.url)
+    : [];
+  return {
+    whatItMeans: clean(value.whatItMeans, 1200),
+    whySent: clean(value.whySent, 900),
+    relatedGoal: clean(value.relatedGoal, 260),
+    currentState: clean(value.currentState, 1200),
+    requestFromJose: clean(value.requestFromJose, 900),
+    requestFromChatGPT: clean(value.requestFromChatGPT, 1200),
+    suggestedNextStep: clean(value.suggestedNextStep, 900),
+    evidence
+  };
+}
+
+function compactBriefEvidence(text = "") {
+  const evidence = extractBriefField(text, "Evidence");
+  return evidence ? [{ type: "stored_evidence", label: evidence, url: "", status: "observed" }] : [];
+}
+
+function extractBriefField(text = "", label = "") {
+  const source = clean(text, 1400);
+  const key = clean(label, 40).replace(/[.*+?^${}()|[\]\\]/g, "\\    context: clean(candidate.context, 900),
+    artifact: verifiedAutonomousCommitArtifact(candidate?.artifact),
+    cooldownHours: clampInt(candidate.cooldownHours, 12, 168, 48),
+    requiresLanguageModelCall: false
+  };
+}");
+  if (!source || !key) return "";
+  const match = new RegExp(`(?:^|\\b)${key}:\\s*([^.!?]{1,260})`, "i").exec(source);
+  return clean(match?.[1], 260);
 }
 function verifiedAutonomousCommitArtifact(value = null) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
