@@ -16,7 +16,7 @@ const contextGuard = read("ari/vnext/ari-vnext-context-guard.js");
 
 assert.match(runtime, /const DEFAULT_MODE = "vnext"/, "vNext must remain the default Ari runtime");
 assert.match(runtime, /const VERSION = "1\.6\.3"/);
-assert.match(runtime, /ari-vnext-action-adapter\.js\?v=1\.5\.0/);
+assert.match(runtime, /ari-vnext-action-adapter\.js\?v=1\.6\.0/);
 assert.doesNotMatch(runtime, /ari-vnext-meal-plan-adapter|ari-whole-workout-replacement/);
 assert.match(runtime, /ari-vnext-context-guard\.js\?v=1\.2\.4/);
 assert.match(runtime, /AriVNextContextGuard\?\.ready === true/);
