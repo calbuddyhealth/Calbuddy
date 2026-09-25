@@ -612,7 +612,15 @@ export default async function handler(req, res) {
             failure: { source: "ari_vnext_runtime", message: cleanText(error?.message || error, 500) }
           }
         });
-        await persistAriCognitiveState({ userId: auth.userId, state: failedState }).catch(() => null);
+        await Promise.allSettled([
+          persistAriCognitiveState({ userId: auth.userId, state: failedState }),
+          failedState?.communicationClosure?.id
+            ? persistCommunicationClosure({
+                userId: auth.userId,
+                closure: failedState.communicationClosure
+              })
+            : Promise.resolve(null)
+        ]);
       }
       throw error;
     });
