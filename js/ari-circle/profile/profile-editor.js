@@ -1,5 +1,5 @@
 // js/ari-circle/profile/profile-editor.js
-// ARI Circle — Profile Editor V2.0.0
+// ARI Circle — Profile Editor V2.1.0
 //
 // The profile is intentionally compact: one identity card, one selected
 // icebreaker, and four showcase slots managed separately by profile-gallery-v1.
@@ -7,8 +7,11 @@
 import CircleStore from "../core/circle-store.js";
 import CircleEvents, { EVENT_NAMES } from "../core/circle-events.js";
 
-const VERSION = "2.0.0";
+const VERSION = "2.1.0";
 const SOURCE = "ari-circle/profile/profile-editor";
+const AUTOSAVE_DELAY_MS = 650;
+const PROFILE_SAVED_EVENT = "circle:profile-saved";
+const PROFILE_SAVE_FAILED_EVENT = "circle:profile-save-failed";
 
 const PROFILE_FIELDS = Object.freeze([
   {
@@ -201,6 +204,14 @@ const ProfileEditor = {
     initialized: false,
     fieldsBuilt: false,
     submitting: false,
+    saveTimer: 0,
+    saveInFlight: false,
+    pendingSave: false,
+    saveSequence: 0,
+    activeRequestId: null,
+    activeSnapshot: "",
+    lastSavedSnapshot: "",
+    suppressAutoSave: false,
     unsubscribers: []
   },
 
@@ -208,7 +219,7 @@ const ProfileEditor = {
     dialog: null,
     form: null,
     fields: null,
-    saveButton: null,
+    saveStatus: null,
     icebreakerQuestion: null,
     icebreakerAnswer: null
   },
@@ -227,18 +238,38 @@ const ProfileEditor = {
     this.dom.dialog = document.getElementById("circle-profile-editor");
     this.dom.form = document.getElementById("circle-profile-editor-form");
     this.dom.fields = document.getElementById("circle-profile-editor-fields");
-    this.dom.saveButton = document.getElementById("circle-profile-save-button");
+    this.dom.saveStatus = document.getElementById("circle-profile-save-status");
   },
 
   bindEvents() {
     this.state.unsubscribers.push(
       CircleEvents.onAction("edit-profile", () => this.populate()),
-      CircleEvents.onAction("close-profile-editor", () => this.close())
+      CircleEvents.onAction("close-profile-editor", () => this.close()),
+      CircleEvents.on(PROFILE_SAVED_EVENT, payload => {
+        this.handlePersisted(true, payload?.detail || {});
+      }),
+      CircleEvents.on(PROFILE_SAVE_FAILED_EVENT, payload => {
+        this.handlePersisted(false, payload?.detail || {});
+      })
     );
   },
 
   bindForm() {
-    this.dom.form?.addEventListener("submit", event => this.handleSubmit(event));
+    if (!this.dom.form) return;
+
+    this.dom.form.addEventListener("submit", event => this.handleSubmit(event));
+    this.dom.form.addEventListener("input", () => {
+      this.scheduleAutoSave();
+    });
+    this.dom.form.addEventListener("change", event => {
+      const control = event.target;
+      const immediate = control?.tagName === "SELECT" || control?.type === "date";
+      this.scheduleAutoSave({ immediate });
+    });
+
+    this.dom.dialog?.addEventListener("close", () => {
+      this.flushAutoSave();
+    });
   },
 
   buildFields() {
@@ -356,9 +387,14 @@ const ProfileEditor = {
     answer.placeholder = "Write one answer";
     answerLabel.append(answerTitle, answer);
 
+    let previousQuestion = "";
     const sync = () => {
-      answer.disabled = !question.value;
-      if (!question.value) answer.value = "";
+      const nextQuestion = question.value;
+      answer.disabled = !nextQuestion;
+      if (!nextQuestion || (previousQuestion && previousQuestion !== nextQuestion)) {
+        answer.value = "";
+      }
+      previousQuestion = nextQuestion;
     };
     question.addEventListener("change", sync);
     sync();
@@ -372,6 +408,10 @@ const ProfileEditor = {
   populate() {
     const context = CircleStore.get("context");
     if (!context?.isOwner) return false;
+
+    this.state.suppressAutoSave = true;
+    window.clearTimeout(this.state.saveTimer);
+    this.state.saveTimer = 0;
 
     const profile = CircleStore.get("profile") || {};
     for (const field of PROFILE_FIELDS) {
@@ -406,48 +446,115 @@ const ProfileEditor = {
       this.dom.icebreakerAnswer.value = selected?.key ? (icebreakers[selected.key] || "") : "";
     }
 
+    this.state.lastSavedSnapshot = this.profileSnapshot(this.collectProfile());
+    this.state.suppressAutoSave = false;
+    this.setAutoSaveState("saved", "Saved automatically");
     return true;
   },
 
-  async handleSubmit(event) {
+  handleSubmit(event) {
     event.preventDefault();
-    if (this.state.submitting) return;
+    this.flushAutoSave();
+  },
 
-    const context = CircleStore.get("context");
-    if (!context?.isOwner) {
-      CircleEvents.showToast("You can only edit your own Circle.");
+  scheduleAutoSave({ immediate = false } = {}) {
+    if (this.state.suppressAutoSave) return;
+
+    window.clearTimeout(this.state.saveTimer);
+    this.state.saveTimer = 0;
+    this.setAutoSaveState("saving", "Saving…");
+
+    if (immediate) {
+      this.flushAutoSave();
       return;
     }
 
-    try {
-      this.state.submitting = true;
-      this.setSaveState(true);
+    this.state.saveTimer = window.setTimeout(() => {
+      this.state.saveTimer = 0;
+      this.flushAutoSave();
+    }, AUTOSAVE_DELAY_MS);
+  },
 
-      const nextProfile = this.collectProfile();
-      const validation = this.validate(nextProfile);
-      if (!validation.valid) {
-        CircleEvents.showToast(validation.message, { type: "error" });
-        validation.control?.focus();
-        return;
-      }
+  flushAutoSave() {
+    if (this.state.suppressAutoSave) return false;
 
-      const currentProfile = CircleStore.get("profile") || {};
-      const mergedProfile = { ...currentProfile, ...nextProfile };
-      CircleStore.setProfile(mergedProfile);
-      CircleEvents.emit(EVENT_NAMES.PROFILE_UPDATED, {
-        profile: mergedProfile,
-        changes: nextProfile,
-        persist: true
-      });
+    window.clearTimeout(this.state.saveTimer);
+    this.state.saveTimer = 0;
 
-      this.close();
-      CircleEvents.showToast("Circle updated.");
-    } catch (error) {
-      CircleEvents.reportError(error, { message: "Could not update your Circle." });
-    } finally {
-      this.state.submitting = false;
-      this.setSaveState(false);
+    const context = CircleStore.get("context");
+    if (!context?.isOwner) return false;
+
+    if (this.state.saveInFlight) {
+      this.state.pendingSave = true;
+      return false;
     }
+
+    const nextProfile = this.collectProfile();
+    const validation = this.validate(nextProfile);
+    if (!validation.valid) {
+      this.setAutoSaveState("error", validation.message);
+      return false;
+    }
+
+    const snapshot = this.profileSnapshot(nextProfile);
+    if (snapshot === this.state.lastSavedSnapshot) {
+      this.setAutoSaveState("saved", "Saved automatically");
+      return true;
+    }
+
+    const currentProfile = CircleStore.get("profile") || {};
+    const mergedProfile = { ...currentProfile, ...nextProfile };
+    const requestId = `profile-autosave-${Date.now()}-${++this.state.saveSequence}`;
+
+    this.state.saveInFlight = true;
+    this.state.pendingSave = false;
+    this.state.activeRequestId = requestId;
+    this.state.activeSnapshot = snapshot;
+    this.state.submitting = true;
+    this.setAutoSaveState("saving", "Saving…");
+
+    CircleStore.setProfile(mergedProfile);
+    CircleEvents.emit(EVENT_NAMES.PROFILE_UPDATED, {
+      profile: mergedProfile,
+      changes: nextProfile,
+      persist: true,
+      autosave: true,
+      requestId
+    });
+
+    return true;
+  },
+
+  handlePersisted(success, detail = {}) {
+    const requestId = normalizeString(detail?.requestId);
+    if (!requestId || requestId !== this.state.activeRequestId) return;
+
+    this.state.saveInFlight = false;
+    this.state.submitting = false;
+    this.state.activeRequestId = null;
+
+    if (!success) {
+      this.state.activeSnapshot = "";
+      this.state.pendingSave = false;
+      this.setAutoSaveState("error", "Couldn’t save. Keep editing to retry.");
+      return;
+    }
+
+    this.state.lastSavedSnapshot = this.state.activeSnapshot;
+    this.state.activeSnapshot = "";
+
+    const currentSnapshot = this.profileSnapshot(this.collectProfile());
+    if (this.state.pendingSave || currentSnapshot !== this.state.lastSavedSnapshot) {
+      this.state.pendingSave = false;
+      window.setTimeout(() => this.flushAutoSave(), 0);
+      return;
+    }
+
+    this.setAutoSaveState("saved", "Saved automatically");
+  },
+
+  profileSnapshot(profile) {
+    return JSON.stringify(profile || {});
   },
 
   collectProfile() {
@@ -510,15 +617,16 @@ const ProfileEditor = {
   },
 
   close() {
+    this.flushAutoSave();
     if (!this.dom.dialog || typeof this.dom.dialog.close !== "function") return false;
     if (this.dom.dialog.open) this.dom.dialog.close();
     return true;
   },
 
-  setSaveState(isSaving) {
-    if (!this.dom.saveButton) return;
-    this.dom.saveButton.disabled = Boolean(isSaving);
-    this.dom.saveButton.textContent = isSaving ? "Saving..." : "Save Changes";
+  setAutoSaveState(state, message) {
+    if (!this.dom.saveStatus) return;
+    this.dom.saveStatus.dataset.state = state || "idle";
+    this.dom.saveStatus.textContent = message || "Changes save automatically";
   },
 
   destroy() {
@@ -527,6 +635,8 @@ const ProfileEditor = {
         console.warn("ARI Circle editor unsubscribe failed", error);
       }
     }
+    window.clearTimeout(this.state.saveTimer);
+    this.state.saveTimer = 0;
     this.state.unsubscribers = [];
     this.state.initialized = false;
   },
@@ -538,6 +648,9 @@ const ProfileEditor = {
       version: this.version,
       fieldsBuilt: this.state.fieldsBuilt,
       submitting: this.state.submitting,
+      autosave: true,
+      saveInFlight: this.state.saveInFlight,
+      pendingSave: this.state.pendingSave,
       dialogFound: Boolean(this.dom.dialog),
       formFound: Boolean(this.dom.form),
       singleIcebreaker: true
