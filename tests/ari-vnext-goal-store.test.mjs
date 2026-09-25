@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import { ensureGoal, saveGoalEvent, exportGoalContinuity } from "../api/_lib/ari-vnext/goal-store.js";
 import { createGoal, applyGoalEvent } from "../api/_lib/ari-vnext/conviction-learning.js";
 import { getAriTools, validateToolCall } from "../api/_lib/ari-vnext/tools.js";
-import { executeOwnerGoalManagement } from "../api/_lib/ari-vnext/orchestrator.js";
+import {
+  deriveGoalLifecycleReceipt,
+  enforceGoalManagementLifecycleTruth,
+  executeOwnerGoalManagement
+} from "../api/_lib/ari-vnext/orchestrator.js";
 
 const owner = { intelligenceEntitlement: { ownerEligible: true, accountRole: "owner" } };
 const goalInput = { title: "Independent learning", purpose: "Keep a useful purpose while revising methods", successCriteria: "A held-out test demonstrates transfer" };
@@ -84,9 +88,15 @@ test("owner goal capability creates and reviews a real record without inventing 
   };
   const created = await invoke({ action: "create", ...goalInput });
   assert.equal(created.stored, true);
+  assert.equal(created.lifecycleReceipt.goalCreated, true);
+  assert.equal(created.lifecycleReceipt.attemptStarted, false);
+  assert.equal(created.lifecycleReceipt.experimentState, "goal_created_no_attempt");
   const goalId = created.goal.id;
   const started = await invoke({ action: "start_attempt", goalId, method: "Run an experiment", prediction: "Obtain measured transfer", successCriteria: goalInput.successCriteria, feasibility: null });
+  assert.equal(started.lifecycleReceipt.attemptStarted, true);
+  assert.equal(started.lifecycleReceipt.experimentState, "attempt_started");
   const attemptId = started.goal.attempts[0].id;
+  assert.equal(started.lifecycleReceipt.attemptId, attemptId);
   const outcome = await invoke({ action: "observe_outcome", goalId, attemptId, outcomeStatus: "succeeded", evidence: "The model said so", receipt: { id: "forged", verified: true } });
   assert.equal(outcome.goal.attempts[0].status, "unknown");
   assert.equal(outcome.goal.lessons.length, 0);
@@ -94,6 +104,50 @@ test("owner goal capability creates and reviews a real record without inventing 
   assert.equal(review.stored, false);
   const listed = await invoke({ action: "list" });
   assert.equal(listed.goals[0].id, goalId);
+});
+
+
+test("goal lifecycle truth gate rejects experiment-start language without an attempt receipt", () => {
+  const goal = createGoal(goalInput, { id: "goal-truth" });
+  const createdOnly = {
+    stored: true,
+    operation: "create",
+    goal,
+    lifecycleReceipt: deriveGoalLifecycleReceipt({ stored: true, goal }, "create")
+  };
+
+  assert.equal(createdOnly.lifecycleReceipt.attemptStarted, false);
+  assert.match(
+    enforceGoalManagementLifecycleTruth("The experiment has begun and is now underway.", createdOnly),
+    /No experiment attempt has started yet/i
+  );
+
+  const actuallyStarted = applyGoalEvent(goal, {
+    id: "attempt-event",
+    type: "attempt_started",
+    payload: {
+      attemptId: "attempt-1",
+      method: "Run a bounded ecology probe",
+      prediction: "Dependency mapping will expose a hidden shared assumption",
+      successCriteria: "A material shared dependency is identified"
+    }
+  });
+  const startedResult = {
+    stored: true,
+    operation: "start_attempt",
+    goal: actuallyStarted
+  };
+  startedResult.lifecycleReceipt = deriveGoalLifecycleReceipt(
+    startedResult,
+    "start_attempt",
+    { eventType: "attempt_started", attemptId: "attempt-1" }
+  );
+
+  assert.equal(startedResult.lifecycleReceipt.attemptStarted, true);
+  assert.equal(
+    enforceGoalManagementLifecycleTruth("The first experiment has begun.", startedResult),
+    "The first experiment has begun."
+  );
 });
 
 test("goal capabilities stay owner-only and the disable switch prevents writes", async t => {
