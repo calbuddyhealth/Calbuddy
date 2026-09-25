@@ -142,7 +142,7 @@ export async function updateAgentTaskSession({
   }
 }
 
-export async function loadAgentTaskSessionByIdInternal({ userId, taskId } = {}) {
+export async function loadAgentTaskSessionById({ userId, taskId } = {}) {
   return await loadAgentTaskSessionByIdInternal({ userId, taskId });
 }
 
