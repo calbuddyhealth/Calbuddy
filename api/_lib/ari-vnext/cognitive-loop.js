@@ -242,11 +242,20 @@ export function advanceCognitiveState({
     turn,
     result
   });
+  const nextExecutionSession = advanceExecutionSession({
+    previous: prior?.executionSession || null,
+    workspace: workspace?.executionWorkspace || null,
+    turn,
+    result
+  });
+  const rewardResult = nextExecutionSession
+    ? { ...result, executionSession: nextExecutionSession }
+    : result;
   const nextRewardState = advanceRewardState({
     persisted: prior.rewardState,
     turn,
     context: { userWorldModel: { ariCognitiveWorkspace: workspace } },
-    result
+    result: rewardResult
   });
   const nextAffectState =
     serializeFunctionalAffectState(metacognition?.functionalAffect) ||
@@ -263,12 +272,6 @@ export function advanceCognitiveState({
     ...priorMotivationalHistory
   ]);
   const nextMotivationalLearning = summarizeMotivationalLearning(nextMotivationalHistory);
-  const nextExecutionSession = advanceExecutionSession({
-    previous: prior?.executionSession || null,
-    workspace: workspace?.executionWorkspace || null,
-    turn,
-    result
-  });
 
   return {
     version: ARI_COGNITIVE_STATE_VERSION,
