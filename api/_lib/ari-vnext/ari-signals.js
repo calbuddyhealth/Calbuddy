@@ -38,6 +38,28 @@ export async function listAriSignals({ userId, limit = 30 } = {}) {
   }
 }
 
+export async function loadAriSignal({ userId, signalId } = {}) {
+  const config = supabaseConfig();
+  const id = clean(userId, 200);
+  const eventId = clean(signalId, 200);
+  if (!config || !id || !eventId) return null;
+  const params = new URLSearchParams({
+    id: `eq.${eventId}`,
+    user_id: `eq.${id}`,
+    select: "id,user_id,initiative_key,reason_id,priority,status,payload,surfaced_at,engaged_at,dismissed_at,expires_at,updated_at",
+    limit: "1"
+  });
+  try {
+    const response = await fetch(`${config.url}/rest/v1/${INITIATIVE_TABLE}?${params}`, { headers: serverHeaders(config.key) });
+    if (!response.ok) return null;
+    const rows = await response.json().catch(() => []);
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    return signalFromRow(row);
+  } catch {
+    return null;
+  }
+}
+
 export async function updateAriSignal({ userId, signalId, action } = {}) {
   const config = supabaseConfig();
   const id = clean(userId, 200);
