@@ -35,9 +35,9 @@ test("vNext dependencies are canonical and contain no removed monkey-patch", () 
 });
 
 test("runtime and action adapter versions are cache-busted", () => {
-  assert.match(runtimeSource, /const VERSION = "1\.6\.3"/);
+  assert.match(runtimeSource, /const VERSION = "1\.6\.4"/);
   assert.match(runtimeSource, /ari-vnext-action-adapter\.js\?v=1\.6\.0/);
-  assert.match(runtimeSource, /ari-vnext-bridge\.js\?v=1\.11\.0/);
+  assert.match(runtimeSource, /ari-vnext-bridge\.js\?v=1\.12\.0/);
   assert.match(homeSource, /ari\/runtime\/ari-runtime-controller\.js\?v=1\.6\.3/);
 });
 

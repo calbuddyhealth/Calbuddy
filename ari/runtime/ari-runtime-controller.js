@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.6.3
+// Version: 1.6.4
 // Purpose:
 //   Make Ari vNext the single semantic/action authority on Home + Nutrition.
 //   Legacy CalBuddy/Rebirth remains a read-only emergency response fallback.
@@ -34,7 +34,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.6.3";
+  const VERSION = "1.6.4";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
@@ -42,7 +42,7 @@
     "ari/vnext/ari-vnext-training-context.js?v=1.3.0",
     "ari/vnext/ari-vnext-action-adapter.js?v=1.6.0",
     "ari/vnext/ari-vnext-activity-adapter.js?v=1.1.0",
-    "ari/vnext/ari-vnext-bridge.js?v=1.11.0",
+    "ari/vnext/ari-vnext-bridge.js?v=1.12.0",
     "ari/vnext/ari-vnext-context-guard.js?v=1.2.4",
     "ari/vnext/ari-vnext-initiative.js?v=1.2.1"
   ];
@@ -73,6 +73,7 @@
   let dependencyPromise = null;
   let initiativeCheckPromise = null;
   let activeInitiative = null;
+  let stagedInitiativeContext = null;
 
   function clean(value = "") {
     return String(value || "").trim();
@@ -205,7 +206,7 @@
     if (base.endsWith("ari-vnext-activity-adapter.js")) return Boolean(window.AriVNextActivityAdapter);
     if (base.endsWith("ari-vnext-bridge.js")) {
       return typeof window.AriVNextBridge?.ask === "function" &&
-        versionAtLeast(window.AriVNextBridge?.version, "1.11.0");
+        versionAtLeast(window.AriVNextBridge?.version, "1.12.0");
     }
     if (base.endsWith("ari-vnext-context-guard.js")) return contextGuardReady();
     if (base.endsWith("ari-vnext-initiative.js")) {
@@ -256,7 +257,7 @@
   function vNextReady() {
     return Boolean(
       typeof window.AriVNextBridge?.ask === "function" &&
-      versionAtLeast(window.AriVNextBridge?.version, "1.11.0") &&
+      versionAtLeast(window.AriVNextBridge?.version, "1.12.0") &&
       window.AriVNextActionAdapter &&
       versionAtLeast(window.AriVNextActionAdapter?.version, "1.6.0") &&
       window.AriVNextActivityAdapter &&
@@ -684,12 +685,15 @@
 
       throwIfAborted(signal);
 
+      const initiativeContext = stagedInitiativeContext;
       let result = await window.AriVNextBridge.ask(message, {
         ...input,
         userContext,
         casualConversation,
+        initiativeContext,
         signal
       });
+      if (initiativeContext) stagedInitiativeContext = null;
       throwIfAborted(signal);
       result = await normalizePendingAction(result);
       result = await executeTypedConfirmation(result);
@@ -824,11 +828,34 @@
   CalBuddy.getAriRuntimeMode = getMode;
   CalBuddy.checkAriInitiative = checkInitiative;
 
+  function stageInitiativeContext(initiative = null) {
+    if (!initiative || typeof initiative !== "object") {
+      stagedInitiativeContext = null;
+      return false;
+    }
+    stagedInitiativeContext = {
+      id: clean(initiative.id || initiative.initiativeKey),
+      initiativeKey: clean(initiative.initiativeKey),
+      reasonId: clean(initiative.reasonId),
+      action: clean(initiative.action),
+      domain: clean(initiative.domain),
+      context: clean(initiative.context),
+      followUpPrompt: clean(initiative.followUpPrompt),
+      reviewPacket:
+        initiative.reviewPacket && typeof initiative.reviewPacket === "object"
+          ? initiative.reviewPacket
+          : null,
+      source: "explicit_ari_signal_engagement"
+    };
+    return true;
+  }
+
   const runtimeApi = Object.freeze({
     version: VERSION,
     ask,
     ensureVNext,
     checkInitiative,
+    stageInitiativeContext,
     getMode,
     setMode
   });

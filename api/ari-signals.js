@@ -1,18 +1,20 @@
 import {
   ARI_SIGNALS_VERSION,
   listAriSignals,
+  loadAriSignal,
   loadAriSignalPreferences,
   registerAriPushDevice,
   saveAriSignalPreferences,
   updateAriSignal
 } from "./_lib/ari-vnext/ari-signals.js";
+import { resolveDecision } from "./_lib/ari-vnext/decision-journal.js";
 import {
   sendOwnerAuthorizationError,
   setOwnerSecurityHeaders,
   verifyOwnerRequest
 } from "../server/ari-owner-auth.js";
 
-const OWNER_SIGNALS_VERSION = "2.1.0-owner";
+const OWNER_SIGNALS_VERSION = "2.2.0-owner";
 
 export default async function handler(req, res) {
   setHeaders(res);
@@ -62,6 +64,72 @@ export default async function handler(req, res) {
   if (action === "engage" || action === "dismiss") {
     const result = await updateAriSignal({ userId, signalId: body?.signalId, action });
     return res.status(result.success ? 200 : 400).json({ ...result, version: OWNER_SIGNALS_VERSION, ownerMode: true, source: "ari_signals" });
+  }
+
+  if (action === "resolve-prediction") {
+    const signal = await loadAriSignal({ userId, signalId: body?.signalId });
+    const verdict = clean(body?.verdict, 40).toLowerCase();
+    const allowed = new Set(["supported", "weakened", "mixed", "inconclusive"]);
+    const review = signal?.ownerBrief?.reviewPacket || null;
+    if (!signal || signal.action !== "review_prediction" || !review?.decisionId || !allowed.has(verdict)) {
+      return res.status(400).json({
+        success: false,
+        code: "PREDICTION_REVIEW_INVALID",
+        error: "This Ari Signal does not contain a resolvable prediction review.",
+        source: "ari_signals"
+      });
+    }
+
+    const evidenceLabels = (Array.isArray(review.currentEvidence) ? review.currentEvidence : [])
+      .map((item) => clean(item?.label, 320))
+      .filter(Boolean)
+      .slice(0, 8);
+    const outcome = {
+      summary: predictionResolutionSummary({ verdict, review }),
+      lesson: predictionResolutionLesson({ verdict, review }),
+      evidenceQuality: review?.evidenceQuality?.label || null,
+      evidence: evidenceLabels,
+      originalPrediction: review.originalPrediction || null,
+      successCriteria: review.successCriteria || null,
+      disconfirmingCriteria: review.disconfirmingCriteria || null,
+      preliminaryVerdict: review.preliminaryVerdict || null,
+      preliminaryRationale: review.preliminaryRationale || null,
+      observedAt: new Date().toISOString(),
+      reviewedAt: new Date().toISOString(),
+      sourceSignalId: signal.id
+    };
+    const resolution = await resolveDecision({
+      userId,
+      decisionId: review.decisionId,
+      outcomeDirection: verdict,
+      outcome,
+      source: "owner_signal_prediction_review"
+    });
+    if (!resolution?.resolved) {
+      return res.status(409).json({
+        success: false,
+        code: "PREDICTION_REVIEW_NOT_RESOLVED",
+        error: resolution?.reason === "open_decision_not_found"
+          ? "That prediction was already resolved or is no longer open."
+          : "The prediction review could not be recorded.",
+        source: "ari_signals"
+      });
+    }
+
+    await updateAriSignal({ userId, signalId: signal.id, action: "dismiss" }).catch(() => null);
+    return res.status(200).json({
+      success: true,
+      version: OWNER_SIGNALS_VERSION,
+      ownerMode: true,
+      verdict,
+      decision: resolution.decision,
+      learning: {
+        summary: outcome.summary,
+        lesson: outcome.lesson,
+        evidenceQuality: outcome.evidenceQuality
+      },
+      source: "ari_signals_prediction_review"
+    });
   }
 
   if (action === "preferences") {
@@ -144,13 +212,15 @@ function buildSignalDetail(signal = {}) {
     requestFromJose,
     requestFromChatGPT,
     suggestedNextStep: clean(stored.suggestedNextStep, 900) || suggestedNextStep(action, followUpPrompt),
-    evidence
+    evidence,
+    reviewPacket: normalizeReviewPacket(stored.reviewPacket)
   };
 }
 
 function requestForJose(action = "") {
   if (action === "collaborate_on_autonomous_goal") return "Confirm the outcome you want, any owner constraints, and whether Ari should continue this development goal.";
   if (action === "review_autonomous_commit") return "Decide whether the isolated change should move forward after its evidence and integration risk are reviewed.";
+  if (action === "review_prediction") return "Review the evidence and decide whether the tracked prediction should be recorded as supported, weakened, mixed, or inconclusive.";
   if (/approval|authorize|confirm/i.test(action)) return "Provide the owner decision Ari is waiting for.";
   return "";
 }
@@ -158,13 +228,86 @@ function requestForJose(action = "") {
 function requestForChatGPT(action = "", followUpPrompt = "") {
   if (action === "review_autonomous_commit") return stripHelpPrefix(followUpPrompt) || "Review the isolated change, evidence, tests, and integration risk before merge.";
   if (action === "collaborate_on_autonomous_goal") return stripHelpPrefix(followUpPrompt);
+  if (action === "review_prediction") return stripHelpPrefix(followUpPrompt) || "Compare the original prediction with the new evidence and identify whether the result is supported, weakened, mixed, or inconclusive.";
   return "";
 }
 
 function suggestedNextStep(action = "", followUpPrompt = "") {
   if (action === "review_autonomous_commit") return "Review the isolated commit and its evidence before deciding whether to merge it.";
   if (action === "collaborate_on_autonomous_goal") return "Review the goal context together, then choose the smallest evidence-producing next step.";
+  if (action === "review_prediction") return "Compare the original prediction with the new evidence, check confounders, then record a bounded verdict only if the evidence supports one.";
   return stripHelpPrefix(followUpPrompt) || "Open this signal with Ari and decide the next action.";
+}
+
+function normalizeReviewPacket(value = null) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const currentEvidence = (Array.isArray(value.currentEvidence) ? value.currentEvidence : [])
+    .slice(0, 10)
+    .map((item) => ({
+      id: clean(item?.id, 120),
+      label: clean(item?.label, 420),
+      confidence: finiteOrNull(item?.confidence)
+    }))
+    .filter((item) => item.label);
+  const baseline = value?.baseline && typeof value.baseline === "object"
+    ? {
+        available: value.baseline.available === true,
+        metrics: arrayText(value.baseline.metrics, 6, 320),
+        supportingEvidence: arrayText(value.baseline.supportingEvidence, 6, 320),
+        contradictingEvidence: arrayText(value.baseline.contradictingEvidence, 4, 320),
+        unknowns: arrayText(value.baseline.unknowns, 4, 320)
+      }
+    : null;
+  const observationWindow = value?.observationWindow && typeof value.observationWindow === "object"
+    ? {
+        startAt: clean(value.observationWindow.startAt, 80) || null,
+        reviewAt: clean(value.observationWindow.reviewAt, 80) || null,
+        horizonDays: finiteOrNull(value.observationWindow.horizonDays),
+        due: value.observationWindow.due === true
+      }
+    : null;
+  const evidenceQuality = value?.evidenceQuality && typeof value.evidenceQuality === "object"
+    ? {
+        label: clean(value.evidenceQuality.label, 40),
+        score: finiteOrNull(value.evidenceQuality.score),
+        evidenceCount: finiteOrNull(value.evidenceQuality.evidenceCount),
+        note: clean(value.evidenceQuality.note, 500)
+      }
+    : null;
+  const packet = {
+    version: clean(value.version, 40) || "1.0.0",
+    decisionId: clean(value.decisionId, 200) || null,
+    domain: clean(value.domain, 80) || null,
+    kind: clean(value.kind, 80) || null,
+    proposition: clean(value.proposition, 900),
+    originalPrediction: clean(value.originalPrediction, 1000),
+    successCriteria: clean(value.successCriteria, 900) || null,
+    disconfirmingCriteria: clean(value.disconfirmingCriteria, 900) || null,
+    hypothesisId: clean(value.hypothesisId, 120) || null,
+    observationWindow,
+    baseline,
+    currentEvidence,
+    evidenceQuality,
+    preliminaryVerdict: clean(value.preliminaryVerdict, 40) || "pending_review",
+    preliminaryRationale: clean(value.preliminaryRationale, 700),
+    finalVerdictRequired: value.finalVerdictRequired !== false,
+    resolutionOptions: arrayText(value.resolutionOptions, 6, 40),
+    hiddenChainOfThoughtStored: false
+  };
+  return packet.decisionId || packet.originalPrediction || packet.proposition ? packet : null;
+}
+
+function arrayText(value, maxItems, maxLength) {
+  return (Array.isArray(value) ? value : [])
+    .slice(0, maxItems)
+    .map((item) => clean(typeof item === "string" ? item : JSON.stringify(item), maxLength))
+    .filter(Boolean);
+}
+
+function finiteOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 function normalizeEvidence(item = null) {
@@ -188,6 +331,22 @@ function extractBriefField(text = "", label = "") {
   if (!source || !key) return "";
   const match = new RegExp(`(?:^|\\b)${key}:\\s*([^.!?]{1,260})`, "i").exec(source);
   return clean(match?.[1], 260);
+}
+
+function predictionResolutionSummary({ verdict = "", review = null } = {}) {
+  const proposition = clean(review?.proposition || review?.originalPrediction || "The tracked prediction", 360);
+  if (verdict === "supported") return `${proposition} was supported by the reviewed observation-window evidence.`;
+  if (verdict === "weakened") return `${proposition} was weakened by the reviewed observation-window evidence.`;
+  if (verdict === "mixed") return `${proposition} received mixed evidence during the review window.`;
+  return `${proposition} remains inconclusive after the review window.`;
+}
+
+function predictionResolutionLesson({ verdict = "", review = null } = {}) {
+  const hypothesis = clean(review?.hypothesisId || review?.proposition, 260) || "this explanation";
+  if (verdict === "supported") return `Increase confidence in ${hypothesis} only for materially similar conditions; keep the conclusion revisable.`;
+  if (verdict === "weakened") return `Reduce confidence in ${hypothesis} under materially similar conditions and elevate credible alternatives before repeating the same recommendation.`;
+  if (verdict === "mixed") return `Do not generalize from this review; preserve competing explanations and seek the highest-value discriminator next.`;
+  return `Do not force a conclusion from insufficient evidence; improve comparable measurement before changing the strategy.`;
 }
 
 function classifyOwnerCategory({ reason, action, fallback }) {

@@ -2,7 +2,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const API = "/api/ari-signals";
   const APP_ID = "com.arixp.app";
   let signals = [];
@@ -210,6 +210,7 @@
       detailSection("WHAT I MEAN", detail.whatItMeans),
       detailSection("WHY I SENT THIS", detail.whySent || signal?.whyNow),
       detailSection("RELATED GOAL", detail.relatedGoal),
+      predictionReviewSection(detail.reviewPacket),
       detailSection("CURRENT STATE", detail.currentState),
       detailSection("WHAT I NEED FROM JOSE", detail.requestFromJose),
       detailSection("WHAT I NEED FROM CHATGPT", detail.requestFromChatGPT),
@@ -224,12 +225,98 @@
       </div>
       ${sections.join("") || detailSection("WHAT I MEAN", signal?.context || signal?.followUpPrompt || signal?.message)}
     `;
+    body.querySelectorAll("[data-prediction-verdict]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const verdict = clean(button.getAttribute("data-prediction-verdict")).toLowerCase();
+        if (!verdict || !activeDetailSignalId) return;
+        await resolvePredictionReview(activeDetailSignalId, verdict, button);
+      });
+    });
   }
 
   function detailSection(title, value) {
     const textValue = clean(value);
     if (!textValue) return "";
     return `<section class="ari-signal-detail-section"><h4>${escapeHtml(title)}</h4><p>${escapeHtml(textValue)}</p></section>`;
+  }
+
+  function predictionReviewSection(review) {
+    if (!review || typeof review !== "object") return "";
+    const windowText = formatObservationWindow(review.observationWindow);
+    const baselineItems = [
+      ...(Array.isArray(review?.baseline?.metrics) ? review.baseline.metrics : []),
+      ...(Array.isArray(review?.baseline?.supportingEvidence)
+        ? review.baseline.supportingEvidence.map((item) => `Original support — ${item}`)
+        : [])
+    ].map(clean).filter(Boolean).slice(0, 6);
+    const evidenceItems = (Array.isArray(review.currentEvidence) ? review.currentEvidence : [])
+      .map((item) => clean(item?.label))
+      .filter(Boolean)
+      .slice(0, 8);
+    const quality = clean(review?.evidenceQuality?.label);
+    const qualityNote = clean(review?.evidenceQuality?.note);
+    const verdict = clean(review.preliminaryVerdict).replace(/_/g, " ");
+    const rationale = clean(review.preliminaryRationale);
+
+    const rows = [
+      review.originalPrediction ? reviewRow("ORIGINAL PREDICTION", review.originalPrediction) : "",
+      review.successCriteria ? reviewRow("WOULD SUPPORT IT IF", review.successCriteria) : "",
+      review.disconfirmingCriteria ? reviewRow("WOULD WEAKEN IT IF", review.disconfirmingCriteria) : "",
+      windowText ? reviewRow("OBSERVATION WINDOW", windowText) : "",
+      baselineItems.length ? reviewListRow("BASELINE", baselineItems) : "",
+      evidenceItems.length ? reviewListRow("NEW EVIDENCE", evidenceItems) : "",
+      quality ? reviewRow("EVIDENCE QUALITY", [quality.toUpperCase(), qualityNote].filter(Boolean).join(" — ")) : "",
+      verdict ? reviewVerdictRow(verdict, rationale, review.finalVerdictRequired !== false) : ""
+    ].filter(Boolean).join("");
+
+    return rows
+      ? `<section class="ari-signal-review-card"><p class="ari-signal-review-kicker">PREDICTION REVIEW</p>${rows}</section>`
+      : "";
+  }
+
+  function reviewRow(labelText, value) {
+    const textValue = clean(value);
+    if (!textValue) return "";
+    return `<div class="ari-signal-review-row"><span>${escapeHtml(labelText)}</span><p>${escapeHtml(textValue)}</p></div>`;
+  }
+
+  function reviewListRow(labelText, items) {
+    const rows = (Array.isArray(items) ? items : []).map(clean).filter(Boolean);
+    if (!rows.length) return "";
+    return `<div class="ari-signal-review-row"><span>${escapeHtml(labelText)}</span><ul>${rows.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
+  }
+
+  function reviewVerdictRow(verdict, rationale, finalRequired) {
+    const status = clean(verdict) || "pending review";
+    const resolution = finalRequired
+      ? `<div class="ari-signal-review-resolution" aria-label="Record prediction review"><span>RECORD FINAL REVIEW</span><div class="ari-signal-review-resolution-grid">
+          <button type="button" data-prediction-verdict="supported">Supported</button>
+          <button type="button" data-prediction-verdict="weakened">Weakened</button>
+          <button type="button" data-prediction-verdict="mixed">Mixed</button>
+          <button type="button" data-prediction-verdict="inconclusive">Inconclusive</button>
+        </div><small>Choose only after reviewing the evidence. This closes the tracked prediction and feeds the outcome into Ari's future calibration.</small></div>`
+      : "";
+    return `<div class="ari-signal-review-verdict"><div><span>PRELIMINARY COMPARISON</span><strong>${escapeHtml(status.toUpperCase())}</strong></div>${rationale ? `<p>${escapeHtml(rationale)}</p>` : ""}${finalRequired ? '<small>Not final until the evidence is explicitly reviewed.</small>' : ""}${resolution}</div>`;
+  }
+
+  function formatObservationWindow(value) {
+    if (!value || typeof value !== "object") return "";
+    const start = formatDate(value.startAt);
+    const end = formatDate(value.reviewAt);
+    const days = Number(value.horizonDays);
+    if (start && end) return `${start} → ${end}${Number.isFinite(days) ? ` · ${days} days` : ""}`;
+    if (end) return `Review due ${end}`;
+    return Number.isFinite(days) ? `${days}-day observation window` : "";
+  }
+
+  function formatDate(value) {
+    const timestamp = Date.parse(String(value || ""));
+    if (!Number.isFinite(timestamp)) return "";
+    try {
+      return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(timestamp));
+    } catch {
+      return String(value || "").slice(0, 10);
+    }
   }
 
   function evidenceSection(items) {
@@ -268,6 +355,28 @@
     const signal = signals.find((item) => item.id === id);
     if (!signal) return;
     const detail = signal.detail || {};
+    const review = detail.reviewPacket && typeof detail.reviewPacket === "object" ? detail.reviewPacket : null;
+    const reviewLines = review ? [
+      review.originalPrediction ? `Original prediction: ${review.originalPrediction}` : "",
+      review.successCriteria ? `Would support it if: ${review.successCriteria}` : "",
+      review.disconfirmingCriteria ? `Would weaken it if: ${review.disconfirmingCriteria}` : "",
+      formatObservationWindow(review.observationWindow) ? `Observation window: ${formatObservationWindow(review.observationWindow)}` : "",
+      Array.isArray(review?.baseline?.metrics) && review.baseline.metrics.length
+        ? `Baseline: ${review.baseline.metrics.join("; ")}`
+        : "",
+      Array.isArray(review.currentEvidence) && review.currentEvidence.length
+        ? `New evidence: ${review.currentEvidence.map((item) => clean(item?.label)).filter(Boolean).join("; ")}`
+        : "",
+      review?.evidenceQuality?.label
+        ? `Evidence quality: ${review.evidenceQuality.label}${review.evidenceQuality.note ? ` — ${review.evidenceQuality.note}` : ""}`
+        : "",
+      review.preliminaryVerdict
+        ? `Preliminary comparison: ${review.preliminaryVerdict} — ${clean(review.preliminaryRationale)}`
+        : "",
+      review.finalVerdictRequired !== false
+        ? "Final review required: compare the evidence before resolving the prediction."
+        : ""
+    ].filter(Boolean) : [];
     const lines = [
       "ARI Signal",
       signal.message,
@@ -277,6 +386,7 @@
       detail.currentState ? `Current state: ${detail.currentState}` : "",
       detail.requestFromJose ? `What Ari needs from Jose: ${detail.requestFromJose}` : "",
       detail.requestFromChatGPT ? `What Ari needs from ChatGPT: ${detail.requestFromChatGPT}` : "",
+      ...reviewLines,
       detail.suggestedNextStep ? `Suggested next step: ${detail.suggestedNextStep}` : "",
       Array.isArray(detail.evidence) && detail.evidence.length
         ? `Evidence: ${detail.evidence.map((item) => [clean(item?.label), clean(item?.url)].filter(Boolean).join(" — ")).filter(Boolean).join("; ")}`
@@ -303,6 +413,42 @@
     }
   }
 
+  async function resolvePredictionReview(signalId, verdict, button = null) {
+    const allowed = new Set(["supported", "weakened", "mixed", "inconclusive"]);
+    if (!allowed.has(verdict)) return;
+    const originalText = button?.textContent || "";
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Saving…";
+    }
+    setDetailStatus("Recording the reviewed outcome…");
+    try {
+      const data = await api({ action: "resolve-prediction", signalId, verdict });
+      signals = signals.map((signal) => signal.id === signalId
+        ? { ...signal, status: "dismissed", unread: false }
+        : signal);
+      setDetailStatus(data?.learning?.lesson || "Prediction review recorded.");
+      window.dispatchEvent(new CustomEvent("ari:predictionReviewResolved", {
+        detail: {
+          signalId,
+          verdict,
+          decision: data?.decision || null,
+          learning: data?.learning || null
+        }
+      }));
+      window.setTimeout(() => {
+        closeSignalDetail();
+        render();
+      }, 650);
+    } catch (error) {
+      if (button) {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+      setDetailStatus(error?.message || "Could not record the prediction review.", true);
+    }
+  }
+
   function setDetailStatus(message, error = false) {
     const node = document.getElementById("ariSignalDetailStatus");
     if (!node) return;
@@ -318,22 +464,25 @@
     signal.unread = false;
     render();
     closePanel();
+    const initiative = {
+      id: signal.id,
+      initiativeKey: signal.initiativeKey,
+      reasonId: signal.reasonId,
+      priority: signal.priority,
+      opener: signal.message,
+      followUpPrompt: signal.followUpPrompt,
+      action: signal.action,
+      context: signal.context,
+      domain: signal.domain,
+      reviewPacket: signal?.detail?.reviewPacket || null
+    };
+    window.Ari?.Runtime?.stageInitiativeContext?.(initiative);
     window.dispatchEvent(new CustomEvent("ari:vnextInitiative", {
       detail: {
         success: true,
         shouldInitiate: true,
         fromSignal: true,
-        initiative: {
-          id: signal.id,
-          initiativeKey: signal.initiativeKey,
-          reasonId: signal.reasonId,
-          priority: signal.priority,
-          opener: signal.message,
-          followUpPrompt: signal.followUpPrompt,
-          action: signal.action,
-          context: signal.context,
-          domain: signal.domain
-        }
+        initiative
       }
     }));
     const url = new URL(window.location.href);
@@ -469,6 +618,9 @@
   };
 
   window.addEventListener("ari:vnextInitiative", () => window.setTimeout(refresh, 250));
+  window.addEventListener("ari:vnextInitiativeQuiet", (event) => {
+    if (event?.detail?.signalRefreshed === true) window.setTimeout(refresh, 120);
+  });
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") void refresh(); });
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => void init(), { once: true });
   else void init();

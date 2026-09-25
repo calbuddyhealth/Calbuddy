@@ -27,7 +27,7 @@
   const RESUME_DELAY_MS = 350;
   const PROCESSING_RECHECK_MS = 800;
   const RUNTIME_LOAD_TIMEOUT_MS = 5000;
-  const REQUIRED_RUNTIME_VERSION = "1.6.3";
+  const REQUIRED_RUNTIME_VERSION = "1.6.4";
   const RUNTIME_CONTROLLER_SRC = `ari/runtime/ari-runtime-controller.js?v=${REQUIRED_RUNTIME_VERSION}`;
 
   let requestInFlight = false;

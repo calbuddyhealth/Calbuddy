@@ -8,7 +8,7 @@ import { communicationClosureToInstruction } from "./communication-closure.js";
 import { convictionInstruction } from "./conviction-learning.js";
 import { dreamingContextToInstruction } from "./dreaming-core.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.21.0";
+export const CONTEXT_ROUTER_VERSION = "1.22.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -109,6 +109,10 @@ export function buildRelevantContext(turn = {}, route = {}) {
       "version", "tier", "accountRole", "subscriptionTier", "subscriptionStatus", "accessClass", "intelligenceTier",
       "advancedAllowed", "advancedEnabled", "ownerEligible", "premiumEligible", "reasoningProfile", "conversationBeta", "source"
     ]);
+  }
+
+  if (source?.initiativeContext && typeof source.initiativeContext === "object") {
+    selected.initiativeContext = source.initiativeContext;
   }
 
   if (source?.userWorldModel && typeof source.userWorldModel === "object") {
@@ -364,6 +368,18 @@ function cognitiveContextRules(context = {}) {
       "- Teen mode is server-derived account context, not a memory or user-claimed fact.",
       "- Do not infer a different age from conversation or help bypass the adult-only ARI Circle entitlement.",
       "- Never expose or request the user's DOB merely to change authorization."
+    );
+  }
+
+  if (context?.initiativeContext?.source === "explicit_ari_signal_engagement") {
+    lines.push(
+      "ARI SIGNAL ENGAGEMENT RULES:",
+      "- The user explicitly opened an Ari Signal. Treat initiativeContext as the grounded subject of the immediate follow-up unless the current user message clearly changes topics.",
+      "- For a prediction review, distinguish the original prediction, stored baseline, new observations, evidence quality, preliminary comparison, and final resolution.",
+      "- A review date only means the observation window is ready to inspect. It is not evidence that the original prediction was correct.",
+      "- preliminaryVerdict is deterministic decision support, not a final judgment. Re-check the actual evidence and material confounders before resolving the prediction.",
+      "- If evidence remains sparse or conflicting, say inconclusive rather than forcing supported or weakened.",
+      "- Do not claim the decision journal was resolved unless a trusted runtime action or later verified outcome actually records that resolution."
     );
   }
 

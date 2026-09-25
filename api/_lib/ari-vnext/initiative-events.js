@@ -2,7 +2,7 @@
 
 import { maybeDeliverAriSignalPush } from "./ari-signals.js";
 
-export const ARI_INITIATIVE_EVENTS_VERSION = "1.4.0";
+export const ARI_INITIATIVE_EVENTS_VERSION = "1.5.0";
 const TABLE = "ari_vnext_initiative_events";
 
 export async function listRecentInitiatives({ userId, limit = 20 } = {}) {
@@ -155,6 +155,41 @@ export async function recordInitiativeSurface({ userId, candidate } = {}) {
   }
 }
 
+export async function refreshInitiativeSurface({ userId, initiativeId, candidate } = {}) {
+  const config = supabaseConfig();
+  const id = clean(userId, 200);
+  const eventId = clean(initiativeId, 200);
+  if (!config || !id || !eventId || !candidate?.initiativeKey) return { refreshed: false, reason: "refresh_input_invalid" };
+
+  const now = new Date();
+  const patch = {
+    reason_id: clean(candidate.reasonId, 200) || "initiative",
+    priority: clean(candidate.priority, 40) || "medium",
+    payload: compactCandidate(candidate),
+    expires_at: new Date(now.getTime() + clampInt(candidate.cooldownHours, 12, 168, 48) * 3600000).toISOString(),
+    updated_at: now.toISOString()
+  };
+  try {
+    const params = new URLSearchParams({
+      id: `eq.${eventId}`,
+      user_id: `eq.${id}`,
+      status: "in.(surfaced,engaged)"
+    });
+    const response = await fetch(`${config.url}/rest/v1/${TABLE}?${params.toString()}`, {
+      method: "PATCH",
+      headers: serverHeaders(config.key, { Prefer: "return=representation" }),
+      body: JSON.stringify(patch)
+    });
+    const data = await response.json().catch(() => []);
+    const saved = Array.isArray(data) ? data[0] : data;
+    return response.ok && saved
+      ? { refreshed: true, event: normalizeRow(saved) }
+      : { refreshed: false, reason: "open_initiative_not_found" };
+  } catch {
+    return { refreshed: false, reason: "initiative_refresh_failed" };
+  }
+}
+
 export async function updateInitiativeStatus({ userId, initiativeId, status } = {}) {
   const config = supabaseConfig();
   const id = clean(userId, 200);
@@ -227,7 +262,66 @@ function compactOwnerBrief(value = null) {
     requestFromJose: clean(value.requestFromJose, 900),
     requestFromChatGPT: clean(value.requestFromChatGPT, 1200),
     suggestedNextStep: clean(value.suggestedNextStep, 900),
-    evidence
+    evidence,
+    reviewPacket: compactReviewPacket(value?.reviewPacket)
+  };
+}
+
+function compactReviewPacket(value = null) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const observationWindow = value?.observationWindow && typeof value.observationWindow === "object"
+    ? {
+        startAt: clean(value.observationWindow.startAt, 80) || null,
+        reviewAt: clean(value.observationWindow.reviewAt, 80) || null,
+        horizonDays: finiteOrNull(value.observationWindow.horizonDays),
+        due: value.observationWindow.due === true
+      }
+    : null;
+  const baseline = value?.baseline && typeof value.baseline === "object"
+    ? {
+        available: value.baseline.available === true,
+        metrics: arrayText(value.baseline.metrics, 6, 320),
+        supportingEvidence: arrayText(value.baseline.supportingEvidence, 6, 320),
+        contradictingEvidence: arrayText(value.baseline.contradictingEvidence, 4, 320),
+        unknowns: arrayText(value.baseline.unknowns, 4, 320)
+      }
+    : null;
+  const currentEvidence = (Array.isArray(value?.currentEvidence) ? value.currentEvidence : [])
+    .slice(0, 10)
+    .map((item) => ({
+      id: clean(item?.id, 120),
+      label: clean(item?.label, 420),
+      confidence: finiteOrNull(item?.confidence)
+    }))
+    .filter((item) => item.label);
+  const evidenceQuality = value?.evidenceQuality && typeof value.evidenceQuality === "object"
+    ? {
+        label: clean(value.evidenceQuality.label, 40),
+        score: finiteOrNull(value.evidenceQuality.score),
+        evidenceCount: finiteOrNull(value.evidenceQuality.evidenceCount),
+        note: clean(value.evidenceQuality.note, 500)
+      }
+    : null;
+
+  return {
+    version: clean(value.version, 40) || "1.0.0",
+    decisionId: clean(value.decisionId, 200) || null,
+    domain: clean(value.domain, 80) || null,
+    kind: clean(value.kind, 80) || null,
+    proposition: clean(value.proposition, 900),
+    originalPrediction: clean(value.originalPrediction, 1000),
+    successCriteria: clean(value.successCriteria, 900) || null,
+    disconfirmingCriteria: clean(value.disconfirmingCriteria, 900) || null,
+    hypothesisId: clean(value.hypothesisId, 120) || null,
+    observationWindow,
+    baseline,
+    currentEvidence,
+    evidenceQuality,
+    preliminaryVerdict: clean(value.preliminaryVerdict, 40) || "pending_review",
+    preliminaryRationale: clean(value.preliminaryRationale, 700),
+    finalVerdictRequired: value.finalVerdictRequired !== false,
+    resolutionOptions: arrayText(value.resolutionOptions, 6, 40),
+    hiddenChainOfThoughtStored: false
   };
 }
 
@@ -296,6 +390,13 @@ function safeObject(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   try { return JSON.parse(JSON.stringify(value)); } catch { return {}; }
 }
+function arrayText(value, maxItems, maxLength) {
+  return (Array.isArray(value) ? value : [])
+    .slice(0, maxItems)
+    .map((item) => clean(typeof item === "string" ? item : JSON.stringify(item), maxLength))
+    .filter(Boolean);
+}
+
 function finiteOrNull(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
