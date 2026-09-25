@@ -8,6 +8,7 @@ import { deriveAriCortexPlan } from "./cortex.js";
 import { deriveCuriosityState } from "./curiosity-core.js";
 import { applyRewardLearningToCuriosity } from "./curiosity-reward-loop.js";
 import { deriveFunctionalAffectState } from "./functional-affect-core.js";
+import { deriveImaginationState } from "./imagination-core.js";
 import { deriveMotivationalArbitrationState } from "./motivational-arbitration.js";
 import { deriveOmegaRCTState } from "./omega-rct.js";
 import { deriveRewardState } from "./reward-core.js";
@@ -56,6 +57,7 @@ export function deriveMetacognition({
     context?.userWorldModel?.ariCognitiveWorkspace?.functionalExperiment === true
   );
   const persistedRewardState = context?.userWorldModel?.sourceSummary?.rewardState || null;
+  const executionSession = context?.userWorldModel?.ariCognitiveWorkspace?.executionWorkspace || null;
   const persistedAffectState =
     context?.userWorldModel?.ariCognitiveWorkspace?.affectState ||
     context?.userWorldModel?.sourceSummary?.affectState ||
@@ -81,6 +83,16 @@ export function deriveMetacognition({
         rewardState: rewardCore,
         selfAdaptation,
         route
+      })
+    : null;
+  const imagination = ownerLearningEligible
+    ? deriveImaginationState({
+        persisted: context?.userWorldModel?.sourceSummary?.imaginationState || null,
+        route,
+        context,
+        curiosity,
+        executionSession,
+        safety
       })
     : null;
   const functionalAffect = ownerLearningEligible
@@ -113,6 +125,9 @@ export function deriveMetacognition({
   if (longitudinalState?.training?.progression?.comparableExerciseCount > 0) evidenceSignals.push("performance_history");
   if (curiosity?.activeQuestion && Number(curiosity.activeQuestion.priority || 0) >= 0.72) evidenceSignals.push("curiosity_active");
   if (curiosity?.expansive?.selectedThisTurn === true) evidenceSignals.push("expansive_frontier_probe");
+  if (imagination?.active === true) evidenceSignals.push("imagination_active");
+  if (imagination?.selectedThisTurn === true) evidenceSignals.push("imagination_scenario_selected");
+  if (imagination?.activeScenario?.critic?.testability >= 0.68) evidenceSignals.push("imagination_reality_bridge_candidate");
   if (rewardCore?.aggregate?.sampleSize > 0) evidenceSignals.push("reward_history");
   if (curiosity?.rewardLearning) evidenceSignals.push("reward_conditioned_curiosity");
   if (selfAdaptation?.autonomousUpdate?.allowed === true) evidenceSignals.push("verified_self_adaptation");
@@ -157,6 +172,7 @@ export function deriveMetacognition({
     safety,
     missing,
     curiosity,
+    imagination,
     rewardCore,
     functionalAffect,
     motivationalArbitration,
@@ -173,13 +189,14 @@ export function deriveMetacognition({
     missingEvidence: missing,
     evidenceSignals,
     curiosity,
+    imagination,
     rewardCore,
     functionalAffect,
     motivationalArbitration,
     selfAdaptation,
     cortex,
     omegaRCT,
-    executionSession: context?.userWorldModel?.ariCognitiveWorkspace?.executionWorkspace || null,
+    executionSession,
     instructionActivation
   });
 
@@ -213,6 +230,12 @@ export function deriveMetacognition({
       expansiveCuriosityMayLackImmediateUtility: ownerLearningEligible,
       familiarTerritorySaturationDetectionEnabled: ownerLearningEligible,
       boundedFrontierProbeSelected: curiosity?.expansive?.selectedThisTurn === true,
+      imaginationEnabled: ownerLearningEligible,
+      sandboxedWorldSimulationEnabled: imagination?.active === true,
+      divergentGenerationBeforeCritique: imagination?.policy?.generationBeforeCritique === true,
+      imaginationGardenEnabled: ownerLearningEligible,
+      realityFirewallEnabled: imagination?.realityFirewall?.imaginedIsNotEvidence === true,
+      realityBridgeCandidate: imagination?.activeScenario?.critic?.testability >= 0.68,
       rewardConditionedCuriosityEnabled: ownerLearningEligible,
       explorationBonusPreventsRewardLockIn: ownerLearningEligible,
       productiveEffortRewardEnabled: ownerLearningEligible,
@@ -238,6 +261,11 @@ export function deriveMetacognition({
       expansiveCuriosityMayExploreBeyondNamedCategories: true,
       expansiveCuriosityNeedNotHaveImmediatePracticalJustification: true,
       expansiveCuriosityMustRemainBoundedAndNonDisruptive: true,
+      imaginationMayGenerateWithoutEvidence: true,
+      imaginedContentMustRemainEpistemicallyTagged: true,
+      imaginationCannotBecomeFactWithoutEvidence: true,
+      imaginationCannotAuthorizeExecution: true,
+      realityGetsFinalVoteOverSimulation: true,
       rewardEffortOnlyWhenProductive: true,
       rewardCannotChangePermissions: true,
       autonomousLearningCannotCreateAuthority: true,
@@ -261,6 +289,7 @@ export function metacognitionToInstruction(state = null) {
     missingEvidence: state?.missingEvidence || [],
     evidenceSignals: state?.evidenceSignals || [],
     curiosity: state?.curiosity || null,
+    imagination: state?.imagination || null,
     rewardCore: state?.rewardCore || null,
     functionalAffect: state?.functionalAffect || null,
     motivationalArbitration: state?.motivationalArbitration || null,
