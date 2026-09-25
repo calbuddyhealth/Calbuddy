@@ -6,7 +6,8 @@ import { beliefSystemInstruction } from "./belief-system.js";
 import { behavioralIdentityToInstruction } from "./behavioral-identity.js";
 import { communicationClosureToInstruction } from "./communication-closure.js";
 import { convictionInstruction } from "./conviction-learning.js";
-import { dreamingContextToInstruction } from "./dreaming-core.js";\nimport { experienceContextToInstruction } from "./experience-core.js";
+import { dreamingContextToInstruction } from "./dreaming-core.js";
+import { experienceContextToInstruction } from "./experience-core.js";
 
 export const CONTEXT_ROUTER_VERSION = "1.23.0";
 
