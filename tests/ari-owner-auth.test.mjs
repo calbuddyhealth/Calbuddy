@@ -229,6 +229,7 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
   const reviewed = [
     "ari-agent-community.js",
     "ari-agent-mailbox.js",
+    "ari-agent-worker.js",
     "ari-autonomy-cycle.js",
     "ari-circle-moderation-worker.js",
     "ari-circle-moderation.js",
@@ -273,6 +274,7 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
   assert.equal(names.has("ari-vnext.js"), true, "vNext primary runtime must remain present");
   assert.equal(names.has("ari-owner-intelligence-controls.js"), true, "owner intelligence controls must remain explicit server API surface");
   assert.equal(names.has("ari-agent-mailbox.js"), true, "owner Supabase mailbox must remain explicit reviewed server API surface");
+  assert.equal(names.has("ari-agent-worker.js"), true, "background agent worker must remain an explicit reviewed server API surface");
   assert.equal(names.has("ari-circle-push-dispatch.js"), true, "Circle native push dispatcher must remain explicit reviewed server API surface");
   assert.equal(names.has("ari-circle-moderation-worker.js"), true, "Circle moderation worker must remain an explicit reviewed server API surface");
   assert.equal(names.has("ari-circle-owner-photo-review.js"), true, "Circle owner photo review must remain an explicit reviewed server API surface");
