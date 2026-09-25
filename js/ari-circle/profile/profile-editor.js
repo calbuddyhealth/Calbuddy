@@ -1,5 +1,5 @@
 // js/ari-circle/profile/profile-editor.js
-// ARI Circle — Profile Editor V2.2.0
+// ARI Circle — Profile Editor V2.3.0
 //
 // The profile is intentionally compact: identity, about, interests,
 // and four showcase slots managed separately by profile-gallery-v1.
@@ -7,7 +7,7 @@
 import CircleStore from "../core/circle-store.js";
 import CircleEvents, { EVENT_NAMES } from "../core/circle-events.js";
 
-const VERSION = "2.2.0";
+const VERSION = "2.3.0";
 const SOURCE = "ari-circle/profile/profile-editor";
 const AUTOSAVE_DELAY_MS = 650;
 const PROFILE_SAVED_EVENT = "circle:profile-saved";
@@ -44,12 +44,11 @@ const PROFILE_FIELDS = Object.freeze([
     type: "select",
     section: "Profile",
     options: [
-      { value: "", label: "Pearl" },
-      { value: "template:aurora", label: "Aurora" },
-      { value: "template:coastal", label: "Coastal" },
-      { value: "template:sunset", label: "Sunset" },
-      { value: "template:violet", label: "Violet" },
-      { value: "template:midnight", label: "Midnight" }
+      { value: "", label: "Default" },
+      { value: "template:midnight", label: "Midnight" },
+      { value: "template:arctic-glass", label: "Arctic Glass" },
+      { value: "template:electric-dusk", label: "Electric Dusk" },
+      { value: "template:champagne", label: "Champagne" }
     ]
   },
   {
@@ -316,17 +315,20 @@ const ProfileEditor = {
       const control = this.dom.form?.elements?.namedItem(field.key);
       if (!control) continue;
 
-      const value = getNestedProfileValue(profile, field.key);
-      if (
-        field.key === "cover_url" &&
-        value &&
-        ![...control.options].some(option => option.value === value)
-      ) {
-        const current = document.createElement("option");
-        current.value = value;
-        current.textContent = "Current background image";
-        current.dataset.legacyCover = "true";
-        control.append(current);
+      let value = getNestedProfileValue(profile, field.key);
+      if (field.key === "cover_url") {
+        const isKnownOption = [...control.options].some(option => option.value === value);
+        const isRetiredTemplate = value.startsWith("template:") && !isKnownOption;
+
+        if (isRetiredTemplate) {
+          value = "";
+        } else if (value && !isKnownOption) {
+          const current = document.createElement("option");
+          current.value = value;
+          current.textContent = "Current background image";
+          current.dataset.legacyCover = "true";
+          control.append(current);
+        }
       }
       control.value = value;
     }
