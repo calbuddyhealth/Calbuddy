@@ -227,3 +227,35 @@ test("explicit More Less feedback becomes bounded future expression bias", () =>
   assert.ok(control.activeBehaviors.some((item) => item.id === "explicit_feedback_challenge"));
   assert.ok(control.activeBehaviors.some((item) => item.id === "explicit_feedback_praise"));
 });
+
+
+test("Keep feedback reinforces naturalness without inventing a new identity rule", () => {
+  const feedback = deriveExplicitPersonalityFeedback("Keep doing that.");
+  assert.equal(feedback.detected, true);
+  assert.equal(feedback.keep, true);
+
+  const state = advancePersonalityEvaluationState({
+    previous: null,
+    feedback,
+    evaluation: {
+      version: "1.0.0",
+      turnId: "feedback-keep-1",
+      at: new Date().toISOString(),
+      status: "pass",
+      score: 0.92,
+      dimensions: {
+        expression_fit: { applicable: true, score: 0.92, status: "pass", evidence: [] }
+      },
+      issues: []
+    }
+  });
+
+  assert.ok(state.expressionBiases.naturalness > 0);
+  const control = deriveBehavioralIdentityControl({
+    previousEvaluation: state,
+    turn: { message: "Continue." },
+    route: { followUp: true },
+    context: {}
+  });
+  assert.ok(control.activeBehaviors.some((item) => item.id === "explicit_feedback_naturalness"));
+});
