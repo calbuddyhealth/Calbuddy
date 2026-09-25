@@ -618,6 +618,9 @@
   };
 
   window.addEventListener("ari:vnextInitiative", () => window.setTimeout(refresh, 250));
+  window.addEventListener("ari:vnextInitiativeQuiet", (event) => {
+    if (event?.detail?.signalRefreshed === true) window.setTimeout(refresh, 120);
+  });
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") void refresh(); });
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => void init(), { once: true });
   else void init();
