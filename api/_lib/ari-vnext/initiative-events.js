@@ -155,6 +155,41 @@ export async function recordInitiativeSurface({ userId, candidate } = {}) {
   }
 }
 
+export async function refreshInitiativeSurface({ userId, initiativeId, candidate } = {}) {
+  const config = supabaseConfig();
+  const id = clean(userId, 200);
+  const eventId = clean(initiativeId, 200);
+  if (!config || !id || !eventId || !candidate?.initiativeKey) return { refreshed: false, reason: "refresh_input_invalid" };
+
+  const now = new Date();
+  const patch = {
+    reason_id: clean(candidate.reasonId, 200) || "initiative",
+    priority: clean(candidate.priority, 40) || "medium",
+    payload: compactCandidate(candidate),
+    expires_at: new Date(now.getTime() + clampInt(candidate.cooldownHours, 12, 168, 48) * 3600000).toISOString(),
+    updated_at: now.toISOString()
+  };
+  try {
+    const params = new URLSearchParams({
+      id: `eq.${eventId}`,
+      user_id: `eq.${id}`,
+      status: "in.(surfaced,engaged)"
+    });
+    const response = await fetch(`${config.url}/rest/v1/${TABLE}?${params.toString()}`, {
+      method: "PATCH",
+      headers: serverHeaders(config.key, { Prefer: "return=representation" }),
+      body: JSON.stringify(patch)
+    });
+    const data = await response.json().catch(() => []);
+    const saved = Array.isArray(data) ? data[0] : data;
+    return response.ok && saved
+      ? { refreshed: true, event: normalizeRow(saved) }
+      : { refreshed: false, reason: "open_initiative_not_found" };
+  } catch {
+    return { refreshed: false, reason: "initiative_refresh_failed" };
+  }
+}
+
 export async function updateInitiativeStatus({ userId, initiativeId, status } = {}) {
   const config = supabaseConfig();
   const id = clean(userId, 200);
