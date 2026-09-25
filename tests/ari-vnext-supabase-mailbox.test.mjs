@@ -169,6 +169,7 @@ test("mailbox list is user scoped and maps durable Supabase rows", async () => {
       userId: OWNER_ID,
       recipient: "ari-orchestrator",
       kind: "answer",
+      threadId: "thread-test",
       limit: 10,
       fetchImpl: async (url) => {
         observedUrl = url;
@@ -196,6 +197,7 @@ test("mailbox list is user scoped and maps durable Supabase rows", async () => {
     assert.match(observedUrl, /user_id=eq\.0b3b0f56-676f-4859-a9f4-b377dd73544f/);
     assert.match(observedUrl, /recipient=eq\.ari-orchestrator/);
     assert.match(observedUrl, /kind=eq\.answer/);
+    assert.match(observedUrl, /thread_id=eq\.thread-test/);
   } finally {
     process.env = original;
   }
