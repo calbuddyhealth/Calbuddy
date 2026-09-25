@@ -14,11 +14,12 @@ const RESPONSES_URL =
   process.env.ARI_RESPONSES_URL ||
   process.env.OPENAI_RESPONSES_URL ||
   "https://api.openai.com/v1/responses";
-const MAX_TOOL_STEPS = 5;
+const MAX_TOOL_STEPS = 3;
 
 export async function runQueuedSpecialist({
   job,
-  priorMessages = []
+  priorMessages = [],
+  deadlineAt = null
 } = {}) {
   const scope = normalizeToolScope(job?.toolScope);
   const webAllowed =
@@ -61,7 +62,8 @@ export async function runQueuedSpecialist({
     input,
     tools,
     maxOutputTokens: 1700,
-    reasoningEffort: "medium"
+    reasoningEffort: "medium",
+    deadlineAt
   });
 
   return {
@@ -76,7 +78,8 @@ export async function runQueuedSpecialist({
 
 export async function runQueuedVerifier({
   job,
-  priorMessages = []
+  priorMessages = [],
+  deadlineAt = null
 } = {}) {
   const scope = normalizeToolScope(job?.toolScope);
   const tools = [
@@ -113,7 +116,8 @@ export async function runQueuedVerifier({
     input,
     tools,
     maxOutputTokens: 1800,
-    reasoningEffort: "medium"
+    reasoningEffort: "medium",
+    deadlineAt
   });
 
   const parsed = extractJsonObject(run.text);
@@ -142,7 +146,8 @@ async function runToolLoop({
   input,
   tools,
   maxOutputTokens,
-  reasoningEffort
+  reasoningEffort,
+  deadlineAt = null
 } = {}) {
   let continuationInput = [...input];
   let evidence = { observations: [], artifacts: [], verification: null };
@@ -150,13 +155,15 @@ async function runToolLoop({
   let lastResponse = null;
 
   for (let step = 0; step <= MAX_TOOL_STEPS; step += 1) {
+    assertWorkerBudget(deadlineAt);
     const response = await callResponses({
       job,
       instructions,
       input: continuationInput,
       tools,
       maxOutputTokens,
-      reasoningEffort
+      reasoningEffort,
+      deadlineAt
     });
     lastResponse = response;
 
@@ -357,7 +364,8 @@ async function callResponses({
   input,
   tools = [],
   maxOutputTokens = 1500,
-  reasoningEffort = "medium"
+  reasoningEffort = "medium",
+  deadlineAt = null
 } = {}) {
   const apiKey = clean(
     process.env.ARI_PROVIDER_API_KEY ||
@@ -374,12 +382,19 @@ async function callResponses({
     "gpt-5.6";
 
   const controller = new AbortController();
-  const timeoutMs = boundedInt(
+  const configuredTimeoutMs = boundedInt(
     process.env.ARI_ASYNC_WORKER_MODEL_TIMEOUT_MS,
-    30000,
-    8000,
-    60000
+    18000,
+    5000,
+    25000
   );
+  const remainingMs = Number.isFinite(Number(deadlineAt))
+    ? Math.max(0, Number(deadlineAt) - Date.now() - 3500)
+    : configuredTimeoutMs;
+  if (remainingMs < 5000) {
+    throw codedError("AGENT_WORKER_BUDGET_EXHAUSTED", "Ari background specialist reached its execution time budget.");
+  }
+  const timeoutMs = Math.min(configuredTimeoutMs, remainingMs);
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   const body = {
@@ -435,6 +450,16 @@ async function callResponses({
     throw error;
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+function assertWorkerBudget(deadlineAt) {
+  if (!Number.isFinite(Number(deadlineAt))) return;
+  if (Date.now() + 5000 >= Number(deadlineAt)) {
+    throw codedError(
+      "AGENT_WORKER_BUDGET_EXHAUSTED",
+      "Ari background specialist reached its execution time budget."
+    );
   }
 }
 
