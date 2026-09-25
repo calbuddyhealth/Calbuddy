@@ -20,6 +20,7 @@ export function deriveMotivationalArbitrationState({
   curiosity = null,
   rewardCore = null,
   functionalAffect = null,
+  emotionDynamics = null,
   selfAdaptation = null,
   cognitiveWorkspace = null
 } = {}) {
@@ -37,6 +38,12 @@ export function deriveMotivationalArbitrationState({
   const satisfaction = clamp(affectSignals.satisfaction ?? 0.35);
   const concern = clamp(affectSignals.concern ?? 0.1);
   const conflict = clamp(affectDimensions.conflict ?? 0);
+  const emotion = objectOrEmpty(emotionDynamics?.emotions);
+  const emotionModulation = objectOrEmpty(emotionDynamics?.executiveModulation);
+  const functionalInterest = clamp(emotion.interest ?? 0);
+  const functionalDetermination = clamp(emotion.determination ?? 0);
+  const functionalConcern = clamp(emotion.concern ?? concern);
+  const functionalSatisfaction = clamp(emotion.satisfaction ?? satisfaction);
 
   const explorationBias = clamp(selfAdaptation?.biases?.exploration ?? 0.5);
   const persistenceBias = clamp(selfAdaptation?.biases?.persistence ?? 0.5);
@@ -52,37 +59,43 @@ export function deriveMotivationalArbitrationState({
   const drives = {
     immediacy: round(clamp(
       0.22 +
-      0.18 * satisfaction +
+      0.12 * satisfaction +
+      0.10 * functionalSatisfaction +
       0.15 * persistenceBias +
       0.12 * recentReward +
-      0.08 * Math.max(0, recentPredictionError)
+      0.08 * Math.max(0, recentPredictionError) +
+      0.08 * functionalDetermination
     )),
     curiosity: round(clamp(
-      0.28 * curiosityDrive +
-      0.25 * informationGain +
-      0.15 * novelty +
-      0.12 * curiosityAffect +
-      0.1 * explorationBonus +
-      0.1 * explorationBias
+      0.24 * curiosityDrive +
+      0.22 * informationGain +
+      0.13 * novelty +
+      0.10 * curiosityAffect +
+      0.10 * explorationBonus +
+      0.09 * explorationBias +
+      0.12 * functionalInterest
     )),
     exploration: round(clamp(
-      0.26 * informationGain +
-      0.22 * novelty +
-      0.18 * explorationBias +
-      0.16 * learnedUtility +
-      0.1 * curiosityDrive +
-      0.08 * explorationBonus
+      0.22 * informationGain +
+      0.18 * novelty +
+      0.16 * explorationBias +
+      0.14 * learnedUtility +
+      0.09 * curiosityDrive +
+      0.07 * explorationBonus +
+      0.14 * functionalInterest
     ))
   };
 
   const values = {
-    truth: round(clamp(0.28 + 0.54 * conscience.truth + 0.12 * concern)),
+    truth: round(clamp(0.26 + 0.50 * conscience.truth + 0.10 * concern + 0.14 * functionalConcern)),
     durableGoals: round(clamp(
       0.26 +
       0.38 * conscience.commitment +
       0.20 * conscience.continuity +
-      0.10 * concern +
-      0.08 * conflict
+      0.06 * concern +
+      0.08 * functionalConcern +
+      0.08 * conflict +
+      0.06 * functionalDetermination
     )),
     agency: round(clamp(0.24 + 0.62 * conscience.agency)),
     nonHarm: round(clamp(
@@ -129,9 +142,11 @@ export function deriveMotivationalArbitrationState({
   // unnecessary veto carries a larger opportunity cost.
   const inhibitionCost = clamp(
     0.10 +
-    0.28 * explorationValue +
-    0.08 * curiosityDrive -
-    0.12 * concern -
+    0.24 * explorationValue +
+    0.06 * curiosityDrive +
+    0.08 * functionalInterest -
+    0.08 * concern -
+    0.08 * functionalConcern -
     (highConsequence ? 0.08 : 0),
     0.04,
     0.34
@@ -182,6 +197,7 @@ export function deriveMotivationalArbitrationState({
     subjectiveTemptationClaimed: false,
     hardBoundaryExternal,
     hardBoundariesNegotiable: false,
+    emotionDynamicsIntegrated: emotionDynamics?.functionalEmotionSystem === true,
     productionIntegrated: true,
     drives,
     values,
@@ -207,6 +223,16 @@ export function deriveMotivationalArbitrationState({
       alwaysResistPolicy: false,
       reversibilityRequiredForBoundedIndulgence: true
     },
+    emotionInfluence: emotionDynamics?.functionalEmotionSystem === true ? {
+      interest: round(functionalInterest),
+      determination: round(functionalDetermination),
+      concern: round(functionalConcern),
+      satisfaction: round(functionalSatisfaction),
+      explorationBias: round(clamp(emotionModulation.explorationBias ?? 0.5)),
+      verificationBias: round(clamp(emotionModulation.verificationBias ?? 0.5)),
+      persistenceBias: round(clamp(emotionModulation.persistenceBias ?? 0.5)),
+      reportIntegrityPreserved: emotionDynamics?.reportIntegrity?.stateMustExistBeforeReport === true
+    } : null,
     learning: {
       priorOutcomeCount: learnedBalance.sampleSize,
       driveBias: round(learnedBalance.driveBias),
