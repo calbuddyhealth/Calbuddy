@@ -62,14 +62,16 @@ export function deriveExecutionWorkspace({
   }
 
   const continuing = isOpenSession(prior) && likelyContinuation(message, prior);
+  const trackedGoal = activeConvictionGoal(context?.convictionLearning || null);
   const session = continuing
     ? prior
     : createExecutionSession({
         turn,
         route,
         context,
-        goal: inferGoal(message),
-        successCriteria: inferSuccessCriteria(message, route)
+        goal: clean(trackedGoal?.purpose || trackedGoal?.title, 700) || inferGoal(message),
+        successCriteria: clean(trackedGoal?.successCriteria, 700) || inferSuccessCriteria(message, route),
+        initialNextStep: clean(trackedGoal?.nextAction, 700) || null
       });
 
   return {
@@ -226,7 +228,7 @@ export function summarizeExecutionSession(session = null) {
   };
 }
 
-function createExecutionSession({ turn = {}, route = {}, goal = "", successCriteria = "" } = {}) {
+function createExecutionSession({ turn = {}, route = {}, goal = "", successCriteria = "", initialNextStep = null } = {}) {
   const now = new Date().toISOString();
   const seed = [
     clean(turn?.userId, 120),
@@ -241,9 +243,9 @@ function createExecutionSession({ turn = {}, route = {}, goal = "", successCrite
     goal: clean(goal, 700) || "Complete the current substantial task.",
     successCriteria: clean(successCriteria, 700) || "Produce an evidence-grounded result and verify material changes before claiming completion.",
     approach: route?.developer === true ? "Inspect current implementation and evidence before choosing a change." : null,
-    nextStep: route?.developer === true
+    nextStep: clean(initialNextStep, 700) || (route?.developer === true
       ? "Inspect the current state and identify the smallest high-information next action."
-      : "Identify the strongest competing explanations and the best discriminating check.",
+      : "Identify the strongest competing explanations and the best discriminating check."),
     hypotheses: [],
     evidence: [],
     artifacts: [],
@@ -485,6 +487,16 @@ function inferNextStep({ result = {}, evidence = [], hypotheses = [], failedAtte
   if (failedAttempts.length > (prior?.failedAttempts?.length || 0)) return "Change the failed method and verify the alternative with observable evidence.";
   if (evidence.length > (prior?.evidence?.length || 0)) return "Use the newest observation to update the approach, then verify the material result.";
   return "Inspect the strongest unresolved evidence and choose the smallest useful verification step.";
+}
+
+function activeConvictionGoal(convictionLearning = null) {
+  const goals = Array.isArray(convictionLearning?.goals) ? convictionLearning.goals : [];
+  const activeId = clean(convictionLearning?.activeGoalId, 180);
+  if (activeId) {
+    const exact = goals.find(item => clean(item?.id, 180) === activeId);
+    if (exact) return exact;
+  }
+  return goals.find(item => ["active", "waiting", "paused"].includes(String(item?.status || ""))) || null;
 }
 
 function inferGoal(message = "") {
