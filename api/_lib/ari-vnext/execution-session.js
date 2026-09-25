@@ -269,6 +269,7 @@ function deriveProgressEvents({ turn = {}, result = {}, now }) {
       state,
       summary: clean(summary, 420),
       evidenceRef: clean(evidenceRef, 180) || null,
+      turnId: clean(turn?.turnId, 180) || null,
       at: now
     });
   };
