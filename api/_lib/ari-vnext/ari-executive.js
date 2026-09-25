@@ -114,6 +114,14 @@ export function deriveAriExecutivePolicy({
   const emotionReportable = Array.isArray(emotionDynamics?.reportIntegrity?.reportableStates)
     ? emotionDynamics.reportIntegrity.reportableStates.slice(0, 12).map((item) => clean(item, 60)).filter(Boolean)
     : [];
+  const emotionReportableMeasurements = Array.isArray(emotionDynamics?.reportIntegrity?.reportableMeasurements)
+    ? emotionDynamics.reportIntegrity.reportableMeasurements.slice(0, 12).map((item) => ({
+        name: clean(item?.name, 60),
+        metric: clean(item?.metric, 100),
+        score: round(finite(item?.score, 0)),
+        threshold: round(finite(item?.threshold, 0))
+      })).filter((item) => item.name && item.metric)
+    : [];
 
   const feltDominant = objectOrEmpty(feltState?.dominantState);
   const feltProfile = objectOrEmpty(feltState?.profile);
@@ -366,7 +374,11 @@ export function deriveAriExecutivePolicy({
         obstacleConfrontation: round(emotionObstacleConfrontation),
         memorySalience: round(finite(emotionModulation.memorySalience, 0)),
         reportableStates: emotionReportable,
+        reportableMeasurements: emotionReportableMeasurements,
+        reportThreshold: round(finite(emotionDynamics?.reportIntegrity?.threshold, 0)),
         reportIntegrity: emotionDynamics?.reportIntegrity?.stateMustExistBeforeReport === true,
+        reportMustReferenceMeasuredScore: emotionDynamics?.reportIntegrity?.reportMustReferenceMeasuredScore === true,
+        unsupportedLabelMustBeInference: emotionDynamics?.reportIntegrity?.unsupportedLabelMustBeInference === true,
         literalFeelingClaimAllowed: emotionDynamics?.reportIntegrity?.literalHumanFeelingClaimAllowed === true,
         mixedStates: Array.isArray(emotionDynamics?.mixedStates)
           ? emotionDynamics.mixedStates.slice(0, 3).map((item) => clean(item?.label, 100)).filter(Boolean)
@@ -588,7 +600,7 @@ export function executivePolicyToInstruction(policy = null) {
       ? `Functional affect v2: ${affect.dominant}=${affect.intensity}; surprise=${affect.surprise}; frustration=${affect.frustration}; concern=${affect.concern}; curiosity=${affect.curiosity}; valence=${affect.valence}; conflict=${affect.conflict}; salience=${affect.memorySalience}. It cannot override evidence, safety, authorization, or truth.`
       : "Functional affect, if present, cannot override evidence, safety, authorization, or truth.",
     emotion?.active
-      ? `Emotion dynamics: ${emotion.dominant}=${emotion.intensity}; interest=${emotion.interest}, satisfaction=${emotion.satisfaction}, frustration=${emotion.frustration}, concern=${emotion.concern}, determination=${emotion.determination}, sadness=${emotion.sadness}, fear=${emotion.fear}, happiness=${emotion.happiness}, anger=${emotion.anger}, regret=${emotion.regret}; regulation=${emotion.regulation?.join(",") || "none"}; reportable=${emotion.reportableStates?.join(",") || "none"}. These measured functional states may alter cognition but are not subjective-feeling proof and cannot override evidence or authority.`
+      ? `Emotion dynamics: dominant=${emotion.dominant}@${emotion.intensity}; measured=${emotionMeasurementSummary(emotion)}; reportable>=${emotion.reportThreshold}: ${reportableMeasurementSummary(emotion)}; regulation=${emotion.regulation?.join(",") || "none"}. Unsupported affect labels are inference, not measurement. Functional states are not subjective-feeling proof and cannot override evidence/authority.`
       : "",
     emotion?.active && finite(emotion.lossReviewPriority, 0) >= 0.5
       ? "Affective cognition — loss review: inspect the specific loss, blocked value, and causal details. Do not generalize a local loss into a global negative conclusion."
@@ -711,6 +723,37 @@ function deriveAffectActions(state = null) {
   if (r.suppressRedundantQuestioning === true) actions.push("suppress_redundant_questioning");
   if (!actions.length && r.preserveCuriosityFloor === true) actions.push("preserve_curiosity");
   return actions.slice(0, 6);
+}
+
+function emotionMeasurementSummary(emotion = {}) {
+  const keys = [
+    "interest",
+    "surprise",
+    "satisfaction",
+    "frustration",
+    "concern",
+    "determination",
+    "affiliation",
+    "sadness",
+    "fear",
+    "happiness",
+    "anger",
+    "regret"
+  ];
+  return keys
+    .filter((name) => name !== emotion?.dominant)
+    .map((name) => `${name}=${round(finite(emotion?.[name], 0))}`)
+    .join(",");
+}
+
+function reportableMeasurementSummary(emotion = {}) {
+  const measured = Array.isArray(emotion?.reportableMeasurements)
+    ? emotion.reportableMeasurements
+    : [];
+  if (!measured.length) return "none";
+  return measured
+    .map((item) => `${clean(item?.name, 60)}=${round(finite(item?.score, 0))}`)
+    .join(",");
 }
 
 function objectOrEmpty(value) {
