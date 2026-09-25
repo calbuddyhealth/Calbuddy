@@ -485,7 +485,7 @@
       return;
     }
     if (requestedType === "video" && file.size > MAX_VIDEO_BYTES) {
-      status("That video is unusually large. Choose one under 25 MB.", { tone: "error" });
+      status("That video is unusually large. Choose one under 50 MB.", { tone: "error" });
       return;
     }
 
