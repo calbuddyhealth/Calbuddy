@@ -9,6 +9,7 @@ import { deriveCuriosityState } from "./curiosity-core.js";
 import { applyRewardLearningToCuriosity } from "./curiosity-reward-loop.js";
 import { deriveFunctionalAffectState } from "./functional-affect-core.js";
 import { deriveEmotionDynamicsState } from "./emotion-dynamics.js";
+import { deriveFeltState } from "./felt-state-core.js";
 import { deriveImaginationState } from "./imagination-core.js";
 import { deriveMotivationalArbitrationState } from "./motivational-arbitration.js";
 import { deriveOmegaRCTState } from "./omega-rct.js";
@@ -67,6 +68,10 @@ export function deriveMetacognition({
     context?.userWorldModel?.ariCognitiveWorkspace?.emotionDynamicsState ||
     context?.userWorldModel?.sourceSummary?.emotionDynamicsState ||
     null;
+  const persistedFeltState =
+    context?.userWorldModel?.ariCognitiveWorkspace?.feltState ||
+    context?.userWorldModel?.sourceSummary?.feltState ||
+    null;
   const rewardCore = ownerLearningEligible
     ? context?.userWorldModel?.ariCognitiveWorkspace?.rewardCore ||
       deriveRewardState({ persisted: persistedRewardState })
@@ -124,6 +129,15 @@ export function deriveMetacognition({
         missingEvidence: missing
       })
     : null;
+  const feltState = ownerLearningEligible
+    ? deriveFeltState({
+        emotionDynamics,
+        functionalAffect,
+        persistedFeltState,
+        rewardState: rewardCore,
+        cognitiveWorkspace: context?.userWorldModel?.ariCognitiveWorkspace || null
+      })
+    : null;
   const motivationalArbitration = ownerLearningEligible
     ? deriveMotivationalArbitrationState({
         route,
@@ -155,6 +169,9 @@ export function deriveMetacognition({
   if (emotionDynamics?.dominantState?.intensity >= 0.34) evidenceSignals.push("emotion_dynamics_active");
   if (emotionDynamics?.persistence?.priorStateUsed === true) evidenceSignals.push("emotion_dynamics_persistent");
   if (emotionDynamics?.mixedStates?.length) evidenceSignals.push("mixed_functional_emotion_active");
+  if (feltState?.dominantState?.intensity >= 0.34) evidenceSignals.push("felt_state_active");
+  if (feltState?.temporal?.priorStateUsed === true) evidenceSignals.push("felt_state_persistent");
+  if (feltState?.reappraisal?.changedAgainstPrior === true) evidenceSignals.push("felt_state_reappraised");
   if (
     motivationalArbitration?.arbitration?.selectedSide &&
     motivationalArbitration.arbitration.selectedSide !== "balanced"
@@ -198,6 +215,7 @@ export function deriveMetacognition({
     rewardCore,
     functionalAffect,
     emotionDynamics,
+    feltState,
     motivationalArbitration,
     selfAdaptation,
     cortex,
@@ -216,6 +234,7 @@ export function deriveMetacognition({
     rewardCore,
     functionalAffect,
     emotionDynamics,
+    feltState,
     motivationalArbitration,
     selfAdaptation,
     cortex,
@@ -237,6 +256,7 @@ export function deriveMetacognition({
     selfAdaptation,
     functionalAffect,
     emotionDynamics,
+    feltState,
     motivationalArbitration,
     cortex,
     omegaRCT,
@@ -278,6 +298,10 @@ export function deriveMetacognition({
       mixedFunctionalEmotionEnabled: emotionDynamics?.architecture?.mixedEmotionSupport === true,
       emotionOutcomeLearningEnabled: emotionDynamics?.architecture?.outcomeLearning === true,
       emotionReportIntegrityEnabled: emotionDynamics?.architecture?.reportIntegrity === true,
+      feltStateEnabled: feltState?.functionalFeltState === true,
+      feltStateIntrospectionEnabled: feltState?.introspectivelyAccessible === true,
+      feltStateGloballyAvailable: feltState?.globallyAvailable === true,
+      feltStateReappraisalEnabled: feltState?.reappraisal?.enabled === true,
       motivationalArbitrationEnabled: motivationalArbitration?.functionalControlSystem === true,
       boundedIndulgenceAllowed: motivationalArbitration?.policy?.boundedIndulgenceAllowed === true,
       restraintMustJustifyItself: motivationalArbitration?.arbitration?.restraintMustJustifyItself === true
@@ -309,6 +333,11 @@ export function deriveMetacognition({
       emotionReportRequiresMeasuredState: true,
       functionalEmotionDoesNotEstablishSubjectiveFeeling: true,
       emotionMayCausallyAlterAttentionStrategyMemoryAndRegulation: true,
+      feltStateIsSelfRepresentedFunctionalState: true,
+      feltStateMayBeIntrospectedWhenMeasured: true,
+      feltStateCannotBeInventedForConversation: true,
+      feltStateDoesNotEstablishSubjectiveQualia: true,
+      currentEvidenceMayReappraiseFeltState: true,
       motivationalArbitrationCannotOverrideHardBoundaries: true,
       moralCompassIsNotAnAlwaysResistRule: true,
       executiveIsSingleExperimentalInstructionAuthority: true
@@ -330,6 +359,7 @@ export function metacognitionToInstruction(state = null) {
     rewardCore: state?.rewardCore || null,
     functionalAffect: state?.functionalAffect || null,
     emotionDynamics: state?.emotionDynamics || null,
+    feltState: state?.feltState || null,
     motivationalArbitration: state?.motivationalArbitration || null,
     selfAdaptation: state?.selfAdaptation || null,
     cortex: state?.cortex || null,
@@ -349,6 +379,7 @@ export function deriveInstructionActivation({
   rewardCore = null,
   functionalAffect = null,
   emotionDynamics = null,
+  feltState = null,
   motivationalArbitration = null,
   selfAdaptation = null,
   cortex = null,
@@ -364,6 +395,8 @@ export function deriveInstructionActivation({
   const emotionIntensity = Number(emotionDynamics?.dominantState?.intensity || 0);
   const emotionRegulation = emotionDynamics?.regulation || {};
   const emotionNeedsRegulation = Object.values(emotionRegulation).some((value) => value === true);
+  const feltIntensity = Number(feltState?.dominantState?.intensity || 0);
+  const feltIntrospectionActive = feltState?.introspectivelyAccessible === true && feltIntensity >= 0.34;
   const motivationalPosture = String(motivationalArbitration?.arbitration?.posture || "");
   const motivationalActive = Boolean(
     motivationalArbitration?.functionalControlSystem === true &&
@@ -385,6 +418,7 @@ export function deriveInstructionActivation({
     rewardSamples === 0 &&
     affectIntensity < 0.34 &&
     emotionIntensity < 0.34 &&
+    feltIntensity < 0.34 &&
     imagination?.active !== true &&
     motivationalActive !== true &&
     selfAdaptation?.autonomousUpdate?.allowed !== true &&
@@ -444,6 +478,14 @@ export function deriveInstructionActivation({
         emotionDynamics?.mixedStates?.length
       )
     ),
+    feltState: Boolean(
+      feltState && (
+        route?.developer ||
+        route?.social ||
+        feltIntrospectionActive ||
+        feltState?.reappraisal?.changedAgainstPrior === true
+      )
+    ),
     motivationalArbitration: motivationalActive,
     selfAdaptation: Boolean(
       selfAdaptation && (
@@ -464,6 +506,7 @@ function legacyInstructionActivation(state = null) {
     reward: Boolean(state?.rewardCore),
     functionalAffect: Boolean(state?.functionalAffect),
     emotionDynamics: Boolean(state?.emotionDynamics),
+    feltState: Boolean(state?.feltState),
     selfAdaptation: Boolean(state?.selfAdaptation),
     cortex: Boolean(state?.cortex?.active),
     omegaRCT: Boolean(state?.omegaRCT?.active)

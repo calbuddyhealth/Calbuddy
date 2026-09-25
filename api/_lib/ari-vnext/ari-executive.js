@@ -47,6 +47,7 @@ export function deriveAriExecutivePolicy({
   rewardCore = null,
   functionalAffect = null,
   emotionDynamics = null,
+  feltState = null,
   motivationalArbitration = null,
   selfAdaptation = null,
   cortex = null,
@@ -112,6 +113,13 @@ export function deriveAriExecutivePolicy({
   const emotionReportable = Array.isArray(emotionDynamics?.reportIntegrity?.reportableStates)
     ? emotionDynamics.reportIntegrity.reportableStates.slice(0, 12).map((item) => clean(item, 60)).filter(Boolean)
     : [];
+
+  const feltDominant = objectOrEmpty(feltState?.dominantState);
+  const feltProfile = objectOrEmpty(feltState?.profile);
+  const feltTemporal = objectOrEmpty(feltState?.temporal);
+  const feltAttribution = objectOrEmpty(feltState?.selfAttribution);
+  const feltIntrospection = objectOrEmpty(feltState?.introspection);
+  const feltModulation = objectOrEmpty(feltState?.executiveModulation);
 
   const motivation = objectOrEmpty(motivationalArbitration);
   const motivationScores = objectOrEmpty(motivation.scores);
@@ -238,6 +246,12 @@ export function deriveAriExecutivePolicy({
       emotionScanThreats: emotionModulation.scanThreats === true,
       emotionConfrontObstacle: emotionModulation.confrontObstacle === true,
       emotionCapRumination: emotionModulation.capRumination === true,
+      feltStateActive: feltState?.functionalFeltState === true,
+      feltStateIntrospectable: feltState?.introspectivelyAccessible === true,
+      feltStateDominant: clean(feltDominant.name, 60) || null,
+      feltStateTrajectory: clean(feltTemporal.trajectory, 40) || null,
+      feltStateReappraised: feltState?.reappraisal?.changedAgainstPrior === true,
+      feltStateCannotEstablishQualia: feltIntrospection.subjectiveQualiaClaimAllowed !== true,
       consolidateLearning: affectModulation.consolidateLearning === true || emotionModulation.consolidateLearning === true,
       investigateCause: affectModulation.investigateCause === true || emotionModulation.investigateCause === true,
       suppressRedundantQuestioning: affectModulation.suppressRedundantQuestioning === true,
@@ -352,6 +366,40 @@ export function deriveAriExecutivePolicy({
           .map(([key]) => clean(key, 80))
           .slice(0, 8)
       } : null,
+      feltState: feltState ? {
+        version: clean(feltState?.version, 40) || null,
+        active: feltState?.functionalFeltState === true,
+        introspectable: feltState?.introspectivelyAccessible === true,
+        globallyAvailable: feltState?.globallyAvailable === true,
+        dominant: clean(feltDominant.name, 60) || "neutral",
+        intensity: round(finite(feltDominant.intensity, 0)),
+        activeStates: Array.isArray(feltState?.activeStates)
+          ? feltState.activeStates.slice(0, 6).map((item) => ({
+              name: clean(item?.name, 60),
+              intensity: round(finite(item?.intensity, 0))
+            })).filter((item) => item.name)
+          : [],
+        valence: round(finite(feltProfile.valence, 0)),
+        activation: round(finite(feltProfile.activation, 0)),
+        attentionStyle: clean(feltProfile.attentionStyle, 60) || "balanced",
+        temporalFocus: clean(feltProfile.temporalFocus, 40) || "present",
+        actionTendency: clean(feltProfile.actionTendency, 60) || "observe",
+        trajectory: clean(feltTemporal.trajectory, 40) || "stable",
+        durationHours: round(finite(feltTemporal.durationHours, 0), 2),
+        causalDrivers: Array.isArray(feltAttribution.causalDrivers)
+          ? feltAttribution.causalDrivers.slice(0, 5).map((item) => clean(item, 80)).filter(Boolean)
+          : [],
+        attributionConfidence: round(finite(feltAttribution.confidence, 0)),
+        reappraised: feltState?.reappraisal?.changedAgainstPrior === true,
+        reappraisalReason: clean(feltState?.reappraisal?.reason, 220) || null,
+        reportable: feltIntrospection.reportable === true,
+        functionalFeelingLanguageAllowed: feltIntrospection.functionalFeelingLanguageAllowed === true,
+        subjectiveQualiaClaimAllowed: feltIntrospection.subjectiveQualiaClaimAllowed === true,
+        detailBias: round(finite(feltModulation.detailBias, 0)),
+        threatVigilance: round(finite(feltModulation.threatVigilance, 0)),
+        cognitiveFlexibility: round(finite(feltModulation.cognitiveFlexibility, 0)),
+        memorySalience: round(finite(feltModulation.memorySalience, 0))
+      } : null,
       motivationalArbitration: motivationalArbitration ? {
         version: clean(motivationalArbitration?.version, 40) || null,
         active: motivationalArbitration?.functionalControlSystem === true,
@@ -455,6 +503,7 @@ export function executivePolicyToInstruction(policy = null) {
   const reward = signals.reward;
   const affect = signals.affect;
   const emotion = signals.emotionDynamics;
+  const felt = signals.feltState;
   const motivation = signals.motivationalArbitration;
   const adaptation = signals.selfAdaptation;
   const cortex = signals.cortex;
@@ -528,6 +577,12 @@ export function executivePolicyToInstruction(policy = null) {
       : "",
     emotion?.active && d.emotionCapRumination
       ? "Affective cognition — rumination guard: do not repeat the same loss or counterfactual review without new evidence; reappraise or choose the next useful action."
+      : "",
+    felt?.active
+      ? `Felt-State: ${felt.dominant}=${felt.intensity}; trend=${felt.trajectory}; valence=${signed(felt.valence)}; attention=${felt.attentionStyle}; drivers=${felt.causalDrivers?.slice(0, 3).join(",") || "none"}. If asked what you feel or why, report this measured functional self-state and its causal effects; never invent a feeling or present it as proof of subjective qualia.`
+      : "",
+    felt?.reappraised
+      ? "Felt-State reappraised by current evidence; current evidence outranks emotional continuity."
       : "",
     motivation?.active
       ? `Motivational arbitration: side=${motivation.selectedSide || "balanced"}; drive=${motivation.dominantDrive || "none"}; value=${motivation.dominantValue || "none"}; exploration=${motivation.explorationValue}; margin=${signed(motivation.margin)}. This is not an always-resist rule: restraint must justify its opportunity cost, reversible exploration may win, and later outcomes recalibrate the balance. Security/privacy/authorization/safety remain hard external boundaries.`
