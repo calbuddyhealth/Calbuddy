@@ -10,7 +10,7 @@ import {
   toolToApplicationAction as coreToolToApplicationAction
 } from "./tools-core.js";
 
-export const TOOL_REGISTRY_VERSION = "1.21.0";
+export const TOOL_REGISTRY_VERSION = "1.22.0";
 export const CORE_TOOL_REGISTRY_VERSION = CORE_REGISTRY_VERSION;
 
 const convictionEnabled = () => process.env.ARI_CONVICTION_LEARNING_ENABLED !== "false";
@@ -53,6 +53,9 @@ const DEVELOPER_TOOL_NAMES = new Set([
   "owner_repo_search",
   "owner_repo_read",
   "owner_repo_ci_status",
+  "owner_agent_mailbox_list",
+  "owner_agent_mailbox_read",
+  "owner_agent_mailbox_send",
   "propose_owner_github_edit"
 ]);
 
@@ -230,6 +233,51 @@ function developerTools(route = {}) {
           commitSha: { type: ["string", "null"] }
         },
         required: ["branch", "commitSha"]
+      }
+    ),
+    functionTool(
+      "owner_agent_mailbox_list",
+      "List recent messages in Ari's configured owner-only Artifactory agent mailbox. Use this when another Ari/SOL worker may have left findings, questions, answers, experiment results, handoffs, acknowledgements, or status messages. This cannot browse arbitrary Artifactory repositories or paths.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          recipient: { type: "string" },
+          sender: { type: "string" },
+          kind: { type: "string" },
+          limit: { type: "integer", minimum: 1, maximum: 100 }
+        },
+        required: ["recipient", "sender", "kind", "limit"]
+      }
+    ),
+    functionTool(
+      "owner_agent_mailbox_read",
+      "Read one exact JSON message previously returned by owner_agent_mailbox_list from Ari's configured Artifactory mailbox. Use only the exact mailbox path returned by the trusted list operation.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          path: { type: "string" }
+        },
+        required: ["path"]
+      }
+    ),
+    functionTool(
+      "owner_agent_mailbox_send",
+      "Write one bounded JSON message into Ari's configured Artifactory agent mailbox so another authorized Ari/SOL worker can inspect a finding, question, answer, experiment result, handoff, acknowledgement, or status update. This cannot choose the JFrog host, repository, token, or arbitrary file path. Never include credentials, private secrets, hidden reasoning, or unnecessary personal information.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          sender: { type: "string" },
+          recipient: { type: "string" },
+          kind: { type: "string", enum: ["finding", "question", "answer", "experiment_result", "handoff", "ack", "status"] },
+          threadId: { type: "string" },
+          replyTo: { type: "string" },
+          subject: { type: "string" },
+          content: { type: "string" }
+        },
+        required: ["sender", "recipient", "kind", "threadId", "replyTo", "subject", "content"]
       }
     ),
     functionTool(
@@ -467,6 +515,46 @@ export function validateToolCall(call = {}, route = {}) {
       };
     }
 
+    if (name === "owner_agent_mailbox_list") {
+      const limit = Number(args?.limit);
+      if (!Number.isInteger(limit) || limit < 1 || limit > 100) return { valid: false, error: "agent_mailbox_limit_invalid" };
+      return {
+        valid: true,
+        name,
+        arguments: {
+          recipient: String(args?.recipient || "").trim().toLowerCase().slice(0, 48),
+          sender: String(args?.sender || "").trim().toLowerCase().slice(0, 48),
+          kind: String(args?.kind || "").trim().toLowerCase().slice(0, 80),
+          limit
+        }
+      };
+    }
+
+    if (name === "owner_agent_mailbox_read") {
+      const path = String(args?.path || "").trim().slice(0, 700);
+      if (!path || path.includes("..") || !path.endsWith(".json")) return { valid: false, error: "agent_mailbox_path_invalid" };
+      return { valid: true, name, arguments: { path } };
+    }
+
+    if (name === "owner_agent_mailbox_send") {
+      const sender = String(args?.sender || "").trim().toLowerCase().slice(0, 48);
+      const recipient = String(args?.recipient || "").trim().toLowerCase().slice(0, 48);
+      const kind = String(args?.kind || "").trim().toLowerCase().slice(0, 80);
+      const threadId = String(args?.threadId || "").trim().slice(0, 120);
+      const replyTo = String(args?.replyTo || "").trim().slice(0, 120);
+      const subject = String(args?.subject || "").trim().slice(0, 240);
+      const content = String(args?.content || "").trim().slice(0, 12000);
+      if (!/^[a-z0-9][a-z0-9_-]{1,47}$/.test(sender)) return { valid: false, error: "agent_mailbox_sender_invalid" };
+      if (!(recipient === "broadcast" || /^[a-z0-9][a-z0-9_-]{1,47}$/.test(recipient))) return { valid: false, error: "agent_mailbox_recipient_invalid" };
+      if (!["finding", "question", "answer", "experiment_result", "handoff", "ack", "status"].includes(kind)) return { valid: false, error: "agent_mailbox_kind_invalid" };
+      if (!content) return { valid: false, error: "agent_mailbox_content_required" };
+      return {
+        valid: true,
+        name,
+        arguments: { sender, recipient, kind, threadId, replyTo, subject, content }
+      };
+    }
+
     const filePath = String(args?.filePath || "").trim().slice(0, 420);
     const find = String(args?.find ?? "");
     const replace = String(args?.replace ?? "");
@@ -637,6 +725,9 @@ export function toolToApplicationAction(name = "") {
     owner_repo_search: "repo_search",
     owner_repo_read: "repo_read",
     owner_repo_ci_status: "repo_ci_status",
+    owner_agent_mailbox_list: "agent_mailbox_list",
+    owner_agent_mailbox_read: "agent_mailbox_read",
+    owner_agent_mailbox_send: "agent_mailbox_send",
     propose_owner_github_edit: "github_edit"
   })[name];
   if (developerAction) return developerAction;
