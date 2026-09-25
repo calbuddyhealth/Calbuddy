@@ -75,7 +75,18 @@ test("Ari Signals owner feed ranks actionable workflow signals", async () => {
           opener: "Meal logging needs a retry.",
           followUpPrompt: "Retry the meal log?",
           action: "retry_log",
-          domain: "meals"
+          domain: "meals",
+          context: "The meal logging workflow failed after the user confirmed the action.",
+          ownerBrief: {
+            whatItMeans: "The meal logging workflow failed after confirmation.",
+            whySent: "A confirmed action still needs resolution.",
+            relatedGoal: "Reliable meal logging",
+            currentState: "The write did not complete.",
+            requestFromJose: "Choose whether to retry or inspect the failure.",
+            requestFromChatGPT: "Review the failed workflow and identify the safest retry path.",
+            suggestedNextStep: "Inspect the failure receipt before retrying.",
+            evidence: [{ type: "runtime_receipt", label: "Meal write failed", status: "failed" }]
+          }
         },
         surfaced_at: new Date().toISOString(),
         engaged_at: null,
@@ -96,12 +107,16 @@ test("Ari Signals owner feed ranks actionable workflow signals", async () => {
     await handler(req, res);
     assert.equal(res.statusCode, 200);
     assert.equal(res.body?.ownerMode, true);
-    assert.equal(res.body?.version, "2.0.0-owner");
+    assert.equal(res.body?.version, "2.1.0-owner");
     assert.equal(res.body?.signals?.length, 1);
     assert.equal(res.body.signals[0].category, "workflow");
     assert.equal(res.body.signals[0].ownerOnly, true);
     assert.equal(res.body.signals[0].actionable, true);
     assert.equal(res.body.signals[0].attention, "act_now");
+    assert.equal(res.body.signals[0].detail.relatedGoal, "Reliable meal logging");
+    assert.match(res.body.signals[0].detail.whatItMeans, /failed after confirmation/i);
+    assert.match(res.body.signals[0].detail.requestFromChatGPT, /safest retry path/i);
+    assert.equal(res.body.signals[0].detail.evidence[0].label, "Meal write failed");
     assert.equal(res.body.attentionCount, 1);
   } finally {
     globalThis.fetch = originalFetch;
