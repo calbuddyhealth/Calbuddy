@@ -7,6 +7,7 @@ import { deriveInitiativeCandidate } from "./_lib/ari-vnext/initiative-engine.js
 import {
   listRecentInitiatives,
   recordInitiativeSurface,
+  refreshInitiativeSurface,
   shouldSuppressInitiative,
   updateInitiativeStatus
 } from "./_lib/ari-vnext/initiative-events.js";
@@ -156,11 +157,28 @@ export default async function handler(req, res) {
 
     const suppression = shouldSuppressInitiative({ candidate: initiativeState.candidate, events: priorInitiatives, now });
     if (suppression.suppress) {
+      const matchingPrior = priorInitiatives.find(
+        (item) => item?.initiativeKey === initiativeState.candidate.initiativeKey
+      );
+      const refreshResult =
+        initiativeState.candidate.action === "review_prediction" &&
+        initiativeState.candidate.ownerBrief?.reviewPacket &&
+        matchingPrior?.id &&
+        ["surfaced", "engaged"].includes(String(matchingPrior?.status || ""))
+          ? await refreshInitiativeSurface({
+              userId: auth.userId,
+              initiativeId: matchingPrior.id,
+              candidate: initiativeState.candidate
+            })
+          : { refreshed: false, reason: "refresh_not_applicable" };
+
       return res.status(200).json({
         success: true,
         shouldInitiate: false,
         reason: "repeat_suppressed",
         suppression,
+        signalRefreshed: refreshResult?.refreshed === true,
+        refreshedSignalId: refreshResult?.event?.id || null,
         relationshipContinuity,
         decisionReview,
         proactiveInsights: compactInsights(proactiveInsights),
