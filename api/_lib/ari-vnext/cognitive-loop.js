@@ -228,11 +228,11 @@ export function cognitiveWorkspaceToInstruction(workspace = null) {
       "ARI OWNER COGNITIVE LOOP — LIGHTWEIGHT CONTINUITY",
       "This is the always-on owner continuity layer. It is functional state, not evidence or a claim that Ari has subjective consciousness.",
       "Use prior continuity, functional affect, active beliefs, unresolved open loops, relationship context, and relevant dream-derived context only when they actually help the current turn.",
-      behavioralIdentityToInstruction(workspace.behavioralIdentity),
       communicationClosureToInstruction(workspace.communicationClosure),
+      behavioralIdentityToInstruction(workspace.behavioralIdentity),
       "Do not manufacture significance, force reflection, create a new belief, or escalate into heavy deliberation merely because continuity state is available.",
       "Current evidence and the user's current message outrank persisted state. Never expose hidden chain-of-thought."
-    ].join("\n").slice(0, 3200);
+    ].join("\n").slice(0, 5200);
   }
 
   return [
