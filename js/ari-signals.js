@@ -65,7 +65,7 @@
             <p class="ari-signals-status" id="ariSignalsStatus">Important signals stay here even when phone push is off.</p>
           </section>
         </div>
-        <section class="ari-signal-detail" id="ariSignalDetail" aria-hidden="true" aria-labelledby="ariSignalDetailTitle">
+        <section class="ari-signal-detail" id="ariSignalDetail" hidden aria-hidden="true" aria-labelledby="ariSignalDetailTitle">
           <header class="ari-signal-detail-head">
             <button type="button" class="ari-signal-detail-back" id="ariSignalDetailBack" aria-label="Back to Ari Signals">BACK</button>
             <div class="ari-signal-detail-head-copy">
@@ -181,6 +181,7 @@
     activeDetailSignalId = id;
     renderSignalDetail(signal);
     const detail = document.getElementById("ariSignalDetail");
+    if (detail) detail.hidden = false;
     detail?.classList.add("is-open");
     detail?.setAttribute("aria-hidden", "false");
     document.getElementById("ariSignalDetailBack")?.focus?.({ preventScroll: true });
@@ -191,6 +192,7 @@
     const detail = document.getElementById("ariSignalDetail");
     detail?.classList.remove("is-open");
     detail?.setAttribute("aria-hidden", "true");
+    if (detail) detail.hidden = true;
     const status = document.getElementById("ariSignalDetailStatus");
     if (status) status.textContent = "";
   }
