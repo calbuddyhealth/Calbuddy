@@ -45,40 +45,31 @@ test("adult gate remains fail-closed and bounded", () => {
   assert.match(menu, /window\.addEventListener\("pageshow"/);
 });
 
-test("primary member pages use the current shared header and shell", () => {
-  for (const html of [feedHtml, meetupHtml]) {
-    assert.match(html, /<header class="circle-v5-header feed-header">/);
-    assert.match(html, /class="feed-brand circle-v5-brand"/);
-    assert.match(html, /social-badges\.js\?v=1\.2\.0/);
-    assert.match(html, /supabase-config\.js\?v=1\.1\.8/);
-    assert.match(html, /ari-circle-v5-visual-authority\.css\?v=5\.2\.5/);
-    assert.match(html, /v5-real-world\.js\?v=5\.4\.[01]/);
-  }
-  assert.match(shell, /navLink\("feed", "ari-circle-feed\.html", "Feed"\)/);
+test("Connect uses the current shared header and Connect + Profile shell", () => {
+  assert.match(meetupHtml, /<header class="circle-v5-header feed-header">/);
+  assert.match(meetupHtml, /class="feed-brand circle-v5-brand"/);
+  assert.match(meetupHtml, /social-badges\.js\?v=1\.2\.0/);
+  assert.match(meetupHtml, /supabase-config\.js\?v=1\.1\.8/);
+  assert.match(meetupHtml, /ari-circle-v5-visual-authority\.css\?v=5\.2\.5/);
+  assert.match(meetupHtml, /v5-real-world\.js\?v=5\.5\.0/);
   assert.match(shell, /navLink\("connect", "ari-circle-meetup\.html", "Connect"\)/);
+  assert.match(shell, /navLink\("profile", "ari-circle\.html", "Profile"\)/);
+  assert.doesNotMatch(shell, /navLink\("feed"/);
   assert.doesNotMatch(shell, />Missions<\/a>/);
 });
-
-test("Feed is text-update plus events, not a photo/Moments surface", () => {
-  assert.match(feedHtml, /Share an update/);
-  assert.match(feedHtml, /Friends only/);
-  assert.match(feedHtml, /Updates from your people/);
-  assert.doesNotMatch(feedHtml, /Camera \/ Library/);
-  assert.doesNotMatch(feedHtml, /id="momentsTitle"/);
-  assert.match(feedHtml, /feed-post-options\.js\?v=1\.0\.0/);
+test("legacy Feed is no longer a member posting destination", () => {
+  assert.match(feedHtml, /window\.location\.replace\("ari-circle-meetup\.html"\)/);
   assert.match(feedPostOptions, /ari_circle_feed_hide_post/);
 });
-
-test("Profile compatibility stays Profile-only and gallery-aware", () => {
-  assert.match(profileCompat, /const VERSION = "5\.5\.0"/);
-  assert.match(profileCompat, /const REAL_WORLD_VERSION = "5\.4\.0"/);
-  assert.match(profileCompat, /brand\.href = "ari-circle-feed\.html"/);
+test("Profile compatibility stays Profile-only and showcase-aware", () => {
+  assert.match(profileCompat, /const VERSION = "5\.6\.0"/);
+  assert.match(profileCompat, /const REAL_WORLD_VERSION = "5\.5\.0"/);
+  assert.match(profileCompat, /brand\.href = "ari-circle-meetup\.html"/);
   assert.match(profileCompat, /circleV3PostsPanel/);
-  assert.match(profileLoader, /profile-gallery-v1\.js\?v=1\.3\.0/);
+  assert.match(profileLoader, /profile-gallery-v1\.js\?v=2\.0\.0/);
   assert.doesNotMatch(profileLoader, /ari-circle-xp\.css/);
   assert.match(visitorControls, /PROFILE VISITOR CONTROLS/);
 });
-
 test("drawer visual treatment stays page-independent", () => {
   assert.match(css, /circle-v5-menu__icon/);
   assert.match(premium, /premium pearl drawer/i);
