@@ -178,7 +178,7 @@ export function deriveMetacognition({
     selfAdaptation,
     cortex,
     omegaRCT,
-    executionSession: context?.userWorldModel?.ariCognitiveWorkspace?.execution || null,
+    executionSession: context?.userWorldModel?.ariCognitiveWorkspace?.executionWorkspace || null,
     instructionActivation
   });
 
