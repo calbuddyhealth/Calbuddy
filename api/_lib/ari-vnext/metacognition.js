@@ -208,6 +208,7 @@ export function deriveMetacognition({
     missingEvidence: missing,
     evidenceSignals,
     curiosity,
+    imagination,
     rewardCore,
     selfAdaptation,
     functionalAffect,
@@ -307,6 +308,7 @@ export function deriveInstructionActivation({
   safety = {},
   missing = [],
   curiosity = null,
+  imagination = null,
   rewardCore = null,
   functionalAffect = null,
   motivationalArbitration = null,
@@ -341,6 +343,7 @@ export function deriveInstructionActivation({
     activeQuestionPriority < 0.72 &&
     rewardSamples === 0 &&
     affectIntensity < 0.34 &&
+    imagination?.active !== true &&
     motivationalActive !== true &&
     selfAdaptation?.autonomousUpdate?.allowed !== true &&
     cortex?.active !== true &&
@@ -356,6 +359,14 @@ export function deriveInstructionActivation({
         activeQuestionPriority >= 0.72 ||
         curiosityDrive >= 0.62 ||
         (Array.isArray(missing) && missing.length > 0)
+      )
+    ),
+    imagination: Boolean(
+      imagination?.active === true && (
+        imagination?.selectedThisTurn === true ||
+        imagination?.signals?.explicitImagination === true ||
+        route?.developer ||
+        route?.complexity === "deep"
       )
     ),
     curiosityReward: Boolean(
