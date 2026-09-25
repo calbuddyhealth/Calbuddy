@@ -25,10 +25,13 @@ import {
 export const ARI_BACKGROUND_AGENT_RUNTIME_VERSION = "1.0.0";
 
 export async function runBackgroundAgentBatch({
-  limit = 2,
-  visibilitySeconds = 300
+  limit = 1,
+  visibilitySeconds = 300,
+  timeBudgetMs = 105000
 } = {}) {
-  const jobs = await claimAgentJobs({ limit, visibilitySeconds });
+  const boundedBudgetMs = Math.max(30000, Math.min(Number(timeBudgetMs) || 105000, 110000));
+  const deadlineAt = Date.now() + boundedBudgetMs;
+  const jobs = await claimAgentJobs({ limit: Math.max(1, Math.min(Number(limit) || 1, 1)), visibilitySeconds });
   const summary = {
     success: true,
     version: ARI_BACKGROUND_AGENT_RUNTIME_VERSION,
@@ -39,10 +42,16 @@ export async function runBackgroundAgentBatch({
     verifiersQueued: 0,
     resolversQueued: 0,
     stoppedForRateLimit: false,
+    stoppedForTimeBudget: false,
+    timeBudgetMs: boundedBudgetMs,
     failures: []
   };
 
   for (const job of jobs) {
+    if (Date.now() + 5000 >= deadlineAt) {
+      summary.stoppedForTimeBudget = true;
+      break;
+    }
     if (job.readCount > job.maxAttempts) {
       await deadletter(job, codedError("AGENT_JOB_MAX_ATTEMPTS", "Maximum background attempts exceeded."), summary);
       continue;
@@ -50,8 +59,8 @@ export async function runBackgroundAgentBatch({
 
     try {
       const result = job.jobType === "verifier"
-        ? await processVerifier(job)
-        : await processSpecialist(job);
+        ? await processVerifier(job, deadlineAt)
+        : await processSpecialist(job, deadlineAt);
 
       summary.completed += result.completed ? 1 : 0;
       summary.verifiersQueued += Number(result.verifiersQueued || 0);
@@ -89,7 +98,7 @@ export async function runBackgroundAgentBatch({
   return summary;
 }
 
-async function processSpecialist(job) {
+async function processSpecialist(job, deadlineAt) {
   const task = await loadAgentTaskSessionById({
     userId: job.userId,
     taskId: job.taskId
@@ -97,7 +106,7 @@ async function processSpecialist(job) {
   if (!task) throw codedError("AGENT_TASK_NOT_FOUND", "Durable agent task was not found.");
 
   const priorMessages = await loadTaskMessages(job);
-  const result = await runQueuedSpecialist({ job, priorMessages });
+  const result = await runQueuedSpecialist({ job, priorMessages, deadlineAt });
   if (!result?.success || !result?.text) {
     throw codedError("AGENT_SPECIALIST_EMPTY", "Background specialist returned no usable conclusion.");
   }
@@ -159,7 +168,7 @@ async function processSpecialist(job) {
   };
 }
 
-async function processVerifier(job) {
+async function processVerifier(job, deadlineAt) {
   const task = await loadAgentTaskSessionById({
     userId: job.userId,
     taskId: job.taskId
@@ -167,7 +176,7 @@ async function processVerifier(job) {
   if (!task) throw codedError("AGENT_TASK_NOT_FOUND", "Durable agent task was not found.");
 
   const priorMessages = await loadTaskMessages(job);
-  const verification = await runQueuedVerifier({ job, priorMessages });
+  const verification = await runQueuedVerifier({ job, priorMessages, deadlineAt });
   if (!verification?.success || !verification?.synthesis) {
     throw codedError("AGENT_VERIFIER_EMPTY", "Background verifier returned no usable synthesis.");
   }
