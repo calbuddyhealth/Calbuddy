@@ -377,6 +377,17 @@ function cognitiveContextRules(context = {}) {
     );
   }
 
+  if (context?.visualInspection) {
+    lines.push(
+      "VISUAL INSPECTION EVIDENCE RULES:",
+      "- The supplied Visual Inspector packet is observed browser evidence from ARI XP, not a hypothetical description.",
+      "- Use its screenshots/metrics/findings to explain what was actually observed. Do not say Ari cannot see the inspected screen.",
+      "- Visual evidence can justify a repository investigation, but it does not prove a source-code cause by itself.",
+      "- If a code change is requested, use repository search/read tools and require exact current source evidence before proposing a patch.",
+      "- A completed visual inspection is an observation, not proof that a code fix passed."
+    );
+  }
+
   if (context?.userWorldModel) {
     lines.push(
       "USER WORLD MODEL RULES:",
