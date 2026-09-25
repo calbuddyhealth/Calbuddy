@@ -186,18 +186,18 @@ export function executionWorkspaceToInstruction(workspace = null) {
   return [
     "ARI EXECUTION & INVESTIGATION SESSION",
     "This is durable task state, not hidden reasoning. Resume it only when it matches the current request.",
-    \`Goal: \${session.goal || "unspecified"}\`,
-    session.successCriteria ? \`Success criteria: \${session.successCriteria}\` : "",
-    session.approach ? \`Current approach: \${session.approach}\` : "",
-    session.nextStep ? \`Next step: \${session.nextStep}\` : "",
+    `Goal: ${session.goal || "unspecified"}`,
+    session.successCriteria ? `Success criteria: ${session.successCriteria}` : "",
+    session.approach ? `Current approach: ${session.approach}` : "",
+    session.nextStep ? `Next step: ${session.nextStep}` : "",
     session.hypotheses?.length
-      ? \`Hypotheses: \${session.hypotheses.slice(0, 5).map(item => \`\${item.id}:\${item.status}:\${item.label}\`).join(" | ")}\`
+      ? `Hypotheses: ${session.hypotheses.slice(0, 5).map(item => `${item.id}:${item.status}:${item.label}`).join(" | ")}`
       : "",
     session.evidence?.length
-      ? \`Recent evidence: \${session.evidence.slice(-5).map(item => \`\${item.kind}:\${item.summary}\`).join(" | ")}\`
+      ? `Recent evidence: ${session.evidence.slice(-5).map(item => `${item.kind}:${item.summary}`).join(" | ")}`
       : "",
     session.failedAttempts?.length
-      ? \`Failed attempts: \${session.failedAttempts.slice(-4).map(item => item.summary).join(" | ")}\`
+      ? `Failed attempts: ${session.failedAttempts.slice(-4).map(item => item.summary).join(" | ")}`
       : "",
     "For difficult work, generate materially different plausible explanations before locking onto one. Choose the smallest safe experiment or inspection that best distinguishes them.",
     "Let observed tool, test, repository, visual, and runtime evidence determine the next step. A failed experiment is progress when it eliminates an explanation or changes the method.",
@@ -238,7 +238,7 @@ function createExecutionSession({ turn = {}, route = {}, goal = "", successCrite
   ].join("|");
   return {
     version: ARI_EXECUTION_SESSION_VERSION,
-    id: \`exec_\${stableId(seed)}\`,
+    id: `exec_${stableId(seed)}`,
     status: "active",
     goal: clean(goal, 700) || "Complete the current substantial task.",
     successCriteria: clean(successCriteria, 700) || "Produce an evidence-grounded result and verify material changes before claiming completion.",
@@ -292,7 +292,7 @@ function deriveProgressEvents({ turn = {}, result = {}, now }) {
   const add = (state, summary, evidenceRef = null) => {
     if (!EXECUTION_PROGRESS_STATES.includes(state)) return;
     events.push({
-      id: \`progress_\${stableId(\`\${turn?.turnId || ""}|\${state}|\${summary}\`)}\`,
+      id: `progress_${stableId(`${turn?.turnId || ""}|${state}|${summary}`)}`,
       state,
       summary: clean(summary, 420),
       evidenceRef: clean(evidenceRef, 180) || null,
@@ -334,7 +334,7 @@ function deriveProgressEvents({ turn = {}, result = {}, now }) {
     add("approach_changed", clean(result?.executionWorkspaceUpdate?.approach, 360) || "The approach changed in response to evidence.");
   }
   for (const item of deriveArtifacts(result, now)) {
-    add("artifact_created", \`Artifact recorded: \${item.label || item.kind}.\`, item.id);
+    add("artifact_created", `Artifact recorded: ${item.label || item.kind}.`, item.id);
   }
   if (
     normalizeStatus(result?.executionEvidence?.status || result?.executionWorkspaceUpdate?.status) === "completed" &&
@@ -351,7 +351,7 @@ function deriveEvidence({ result = {}, turn = {}, now }) {
     const text = clean(summary, 600);
     if (!text) return;
     items.push({
-      id: clean(id, 180) || \`evidence_\${stableId(\`\${turn?.turnId || ""}|\${kind}|\${text}\`)}\`,
+      id: clean(id, 180) || `evidence_${stableId(`${turn?.turnId || ""}|${kind}|${text}`)}`,
       kind: clean(kind, 80) || "observation",
       summary: text,
       source: clean(source, 180) || null,
@@ -366,7 +366,7 @@ function deriveEvidence({ result = {}, turn = {}, now }) {
   const verification = result?.executionEvidence?.verification || result?.verification || null;
   const status = normalizeVerificationStatus(verification?.status || result?.executionEvidence?.verificationStatus);
   if (verification?.attempted === true || status) {
-    push("verification", verification?.summary || \`Verification \${status || "attempted"}.\`, verification?.source, status === "passed", verification?.id);
+    push("verification", verification?.summary || `Verification ${status || "attempted"}.`, verification?.source, status === "passed", verification?.id);
   }
   if (result?.executorReceipt?.verified === true) {
     push("executor_receipt", "Trusted executor verified the application action.", "trusted_executor", true, result.executorReceipt.id);
@@ -391,7 +391,7 @@ function updateHypotheses(previous = [], result = {}, now) {
     ...arrayObjects(result?.scientificIntelligence?.hypotheses, 8)
   ];
   for (const raw of candidates) {
-    const id = clean(raw?.id, 160) || \`hyp_\${stableId(raw?.label || raw?.summary || JSON.stringify(raw))}\`;
+    const id = clean(raw?.id, 160) || `hyp_${stableId(raw?.label || raw?.summary || JSON.stringify(raw))}`;
     const existing = map.get(id);
     map.set(id, {
       id,
@@ -421,7 +421,7 @@ function deriveArtifacts(result = {}, now) {
     const label = clean(raw?.label || raw?.name || raw?.path || raw?.kind, 260);
     if (!locator && !label) continue;
     artifacts.push({
-      id: clean(raw?.id, 180) || \`artifact_\${stableId(locator || label)}\`,
+      id: clean(raw?.id, 180) || `artifact_${stableId(locator || label)}`,
       kind: clean(raw?.kind, 80) || "artifact",
       label: label || "artifact",
       locator: locator || null,
@@ -446,7 +446,7 @@ function deriveFailedAttempts({ turn = {}, result = {}, now }) {
       600
     );
     failed.push({
-      id: \`failure_\${stableId(\`\${turn?.turnId || ""}|\${summary}\`)}\`,
+      id: `failure_${stableId(`${turn?.turnId || ""}|${summary}`)}`,
       summary,
       lesson: clean(
         result?.executionEvidence?.lesson ||
