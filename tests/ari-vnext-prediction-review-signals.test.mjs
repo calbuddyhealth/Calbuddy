@@ -162,10 +162,37 @@ test("Signal UI exposes review evidence and stages it for the next Ari turn", as
   assert.match(signals, /NEW EVIDENCE/);
   assert.match(signals, /PRELIMINARY COMPARISON/);
   assert.match(signals, /Final review required/);
+  assert.match(signals, /RECORD FINAL REVIEW/);
+  assert.match(signals, /resolve-prediction/);
   assert.match(signals, /stageInitiativeContext/);
   assert.match(runtime, /stageInitiativeContext/);
   assert.match(runtime, /initiativeContext/);
   assert.match(bridge, /initiativeContext/);
   assert.match(api, /reviewPacket/);
+  assert.match(api, /resolve-prediction/);
   assert.match(events, /compactReviewPacket/);
+});
+
+test("explicit Signal context survives the Context Router and warns that review date is not proof", async () => {
+  const { buildRelevantContext, contextToText } = await import("../api/_lib/ari-vnext/context-router.js");
+  const context = buildRelevantContext({
+    surface: "home",
+    context: {
+      initiativeContext: {
+        source: "explicit_ari_signal_engagement",
+        action: "review_prediction",
+        reviewPacket: {
+          decisionId: "decision-noise-1",
+          originalPrediction: "Normal variability",
+          preliminaryVerdict: "supported",
+          finalVerdictRequired: true
+        }
+      }
+    }
+  }, { followUp: true });
+
+  assert.equal(context.initiativeContext.reviewPacket.decisionId, "decision-noise-1");
+  const text = contextToText(context);
+  assert.match(text, /A review date only means the observation window is ready to inspect/i);
+  assert.match(text, /preliminaryVerdict is deterministic decision support, not a final judgment/i);
 });
