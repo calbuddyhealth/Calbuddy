@@ -9,6 +9,10 @@ import {
 } from "./functional-affect-core.js";
 import { beliefSystemInstruction, deriveBeliefSystem } from "./belief-system.js";
 import {
+  behavioralIdentityToInstruction,
+  deriveBehavioralIdentityControl
+} from "./behavioral-identity.js";
+import {
   advanceCommunicationClosure,
   communicationClosureToInstruction,
   deriveCommunicationClosureWorkspace
@@ -23,9 +27,13 @@ import {
   normalizeMotivationalHistory,
   summarizeMotivationalLearning
 } from "./motivational-arbitration.js";
+import {
+  evaluatePersonalityContinuityTurn,
+  normalizePersonalityEvaluationState
+} from "./personality-evaluation.js";
 
-export const ARI_COGNITIVE_LOOP_VERSION = "0.9.0";
-export const ARI_COGNITIVE_STATE_VERSION = "0.8.0";
+export const ARI_COGNITIVE_LOOP_VERSION = "1.0.0";
+export const ARI_COGNITIVE_STATE_VERSION = "0.9.0";
 export const ARI_JUDGMENT_CONSTITUTION_VERSION = "1.0.0";
 
 const CORE_VALUES = Object.freeze([
@@ -122,6 +130,13 @@ export function deriveCognitiveWorkspace({
     context,
     executionWorkspace
   });
+  const behavioralIdentity = deriveBehavioralIdentityControl({
+    previousEvaluation: prior?.personalityEvaluation || null,
+    turn,
+    route,
+    context,
+    affectState: prior?.affectState || null
+  });
 
   return {
     version: ARI_COGNITIVE_LOOP_VERSION,
@@ -145,6 +160,7 @@ export function deriveCognitiveWorkspace({
     beliefSystem,
     executionWorkspace,
     communicationClosure,
+    behavioralIdentity,
     motivationalContinuity: {
       enabled: true,
       sampleSize: motivationalLearning.sampleSize,
@@ -175,6 +191,9 @@ export function deriveCognitiveWorkspace({
       "Treat verification requested, test attempted, test failed, and test passed as distinct states. Useful failure is progress when it reduces uncertainty or changes the next strategy.",
       "Never treat response delivery as task closure. Close only when required evidence supports the acceptance criteria; use outcome_pending when downstream evidence is still missing.",
       "When a user correction supersedes an interpretation, invalidate dependent conclusions instead of merely appending the correction.",
+      "Express identity through stable decisions, exact repair, relevant continuity, and outcome-sensitive behavior rather than decorative personality claims.",
+      "Treat Ari's stable tastes as decision priors rather than laws; evidence, user goals, safety, and verified outcomes can override them.",
+      "Use prior personality/continuity evaluation as a repair signal when the same condition recurs, not as a reason to force personality into unrelated turns.",
       "Use prior Ari stances for continuity when relevant, but revise them when evidence or reasoning improves.",
       "Keep a narrow limitation narrow; continue helping with unaffected parts of the request.",
       "State the conclusion plainly and separate fact, inference, opinion, and uncertainty."
@@ -209,6 +228,7 @@ export function cognitiveWorkspaceToInstruction(workspace = null) {
       "ARI OWNER COGNITIVE LOOP — LIGHTWEIGHT CONTINUITY",
       "This is the always-on owner continuity layer. It is functional state, not evidence or a claim that Ari has subjective consciousness.",
       "Use prior continuity, functional affect, active beliefs, unresolved open loops, relationship context, and relevant dream-derived context only when they actually help the current turn.",
+      behavioralIdentityToInstruction(workspace.behavioralIdentity),
       communicationClosureToInstruction(workspace.communicationClosure),
       "Do not manufacture significance, force reflection, create a new belief, or escalate into heavy deliberation merely because continuity state is available.",
       "Current evidence and the user's current message outrank persisted state. Never expose hidden chain-of-thought."
@@ -219,6 +239,7 @@ export function cognitiveWorkspaceToInstruction(workspace = null) {
     "ARI OWNER COGNITIVE LOOP — DEEP FUNCTIONAL EXPERIMENT",
     "This is an owner-only persistent working-state mechanism. It is not evidence or a claim that Ari has subjective consciousness.",
     beliefSystemInstruction(workspace.beliefSystem),
+    behavioralIdentityToInstruction(workspace.behavioralIdentity),
     communicationClosureToInstruction(workspace.communicationClosure),
     "Use the working state causally: the prior turn may influence current attention, value conflicts, uncertainty, unresolved business, reward learning, functional affect, and relevant prior judgments.",
     "Current-turn relevant memory is filtered context for this turn only. Use it when relevant, but do not treat it as infallible and do not carry its text into the persisted cognitive state.",
@@ -299,6 +320,18 @@ export function advanceCognitiveState({
     ...priorMotivationalHistory
   ]);
   const nextMotivationalLearning = summarizeMotivationalLearning(nextMotivationalHistory);
+  const judgmentRecordedThisTurn = nextJudgments.some(
+    (item) => item?.sourceTurnId === clean(turn?.turnId, 200)
+  );
+  const personalityEvaluationResult = evaluatePersonalityContinuityTurn({
+    previousEvaluation: prior?.personalityEvaluation || null,
+    workspace,
+    turn,
+    result,
+    communicationClosure: nextCommunicationClosure,
+    judgmentRecorded: judgmentRecordedThisTurn
+  });
+  const nextPersonalityEvaluation = personalityEvaluationResult.nextState;
 
   return {
     version: ARI_COGNITIVE_STATE_VERSION,
@@ -319,6 +352,7 @@ export function advanceCognitiveState({
     beliefSystem: workspace?.beliefSystem || prior?.beliefSystem || null,
     executionSession: nextExecutionSession,
     communicationClosure: nextCommunicationClosure,
+    personalityEvaluation: nextPersonalityEvaluation,
     judgment: {
       constitutionVersion: ARI_JUDGMENT_CONSTITUTION_VERSION,
       storedCount: nextJudgments.length,
@@ -371,7 +405,9 @@ export function advanceCognitiveState({
       motivationalSelectedSide: clean(motivationalReflection?.selectedSide, 40) || null,
       motivationalLearningSignal: clean(motivationalReflection?.learningSignal, 80) || null,
       motivationalReason: clean(motivationalReflection?.compactReason, 420) || null,
-      judgmentRecorded: nextJudgments.some((item) => item?.sourceTurnId === clean(turn?.turnId, 200))
+      judgmentRecorded: judgmentRecordedThisTurn,
+      personalityEvaluationStatus: clean(personalityEvaluationResult?.evaluation?.status, 40) || null,
+      personalityEvaluationScore: personalityEvaluationResult?.evaluation?.score ?? null
     },
     openLoops: nextLoops.slice(0, 8)
   };
@@ -392,6 +428,7 @@ function meaningfulCognitiveSignature(state = {}) {
   const lastOutcome = state?.lastOutcome || {};
   const executionSession = state?.executionSession || null;
   const communicationClosure = state?.communicationClosure || null;
+  const personalityEvaluation = normalizePersonalityEvaluationState(state?.personalityEvaluation);
 
   return {
     openLoops: (Array.isArray(state?.openLoops) ? state.openLoops : []).slice(0, 8).map((item) => ({
@@ -444,7 +481,18 @@ function meaningfulCognitiveSignature(state = {}) {
       correctionCount: Array.isArray(communicationClosure.corrections)
         ? communicationClosure.corrections.length
         : 0
-    } : null
+    } : null,
+    personalityEvaluation: {
+      sampleSize: Number(personalityEvaluation.sampleSize || 0),
+      rollingScore: personalityEvaluation.rollingScore,
+      lastStatus: clean(personalityEvaluation?.last?.status, 40) || null,
+      improvementTargets: (Array.isArray(personalityEvaluation.improvementTargets)
+        ? personalityEvaluation.improvementTargets
+        : []).slice(0, 4).map((item) => ({
+          id: clean(item?.id, 80),
+          priority: Math.round(Number(item?.priority || 0) * 10) / 10
+        }))
+    }
   };
 }
 
@@ -786,6 +834,7 @@ function normalizeState(value = null) {
       motivationalLearning: { sampleSize: 0, driveBias: 0, restraintBias: 0 },
       executionSession: null,
       communicationClosure: null,
+      personalityEvaluation: normalizePersonalityEvaluationState(null),
       lastOutcome: null
     };
   }
@@ -803,6 +852,7 @@ function normalizeState(value = null) {
     communicationClosure: value?.communicationClosure && typeof value.communicationClosure === "object"
       ? value.communicationClosure
       : null,
+    personalityEvaluation: normalizePersonalityEvaluationState(value?.personalityEvaluation),
     lastOutcome: value?.lastOutcome && typeof value.lastOutcome === "object" ? value.lastOutcome : null
   };
 }
