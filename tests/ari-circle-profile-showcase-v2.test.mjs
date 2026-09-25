@@ -48,6 +48,6 @@ test("four showcase slots support photo video and text without an infinite profi
 
 test("normal images and short videos get practical upload limits rather than tiny social limits", () => {
   assert.match(gallery, /MAX_IMAGE_BYTES = 20 \* 1024 \* 1024/);
-  assert.match(gallery, /MAX_VIDEO_BYTES = 25 \* 1024 \* 1024/);
+  assert.match(gallery, /MAX_VIDEO_BYTES = 50 \* 1024 \* 1024/);
   assert.match(gallery, /input\.accept = normalized === "video" \? "video\/\*" : "image\/\*"/);
 });
