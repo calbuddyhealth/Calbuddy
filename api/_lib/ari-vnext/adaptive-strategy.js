@@ -229,7 +229,8 @@ export function shouldRunAdaptiveStrategyReflection({
   message = "",
   result = null,
   cognitiveTurnCount = 0,
-  decisionOutcomeLearning = null
+  decisionOutcomeLearning = null,
+  executionSession = null
 } = {}) {
   if (!result?.success || !clean(result?.reply, 12000)) return false;
   if (["execute_pending_action", "cancel_pending_action"].includes(String(result?.action?.type || ""))) return false;
@@ -238,6 +239,20 @@ export function shouldRunAdaptiveStrategyReflection({
   const correction = classifyStrategyFeedback(text) === "negative" || /\bactually\b|\bi meant\b|\bcorrection\b/.test(text);
   const outcomeLearning = result?.scientificIntelligence?.outcomeLearning?.applied === true;
   const realWorldOutcomeLearning = decisionOutcomeLearning?.resolved === true;
+  const executionProgress = new Set(
+    (Array.isArray(executionSession?.progressEvents) ? executionSession.progressEvents : [])
+      .filter(event => !executionSession?.lastTurnId || event?.turnId === executionSession.lastTurnId)
+      .map(event => String(event?.state || ""))
+      .filter(Boolean)
+  );
+  const demonstratedExecutionLearning = [
+    "test_passed",
+    "test_failed",
+    "hypothesis_eliminated",
+    "approach_changed",
+    "useful_failure",
+    "action_verified"
+  ].some(state => executionProgress.has(state));
   const periodicReview = Number(cognitiveTurnCount || 0) > 0 && Number(cognitiveTurnCount || 0) % 5 === 0;
   const confidence = String(result?.metacognition?.confidence || "").toLowerCase();
   const missingEvidence = Array.isArray(result?.metacognition?.missingEvidence)
@@ -248,7 +263,7 @@ export function shouldRunAdaptiveStrategyReflection({
     missingEvidence.length >= 1 &&
     result?.safety?.highStakes !== true;
 
-  return correction || outcomeLearning || realWorldOutcomeLearning || periodicReview || uncertaintyReview;
+  return correction || outcomeLearning || realWorldOutcomeLearning || demonstratedExecutionLearning || periodicReview || uncertaintyReview;
 }
 
 export function normalizeAdaptiveStrategyProposal(raw = null) {
