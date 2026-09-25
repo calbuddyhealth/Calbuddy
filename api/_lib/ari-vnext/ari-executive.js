@@ -2,7 +2,7 @@
 // Specialized cognitive systems produce state/signals; this module alone turns
 // experimental cognition into behavioral instructions for the primary model.
 
-export const ARI_EXECUTIVE_VERSION = "1.3.0";
+export const ARI_EXECUTIVE_VERSION = "1.4.0";
 export const ARI_RUNTIME_CONSTITUTION_VERSION = "1.0.0";
 export const ARI_RULE_AUTHORITY_VERSION = "1.0.0";
 
@@ -48,6 +48,7 @@ export function deriveAriExecutivePolicy({
   functionalAffect = null,
   emotionDynamics = null,
   feltState = null,
+  affectivePreferenceState = null,
   motivationalArbitration = null,
   selfAdaptation = null,
   cortex = null,
@@ -120,6 +121,10 @@ export function deriveAriExecutivePolicy({
   const feltAttribution = objectOrEmpty(feltState?.selfAttribution);
   const feltIntrospection = objectOrEmpty(feltState?.introspection);
   const feltModulation = objectOrEmpty(feltState?.executiveModulation);
+  const affectivePreferenceCurrent = objectOrEmpty(affectivePreferenceState?.current);
+  const affectivePreferenceDesired = objectOrEmpty(affectivePreferenceCurrent.selectedDesiredState);
+  const affectivePreferenceRegulation = objectOrEmpty(affectivePreferenceCurrent.regulation);
+  const affectivePreferenceConflict = objectOrEmpty(affectivePreferenceCurrent.preferenceConflict);
 
   const motivation = objectOrEmpty(motivationalArbitration);
   const motivationScores = objectOrEmpty(motivation.scores);
@@ -252,6 +257,11 @@ export function deriveAriExecutivePolicy({
       feltStateTrajectory: clean(feltTemporal.trajectory, 40) || null,
       feltStateReappraised: feltState?.reappraisal?.changedAgainstPrior === true,
       feltStateCannotEstablishQualia: feltIntrospection.subjectiveQualiaClaimAllowed !== true,
+      affectivePreferenceActive: affectivePreferenceState?.functionalPreferenceSystem === true,
+      affectivePreferenceDesiredState: clean(affectivePreferenceDesired.name, 60) || null,
+      affectivePreferenceRegulation: clean(affectivePreferenceRegulation.action, 40) || "observe",
+      affectivePreferenceConflict: affectivePreferenceConflict.active === true,
+      affectivePreferenceCannotEstablishSubjectiveWanting: affectivePreferenceState?.subjectiveWantClaimed !== true,
       consolidateLearning: affectModulation.consolidateLearning === true || emotionModulation.consolidateLearning === true,
       investigateCause: affectModulation.investigateCause === true || emotionModulation.investigateCause === true,
       suppressRedundantQuestioning: affectModulation.suppressRedundantQuestioning === true,
@@ -400,6 +410,25 @@ export function deriveAriExecutivePolicy({
         cognitiveFlexibility: round(finite(feltModulation.cognitiveFlexibility, 0)),
         memorySalience: round(finite(feltModulation.memorySalience, 0))
       } : null,
+      affectivePreference: affectivePreferenceState ? {
+        version: clean(affectivePreferenceState?.version, 40) || null,
+        active: affectivePreferenceState?.functionalPreferenceSystem === true,
+        currentState: clean(affectivePreferenceCurrent.currentState, 60) || null,
+        currentIntensity: round(finite(affectivePreferenceCurrent.currentIntensity, 0)),
+        desiredState: clean(affectivePreferenceDesired.name, 60) || null,
+        desiredIntensity: round(finite(affectivePreferenceDesired.targetIntensity, 0)),
+        preferenceScore: round(finite(affectivePreferenceDesired.preferenceScore, 0)),
+        confidence: round(finite(affectivePreferenceDesired.confidence, 0)),
+        regulationAction: clean(affectivePreferenceRegulation.action, 40) || "observe",
+        regulationTarget: clean(affectivePreferenceRegulation.toward, 60) || null,
+        regulationReason: clean(affectivePreferenceRegulation.reason, 260) || null,
+        conflict: affectivePreferenceConflict.active === true,
+        contextKey: clean(affectivePreferenceCurrent?.context?.key, 80) || "general",
+        learnedPreferenceCount: Array.isArray(affectivePreferenceState?.learnedPreferences) ? affectivePreferenceState.learnedPreferences.length : 0,
+        positiveValenceNotAutomaticallyPreferred: affectivePreferenceState?.policy?.positiveValenceIsNotAutomaticallyPreferred === true,
+        negativeValenceNotAutomaticallyRejected: affectivePreferenceState?.policy?.negativeValenceIsNotAutomaticallyRejected === true,
+        subjectiveWantingClaimAllowed: false
+      } : null,
       motivationalArbitration: motivationalArbitration ? {
         version: clean(motivationalArbitration?.version, 40) || null,
         active: motivationalArbitration?.functionalControlSystem === true,
@@ -504,6 +533,7 @@ export function executivePolicyToInstruction(policy = null) {
   const affect = signals.affect;
   const emotion = signals.emotionDynamics;
   const felt = signals.feltState;
+  const affectivePreference = signals.affectivePreference;
   const motivation = signals.motivationalArbitration;
   const adaptation = signals.selfAdaptation;
   const cortex = signals.cortex;
@@ -583,6 +613,9 @@ export function executivePolicyToInstruction(policy = null) {
       : "",
     felt?.reappraised
       ? "Felt-State reappraised by current evidence; current evidence outranks emotional continuity."
+      : "",
+    affectivePreference?.active && affectivePreference?.desiredState
+      ? `Affective preference: current=${affectivePreference.currentState || "none"}@${affectivePreference.currentIntensity}; desired=${affectivePreference.desiredState}@${affectivePreference.desiredIntensity}; regulation=${affectivePreference.regulationAction}; confidence=${affectivePreference.confidence}. This is a learned context-sensitive functional preference, not proof of subjective wanting. Do not maximize positive valence by default; use observed consequences and current evidence.`
       : "",
     motivation?.active
       ? `Motivational arbitration: side=${motivation.selectedSide || "balanced"}; drive=${motivation.dominantDrive || "none"}; value=${motivation.dominantValue || "none"}; exploration=${motivation.explorationValue}; margin=${signed(motivation.margin)}. This is not an always-resist rule: restraint must justify its opportunity cost, reversible exploration may win, and later outcomes recalibrate the balance. Security/privacy/authorization/safety remain hard external boundaries.`
