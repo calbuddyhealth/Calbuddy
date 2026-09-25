@@ -138,7 +138,16 @@ test("explicit correction supersedes the prior interpretation claim", () => {
   const prior = advanceCommunicationClosure({
     workspace: first,
     turn: { turnId: "turn-a", message: "Update the workout page" },
-    result: { success: true, reply: "I found the relevant implementation." },
+    result: {
+      success: true,
+      reply: "I found the relevant implementation and prepared the change.",
+      pendingAction: { id: "pending-a" },
+      action: { type: "proposed_action", applicationAction: "github_edit" },
+      requestUnderstanding: {
+        applicationAction: "github_edit",
+        verifierConfidence: 0.96
+      }
+    },
     executionSession: {
       id: "exec-a",
       status: "active",
@@ -180,9 +189,34 @@ test("explicit correction supersedes the prior interpretation claim", () => {
 
   assert.equal(corrected.corrections.length, 1);
   assert.ok(corrected.claims.some(item => item.status === "superseded"));
+  assert.ok(corrected.claims.some(item => item.status === "invalidated" && item.kind === "action_selection"));
   assert.ok(corrected.claims.some(item => item.status === "active" && /training detail page/i.test(item.claim)));
+  assert.ok(corrected.dependencyInvalidations.length >= 1);
+  assert.ok(corrected.beliefUpdates.some(item => item.operation === "supersede"));
+  assert.ok(corrected.lessons.some(item => item.kind === "dependency_invalidation"));
   assert.equal(corrected.state, "interpreted");
 
   const summary = summarizeCommunicationClosure(corrected);
   assert.equal(summary.correctionCount, 1);
+  assert.ok(summary.dependencyInvalidationCount >= 1);
+});
+
+
+test("runtime sources wire closure into cognition, persistence, and response diagnostics", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const [cognitive, api, migration] = await Promise.all([
+    readFile(new URL("../api/_lib/ari-vnext/cognitive-loop.js", import.meta.url), "utf8"),
+    readFile(new URL("../api/ari-vnext.js", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260925093000_ari_communication_closure_engine.sql", import.meta.url), "utf8")
+  ]);
+
+  assert.match(cognitive, /deriveCommunicationClosureWorkspace/);
+  assert.match(cognitive, /advanceCommunicationClosure/);
+  assert.match(cognitive, /communicationClosure:\s*nextCommunicationClosure/);
+  assert.match(api, /persistCommunicationClosure/);
+  assert.match(api, /communicationClosureStored/);
+  assert.match(api, /summarizeCommunicationClosure/);
+  assert.match(migration, /enable row level security/i);
+  assert.match(migration, /revoke all on table public\.ari_vnext_communication_closures from anon, authenticated/i);
+  assert.match(migration, /grant select, insert, update, delete on table public\.ari_vnext_communication_closures to service_role/i);
 });
