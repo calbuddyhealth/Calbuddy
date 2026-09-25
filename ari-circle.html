@@ -886,13 +886,15 @@
           class="circle-editor-fields"
         ></div>
 
-        <button
-          id="circle-profile-save-button"
-          class="circle-button circle-button--primary circle-button--full"
-          type="submit"
+        <p
+          id="circle-profile-save-status"
+          class="circle-profile-save-status"
+          role="status"
+          aria-live="polite"
+          data-state="idle"
         >
-          Save Changes
-        </button>
+          Changes save automatically
+        </p>
       </form>
     </dialog>
 
