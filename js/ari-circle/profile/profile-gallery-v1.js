@@ -1,5 +1,5 @@
 /* =============================================================
-   ARI CIRCLE — PROFILE SHOWCASE V2.0
+   ARI CIRCLE — PROFILE SHOWCASE V2.1
    Four fixed slots. Each slot can be an image, a text card, or a video
    up to 30 seconds. Avatar remains separate from these four slots.
 
@@ -9,7 +9,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "2.0.0";
+  const VERSION = "2.1.0";
   const BUCKET = "ari-circle-post-media";
   const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
   const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
@@ -87,7 +87,7 @@
     const link = document.createElement("link");
     link.id = "ariCircleProfileGalleryStyle";
     link.rel = "stylesheet";
-    link.href = "assets/css/ari-circle-profile-gallery-v1.css?v=2.0.0";
+    link.href = "assets/css/ari-circle-profile-gallery-v1.css?v=2.1.0";
     document.head.append(link);
   }
 
@@ -214,10 +214,21 @@
     const moderation = clean(row?.moderation_status);
     const label = state.owner ? moderationLabel(row) : "";
     const actions = state.owner ? `
-      <div class="circle-profile-gallery__photo-actions">
-        <button type="button" data-gallery-replace="${position}">Replace</button>
-        <button type="button" data-gallery-remove="${position}">Remove</button>
-      </div>` : "";
+      <details class="circle-profile-gallery__item-menu" data-gallery-menu="${position}">
+        <summary aria-label="Show profile item options" title="Profile item options">
+          <span aria-hidden="true">•••</span>
+        </summary>
+        <div class="circle-profile-gallery__item-menu-popover" role="menu">
+          <button type="button" role="menuitem" data-gallery-edit="${position}">
+            <span aria-hidden="true">✎</span>
+            <span>Edit</span>
+          </button>
+          <button class="is-danger" type="button" role="menuitem" data-gallery-remove="${position}">
+            <span aria-hidden="true">⌫</span>
+            <span>Delete</span>
+          </button>
+        </div>
+      </details>` : "";
 
     if (type === "text") {
       return `
@@ -279,16 +290,37 @@
     section.hidden = false;
     grid.innerHTML = html;
 
-    grid.querySelectorAll("[data-gallery-add],[data-gallery-replace]").forEach((button) => {
+    grid.querySelectorAll("[data-gallery-add],[data-gallery-edit]").forEach((button) => {
       button.addEventListener("click", () => {
-        const position = Number(button.dataset.galleryAdd || button.dataset.galleryReplace);
+        const position = Number(button.dataset.galleryAdd || button.dataset.galleryEdit);
         if (!position) return;
+        closeItemMenus();
         openPicker(position);
       });
     });
 
     grid.querySelectorAll("[data-gallery-remove]").forEach((button) => {
-      button.addEventListener("click", () => removeItem(Number(button.dataset.galleryRemove)));
+      button.addEventListener("click", async () => {
+        const position = Number(button.dataset.galleryRemove);
+        if (!position) return;
+        closeItemMenus();
+        await removeItem(position);
+      });
+    });
+
+    grid.querySelectorAll("[data-gallery-menu]").forEach((menu) => {
+      menu.addEventListener("toggle", () => {
+        if (!menu.open) return;
+        grid.querySelectorAll("[data-gallery-menu][open]").forEach((other) => {
+          if (other !== menu) other.removeAttribute("open");
+        });
+      });
+    });
+  }
+
+  function closeItemMenus() {
+    document.querySelectorAll("[data-gallery-menu][open]").forEach((menu) => {
+      menu.removeAttribute("open");
     });
   }
 
@@ -636,6 +668,14 @@
   async function init() {
     ensureStyle();
     ensureDialogs();
+
+    document.addEventListener("click", (event) => {
+      if (!event.target?.closest?.("[data-gallery-menu]")) closeItemMenus();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeItemMenus();
+    });
     state.client = client();
     if (!state.client?.auth || !state.client?.rpc) return;
 
