@@ -34,6 +34,9 @@ test("autonomous commits become concise merge recommendations", () => {
   assert.equal(formatted.artifact.commitSha, "abcdef1234567890abcdef1234567890abcdef12");
   assert.equal(formatted.artifact.productionChanged, false);
   assert.equal(formatted.action, "review_autonomous_commit");
+  assert.equal(formatted.ownerBrief.relatedGoal, "improve contradiction checking");
+  assert.match(formatted.ownerBrief.requestFromChatGPT, /regression test/i);
+  assert.equal(formatted.ownerBrief.evidence[0].url, "https://github.com/example/repo/commit/abcdef1234567890abcdef1234567890abcdef12");
   assert.equal(formatted.cooldownHours, 24);
 });
 
@@ -105,6 +108,11 @@ test("blocked autonomous research becomes a Jose plus ChatGPT collaboration requ
   assert.match(formatted.opener, /Jose \+ ChatGPT/i);
   assert.match(formatted.followUpPrompt, /what i want help with/i);
   assert.equal(formatted.action, "collaborate_on_autonomous_goal");
+  assert.equal(formatted.ownerBrief.relatedGoal, "improve persistence");
+  assert.match(formatted.ownerBrief.whatItMeans, /Supabase schema migration/i);
+  assert.match(formatted.ownerBrief.requestFromJose, /outcome you want/i);
+  assert.match(formatted.ownerBrief.requestFromChatGPT, /missing field is database-backed/i);
+  assert.equal(formatted.ownerBrief.evidence[0].label, "the missing field is database-backed");
 });
 
 test("routine research with no owner action stays quiet", () => {
