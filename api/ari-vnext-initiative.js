@@ -105,12 +105,16 @@ export default async function handler(req, res) {
       coachingState,
       longitudinalState
     });
-    const decisionReview = buildDecisionReviewPacket({
-      decision: decisionState?.due?.[0] || null,
-      longitudinalState,
-      coachingState,
-      now
-    });
+    const decisionReviews = (Array.isArray(decisionState?.due) ? decisionState.due : [])
+      .slice(0, 4)
+      .map((decision) => buildDecisionReviewPacket({
+        decision,
+        longitudinalState,
+        coachingState,
+        now
+      }))
+      .filter(Boolean);
+    const decisionReview = decisionReviews[0] || null;
     const relationshipContinuity = deriveRelationshipContinuity({
       userWorldModel: runtimeWorldModel,
       decisionState,
@@ -131,6 +135,7 @@ export default async function handler(req, res) {
       relationshipContinuity,
       experimentLedger,
       decisionReview,
+      decisionReviews,
       circleEvents,
       now
     });
