@@ -150,6 +150,17 @@ export function goalCandidateFromMessage(message = "") {
   };
 }
 
+export function selectResumableGoalAttempt(goal = null, turn = {}) {
+  if (!goal || !Array.isArray(goal?.attempts) || !goal.attempts.length) return null;
+  const message = text(turn?.message, 2400).toLowerCase();
+  const explicitlyContinuing = /\b(?:continue|resume|experiment|test|run|investigate|attempt|probe|compare|evaluate|keep working)\b/i.test(message);
+  if (!explicitlyContinuing) return null;
+  const pending = [...goal.attempts]
+    .reverse()
+    .find((attempt) => attempt?.status === "pending" && attempt?.verified !== true);
+  return pending || null;
+}
+
 export function buildAttemptEvent({ goal, turn = {}, result = null } = {}) {
   const turnId = text(turn?.turnId, 180) || randomUUID();
   return {

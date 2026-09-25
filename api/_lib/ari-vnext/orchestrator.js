@@ -549,14 +549,18 @@ export async function runAriVNext(turn = {}) {
     const second = await callResponses({
       turn,
       policy: modelPolicy,
-      instructions: instructions + "\nOWNER CONVICTION GOAL RESULT\nThe function output is the verified result of Ari's owner-scoped goal store. Explain the stored purpose, prediction, observation, or review accurately. A failed method is local evidence and does not erase the purpose. Do not claim persistence, verified success, or goal completion unless the result explicitly says so.",
+      instructions: instructions + "\nOWNER CONVICTION GOAL RESULT\nThe function output is the verified result of Ari's owner-scoped goal store. Explain the stored purpose, prediction, observation, or review accurately. Goal creation is NOT experiment start. Say an experiment or attempt has begun, started, is underway, or is in progress only when lifecycleReceipt.attemptStarted=true. A failed method is local evidence and does not erase the purpose. Do not claim persistence, verified success, goal completion, or execution state unless the result explicitly says so.",
       input: continuationInput,
       tools: []
     });
+    const goalReply = enforceGoalManagementLifecycleTruth(
+      extractOutputText(second) || goalManagementFallbackReply(goalResult),
+      goalResult
+    );
     return withInternalCouncil({
       success: true,
       ready: true,
-      reply: extractOutputText(second) || goalManagementFallbackReply(goalResult),
+      reply: goalReply,
       route,
       safety,
       communication,
@@ -1899,24 +1903,80 @@ export function missingWorkoutDateClarification(turn = {}, route = {}) {
 }
 
 export async function executeOwnerGoalManagement({ userId, turnId, arguments: args = {} }) {
-  if (!userId) return { stored: false, reason: "user_missing" };
+  if (!userId) return attachGoalLifecycleReceipt({ stored: false, reason: "user_missing" }, args?.action);
   if (args.action === "list") {
     const result = await readGoalRecords({ userId, limit: 20 });
-    return { stored: false, read: result.ok, goals: result.goals, reason: result.reason };
+    return attachGoalLifecycleReceipt(
+      { stored: false, read: result.ok, goals: result.goals, reason: result.reason },
+      "list"
+    );
   }
-  if (args.action === "create") return ensureGoal({ userId, input: args, actor: "ari", sourceId: turnId });
+  if (args.action === "create") {
+    const result = await ensureGoal({ userId, input: args, actor: "ari", sourceId: turnId });
+    return attachGoalLifecycleReceipt(result, "create");
+  }
   const eventId = `goal:${turnId}:${args.action}:${args.goalId}`;
   const type = { start_attempt: "attempt_started", observe_outcome: "outcome_observed", review: "goal_review" }[args.action];
-  if (!type) return { stored: false, reason: "goal_action_invalid" };
+  if (!type) return attachGoalLifecycleReceipt({ stored: false, reason: "goal_action_invalid" }, args.action);
   const payload = { ...args };
   if (payload.commitment == null) delete payload.commitment;
   if (!payload.nextAction) delete payload.nextAction;
   if (type === "attempt_started") payload.attemptId = args.attemptId || `${turnId}:goal`;
   if (type === "outcome_observed") payload.status = args.outcomeStatus;
   // Model-supplied observations carry no trusted executor receipt.
-  return saveGoalEvent({ userId, goalId: args.goalId, event: {
+  const result = await saveGoalEvent({ userId, goalId: args.goalId, event: {
     id: eventId, type, source: "owner_goal_tool", sourceId: turnId, payload
   } });
+  return attachGoalLifecycleReceipt(result, args.action, { eventType: type, attemptId: payload.attemptId || null });
+}
+
+export function deriveGoalLifecycleReceipt(result = {}, operation = "", metadata = {}) {
+  const goal = result?.goal || null;
+  const attempts = Array.isArray(goal?.attempts) ? goal.attempts : [];
+  const requestedAttemptId = String(metadata?.attemptId || "").trim() || null;
+  const matchedAttempt = requestedAttemptId
+    ? attempts.find((attempt) => String(attempt?.id || "") === requestedAttemptId)
+    : operation === "start_attempt"
+      ? attempts[attempts.length - 1] || null
+      : null;
+  const stored = result?.stored === true;
+  const attemptStarted = Boolean(stored && operation === "start_attempt" && matchedAttempt);
+  const goalCreated = Boolean(stored && operation === "create");
+  const experimentState = attemptStarted
+    ? "attempt_started"
+    : attempts.length > 0
+      ? "attempt_exists"
+      : goalCreated
+        ? "goal_created_no_attempt"
+        : "no_attempt_verified";
+
+  return {
+    operation: String(operation || "").trim() || null,
+    eventType: metadata?.eventType || (goalCreated ? "goal_created" : null),
+    stored,
+    goalCreated,
+    attemptStarted,
+    attemptId: attemptStarted ? matchedAttempt.id : null,
+    experimentState,
+    verifiedLifecycleState: true
+  };
+}
+
+function attachGoalLifecycleReceipt(result = {}, operation = "", metadata = {}) {
+  return {
+    ...result,
+    operation,
+    lifecycleReceipt: deriveGoalLifecycleReceipt(result, operation, metadata)
+  };
+}
+
+export function enforceGoalManagementLifecycleTruth(reply = "", result = {}) {
+  const text = String(reply || "").trim();
+  const receipt = result?.lifecycleReceipt || deriveGoalLifecycleReceipt(result, result?.operation || "");
+  const claimsStarted = /\b(?:experiment|attempt)\b.{0,60}\b(?:has\s+)?(?:begun|started|underway|running|in\s+progress)\b/i.test(text)
+    || /\bI(?:'ve| have)?\s+(?:now\s+)?(?:begun|started)\b/i.test(text);
+  if (claimsStarted && receipt?.attemptStarted !== true) return goalManagementFallbackReply(result);
+  return text || goalManagementFallbackReply(result);
 }
 
 function compactGoalManagementResult(result = {}) {
@@ -1926,15 +1986,34 @@ function compactGoalManagementResult(result = {}) {
     nextAction: goal.nextAction, budget: goal.budget,
     attempts: (goal.attempts || []).slice(-3), lessons: (goal.lessons || []).slice(-3)
   } : null;
-  return { stored: result.stored === true, read: result.read === true,
-    reason: result.reason || null, goal: compact(result.goal),
-    goals: (result.goals || []).slice(0, 10).map(compact) };
+  return {
+    stored: result.stored === true,
+    read: result.read === true,
+    operation: result.operation || null,
+    lifecycleReceipt: result.lifecycleReceipt || null,
+    reason: result.reason || null,
+    goal: compact(result.goal),
+    goals: (result.goals || []).slice(0, 10).map(compact)
+  };
 }
 
 function goalManagementFallbackReply(result = {}) {
-  if (result.stored) return "The goal record was saved. Its purpose and observed outcomes are available for the next review.";
+  const receipt = result?.lifecycleReceipt || deriveGoalLifecycleReceipt(result, result?.operation || "");
   if (result.read) return `I retrieved ${result.goals?.length || 0} goal records.`;
-  return "I couldn't save that goal update. The existing record is unchanged.";
+  if (!result.stored) return "I couldn't save that goal update. The existing record is unchanged.";
+  if (receipt.operation === "create" && receipt.attemptStarted !== true) {
+    return "The goal is now persisted and active. No experiment attempt has started yet.";
+  }
+  if (receipt.attemptStarted === true) {
+    return `The experiment attempt is now recorded as started${receipt.attemptId ? ` [${receipt.attemptId}]` : ""}, with its prediction and success criterion preserved for later comparison.`;
+  }
+  if (receipt.operation === "observe_outcome") {
+    return "The outcome observation was recorded. Its verification status remains exactly as stored in the goal record.";
+  }
+  if (receipt.operation === "review") {
+    return "The goal review was recorded. The lifecycle state remains exactly as stored in the goal record.";
+  }
+  return "The goal record was saved. Its lifecycle state is preserved in the verified goal receipt.";
 }
 
 function shouldReviewNoToolTurn(turn = {}, continuation = null) {

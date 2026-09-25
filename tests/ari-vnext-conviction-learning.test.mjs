@@ -6,7 +6,8 @@ import {
   buildOutcomeEvent,
   createGoal,
   goalCandidateFromMessage,
-  rankGoalOptions
+  rankGoalOptions,
+  selectResumableGoalAttempt
 } from "../api/_lib/ari-vnext/conviction-learning.js";
 import { advanceRewardState } from "../api/_lib/ari-vnext/reward-core.js";
 import { classifyReportedOutcome } from "../api/_lib/ari-vnext/long-horizon-outcomes.js";
@@ -53,6 +54,38 @@ test("a worthwhile purpose survives a failed method and records verified learnin
   assert.equal(observed.latestOutcome.newLearning, true);
   assert.equal(observed.lessons.length, 1);
   assert.match(observed.lessons[0].statement, /universal probability cutoff/i);
+});
+
+test("pending explicit experiment attempts resume instead of spawning a duplicate attempt", () => {
+  const goal = createGoal({
+    purpose: "Test exploratory courage",
+    successCriteria: "Matched opportunities show useful exploration"
+  }, { id: "goal-resume" });
+
+  const started = applyGoalEvent(goal, {
+    id: "attempt-event-resume",
+    type: "attempt_started",
+    payload: {
+      attemptId: "ecology-001",
+      method: "Ecology dependency-network reasoning probe",
+      prediction: "Dependency mapping will reveal a material shared dependency",
+      successCriteria: "A matched comparison shows decision-relevant improvement"
+    }
+  });
+
+  assert.equal(selectResumableGoalAttempt(started, { message: "Continue the ecology experiment and test it." })?.id, "ecology-001");
+  assert.equal(selectResumableGoalAttempt(started, { message: "What did we talk about yesterday?" }), null);
+
+  const observed = applyGoalEvent(started, {
+    id: "outcome-resume",
+    type: "outcome_observed",
+    payload: {
+      attemptId: "ecology-001",
+      status: "partial",
+      evidence: "The matched comparison produced one useful distinction."
+    }
+  });
+  assert.equal(selectResumableGoalAttempt(observed, { message: "Continue the ecology experiment." }), null);
 });
 
 test("goal completion cannot be inferred from a conversation or unverified success", () => {
