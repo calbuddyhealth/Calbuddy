@@ -25,8 +25,7 @@
 
   const ABOUT_SECTION_IDS = [
     "circle-about",
-    "circle-interests",
-    "circle-icebreakers"
+    "circle-interests"
   ];
 
   const state = {
