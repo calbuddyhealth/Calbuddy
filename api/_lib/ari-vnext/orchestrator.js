@@ -50,6 +50,7 @@ const LOW_RISK_PRIMARY_FAST_PATHS = new Set([
   "ari_goal_manage",
   "ari_lab_run_consciousness_test",
   "ari_lab_run_self_governance_test",
+  "owner_memory_search",
   "owner_repo_search",
   "owner_repo_read",
   "owner_repo_ci_status",
@@ -74,6 +75,7 @@ const OWNER_LAB_ACTIONS = new Set([
 ]);
 
 const OWNER_DEVELOPER_ACTIONS = new Set([
+  "memory_search",
   "repo_search",
   "repo_read",
   "repo_ci_status",
@@ -81,6 +83,7 @@ const OWNER_DEVELOPER_ACTIONS = new Set([
 ]);
 
 const OWNER_DEVELOPER_READ_ACTIONS = new Set([
+  "memory_search",
   "repo_search",
   "repo_read",
   "repo_ci_status"
@@ -1126,7 +1129,9 @@ async function executeOwnerDeveloperWorkspaceTurn({
 
     const toolResult = await executeDeveloperWorkspaceTool({
       applicationAction: action,
-      arguments: checked.arguments
+      arguments: checked.arguments,
+      userId: turn?.userId,
+      privacyControls: turn?.context?.userWorldModel?.privacyControls || null
     });
     const observed = developerToolResultToExecutionEvidence(toolResult, action);
     evidence = mergeDeveloperEvidence(evidence, observed);
@@ -1148,7 +1153,7 @@ async function executeOwnerDeveloperWorkspaceTurn({
     response = await callResponses({
       turn,
       policy: modelPolicy,
-      instructions: instructions + "\nOWNER DEVELOPER EXECUTION WORKSPACE\nThe preceding function output is observed repository/CI evidence. Let that evidence determine the next step. You may search, read another exact file, check CI, or prepare one exact isolated-branch edit. Do not repeat a failed step unchanged. Do not claim a test passed unless repo_ci_status reports conclusion=success.",
+      instructions: instructions + "\nOWNER DEVELOPER EXECUTION WORKSPACE\nThe preceding function output is observed repository/CI/memory evidence. Let that evidence determine the next step. You may search owner memory for a prior analogy, search the repository, read another exact file, check CI, or prepare one exact isolated-branch edit. Do not repeat a failed step unchanged. Do not claim a test passed unless repo_ci_status reports conclusion=success.",
       input: continuationInput,
       tools: developerTools
     });
