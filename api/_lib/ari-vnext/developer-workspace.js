@@ -3,8 +3,13 @@
 // turn. Writes are never performed here; edits remain confirmation-gated.
 
 import { filterMemoryResultForPrivacy, retrieveRelevantMemories } from "./memory-service.js";
+import {
+  listAgentMailboxMessages,
+  readAgentMailboxMessage,
+  sendAgentMailboxMessage
+} from "../../../server/ari-artifactory-mailbox.js";
 
-export const ARI_DEVELOPER_WORKSPACE_VERSION = "1.1.0";
+export const ARI_DEVELOPER_WORKSPACE_VERSION = "1.2.0";
 
 const WORKFLOW_FILE = "ari-vnext-tests.yml";
 const MAX_READ_BYTES = 140_000;
@@ -47,6 +52,35 @@ export async function executeDeveloperWorkspaceTool({
       userId,
       query: args.query,
       privacyControls
+    });
+  }
+
+  if (applicationAction === "agent_mailbox_list") {
+    return await listAgentMailboxMessages({
+      recipient: args.recipient,
+      sender: args.sender,
+      kind: args.kind,
+      limit: args.limit
+    });
+  }
+
+  if (applicationAction === "agent_mailbox_read") {
+    return await readAgentMailboxMessage({ path: args.path });
+  }
+
+  if (applicationAction === "agent_mailbox_send") {
+    return await sendAgentMailboxMessage({
+      sender: args.sender,
+      recipient: args.recipient,
+      kind: args.kind,
+      threadId: args.threadId || null,
+      replyTo: args.replyTo || null,
+      subject: args.subject || "",
+      payload: { content: args.content },
+      metadata: {
+        source: "ari_vnext_owner_developer_workspace",
+        ownerUserId: userId || null
+      }
     });
   }
 
@@ -174,6 +208,63 @@ export function developerToolResultToExecutionEvidence(result = {}, applicationA
         label: `ARI vNext tests ${result.runId}`,
         url: result.htmlUrl,
         verified: result?.conclusion === "success"
+      }] : []
+    };
+  }
+
+  if (applicationAction === "agent_mailbox_send") {
+    return {
+      observations: [{
+        id: result?.messageId || null,
+        kind: "agent_mailbox_send",
+        summary: result?.success
+          ? `Artifactory mailbox message ${clean(result.messageId, 60)} sent from ${clean(result.sender, 48)} to ${clean(result.recipient, 48)} as ${clean(result.kind, 80)}.`
+          : `Artifactory mailbox send failed: ${result?.code || "unknown error"}.`,
+        source: "jfrog_artifactory",
+        verified: result?.success === true
+      }],
+      artifacts: result?.success ? [{
+        id: result.messageId || null,
+        kind: "agent_mailbox_message",
+        label: result.subject || result.kind || "agent message",
+        ref: result.path || result.messageId || null,
+        verified: true
+      }] : []
+    };
+  }
+
+  if (applicationAction === "agent_mailbox_list") {
+    return {
+      observations: [{
+        id: result?.version ? `agent_mailbox_list:${result.version}` : null,
+        kind: "agent_mailbox_list",
+        summary: result?.success
+          ? `Artifactory mailbox returned ${Number(result.count || 0)} message(s).`
+          : `Artifactory mailbox list failed: ${result?.code || "unknown error"}.`,
+        source: "jfrog_artifactory",
+        verified: result?.success === true
+      }]
+    };
+  }
+
+  if (applicationAction === "agent_mailbox_read") {
+    const message = result?.message || {};
+    return {
+      observations: [{
+        id: message.messageId || null,
+        kind: "agent_mailbox_read",
+        summary: result?.success
+          ? `Read Artifactory mailbox message ${clean(message.messageId, 60)} from ${clean(message.sender, 48)} to ${clean(message.recipient, 48)} (${clean(message.kind, 80)}).`
+          : `Artifactory mailbox read failed: ${result?.code || "unknown error"}.`,
+        source: "jfrog_artifactory",
+        verified: result?.success === true
+      }],
+      artifacts: result?.success ? [{
+        id: message.messageId || null,
+        kind: "agent_mailbox_message",
+        label: message.subject || message.kind || "agent message",
+        ref: result.path || null,
+        verified: true
       }] : []
     };
   }
