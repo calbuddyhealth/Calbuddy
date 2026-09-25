@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 
 import {
   advanceExecutionSession,
@@ -8,6 +9,8 @@ import {
   summarizeExecutionSession
 } from "../api/_lib/ari-vnext/execution-session.js";
 import { developerToolResultToExecutionEvidence } from "../api/_lib/ari-vnext/developer-workspace.js";
+import { getAriTools, validateToolCall } from "../api/_lib/ari-vnext/tools.js";
+import { advanceRewardState } from "../api/_lib/ari-vnext/reward-core.js";
 
 function developerTurn(overrides = {}) {
   return {
@@ -211,4 +214,167 @@ test("developer workspace converts CI into explicit attempted/passed verificatio
   assert.equal(evidence.verification.attempted, true);
   assert.equal(evidence.verification.status, "passed");
   assert.equal(evidence.artifacts[0].verified, true);
+});
+
+
+test("unrelated conversation leaves an unfinished investigation dormant instead of overwriting it", () => {
+  const firstTurn = developerTurn({ turnId: "turn-dormant-1" });
+  const workspace = deriveExecutionWorkspace({
+    turn: firstTurn,
+    route: { developer: true, complexity: "deep" },
+    context: {}
+  });
+  const persisted = advanceExecutionSession({
+    workspace,
+    turn: firstTurn,
+    result: {
+      success: true,
+      reply: "I found one durable clue.",
+      executionEvidence: {
+        observations: [{ id: "obs-dormant", kind: "repository_read", summary: "The state reducer owns continuity.", verified: true }]
+      }
+    }
+  });
+
+  const casualTurn = developerTurn({ turnId: "turn-dormant-2", message: "How are you?" });
+  const dormant = deriveExecutionWorkspace({
+    previous: persisted,
+    turn: casualTurn,
+    route: { developer: false, complexity: "fast", casualConversation: true },
+    context: {}
+  });
+  assert.equal(dormant.active, false);
+  assert.equal(dormant.session.id, persisted.id);
+
+  const unchanged = advanceExecutionSession({
+    previous: persisted,
+    workspace: dormant,
+    turn: casualTurn,
+    result: { success: true, reply: "Doing well." }
+  });
+  assert.equal(unchanged.id, persisted.id);
+  assert.equal(unchanged.evidence.length, persisted.evidence.length);
+  assert.equal(unchanged.nextStep, persisted.nextStep);
+});
+
+test("owner SOL receives bounded repository workspace tools while ordinary users do not", () => {
+  const ownerRoute = {
+    developer: true,
+    complexity: "deep",
+    intelligenceEntitlement: {
+      ownerEligible: true,
+      accountRole: "owner",
+      accessClass: "owner"
+    }
+  };
+  const names = getAriTools(ownerRoute).map(tool => tool.name);
+  for (const name of ["owner_repo_search", "owner_repo_read", "owner_repo_ci_status", "propose_owner_github_edit"]) {
+    assert.ok(names.includes(name), name);
+  }
+
+  const ordinaryNames = getAriTools({
+    developer: true,
+    complexity: "deep",
+    intelligenceEntitlement: {
+      ownerEligible: false,
+      accountRole: "user",
+      accessClass: "premium"
+    }
+  }).map(tool => tool.name);
+  assert.equal(ordinaryNames.includes("owner_repo_read"), false);
+
+  const validated = validateToolCall({
+    name: "propose_owner_github_edit",
+    arguments: JSON.stringify({
+      filePath: "api/_lib/ari-vnext/model-policy.js",
+      find: "exact current text",
+      replace: "exact replacement text",
+      commitMessage: "Fix current routing"
+    })
+  }, ownerRoute);
+  assert.equal(validated.valid, true);
+  assert.equal(validated.arguments.autonomousDevelopment, true);
+});
+
+test("Reward Core learns from a useful failed execution test", () => {
+  const turn = developerTurn({ turnId: "turn-reward-exec" });
+  const workspace = deriveExecutionWorkspace({
+    turn,
+    route: { developer: true, complexity: "deep" },
+    context: {}
+  });
+  const executionSession = advanceExecutionSession({
+    workspace,
+    turn,
+    result: {
+      success: true,
+      reply: "The failed check eliminated one explanation.",
+      metacognition: { cortex: { needs: { verification: true } } },
+      executionEvidence: {
+        verification: {
+          id: "test-reward",
+          requested: true,
+          attempted: true,
+          status: "failed",
+          summary: "The isolated check falsified hypothesis A."
+        },
+        hypotheses: [
+          { id: "a", label: "Hypothesis A", status: "leading" },
+          { id: "b", label: "Hypothesis B", status: "candidate" }
+        ],
+        eliminatedHypotheses: [{ id: "a", label: "Hypothesis A" }]
+      }
+    }
+  });
+
+  const reward = advanceRewardState({
+    turn,
+    result: {
+      success: true,
+      reply: "The failed check eliminated one explanation.",
+      route: { developer: true, complexity: "deep" },
+      safety: { highStakes: false },
+      metacognition: {
+        confidence: "partial",
+        missingEvidence: ["alternate branch"],
+        evidenceSignals: ["repository_read"],
+        curiosity: { activeQuestion: { informationGain: 0.9, novelty: 0.7, redundancy: 0.1 } },
+        cortex: { needs: { verification: true } }
+      },
+      cortexAdviser: { attempted: false },
+      scientificIntelligence: {
+        hypotheses: [{ id: "a" }, { id: "b" }],
+        outcomeLearning: { applied: false }
+      },
+      executionSession
+    }
+  });
+
+  assert.ok(reward.lastEvent.progressStates.includes("test_failed"));
+  assert.ok(reward.lastEvent.progressStates.includes("useful_failure"));
+  assert.ok(reward.lastEvent.progressStates.includes("hypothesis_eliminated"));
+  assert.ok(reward.lastEvent.dimensions.informationGain > 0.45);
+});
+
+test("execution runtime modules remain syntactically valid", () => {
+  for (const path of [
+    "api/ari-vnext.js",
+    "api/_lib/ari-vnext/execution-session.js",
+    "api/_lib/ari-vnext/developer-workspace.js",
+    "api/_lib/ari-vnext/model-policy.js",
+    "api/_lib/ari-vnext/reward-core.js",
+    "api/_lib/ari-vnext/context-router.js",
+    "api/_lib/ari-vnext/cognitive-loop.js",
+    "api/_lib/ari-vnext/orchestrator.js",
+    "api/_lib/ari-vnext/adaptive-strategy.js",
+    "api/_lib/ari-vnext/adaptive-strategy-reflection.js",
+    "api/_lib/ari-vnext/dreaming-store.js",
+    "api/_lib/ari-vnext/dreaming-runtime.js",
+    "ari/vnext/ari-vnext-action-adapter.js",
+    "ari/vnext/ari-vnext-bridge.js",
+    "ari/runtime/ari-runtime-controller.js",
+    "calbuddy-core.js"
+  ]) {
+    execFileSync(process.execPath, ["--check", path], { stdio: "pipe" });
+  }
 });
