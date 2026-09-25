@@ -334,8 +334,11 @@ function deriveProgressEvents({ turn = {}, result = {}, now }) {
   for (const item of deriveArtifacts(result, now)) {
     add("artifact_created", \`Artifact recorded: \${item.label || item.kind}.\`, item.id);
   }
-  if (normalizeStatus(result?.executionEvidence?.status || result?.executionWorkspaceUpdate?.status) === "completed") {
-    add("completed", "The execution session reached its explicit success criteria.");
+  if (
+    normalizeStatus(result?.executionEvidence?.status || result?.executionWorkspaceUpdate?.status) === "completed" &&
+    hasVerifiedCompletionEvidence(result, events)
+  ) {
+    add("completed", "The execution session reached its explicit success criteria with verified completion evidence.");
   }
   return dedupe(events, item => item.id);
 }
@@ -456,13 +459,23 @@ function deriveFailedAttempts({ turn = {}, result = {}, now }) {
 }
 
 function resolveStatus({ explicitStatus, reply = "", result = {}, progressEvents = [], priorStatus = "active" } = {}) {
+  const verifiedCompletion = hasVerifiedCompletionEvidence(result, progressEvents);
+  if (explicitStatus === "completed") return verifiedCompletion ? "completed" : "active";
   if (explicitStatus) return explicitStatus;
   if (result?.success === false) return "blocked";
-  if (progressEvents.some(item => item.state === "test_passed") && COMPLETION_PATTERN.test(clean(reply, 2000))) return "completed";
+  if (verifiedCompletion && COMPLETION_PATTERN.test(clean(reply, 2000))) return "completed";
   if (BLOCKED_PATTERN.test(clean(reply, 2000))) return "waiting";
   return EXECUTION_SESSION_STATUSES.includes(priorStatus) && !["completed", "abandoned"].includes(priorStatus)
     ? priorStatus
     : "active";
+}
+
+function hasVerifiedCompletionEvidence(result = {}, progressEvents = []) {
+  if (result?.executionEvidence?.completionVerified === true) return true;
+  if (result?.executorReceipt?.verified === true && Boolean(result?.executorReceipt?.id)) return true;
+  return (Array.isArray(progressEvents) ? progressEvents : []).some(item =>
+    item?.state === "test_passed" || item?.state === "action_verified"
+  );
 }
 
 function inferNextStep({ result = {}, evidence = [], hypotheses = [], failedAttempts = [], prior = {} } = {}) {
