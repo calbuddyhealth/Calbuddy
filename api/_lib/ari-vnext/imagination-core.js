@@ -136,7 +136,9 @@ export function advanceImaginationState({
   );
 
   if (shouldSelect) {
-    activeScenario = selectScenario(candidates);
+    activeScenario = signals.frontierSelected && !signals.explicitImagination
+      ? candidates.find(item => item?.source === "expansive_curiosity") || selectScenario(candidates)
+      : selectScenario(candidates);
     selectedThisTurn = Boolean(activeScenario);
     if (selectedThisTurn) cooldownTurns = 0;
   } else if (!activeScenario && candidates.length) {
