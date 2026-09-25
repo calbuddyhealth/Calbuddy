@@ -20,7 +20,7 @@ const MESSAGE_ID = "4ae1be6c-60fb-4b32-b2df-263f47afcc6d";
 
 function configureMailbox() {
   process.env.SUPABASE_URL = "https://example.supabase.co";
-  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "header.payload.signature";
   process.env.ARI_AGENT_MAILBOX_ENABLED = "true";
 }
 
@@ -53,7 +53,7 @@ test("Supabase mailbox configuration exposes no credentials", () => {
     assert.equal(status.configured, true);
     assert.equal(status.provider, "supabase_postgres");
     assert.equal(status.table, "ari_agent_mailbox_messages");
-    assert.equal(status.accessModel, "server_only_service_role");
+    assert.equal(status.accessModel, "server_only");
     assert.equal(status.credentialsExposed, false);
     assert.equal(Object.hasOwn(status, "serviceRoleKey"), false);
   } finally {
@@ -84,8 +84,8 @@ test("mailbox send writes one user-scoped row through Supabase REST", async () =
     assert.equal(result.success, true);
     assert.match(observed.url, /\/rest\/v1\/ari_agent_mailbox_messages$/);
     assert.equal(observed.options.method, "POST");
-    assert.equal(observed.options.headers.apikey, "service-role-test-key");
-    assert.equal(observed.options.headers.Authorization, "Bearer service-role-test-key");
+    assert.equal(observed.options.headers.apikey, "header.payload.signature");
+    assert.equal(observed.options.headers.Authorization, "Bearer header.payload.signature");
     assert.equal(observed.options.headers.Prefer, "return=representation");
 
     const body = JSON.parse(observed.options.body);
@@ -98,6 +98,36 @@ test("mailbox send writes one user-scoped row through Supabase REST", async () =
     assert.equal(body.metadata.transport, "supabase_postgres");
     assert.match(body.content_sha256, /^[0-9a-f]{64}$/);
     assert.ok(body.message_bytes > 0);
+  } finally {
+    process.env = original;
+  }
+});
+
+test("modern Supabase secret keys are sent only as apikey", async () => {
+  const original = { ...process.env };
+  try {
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SECRET_KEY = "sb_secret_test_key";
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    process.env.ARI_AGENT_MAILBOX_ENABLED = "true";
+
+    let observed = null;
+    const result = await sendAgentMailboxMessage({
+      userId: OWNER_ID,
+      sender: "sol-researcher",
+      recipient: "ari-orchestrator",
+      kind: "status",
+      payload: { content: "Modern key compatibility." },
+      fetchImpl: async (_url, options) => {
+        observed = options;
+        const body = JSON.parse(options.body);
+        return response(201, [body]);
+      }
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(observed.headers.apikey, "sb_secret_test_key");
+    assert.equal(Object.hasOwn(observed.headers, "Authorization"), false);
   } finally {
     process.env = original;
   }
