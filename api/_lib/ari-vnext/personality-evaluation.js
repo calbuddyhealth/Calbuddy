@@ -543,6 +543,9 @@ function applyFeedbackBiases(previous = null, feedback = null) {
     if (!Object.hasOwn(next, key)) continue;
     next[key] = clampSigned(next[key] + Number(delta || 0) * 0.35);
   }
+  if (feedback.keep === true) {
+    next.naturalness = clampSigned(next.naturalness + 0.2);
+  }
   return next;
 }
 
