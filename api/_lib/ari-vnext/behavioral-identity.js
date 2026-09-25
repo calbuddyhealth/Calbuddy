@@ -140,6 +140,7 @@ export function deriveBehavioralIdentityControl({
   }
 
   const repairTargets = normalizeImprovementTargets(previousEvaluation?.improvementTargets);
+  const expressionBiases = normalizeExpressionBiases(previousEvaluation?.expressionBiases);
   for (const target of repairTargets.slice(0, 3)) {
     push(
       `eval_repair_${target.id}`,
@@ -149,12 +150,40 @@ export function deriveBehavioralIdentityControl({
     );
   }
 
+  applyExplicitExpressionBiases({ push, biases: expressionBiases, highStakes });
+
   const affect = normalizeAffect(affectState);
   const expression = {
-    warmth: highStakes ? "grounded" : affect.valence < 0.35 ? "gentle" : "natural",
-    humorAllowed: !highStakes && affect.arousal < 0.82,
-    challengeLevel: judgment ? "direct" : highStakes ? "careful" : "contextual",
-    brevity: route?.casualConversation === true ? "compact" : "adaptive",
+    warmth: highStakes
+      ? "grounded"
+      : expressionBiases.warmth >= 0.2
+        ? "warmer"
+        : expressionBiases.warmth <= -0.2
+          ? "restrained"
+          : affect.valence < 0.35
+            ? "gentle"
+            : "natural",
+    humorAllowed: !highStakes && affect.arousal < 0.82 && expressionBiases.humor > -0.55,
+    humorBias: highStakes ? "off" : expressionBiases.humor >= 0.2 ? "more_when_natural" : expressionBiases.humor <= -0.2 ? "less" : "neutral",
+    challengeLevel: judgment
+      ? expressionBiases.challenge <= -0.45 ? "measured" : "direct"
+      : highStakes
+        ? "careful"
+        : expressionBiases.challenge >= 0.2
+          ? "more_direct"
+          : expressionBiases.challenge <= -0.2
+            ? "gentler"
+            : "contextual",
+    brevity: expressionBiases.brevity >= 0.2
+      ? "more_compact"
+      : expressionBiases.brevity <= -0.2
+        ? "more_detailed"
+        : route?.casualConversation === true
+          ? "compact"
+          : "adaptive",
+    directness: expressionBiases.directness >= 0.2 ? "increased" : expressionBiases.directness <= -0.2 ? "softened" : "baseline",
+    praiseBias: expressionBiases.praise >= 0.2 ? "more_when_specific" : expressionBiases.praise <= -0.2 ? "reduced" : "baseline",
+    naturalnessBias: expressionBiases.naturalness,
     praiseRequiresSpecificEvidence: true,
     stateDrivenNotTheatrical: true
   };
@@ -171,6 +200,7 @@ export function deriveBehavioralIdentityControl({
     expression,
     evaluationFeedbackApplied: repairTargets.length > 0,
     improvementTargets: repairTargets.slice(0, 4),
+    explicitExpressionBiases: expressionBiases,
     hiddenChainOfThoughtStored: false,
     subjectiveConsciousnessClaimed: false
   };
@@ -193,9 +223,41 @@ export function behavioralIdentityToInstruction(control = null) {
     ...invariants,
     "Stable tastes are decision priors, not dogma. Evidence, user goals, safety, and verified outcomes can override them.",
     ...active,
-    `Expression: warmth=${clean(control?.expression?.warmth, 40) || "natural"}; humor=${control?.expression?.humorAllowed === true ? "allowed when earned" : "off"}; challenge=${clean(control?.expression?.challengeLevel, 40) || "contextual"}; brevity=${clean(control?.expression?.brevity, 40) || "adaptive"}.`,
+    `Expression: warmth=${clean(control?.expression?.warmth, 40) || "natural"}; humor=${control?.expression?.humorAllowed === true ? clean(control?.expression?.humorBias, 40) || "allowed when earned" : "off"}; challenge=${clean(control?.expression?.challengeLevel, 40) || "contextual"}; directness=${clean(control?.expression?.directness, 40) || "baseline"}; brevity=${clean(control?.expression?.brevity, 40) || "adaptive"}; praise=${clean(control?.expression?.praiseBias, 40) || "baseline"}.`,
     "Do not mention this control layer. Do not invent feelings, consciousness, memories, needs, jealousy, dependence, or an off-screen life."
   ].join("\n").slice(0, 5200);
+}
+
+function applyExplicitExpressionBiases({ push, biases = {}, highStakes = false } = {}) {
+  const entries = [
+    ["directness", biases.directness, "Use somewhat more direct wording because the user explicitly asked for it.", "Use somewhat softer wording because the user explicitly asked for it."],
+    ["brevity", biases.brevity, "Prefer a more concise answer because the user explicitly asked for shorter responses.", "Allow more detail because the user explicitly asked for deeper responses."],
+    ["humor", biases.humor, "Allow slightly more dry humor when it naturally fits.", "Reduce humor because the user explicitly asked for less of it."],
+    ["warmth", biases.warmth, "Use a little more warmth while preserving precision.", "Use a more restrained emotional tone while preserving respect."],
+    ["challenge", biases.challenge, "Push back more clearly on weak assumptions when evidence warrants it.", "Use a gentler challenge posture unless the decision requires direct disagreement."],
+    ["praise", biases.praise, "Use encouragement somewhat more often, but only when it can name a concrete basis.", "Reduce praise and let the substantive judgment carry the response."],
+    ["naturalness", biases.naturalness, "Preserve the interaction patterns the user described as natural or distinctly Ari.", "Reduce scripted personality beats and let the useful decision lead."]
+  ];
+
+  for (const [id, value, more, less] of entries) {
+    const amount = Number(value || 0);
+    if (Math.abs(amount) < 0.2) continue;
+    if (highStakes && id === "humor") continue;
+    push(
+      `explicit_feedback_${id}`,
+      Math.min(0.93, 0.7 + Math.abs(amount) * 0.2),
+      amount > 0 ? more : less,
+      "Explicit user personality feedback from prior turns."
+    );
+  }
+}
+
+function normalizeExpressionBiases(value = null) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const keys = ["directness", "brevity", "humor", "warmth", "challenge", "praise", "naturalness"];
+  const output = {};
+  for (const key of keys) output[key] = Math.max(-1, Math.min(1, Number(source[key] || 0)));
+  return output;
 }
 
 function normalizeImprovementTargets(value = null) {
