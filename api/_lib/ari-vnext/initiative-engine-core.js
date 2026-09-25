@@ -9,6 +9,7 @@ export function deriveInitiativeCandidate({
   relationshipContinuity = null,
   experimentLedger = null,
   decisionReview = null,
+  decisionReviews = [],
   circleEvents = null,
   now = new Date()
 } = {}) {
@@ -29,7 +30,10 @@ export function deriveInitiativeCandidate({
   }
 
   for (const thread of threads) {
-    const mapped = candidateFromThread(thread, decisionReview);
+    const matchedReview = (Array.isArray(decisionReviews) ? decisionReviews : [])
+      .find((item) => String(item?.decisionId || "") === String(thread?.referenceId || ""))
+      || decisionReview;
+    const mapped = candidateFromThread(thread, matchedReview);
     if (mapped) candidates.push(mapped);
   }
 
