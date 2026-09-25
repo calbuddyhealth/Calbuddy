@@ -257,6 +257,8 @@ export function buildDreamModelPayload(evidence = {}) {
     conversations: (evidence.conversations || []).slice(0, 24),
     worldModel: evidence.worldModel || null,
     cognitiveState: evidence.cognitiveState || null,
+    emotionDynamicsState: evidence?.cognitiveState?.emotionDynamicsState || null,
+    emotionHistory: (evidence?.cognitiveState?.emotionDynamicsState?.history || []).slice(0, 8),
     curiosityFrontier: evidence?.worldModel?.sourceSummary?.curiosityState?.expansive || null,
     imaginationState: evidence?.worldModel?.sourceSummary?.imaginationState || null,
     imaginationGarden: (evidence?.worldModel?.sourceSummary?.imaginationState?.garden || []).slice(0, 12),
