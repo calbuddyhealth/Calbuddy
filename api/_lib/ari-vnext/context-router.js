@@ -5,8 +5,9 @@ import { advancedConversationInstruction } from "./conversation-contract.js";
 import { beliefSystemInstruction } from "./belief-system.js";
 import { convictionInstruction } from "./conviction-learning.js";
 import { dreamingContextToInstruction } from "./dreaming-core.js";
+import { executionWorkspaceToInstruction } from "./execution-session.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.18.0";
+export const CONTEXT_ROUTER_VERSION = "1.19.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -374,9 +375,13 @@ function cognitiveContextRules(context = {}) {
     );
   }
 
-  const beliefState = context?.userWorldModel?.ariCognitiveWorkspace?.beliefSystem || null;
+  const cognitiveWorkspace = context?.userWorldModel?.ariCognitiveWorkspace || null;
+  const beliefState = cognitiveWorkspace?.beliefSystem || null;
   const beliefInstruction = beliefSystemInstruction(beliefState);
   if (beliefInstruction) lines.push(beliefInstruction);
+
+  const executionInstruction = executionWorkspaceToInstruction(cognitiveWorkspace?.executionWorkspace || null);
+  if (executionInstruction) lines.push(executionInstruction);
 
   const dreamingInstruction = dreamingContextToInstruction(context?.dreaming || null);
   if (dreamingInstruction) lines.push(dreamingInstruction);
