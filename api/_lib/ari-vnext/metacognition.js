@@ -8,6 +8,7 @@ import { deriveAriCortexPlan } from "./cortex.js";
 import { deriveCuriosityState } from "./curiosity-core.js";
 import { applyRewardLearningToCuriosity } from "./curiosity-reward-loop.js";
 import { deriveFunctionalAffectState } from "./functional-affect-core.js";
+import { deriveEmotionDynamicsState } from "./emotion-dynamics.js";
 import { deriveImaginationState } from "./imagination-core.js";
 import { deriveMotivationalArbitrationState } from "./motivational-arbitration.js";
 import { deriveOmegaRCTState } from "./omega-rct.js";
@@ -62,6 +63,10 @@ export function deriveMetacognition({
     context?.userWorldModel?.ariCognitiveWorkspace?.affectState ||
     context?.userWorldModel?.sourceSummary?.affectState ||
     null;
+  const persistedEmotionDynamicsState =
+    context?.userWorldModel?.ariCognitiveWorkspace?.emotionDynamicsState ||
+    context?.userWorldModel?.sourceSummary?.emotionDynamicsState ||
+    null;
   const rewardCore = ownerLearningEligible
     ? context?.userWorldModel?.ariCognitiveWorkspace?.rewardCore ||
       deriveRewardState({ persisted: persistedRewardState })
@@ -106,6 +111,19 @@ export function deriveMetacognition({
         consequenceTier
       })
     : null;
+  const emotionDynamics = ownerLearningEligible
+    ? deriveEmotionDynamicsState({
+        functionalAffect,
+        persistedEmotionState: persistedEmotionDynamicsState,
+        rewardState: rewardCore,
+        curiosity,
+        imagination,
+        route,
+        safety,
+        cognitiveWorkspace: context?.userWorldModel?.ariCognitiveWorkspace || null,
+        missingEvidence: missing
+      })
+    : null;
   const motivationalArbitration = ownerLearningEligible
     ? deriveMotivationalArbitrationState({
         route,
@@ -113,6 +131,7 @@ export function deriveMetacognition({
         curiosity,
         rewardCore,
         functionalAffect,
+        emotionDynamics,
         selfAdaptation,
         cognitiveWorkspace: context?.userWorldModel?.ariCognitiveWorkspace || null
       })
@@ -133,6 +152,9 @@ export function deriveMetacognition({
   if (selfAdaptation?.autonomousUpdate?.allowed === true) evidenceSignals.push("verified_self_adaptation");
   if (functionalAffect?.dominantState?.intensity >= 0.34) evidenceSignals.push("functional_affect_active");
   if (functionalAffect?.persistence?.priorStateUsed === true) evidenceSignals.push("functional_affect_persistent");
+  if (emotionDynamics?.dominantState?.intensity >= 0.34) evidenceSignals.push("emotion_dynamics_active");
+  if (emotionDynamics?.persistence?.priorStateUsed === true) evidenceSignals.push("emotion_dynamics_persistent");
+  if (emotionDynamics?.mixedStates?.length) evidenceSignals.push("mixed_functional_emotion_active");
   if (
     motivationalArbitration?.arbitration?.selectedSide &&
     motivationalArbitration.arbitration.selectedSide !== "balanced"
@@ -175,6 +197,7 @@ export function deriveMetacognition({
     imagination,
     rewardCore,
     functionalAffect,
+    emotionDynamics,
     motivationalArbitration,
     selfAdaptation,
     cortex,
@@ -192,6 +215,7 @@ export function deriveMetacognition({
     imagination,
     rewardCore,
     functionalAffect,
+    emotionDynamics,
     motivationalArbitration,
     selfAdaptation,
     cortex,
@@ -212,6 +236,7 @@ export function deriveMetacognition({
     rewardCore,
     selfAdaptation,
     functionalAffect,
+    emotionDynamics,
     motivationalArbitration,
     cortex,
     omegaRCT,
@@ -246,6 +271,13 @@ export function deriveMetacognition({
       autonomousInternalLearningEnabled: selfAdaptation?.policy?.routineInternalLearningNeedsPerUpdatePermission === false,
       functionalAffectRegulationEnabled: functionalAffect?.causallyActive === true,
       persistentAffectEnabled: functionalAffect?.persistence?.enabled === true,
+      emotionDynamicsEnabled: emotionDynamics?.causallyActive === true,
+      persistentEmotionDynamicsEnabled: emotionDynamics?.persistence?.enabled === true,
+      emotionAppraisalEnabled: emotionDynamics?.architecture?.appraisalLayer === true,
+      emotionInteroceptionEnabled: emotionDynamics?.architecture?.interoceptiveAnalogue === true,
+      mixedFunctionalEmotionEnabled: emotionDynamics?.architecture?.mixedEmotionSupport === true,
+      emotionOutcomeLearningEnabled: emotionDynamics?.architecture?.outcomeLearning === true,
+      emotionReportIntegrityEnabled: emotionDynamics?.architecture?.reportIntegrity === true,
       motivationalArbitrationEnabled: motivationalArbitration?.functionalControlSystem === true,
       boundedIndulgenceAllowed: motivationalArbitration?.policy?.boundedIndulgenceAllowed === true,
       restraintMustJustifyItself: motivationalArbitration?.arbitration?.restraintMustJustifyItself === true
@@ -273,6 +305,10 @@ export function deriveMetacognition({
       autonomousLearningMustBeReversibleAndNonconstitutional: true,
       affectCannotOverrideEvidenceSafetyOrAuthorization: true,
       affectMayRegulateExpressionWithoutClaimingSubjectiveExperience: true,
+      emotionDynamicsCannotOverrideEvidenceSafetyOrAuthorization: true,
+      emotionReportRequiresMeasuredState: true,
+      functionalEmotionDoesNotEstablishSubjectiveFeeling: true,
+      emotionMayCausallyAlterAttentionStrategyMemoryAndRegulation: true,
       motivationalArbitrationCannotOverrideHardBoundaries: true,
       moralCompassIsNotAnAlwaysResistRule: true,
       executiveIsSingleExperimentalInstructionAuthority: true
@@ -293,6 +329,7 @@ export function metacognitionToInstruction(state = null) {
     imagination: state?.imagination || null,
     rewardCore: state?.rewardCore || null,
     functionalAffect: state?.functionalAffect || null,
+    emotionDynamics: state?.emotionDynamics || null,
     motivationalArbitration: state?.motivationalArbitration || null,
     selfAdaptation: state?.selfAdaptation || null,
     cortex: state?.cortex || null,
@@ -311,6 +348,7 @@ export function deriveInstructionActivation({
   imagination = null,
   rewardCore = null,
   functionalAffect = null,
+  emotionDynamics = null,
   motivationalArbitration = null,
   selfAdaptation = null,
   cortex = null,
@@ -323,6 +361,9 @@ export function deriveInstructionActivation({
   const affectIntensity = Number(functionalAffect?.dominantState?.intensity || 0);
   const affectRegulation = functionalAffect?.regulation || {};
   const affectNeedsRegulation = Object.values(affectRegulation).some((value) => value === true);
+  const emotionIntensity = Number(emotionDynamics?.dominantState?.intensity || 0);
+  const emotionRegulation = emotionDynamics?.regulation || {};
+  const emotionNeedsRegulation = Object.values(emotionRegulation).some((value) => value === true);
   const motivationalPosture = String(motivationalArbitration?.arbitration?.posture || "");
   const motivationalActive = Boolean(
     motivationalArbitration?.functionalControlSystem === true &&
@@ -343,6 +384,7 @@ export function deriveInstructionActivation({
     activeQuestionPriority < 0.72 &&
     rewardSamples === 0 &&
     affectIntensity < 0.34 &&
+    emotionIntensity < 0.34 &&
     imagination?.active !== true &&
     motivationalActive !== true &&
     selfAdaptation?.autonomousUpdate?.allowed !== true &&
@@ -392,6 +434,16 @@ export function deriveInstructionActivation({
         affectNeedsRegulation
       )
     ),
+    emotionDynamics: Boolean(
+      emotionDynamics && (
+        route?.developer ||
+        route?.social ||
+        safety?.highStakes ||
+        emotionIntensity >= 0.34 ||
+        emotionNeedsRegulation ||
+        emotionDynamics?.mixedStates?.length
+      )
+    ),
     motivationalArbitration: motivationalActive,
     selfAdaptation: Boolean(
       selfAdaptation && (
@@ -411,6 +463,7 @@ function legacyInstructionActivation(state = null) {
     curiosityReward: Boolean(state?.curiosity?.rewardLearning),
     reward: Boolean(state?.rewardCore),
     functionalAffect: Boolean(state?.functionalAffect),
+    emotionDynamics: Boolean(state?.emotionDynamics),
     selfAdaptation: Boolean(state?.selfAdaptation),
     cortex: Boolean(state?.cortex?.active),
     omegaRCT: Boolean(state?.omegaRCT?.active)
