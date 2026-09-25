@@ -2301,7 +2301,7 @@ CalBuddy.inferVisualInspectionPath = function (message = "") {
   if (/\b(meetup|host|jump in|connect)\b/.test(text) && /\bcircle\b/.test(text)) {
     return "/ari-circle-meetup.html";
   }
-  if (/\bcircle\b/.test(text)) return "/ari-circle.html";
+  if (/\bcircle\b/.test(text)) return "/ari-circle-meetup.html";
   if (/\b(training|workout|exercise)\b/.test(text)) return "/ari-training.html";
   if (/\b(meal|meals|nutrition|food)\b/.test(text)) return "/nutrition.html";
   if (/\b(progress)\b/.test(text)) return "/progress.html";
