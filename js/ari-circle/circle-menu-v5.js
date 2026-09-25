@@ -23,7 +23,7 @@
   const PROFILE_SAFETY_SCRIPT_ID = "ariCircleProfileSafetyScript";
   const PROFILE_SAFETY_SCRIPT_SRC = "js/ari-circle/profile/profile-safety.js?v=1.1.0";
   const REAL_WORLD_SCRIPT_ID = "ariCircleV5RealWorldScript";
-  const REAL_WORLD_SCRIPT_SRC = "js/ari-circle/v5-real-world.js?v=5.4.0";
+  const REAL_WORLD_SCRIPT_SRC = "js/ari-circle/v5-real-world.js?v=5.5.0";
   let outsideBound = false;
   let panelSequence = 0;
 
@@ -79,7 +79,7 @@
 
   function loadRealWorldShell() {
     if (!adultAccessReady()) return;
-    if (window.AriCircleV5RealWorld?.version === "5.4.0") {
+    if (window.AriCircleV5RealWorld?.version === "5.5.0") {
       window.AriCircleV5RealWorld.refresh?.();
       return;
     }
