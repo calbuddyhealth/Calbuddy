@@ -5,12 +5,11 @@ import fs from "node:fs";
 const meetupHtml = fs.readFileSync("ari-circle-meetup.html", "utf8");
 const connect = fs.readFileSync("js/ari-circle/connect/connect-v1.js", "utf8");
 const feedHtml = fs.readFileSync("ari-circle-feed.html", "utf8");
-const happening = fs.readFileSync("js/ari-circle/feed/happening-v5.js", "utf8");
-const feedController = fs.readFileSync("js/ari-circle/feed/feed.js", "utf8");
 const shell = fs.readFileSync("js/ari-circle/v5-real-world.js", "utf8");
 const menu = fs.readFileSync("js/ari-circle/circle-menu-v5.js", "utf8");
 const gallery = fs.readFileSync("js/ari-circle/profile/profile-gallery-v1.js", "utf8");
 const galleryMigration = fs.readFileSync("supabase/migrations/20260923160828_ari_circle_profile_gallery_v1.sql", "utf8");
+const showcaseMigration = fs.readFileSync("supabase/migrations/20260925161000_ari_circle_profile_showcase_v2.sql", "utf8");
 const connections = fs.readFileSync("js/ari-circle/connections/connections-controller.js", "utf8");
 
 test("Connect prioritizes people doing things over configuration", () => {
@@ -22,7 +21,6 @@ test("Connect prioritizes people doing things over configuration", () => {
   assert.match(meetupHtml, /COMING UP/);
   assert.match(meetupHtml, /Anything/);
   assert.match(meetupHtml, /\+ Host/);
-  assert.doesNotMatch(meetupHtml, /Upcoming<\/button>/);
 });
 
 test("Connect reuses canonical meetup joins, requests, waitlists, rooms, and hosting", () => {
@@ -36,61 +34,39 @@ test("Connect reuses canonical meetup joins, requests, waitlists, rooms, and hos
   assert.doesNotMatch(connect, /ari_circle_complete_meetup/);
 });
 
-test("Feed is event-first while preserving compact friend text updates", () => {
-  assert.match(feedHtml, /Share an update/);
-  assert.match(feedHtml, /Friends only · text update/);
-  assert.match(feedHtml, /Updates from your people/);
-  assert.match(feedHtml, /feed\/happening-v5\.js\?v=6\.2\.0/);
-  assert.match(feedHtml, /feed\/feed\.js\?v=2\.3\.0/);
-  assert.match(feedHtml, /id="feedComposerEditor" hidden/);
-  assert.match(feedHtml, /id="publishPostButton" type="submit" disabled/);
-  assert.ok(feedHtml.indexOf('id="circleV5Happening"') < feedHtml.indexOf('id="feedQuickUpdate"'));
-  assert.doesNotMatch(feedHtml, /Camera \/ Library/);
-  assert.doesNotMatch(feedHtml, /Make it a Moment/);
-
-  assert.match(happening, /const VERSION = "6\.2\.0"/);
-  assert.match(happening, /const FEED_PREVIEW_LIMIT = 2/);
-  assert.match(happening, /const CANDIDATE_LIMIT = 24/);
-  assert.match(happening, /function selectFeedMeetups\(rows, limit=FEED_PREVIEW_LIMIT/);
-  assert.match(happening, /const usedHosts=new Set\(\)/);
-  assert.match(happening, /result_limit:CANDIDATE_LIMIT/);
-  assert.match(happening, /selectFeedMeetups\(data,FEED_PREVIEW_LIMIT\)/);
-  assert.doesNotMatch(happening, /\.slice\(0,6\)/);
-  assert.match(happening, /insertAdjacentElement\("beforebegin",section\)/);
-  assert.match(happening, /ari_circle_list_meetups/);
-  assert.match(happening, /ari_circle_join_meetup/);
-  assert.match(happening, /ari_circle_request_meetup/);
-
-  assert.match(feedController, /const VERSION = "2\.3\.0"/);
-  assert.match(feedController, /button\.disabled = state\.busy \|\| !body/);
-  assert.match(feedController, /button\.textContent = state\.busy \? "Posting…" : "Post"/);
-  assert.match(feedController, /requested_media_path: null/);
-  assert.match(feedController, /const textUpdates = rows\.filter\(\(row\) => clean\(row\.body\)\)/);
-  assert.doesNotMatch(feedController, /\n\s*appendPostMedia\(article, post\);/);
+test("legacy Feed route redirects to Connect instead of exposing an infinite posting surface", () => {
+  assert.match(feedHtml, /window\.location\.replace\("ari-circle-meetup\.html"\)/);
+  assert.match(feedHtml, /Feed is retired as a member-facing surface/);
 });
 
-test("Circle primary shell is Feed and Connect only", () => {
-  assert.match(shell, /const VERSION = "5\.4\.0"/);
-  assert.match(shell, /window\.AriCircleHappeningV5\?\.version/);
-  assert.match(shell, /happening-v5\.js\?v=6\.2\.0/);
-  assert.match(feedHtml, /v5-real-world\.js\?v=5\.4\.1/);
-  assert.match(feedHtml, /circle-menu-v5\.js\?v=2\.6\.1/);
-  assert.match(shell, /navLink\("feed", "ari-circle-feed\.html", "Feed"\)/);
+test("Circle primary shell is Connect and Profile only", () => {
+  assert.match(shell, /const VERSION = "5\.5\.0"/);
+  assert.match(shell, /NAV_MODEL = "connect-profile-v1"/);
   assert.match(shell, /navLink\("connect", "ari-circle-meetup\.html", "Connect"\)/);
+  assert.match(shell, /navLink\("profile", "ari-circle\.html", "Profile"\)/);
+  assert.doesNotMatch(shell, /navLink\("feed"/);
   assert.doesNotMatch(shell, /navLink\("arinext"/);
   assert.doesNotMatch(menu, /label: "Quests"/);
 });
 
-test("profile gallery enforces avatar plus four supporting photos", () => {
+test("profile showcase keeps exactly four slots and accepts photo video or text", () => {
   assert.match(galleryMigration, /position between 1 and 4/i);
   assert.match(galleryMigration, /unique \(user_id, position\)/i);
+  assert.match(showcaseMigration, /content_type in \('image','video','text'\)/i);
+  assert.match(showcaseMigration, /duration_seconds <= 30\.5/i);
+  assert.match(showcaseMigration, /ari_circle_profile_showcase_set/i);
   assert.match(gallery, /\[1,2,3,4\]/);
-  assert.match(gallery, /profile-gallery/);
-  assert.match(gallery, /circleProfileGalleryNotice/);
-  assert.match(gallery, /profile-gallery-pending/);
-  assert.match(gallery, /moderation_status/);
-  assert.match(gallery, /Checking…/);
-  assert.doesNotMatch(gallery, /profile-safety\.js/);
+  assert.match(gallery, /supportedTypes: Object\.freeze\(\["image","video","text"\]\)/);
+  assert.match(gallery, /Photo · Video · Text/);
+  assert.match(gallery, /MAX_VIDEO_SECONDS = 30/);
+  assert.match(gallery, /MAX_TEXT_LENGTH = 600/);
+});
+
+test("only images use the existing moderation queue while text and short video publish directly", () => {
+  assert.match(showcaseMigration, /if clean_type = 'image' then[\s\S]*pgmq\.send/);
+  assert.match(showcaseMigration, /clean_type = 'text'[\s\S]*next_status := 'approved'/);
+  assert.match(showcaseMigration, /next_decision := 'profile_showcase_video'/);
+  assert.match(gallery, /Image uploaded\. Checking before it becomes visible to other people/);
 });
 
 test("profile relationship action is explicitly friendship", () => {
@@ -98,14 +74,4 @@ test("profile relationship action is explicitly friendship", () => {
   assert.match(connections, /"Requested"/);
   assert.match(connections, /"Friends"/);
   assert.doesNotMatch(connections, /"Add to Circle"/);
-});
-
-
-test("Feed Happening remains a two-card preview at scale", () => {
-  assert.match(happening, /FEED_PREVIEW_LIMIT = 2/);
-  assert.match(happening, /CANDIDATE_LIMIT = 24/);
-  assert.match(happening, /usedHosts\.has\(host\)/);
-  assert.match(happening, /selected\.length>=limit/);
-  assert.match(happening, /stableMeetupCompare/);
-  assert.match(happening, /eventScore/);
 });
