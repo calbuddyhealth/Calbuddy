@@ -152,11 +152,11 @@ test("metacognition preserves Omega-RCT inside Cortex while Ari Executive owns p
   });
   const instruction = metacognitionToInstruction(state);
 
-  assert.equal(ARI_METACOGNITION_VERSION, "1.5.0");
+  assert.equal(ARI_METACOGNITION_VERSION, "1.6.0");
   assert.equal(state.omegaRCT.active, true);
   assert.equal(state.cortex.omegaRCT.version, "1.2.0");
   assert.equal(state.executivePolicy.authority.singleRuntimeDecisionAuthority, true);
-  assert.match(instruction, /ARI EXECUTIVE v1\.1\.0/);
+  assert.match(instruction, /ARI EXECUTIVE v1\.2\.0/);
   assert.match(instruction, /Ω-RCT signal:/i);
   assert.match(instruction, /not evidence of subjective consciousness/i);
   assert.doesNotMatch(instruction, /Ω-RCT v1\.2 — OWNER CORTEX RECURSIVE SELFHOOD/);

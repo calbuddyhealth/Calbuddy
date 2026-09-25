@@ -13,7 +13,7 @@ import { deriveOmegaRCTState } from "./omega-rct.js";
 import { deriveRewardState } from "./reward-core.js";
 import { deriveSelfAdaptationState } from "./self-adaptation.js";
 
-export const ARI_METACOGNITION_VERSION = "1.5.0";
+export const ARI_METACOGNITION_VERSION = "1.6.0";
 export const ARI_INSTRUCTION_ACTIVATION_VERSION = "1.0.0";
 
 export function deriveMetacognition({
@@ -178,6 +178,7 @@ export function deriveMetacognition({
     selfAdaptation,
     cortex,
     omegaRCT,
+    executionSession: context?.userWorldModel?.ariCognitiveWorkspace?.executionWorkspace || null,
     instructionActivation
   });
 

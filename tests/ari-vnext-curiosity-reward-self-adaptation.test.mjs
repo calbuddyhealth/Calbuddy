@@ -240,7 +240,7 @@ test("owner metacognition closes reward into curiosity and routes self-direction
   assert.equal(state.executivePolicy.directives.selfDirectedResearch, true);
   assert.equal(state.executivePolicy.directives.selfRevisionProposals, true);
   assert.equal(state.executivePolicy.directives.branchScopedDevelopment, true);
-  assert.match(instruction, /ARI EXECUTIVE v1\.1\.0/);
+  assert.match(instruction, /ARI EXECUTIVE v1\.2\.0/);
   assert.match(instruction, /Curiosity signal:/i);
   assert.match(instruction, /Bounded self-adaptation is active for this turn/i);
   assert.match(instruction, /Self-direction is enabled/i);

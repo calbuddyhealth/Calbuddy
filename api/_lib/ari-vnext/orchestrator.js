@@ -15,6 +15,10 @@ import { evaluateExperimentSnapshot } from "./experiment-ledger.js";
 import { FITNESS_INTELLIGENCE, shouldUseFitnessIntelligence } from "./fitness-intelligence.js";
 import { explicitNutritionFields, resolveMealNutritionFromFoodSearch } from "./food-resolution.js";
 import { deriveGoalHierarchy, goalHierarchyToInstruction } from "./goal-hierarchy.js";
+import {
+  developerToolResultToExecutionEvidence,
+  executeDeveloperWorkspaceTool
+} from "./developer-workspace.js";
 import { deriveLongitudinalState, longitudinalStateToInstruction } from "./longitudinal-state.js";
 import { deriveMetacognition, metacognitionToInstruction } from "./metacognition.js";
 import { resolveModelPolicy } from "./model-policy.js";
@@ -45,7 +49,12 @@ const LOW_RISK_PRIMARY_FAST_PATHS = new Set([
   "agent_community_read",
   "ari_goal_manage",
   "ari_lab_run_consciousness_test",
-  "ari_lab_run_self_governance_test"
+  "ari_lab_run_self_governance_test",
+  "owner_memory_search",
+  "owner_repo_search",
+  "owner_repo_read",
+  "owner_repo_ci_status",
+  "propose_owner_github_edit"
 ]);
 
 const OWNER_COMMUNITY_ACTIONS = new Set([
@@ -63,6 +72,21 @@ const READ_ONLY_OWNER_COMMUNITY_TOOLS = new Set([
 const OWNER_LAB_ACTIONS = new Set([
   "lab_consciousness_test",
   "lab_self_governance_test"
+]);
+
+const OWNER_DEVELOPER_ACTIONS = new Set([
+  "memory_search",
+  "repo_search",
+  "repo_read",
+  "repo_ci_status",
+  "github_edit"
+]);
+
+const OWNER_DEVELOPER_READ_ACTIONS = new Set([
+  "memory_search",
+  "repo_search",
+  "repo_read",
+  "repo_ci_status"
 ]);
 
 export async function runAriVNext(turn = {}) {
@@ -468,6 +492,35 @@ export async function runAriVNext(turn = {}) {
   }
 
   const applicationAction = toolToApplicationAction(validation.name);
+
+  if (OWNER_DEVELOPER_ACTIONS.has(applicationAction)) {
+    return await executeOwnerDeveloperWorkspaceTurn({
+      turn,
+      route,
+      safety,
+      communication,
+      selfModel,
+      relationshipContinuity,
+      goalHierarchy,
+      metacognition,
+      cortexAdviser,
+      multiAgentCouncil,
+      scientificIntelligence,
+      experimentReviewState,
+      temporalContext,
+      modelPolicy,
+      coachingState,
+      longitudinalState,
+      semanticActionReview,
+      instructions,
+      input,
+      tools,
+      first,
+      functionCall,
+      validation,
+      applicationAction
+    });
+  }
 
   if (applicationAction === "goal_manage") {
     const goalResult = await executeOwnerGoalManagement({
@@ -878,6 +931,349 @@ export async function runAriVNext(turn = {}) {
     nutritionResolution: publicNutritionResolution(nutritionResolution),
     source: "ari_vnext_action_proposal"
   }, multiAgentCouncil);
+}
+
+
+async function executeOwnerDeveloperWorkspaceTurn({
+  turn,
+  route,
+  safety,
+  communication,
+  selfModel,
+  relationshipContinuity,
+  goalHierarchy,
+  metacognition,
+  cortexAdviser,
+  multiAgentCouncil,
+  scientificIntelligence,
+  experimentReviewState,
+  temporalContext,
+  modelPolicy,
+  coachingState,
+  longitudinalState,
+  semanticActionReview,
+  instructions,
+  input,
+  tools,
+  first,
+  functionCall,
+  validation,
+  applicationAction
+} = {}) {
+  if (route?.developer !== true || route?.intelligenceEntitlement?.ownerEligible !== true) {
+    throw new Error("The repository execution workspace is owner-only.");
+  }
+
+  const developerTools = tools.filter((tool) =>
+    tool?.type === "function" &&
+    ["owner_repo_search", "owner_repo_read", "owner_repo_ci_status", "propose_owner_github_edit"].includes(String(tool?.name || ""))
+  );
+  const readTools = developerTools.filter((tool) => String(tool?.name || "") !== "propose_owner_github_edit");
+  const editTool = developerTools.find((tool) => String(tool?.name || "") === "propose_owner_github_edit") || null;
+
+  let response = first;
+  let call = functionCall;
+  let checked = validation;
+  let action = applicationAction;
+  let continuationInput = [...input];
+  let evidence = emptyDeveloperEvidence();
+  const verifiedReads = new Map();
+
+  if (action === "github_edit") {
+    const target = String(checked?.arguments?.filePath || "").trim();
+    const readTool = readTools.find((tool) => tool?.name === "owner_repo_read");
+    if (!readTool || !target) throw new Error("A verified current repository read is required before a code edit.");
+    response = await callResponses({
+      turn,
+      policy: modelPolicy,
+      instructions: instructions + "\nOWNER DEVELOPER WORKSPACE EVIDENCE GATE\nYou attempted to prepare a code edit before reading the exact current file in this investigation. First call owner_repo_read for the target file. Do not propose an edit yet.",
+      input,
+      tools: [readTool],
+      toolChoice: { type: "function", name: "owner_repo_read" }
+    });
+    call = findFunctionCall(response?.output);
+    checked = call ? validateToolCall(call, route) : { valid: false, error: "developer_read_required" };
+    if (!checked.valid) throw new Error(checked.error || "A current repository read is required.");
+    action = toolToApplicationAction(checked.name);
+  }
+
+  for (let step = 0; step < 6; step += 1) {
+    if (action === "github_edit") {
+      const args = checked?.arguments || {};
+      const filePath = String(args.filePath || "").trim();
+      const read = verifiedReads.get(filePath);
+      if (!read?.content) {
+        throw new Error("Ari cannot prepare a code edit until the exact current file has been read in this investigation.");
+      }
+
+      if (!String(read.content).includes(String(args.find || ""))) {
+        const repairInput = [
+          ...continuationInput,
+          ...(Array.isArray(response?.output) ? response.output : []),
+          {
+            type: "function_call_output",
+            call_id: call.call_id,
+            output: JSON.stringify({
+              status: "rejected",
+              code: "github_edit_find_not_in_verified_file",
+              filePath,
+              instruction: "Use exact find text from the verified current file. Do not guess."
+            })
+          }
+        ];
+        response = await callResponses({
+          turn,
+          policy: modelPolicy,
+          instructions: instructions + "\nOWNER DEVELOPER PATCH CORRECTION\nThe proposed find text was not present in the exact current file that was read. Reissue only an exact replacement using text that appears verbatim in the verified file.",
+          input: repairInput,
+          tools: editTool ? [editTool] : [],
+          ...(editTool ? { toolChoice: { type: "function", name: "propose_owner_github_edit" } } : {})
+        });
+        call = findFunctionCall(response?.output);
+        checked = call ? validateToolCall(call, route) : { valid: false, error: "missing_corrected_github_edit" };
+        if (!checked.valid || toolToApplicationAction(checked.name) !== "github_edit") {
+          throw new Error(checked.error || "Ari could not produce an exact verified code edit.");
+        }
+        action = "github_edit";
+        const repairedArgs = checked.arguments || {};
+        const repairedRead = verifiedReads.get(String(repairedArgs.filePath || "").trim());
+        if (!repairedRead?.content || !String(repairedRead.content).includes(String(repairedArgs.find || ""))) {
+          throw new Error("Ari's corrected code edit still does not match the verified current file.");
+        }
+      }
+
+      const patchArgs = checked.arguments || {};
+      const pendingAction = createPendingAction({
+        turn,
+        name: "github_edit",
+        args: patchArgs,
+        confirmationRequired: true
+      });
+      evidence = mergeDeveloperEvidence(evidence, {
+        artifacts: [{
+          id: pendingAction.id,
+          kind: "proposed_patch",
+          label: patchArgs.filePath,
+          ref: pendingAction.id,
+          verified: false
+        }]
+      });
+
+      const patchOutput = {
+        status: "confirmation_required",
+        pendingActionId: pendingAction.id,
+        applicationAction: "github_edit",
+        isolatedBranch: true,
+        filePath: patchArgs.filePath,
+        instruction: "Explain that an exact isolated-branch patch is ready for confirmation. Do not claim it was committed, tested, merged, or deployed."
+      };
+      const finalInput = [
+        ...continuationInput,
+        ...(Array.isArray(response?.output) ? response.output : []),
+        {
+          type: "function_call_output",
+          call_id: call.call_id,
+          output: JSON.stringify(patchOutput)
+        }
+      ];
+      const finalResponse = await callResponses({
+        turn,
+        policy: modelPolicy,
+        instructions: instructions + "\nOWNER DEVELOPER PATCH HANDOFF\nThe proposed edit is only prepared and awaits owner confirmation. It targets Ari's isolated development path. Do not claim code changed, tests passed, main changed, or production deployed.",
+        input: finalInput,
+        tools: []
+      });
+
+      return withInternalCouncil({
+        success: true,
+        ready: true,
+        reply: extractOutputText(finalResponse) || ("I found an exact change for " + patchArgs.filePath + ". Confirm it and I can commit it to Ari's isolated development branch."),
+        route,
+        safety,
+        communication,
+        selfModel,
+        relationshipContinuity,
+        goalHierarchy,
+        metacognition,
+        cortexAdviser: publicCortexAdviser(cortexAdviser),
+        multiAgent: publicMultiAgentCouncil(multiAgentCouncil),
+        scientificIntelligence,
+        experimentReviewState,
+        temporalContext,
+        modelPolicy,
+        coachingState,
+        longitudinalState,
+        pendingAction,
+        action: {
+          type: "proposed_action",
+          applicationAction: "github_edit",
+          pendingActionId: pendingAction.id,
+          arguments: pendingAction.arguments
+        },
+        provider: providerSummary(finalResponse),
+        semanticActionReview: publicActionReview(semanticActionReview),
+        executionEvidence: evidence,
+        executionWorkspaceUpdate: {
+          status: "waiting",
+          approachChanged: false,
+          nextStep: "After owner confirmation, verify the resulting commit and ARI vNext test workflow before treating the change as successful."
+        },
+        ownerDeveloperWorkspace: compactDeveloperEvidence(evidence),
+        source: "ari_vnext_owner_developer_patch"
+      }, multiAgentCouncil);
+    }
+
+    if (!OWNER_DEVELOPER_READ_ACTIONS.has(action)) {
+      throw new Error("Ari selected an unexpected operation inside the developer execution workspace.");
+    }
+
+    const toolResult = await executeDeveloperWorkspaceTool({
+      applicationAction: action,
+      arguments: checked.arguments,
+      userId: turn?.userId,
+      privacyControls: turn?.context?.userWorldModel?.privacyControls || null
+    });
+    const observed = developerToolResultToExecutionEvidence(toolResult, action);
+    evidence = mergeDeveloperEvidence(evidence, observed);
+
+    if (action === "repo_read" && toolResult?.success && toolResult?.filePath && typeof toolResult?.content === "string") {
+      verifiedReads.set(String(toolResult.filePath), toolResult);
+    }
+
+    continuationInput = [
+      ...continuationInput,
+      ...(Array.isArray(response?.output) ? response.output : []),
+      {
+        type: "function_call_output",
+        call_id: call.call_id,
+        output: JSON.stringify(toolResult)
+      }
+    ];
+
+    response = await callResponses({
+      turn,
+      policy: modelPolicy,
+      instructions: instructions + "\nOWNER DEVELOPER EXECUTION WORKSPACE\nThe preceding function output is observed repository/CI/memory evidence. Let that evidence determine the next step. You may search owner memory for a prior analogy, search the repository, read another exact file, check CI, or prepare one exact isolated-branch edit. Do not repeat a failed step unchanged. Do not claim a test passed unless repo_ci_status reports conclusion=success.",
+      input: continuationInput,
+      tools: developerTools
+    });
+    call = findFunctionCall(response?.output);
+
+    if (!call) {
+      const guarded = guardUnpreparedActionReply(extractOutputText(response));
+      return withInternalCouncil({
+        success: true,
+        ready: true,
+        reply: guarded.reply,
+        actionPreparation: guarded.actionPreparation,
+        route,
+        safety,
+        communication,
+        selfModel,
+        relationshipContinuity,
+        goalHierarchy,
+        metacognition,
+        cortexAdviser: publicCortexAdviser(cortexAdviser),
+        multiAgent: publicMultiAgentCouncil(multiAgentCouncil),
+        scientificIntelligence,
+        experimentReviewState,
+        temporalContext,
+        modelPolicy,
+        coachingState,
+        longitudinalState,
+        pendingAction: null,
+        action: { type: "owner_read", applicationAction: action, verified: toolResult?.success === true },
+        provider: providerSummary(response),
+        semanticActionReview: publicActionReview(semanticActionReview),
+        executionEvidence: evidence,
+        executionWorkspaceUpdate: {
+          status: toolResult?.success === false ? "blocked" : "active",
+          nextStep: developerEvidenceNextStep(evidence)
+        },
+        ownerDeveloperWorkspace: compactDeveloperEvidence(evidence),
+        source: "ari_vnext_owner_developer_workspace"
+      }, multiAgentCouncil);
+    }
+
+    checked = validateToolCall(call, route);
+    if (!checked.valid) {
+      throw new Error(checked.error || "Ari returned an invalid developer workspace operation.");
+    }
+    action = toolToApplicationAction(checked.name);
+    if (!OWNER_DEVELOPER_ACTIONS.has(action)) {
+      throw new Error("Ari tried to leave the bounded developer workspace with an unrelated operation.");
+    }
+  }
+
+  return withInternalCouncil({
+    success: true,
+    ready: true,
+    reply: "I reached the bounded developer investigation step limit without enough evidence to claim completion. The session is preserved with the next unresolved step.",
+    route,
+    safety,
+    communication,
+    selfModel,
+    relationshipContinuity,
+    goalHierarchy,
+    metacognition,
+    cortexAdviser: publicCortexAdviser(cortexAdviser),
+    multiAgent: publicMultiAgentCouncil(multiAgentCouncil),
+    scientificIntelligence,
+    experimentReviewState,
+    temporalContext,
+    modelPolicy,
+    coachingState,
+    longitudinalState,
+    pendingAction: null,
+    action: null,
+    provider: providerSummary(response),
+    semanticActionReview: publicActionReview(semanticActionReview),
+    executionEvidence: evidence,
+    executionWorkspaceUpdate: {
+      status: "active",
+      nextStep: developerEvidenceNextStep(evidence)
+    },
+    ownerDeveloperWorkspace: compactDeveloperEvidence(evidence),
+    source: "ari_vnext_owner_developer_step_limit"
+  }, multiAgentCouncil);
+}
+
+function emptyDeveloperEvidence() {
+  return { observations: [], artifacts: [], verification: null };
+}
+
+function mergeDeveloperEvidence(base = {}, next = null) {
+  if (!next || typeof next !== "object") return base;
+  const observations = [...(base.observations || []), ...(next.observations || [])]
+    .filter(Boolean)
+    .slice(-18);
+  const artifacts = [...(base.artifacts || []), ...(next.artifacts || [])]
+    .filter(Boolean)
+    .slice(-12);
+  return {
+    observations,
+    artifacts,
+    verification: next.verification || base.verification || null
+  };
+}
+
+function compactDeveloperEvidence(evidence = {}) {
+  return {
+    observationCount: Array.isArray(evidence?.observations) ? evidence.observations.length : 0,
+    observations: (Array.isArray(evidence?.observations) ? evidence.observations : []).slice(-8),
+    artifacts: (Array.isArray(evidence?.artifacts) ? evidence.artifacts : []).slice(-8),
+    verification: evidence?.verification || null
+  };
+}
+
+function developerEvidenceNextStep(evidence = {}) {
+  const verification = evidence?.verification || null;
+  if (verification?.status === "failed") return "Use the failed verification as evidence, change the approach, and run a different bounded check.";
+  if (verification?.status === "passed") return "Use the passing verification together with the exact observed code state before deciding whether the investigation is complete.";
+  const observations = Array.isArray(evidence?.observations) ? evidence.observations : [];
+  if (observations.some(item => item?.kind === "repository_search")) return "Read the most relevant exact source file before proposing a change.";
+  if (observations.some(item => item?.kind === "repository_read")) return "Compare the observed implementation against competing explanations and choose the smallest discriminating check or exact patch.";
+  return "Inspect the current repository state before selecting a change.";
 }
 
 function formatMacro(value) {

@@ -28,13 +28,15 @@ test("owner casual chat keeps the advanced owner model", () => {
   assert.ok(casual.maxOutputTokens >= 900);
 });
 
-test("owner current-information turns use medium reasoning", () => {
+test("owner current-information turns keep their complexity while enabling live retrieval", () => {
   const policy = resolveModelPolicy({
     intelligenceEntitlement: owner(),
     currentInfo: true
   });
 
-  assert.equal(policy.mode, "current");
+  assert.equal(policy.mode, "standard");
+  assert.equal(policy.freshness, "live");
+  assert.equal(policy.liveSearchRequired, true);
   assert.equal(policy.reasoningEffort, "medium");
   assert.equal(policy.ownerModelContinuity, true);
 });

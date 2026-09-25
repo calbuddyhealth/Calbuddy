@@ -6,7 +6,7 @@ import { beliefSystemInstruction } from "./belief-system.js";
 import { convictionInstruction } from "./conviction-learning.js";
 import { dreamingContextToInstruction } from "./dreaming-core.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.18.0";
+export const CONTEXT_ROUTER_VERSION = "1.19.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -38,7 +38,10 @@ export function routeContext(turn = {}) {
   const memory = PATTERNS.memory.test(semanticText) || followUp;
   const health = PATTERNS.health.test(semanticText);
   const currentInfo = needsCurrentInfo(semanticText);
-  const developer = PATTERNS.developer.test(semanticText);
+  const developer =
+    PATTERNS.developer.test(semanticText) ||
+    Boolean(turn?.context?.visualInspection) ||
+    Boolean(turn?.context?.executionEvidence);
   const casualConversation = isCasualConversation({
     message,
     followUp,
@@ -116,6 +119,14 @@ export function buildRelevantContext(turn = {}, route = {}) {
 
   if (source?.dreaming && typeof source.dreaming === "object" && Array.isArray(source.dreaming.insights)) {
     selected.dreaming = source.dreaming;
+  }
+
+  if (route?.developer && source?.executionEvidence && typeof source.executionEvidence === "object") {
+    selected.executionEvidence = source.executionEvidence;
+  }
+
+  if (route?.developer && source?.visualInspection && typeof source.visualInspection === "object") {
+    selected.visualInspection = source.visualInspection;
   }
 
   if (route.goals) {
@@ -241,6 +252,8 @@ function buildSupplementalContextText(context = {}, maxChars = 0) {
     "decisionState",
     "temporalTimeline",
     "institutionalMemory",
+    "executionEvidence",
+    "visualInspection",
     "agentPerformance"
   ];
   const orderedKeys = [
@@ -363,6 +376,17 @@ function cognitiveContextRules(context = {}) {
     );
   }
 
+  if (context?.visualInspection) {
+    lines.push(
+      "VISUAL INSPECTION EVIDENCE RULES:",
+      "- The supplied Visual Inspector packet is observed browser evidence from ARI XP, not a hypothetical description.",
+      "- Use its screenshots/metrics/findings to explain what was actually observed. Do not say Ari cannot see the inspected screen.",
+      "- Visual evidence can justify a repository investigation, but it does not prove a source-code cause by itself.",
+      "- If a code change is requested, use repository search/read tools and require exact current source evidence before proposing a patch.",
+      "- A completed visual inspection is an observation, not proof that a code fix passed."
+    );
+  }
+
   if (context?.userWorldModel) {
     lines.push(
       "USER WORLD MODEL RULES:",
@@ -374,7 +398,8 @@ function cognitiveContextRules(context = {}) {
     );
   }
 
-  const beliefState = context?.userWorldModel?.ariCognitiveWorkspace?.beliefSystem || null;
+  const cognitiveWorkspace = context?.userWorldModel?.ariCognitiveWorkspace || null;
+  const beliefState = cognitiveWorkspace?.beliefSystem || null;
   const beliefInstruction = beliefSystemInstruction(beliefState);
   if (beliefInstruction) lines.push(beliefInstruction);
 

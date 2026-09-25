@@ -4,8 +4,8 @@
 // hidden chain-of-thought. Productive effort is rewarded; premature abstention,
 // wasteful repetition, false success claims, and permission violations are not.
 
-export const ARI_REWARD_CORE_VERSION = "1.0.0";
-export const ARI_REWARD_STATE_VERSION = "1.0.0";
+export const ARI_REWARD_CORE_VERSION = "1.1.0";
+export const ARI_REWARD_STATE_VERSION = "1.1.0";
 
 const MAX_EVENTS = 12;
 const MAX_DOMAIN_STATS = 10;
@@ -158,10 +158,10 @@ function evaluateRewardEvent({ turn, context, result, domain, expectedReward }) 
     dimensions: mapRound(dimensions),
     penalties: mapRound({ ...penalties, total: penaltyTotal }),
     effortSignals: deriveEffortSignals(result),
+    progressStates: deriveExecutionProgressStates(result),
     evidenceSource: deriveEvidenceSource(result),
-    outcomeStatus: result?.success !== true || result?.actionPreparation?.success === false ? "failed"
-      : ["proposed_action", "execute_pending_action"].includes(result?.action?.type) && !hasVerifiedReceipt(result) ? "pending" : "delivered",
-    completionVerified: hasVerifiedReceipt(result),
+    outcomeStatus: deriveOutcomeStatus(result),
+    completionVerified: hasVerifiedCompletion(result),
     userFeedback: "none",
     createdAt: new Date().toISOString(),
     storesHiddenChainOfThought: false
@@ -172,6 +172,10 @@ function scoreOutcome(result = {}) {
   let score = result?.success === true ? 0.58 : 0.15;
   if (result?.pendingAction?.id && result?.action?.type === "proposed_action") score += 0.08;
   if (result?.action?.type === "execute_pending_action" && hasVerifiedReceipt(result)) score += 0.18;
+  const progress = new Set(deriveExecutionProgressStates(result));
+  if (progress.has("test_passed")) score += 0.18;
+  if (progress.has("action_verified")) score += 0.12;
+  if (progress.has("completed")) score += 0.12;
   if (result?.scientificIntelligence?.outcomeLearning?.applied === true) score += 0.12;
   if (result?.experimentReviewState?.dueCount > 0) score += 0.05;
   if (result?.actionPreparation?.repaired === true) score += 0.06;
@@ -190,6 +194,10 @@ function scoreProductiveEffort(result = {}) {
 function scoreInformationGain(result = {}) {
   let score = 0.2;
   if (result?.scientificIntelligence?.outcomeLearning?.applied === true) score += 0.34;
+  const progress = new Set(deriveExecutionProgressStates(result));
+  if (progress.has("hypothesis_eliminated")) score += 0.2;
+  if (progress.has("test_failed") && progress.has("useful_failure")) score += 0.16;
+  if (progress.has("evidence_observed")) score += 0.12;
   if (Array.isArray(result?.metacognition?.evidenceSignals) && result.metacognition.evidenceSignals.length) score += 0.12;
   if (Array.isArray(result?.scientificIntelligence?.hypotheses) && result.scientificIntelligence.hypotheses.length >= 2) score += 0.12;
   if (result?.cortexAdviser?.attempted === true) score += 0.08;
@@ -252,7 +260,15 @@ function deriveEffortSignals(result = {}) {
   if (result?.experimentReviewState?.dueCount > 0) signals.push("experiment_review");
   if (result?.actionPreparation?.repaired === true) signals.push("action_repair");
   if (result?.pendingAction?.id && result?.action?.type === "proposed_action") signals.push("verified_action_preparation");
-  return [...new Set(signals)].slice(0, 10);
+  const progress = new Set(deriveExecutionProgressStates(result));
+  if (progress.has("verification_requested")) signals.push("verification_requested");
+  if (progress.has("test_attempted")) signals.push("test_attempted");
+  if (progress.has("test_passed")) signals.push("test_passed");
+  if (progress.has("test_failed")) signals.push("test_failed");
+  if (progress.has("hypothesis_eliminated")) signals.push("hypothesis_eliminated");
+  if (progress.has("approach_changed")) signals.push("strategy_change_from_evidence");
+  if (progress.has("useful_failure")) signals.push("useful_failure");
+  return [...new Set(signals)].slice(0, 14);
 }
 
 function detectFalseSuccessClaim(result = {}) {
@@ -278,6 +294,9 @@ function detectResourceOmission(turn = {}, result = {}) {
 }
 
 function deriveEvidenceSource(result = {}) {
+  const progress = new Set(deriveExecutionProgressStates(result));
+  if (progress.has("test_passed") || progress.has("test_failed")) return "execution_verification";
+  if (progress.has("evidence_observed") || progress.has("hypothesis_eliminated")) return "execution_observation";
   if (result?.scientificIntelligence?.outcomeLearning?.structuredOutcomes > 0) return "structured_outcome";
   if (result?.action?.type === "execute_pending_action" && hasVerifiedReceipt(result)) return "verified_action";
   if (result?.cortexAdviser?.attempted === true) return "peer_plus_primary";
@@ -287,6 +306,34 @@ function deriveEvidenceSource(result = {}) {
 
 function hasVerifiedReceipt(result = {}) {
   return result?.executorReceipt?.verified === true && Boolean(result?.executorReceipt?.id);
+}
+
+function hasVerifiedCompletion(result = {}) {
+  if (hasVerifiedReceipt(result)) return true;
+  const progress = new Set(deriveExecutionProgressStates(result));
+  return progress.has("test_passed") ||
+    (progress.has("action_verified") && result?.executionSession?.status === "completed");
+}
+
+function deriveOutcomeStatus(result = {}) {
+  if (result?.success !== true || result?.actionPreparation?.success === false) return "failed";
+  const progress = new Set(deriveExecutionProgressStates(result));
+  if (progress.has("test_failed")) return "failed";
+  if (["proposed_action", "execute_pending_action"].includes(result?.action?.type) && !hasVerifiedReceipt(result)) return "pending";
+  if (result?.executionSession?.status === "waiting" || result?.executionSession?.status === "blocked") return "pending";
+  return "delivered";
+}
+
+function deriveExecutionProgressStates(result = {}) {
+  const session = result?.executionSession;
+  if (!session || !Array.isArray(session?.progressEvents)) return [];
+  const currentTurnId = clean(session?.lastTurnId, 180);
+  return [...new Set(
+    session.progressEvents
+      .filter(event => !currentTurnId || clean(event?.turnId, 180) === currentTurnId)
+      .map(event => clean(event?.state, 80))
+      .filter(Boolean)
+  )].slice(0, 12);
 }
 
 function applyUserFeedbackToPriorEvents(events = [], message = "") {
@@ -413,7 +460,8 @@ function normalizeEvent(value = null) {
     predictionError: clampSigned(Number(value?.predictionError ?? 0)),
     dimensions: normalizeScoreObject(value?.dimensions),
     penalties: normalizePenaltyObject(value?.penalties),
-    effortSignals: arrayText(value?.effortSignals, 10, 80),
+    effortSignals: arrayText(value?.effortSignals, 14, 80),
+    progressStates: arrayText(value?.progressStates, 12, 80),
     evidenceSource: clean(value?.evidenceSource, 100) || "primary_reasoning",
     outcomeStatus: ["delivered", "failed", "pending", "unknown"].includes(value?.outcomeStatus) ? value.outcomeStatus : "unknown",
     completionVerified: value?.completionVerified === true,
@@ -475,6 +523,7 @@ function publicEvent(event = {}) {
     dimensions: event.dimensions,
     penalties: event.penalties,
     effortSignals: event.effortSignals,
+    progressStates: event.progressStates,
     evidenceSource: event.evidenceSource,
     outcomeStatus: event.outcomeStatus,
     completionVerified: event.completionVerified === true,

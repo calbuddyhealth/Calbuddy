@@ -93,16 +93,25 @@ test("current officeholder questions always route to fresh information", () => {
     const route = routeContext(buildCurrentTurn({ message }, "user-1"));
     assert.equal(route.currentInfo, true, message);
     const policy = resolveModelPolicy(route);
-    assert.equal(policy.mode, "current", message);
+    assert.equal(policy.mode, route.complexity === "deep" ? "deep" : route.complexity === "fast" ? "fast" : "standard", message);
+    assert.equal(policy.freshness, "live", message);
     assert.equal(policy.liveSearchRequired, true, message);
   }
 });
 
-test("freshness-sensitive questions use a search-capable current model by default", () => {
-  const policy = resolveModelPolicy({ currentInfo: true, complexity: "fast" });
-  assert.equal(policy.mode, "current");
-  assert.equal(policy.model, process.env.OPENAI_ARI_VNEXT_CURRENT_MODEL || "gpt-5.4-mini");
-  assert.equal(policy.costTier, "live_search");
+test("freshness is independent from reasoning complexity", () => {
+  const fast = resolveModelPolicy({ currentInfo: true, complexity: "fast" });
+  assert.equal(fast.mode, "fast");
+  assert.equal(fast.freshness, "live");
+  assert.equal(fast.model, process.env.OPENAI_ARI_VNEXT_CURRENT_MODEL || "gpt-5.4-mini");
+  assert.equal(fast.costTier, "fast_live_search");
+
+  const deep = resolveModelPolicy({ currentInfo: true, complexity: "deep" });
+  assert.equal(deep.mode, "deep");
+  assert.equal(deep.freshness, "live");
+  assert.equal(deep.reasoningEffort, "high");
+  assert.equal(deep.costTier, "deep_live_search");
+  assert.equal(deep.liveSearchRequired, true);
 });
 
 test("every current turn carries a real request timestamp rather than a hard-coded year", () => {

@@ -5,7 +5,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.5.0";
+  const VERSION = "1.6.0";
   const SOURCE = "ari_vnext_action_adapter";
   const WORKOUT_CONTROLLER_URL = "js/training/workout-plan-controller.js";
 
@@ -28,6 +28,7 @@
       if (name === "log_meal") return this.mapMeal(pendingAction, args);
       if (name === "log_weight") return this.mapWeight(pendingAction, args);
       if (name === "update_goal") return this.mapGoal(pendingAction, args);
+      if (name === "github_edit") return this.mapGithubEdit(pendingAction, args);
       if (name === "plan_workout") {
         return failure("workout_requires_registry_validation", "Workout plans must be prepared asynchronously against the canonical ARI XP exercise registry.");
       }
@@ -229,6 +230,36 @@
           multiplier: 1
         },
         confirmation_text: `Log ${clean(args.name, 120)} (${Math.round(calories)} kcal)?`
+      });
+    },
+
+    mapGithubEdit(pending, args) {
+      const filePath = clean(args.filePath, 420);
+      const find = String(args.find ?? "");
+      const replace = String(args.replace ?? "");
+      const commitMessage = clean(args.commitMessage, 240);
+      if (!filePath || !find || !commitMessage) {
+        return failure("github_edit_exact_replace_required", "A verified exact repository replacement is required before Ari can prepare a code change.");
+      }
+
+      return successAction(pending, {
+        action_type: "github_edit_request",
+        payload: {
+          githubEdit: {
+            mode: "commit",
+            filePath,
+            operation: "replace",
+            find,
+            replace,
+            replaceAll: false,
+            autonomousDevelopment: true,
+            commitMessage
+          },
+          title: commitMessage,
+          summary: `Apply Ari's verified isolated-branch change to ${filePath}.`,
+          developerIntentSource: "ari_vnext_execution_workspace"
+        },
+        confirmation_text: `Apply Ari's proposed isolated-branch code change to ${filePath}?`
       });
     },
 

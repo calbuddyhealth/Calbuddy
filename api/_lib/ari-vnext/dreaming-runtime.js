@@ -134,6 +134,8 @@ export function dreamInstructions() {
     "Distinguish observation from inference. Keep confidence calibrated. Prefer producing no insight over forcing a pattern.",
     "Reality gets the final vote. A prior dream insight is provisional evidence, not authority. Surface contradictions when newer evidence conflicts with an older pattern.",
     "Failure only earns a positive lesson when attributable evidence supports one. Repeated failure without new information should suggest changing method, reducing investment, pausing, or reviewing the goal.",
+    "Execution-session progress is observable learning evidence. Distinguish verification_requested, test_attempted, test_passed, test_failed, hypothesis_eliminated, approach_changed, useful_failure, and action_verified; never promote an attempted test into a passed test.",
+    "A failed test can support a transferable strategy insight when it eliminates a hypothesis or demonstrably changes the next method. A passing test or verified action can strengthen a strategy, but one success is not enough to universalize it.",
     "Possibility is not probability. Earned faith permits bounded exploration; it never counts as evidence.",
     "Do not directly rewrite Ari's constitution, identity, permissions, goals, or memories. You may propose a provisional belief/goal/strategy/curiosity insight for later testing.",
     "For strategy insights, describe a transferable method and include conditions where it should apply and where it could be wrong.",

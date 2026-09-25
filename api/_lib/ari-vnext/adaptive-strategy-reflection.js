@@ -160,6 +160,12 @@ export async function reflectOnAdaptiveStrategy({
     dreaming: compactDreamingContext(reflectionContext?.dreaming || turn?.context?.dreaming),
     outcomeLearningApplied: Boolean(result?.scientificIntelligence?.outcomeLearning?.applied),
     realWorldDecisionOutcome: compactDecisionOutcome(turn?.context?.decisionOutcomeLearning),
+    executionProgress: compactExecutionSession(
+      reflectionContext?.executionSession ||
+      result?.executionSession ||
+      turn?.context?.userWorldModel?.ariCognitiveWorkspace?.executionSession ||
+      null
+    ),
     activeStrategies: (Array.isArray(adaptiveStrategyState?.active) ? adaptiveStrategyState.active : [])
       .slice(0, 6)
       .map((item) => ({
@@ -305,6 +311,32 @@ export async function reflectOnAdaptiveStrategy({
   } finally {
     clearTimeout(timer);
   }
+}
+
+function compactExecutionSession(value = null) {
+  if (!value || typeof value !== "object" || !value.id) return null;
+  const lastTurnId = clean(value.lastTurnId, 180);
+  const currentProgress = (Array.isArray(value.progressEvents) ? value.progressEvents : [])
+    .filter(event => !lastTurnId || clean(event?.turnId, 180) === lastTurnId)
+    .slice(-10)
+    .map(event => ({
+      state: clean(event?.state, 80),
+      summary: clean(event?.summary, 420),
+      evidenceRef: clean(event?.evidenceRef, 180) || null
+    }));
+  return {
+    id: clean(value.id, 180),
+    status: clean(value.status, 40),
+    goal: clean(value.goal, 500),
+    approach: clean(value.approach, 500) || null,
+    nextStep: clean(value.nextStep, 500) || null,
+    currentProgress,
+    failedAttempts: (Array.isArray(value.failedAttempts) ? value.failedAttempts : []).slice(-4).map(item => ({
+      summary: clean(item?.summary, 420),
+      lesson: clean(item?.lesson, 420)
+    })),
+    hiddenChainOfThoughtStored: false
+  };
 }
 
 function compactDreamingContext(value = null) {

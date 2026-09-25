@@ -1834,7 +1834,9 @@ CalBuddy.executeAction = async function (action) {
       replace: githubEdit.replace,
       newContent: githubEdit.newContent,
       replaceAll: githubEdit.replaceAll === true,
+      autonomousDevelopment: githubEdit.autonomousDevelopment === true,
       commitMessage:
+        githubEdit.commitMessage ||
         payload.title ||
         action.title ||
         `Ari owner-authorized update ${filePath}`,
@@ -2969,12 +2971,50 @@ Use this as real visual/browser evidence.
 - If the owner asked to fix/change the UI, continue into the normal developer workflow: search/read the relevant repository code, then prepare an exact patch only when evidence supports it.
 - Treat selectors, IDs, labels, overflow measurements, console errors, and searchHints above as investigation clues, not guessed code.`;
 
-  if (
-    window.AriRebirthAppBridge &&
-    typeof window.AriRebirthAppBridge.ask === "function"
-  ) {
-    const visualReasoning = await window.AriRebirthAppBridge.ask(
-      visualPrompt,
+  const visualReasoner =
+    window.AriVNextBridge && typeof window.AriVNextBridge.ask === "function"
+      ? window.AriVNextBridge
+      : window.AriRebirthAppBridge && typeof window.AriRebirthAppBridge.ask === "function"
+        ? window.AriRebirthAppBridge
+        : null;
+
+  if (visualReasoner) {
+    const findings = Array.isArray(visualResult?.visualAnalysis?.findings)
+      ? visualResult.visualAnalysis.findings.slice(0, 8)
+      : [];
+    const visualExecutionEvidence = {
+      observations: [
+        ...(visualResult?.visualAnalysis?.summary
+          ? [{
+              id: visualResult.requestId || null,
+              kind: "visual_inspection",
+              summary: String(visualResult.visualAnalysis.summary).slice(0, 900),
+              source: targetPath,
+              verified: true
+            }]
+          : []),
+        ...findings.map((finding, index) => ({
+          id: visualResult.requestId ? `${visualResult.requestId}:finding:${index + 1}` : null,
+          kind: "visual_observation",
+          summary: String(finding || "").slice(0, 700),
+          source: targetPath,
+          verified: true
+        }))
+      ],
+      artifacts: visualResult?.requestId
+        ? [{
+            id: visualResult.requestId,
+            kind: "visual_inspection",
+            label: `Visual Inspector ${targetPath}`,
+            ref: visualResult.requestId,
+            verified: true
+          }]
+        : []
+    };
+
+    const usingVNextVisualReasoner = visualReasoner === window.AriVNextBridge;
+    const visualReasoning = await visualReasoner.ask(
+      usingVNextVisualReasoner ? message : visualPrompt,
       {
         source: "calbuddy-core-visual-inspector",
         page: targetPath,
@@ -2982,7 +3022,8 @@ Use this as real visual/browser evidence.
         userContext,
         ownerMode: true,
         ariPermissions: userContext.ariPermissions || {},
-        visualInspection: visualContext
+        visualInspection: visualContext,
+        executionEvidence: visualExecutionEvidence
       }
     );
 
@@ -3018,13 +3059,14 @@ Use this as real visual/browser evidence.
 
     finishTiming();
     return {
+      ...visualReasoning,
       reply:
         visualReasoning?.reply ||
         visualResult?.visualAnalysis?.summary ||
         "I visually inspected the requested ARI XP screen.",
       emotion: visualReasoning?.emotion || "thinking",
-      pendingAction: null,
-      memoryCandidate: null,
+      pendingAction: visualReasoning?.pendingAction || null,
+      memoryCandidate: visualReasoning?.memoryCandidate || null,
       developerIntent: visualDeveloperIntent,
       visualInspection: visualResult,
       rebirthSummary: visualReasoning?.summary || null

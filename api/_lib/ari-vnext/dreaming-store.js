@@ -305,8 +305,47 @@ function compactCognitiveState(row) {
     epistemic: safeObject(state.epistemic),
     continuity: safeObject(state.continuity),
     lastOutcome: safeObject(state.lastOutcome),
+    executionSession: compactExecutionSessionForDreaming(state.executionSession),
     openLoops: array(state.openLoops, 8),
     judgments: array(state.judgments, 6)
+  };
+}
+
+function compactExecutionSessionForDreaming(value = null) {
+  if (!value || typeof value !== "object" || !value.id) return null;
+  return {
+    id: clean(value.id, 180),
+    status: clean(value.status, 40),
+    goal: clean(value.goal, 600),
+    successCriteria: clean(value.successCriteria, 600),
+    approach: clean(value.approach, 500) || null,
+    nextStep: clean(value.nextStep, 500) || null,
+    hypotheses: array(value.hypotheses, 6).map(item => ({
+      id: clean(item?.id, 120),
+      label: clean(item?.label, 360),
+      status: clean(item?.status, 40)
+    })),
+    progressEvents: array(value.progressEvents, 18).map(item => ({
+      state: clean(item?.state, 80),
+      summary: clean(item?.summary, 420),
+      evidenceRef: clean(item?.evidenceRef, 180) || null,
+      turnId: clean(item?.turnId, 180) || null,
+      at: item?.at || null
+    })),
+    failedAttempts: array(value.failedAttempts, 8).map(item => ({
+      summary: clean(item?.summary, 420),
+      lesson: clean(item?.lesson, 420),
+      at: item?.at || null
+    })),
+    evidence: array(value.evidence, 12).map(item => ({
+      id: clean(item?.id, 180),
+      kind: clean(item?.kind, 80),
+      summary: clean(item?.summary, 500),
+      verified: item?.verified === true,
+      at: item?.at || null
+    })),
+    updatedAt: value.updatedAt || null,
+    hiddenChainOfThoughtStored: false
   };
 }
 

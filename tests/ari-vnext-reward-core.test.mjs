@@ -60,8 +60,8 @@ test("Reward Core v1 exposes productive-effort learning without subjective rewar
   const state = deriveRewardState();
   const instruction = rewardToInstruction(state);
 
-  assert.equal(ARI_REWARD_CORE_VERSION, "1.0.0");
-  assert.equal(ARI_REWARD_STATE_VERSION, "1.0.0");
+  assert.equal(ARI_REWARD_CORE_VERSION, "1.1.0");
+  assert.equal(ARI_REWARD_STATE_VERSION, "1.1.0");
   assert.equal(state.ownerOnly, true);
   assert.equal(state.behavioralLearningSignal, true);
   assert.equal(state.subjectivePleasureClaimed, false);
@@ -329,13 +329,13 @@ test("owner metacognition preserves Reward Core state while Ari Executive owns r
   });
   const instruction = metacognitionToInstruction(owner);
 
-  assert.equal(ARI_METACOGNITION_VERSION, "1.5.0");
+  assert.equal(ARI_METACOGNITION_VERSION, "1.6.0");
   assert.equal(owner.rewardCore.ownerOnly, true);
   assert.equal(owner.exploration.productiveEffortRewardEnabled, true);
   assert.equal(ordinary.rewardCore, null);
   assert.equal(ordinary.exploration.productiveEffortRewardEnabled, false);
   assert.equal(owner.executivePolicy.authority.singleRuntimeDecisionAuthority, true);
-  assert.match(instruction, /ARI EXECUTIVE v1\.1\.0/);
+  assert.match(instruction, /ARI EXECUTIVE v1\.2\.0/);
   assert.match(instruction, /Reward signal:/i);
   assert.match(instruction, /Useful failure is learning/i);
   assert.doesNotMatch(instruction, /ARI REWARD CORE v1/);

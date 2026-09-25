@@ -48,6 +48,6 @@ test("the deterministic core still owns Live Owner execution and server verifica
   assert.match(core, /CalBuddy\.runVisualInspection/);
 });
 
-test("runtime 1.6.2 is the canonical cache-busted version", () => {
-  assert.match(runtime, /const VERSION = "1\.6\.2"/);
+test("runtime 1.6.3 is the canonical cache-busted version", () => {
+  assert.match(runtime, /const VERSION = "1\.6\.3"/);
 });

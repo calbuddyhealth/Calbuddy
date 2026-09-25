@@ -8,6 +8,10 @@ import {
   serializeFunctionalAffectState
 } from "./functional-affect-core.js";
 import { beliefSystemInstruction, deriveBeliefSystem } from "./belief-system.js";
+import {
+  advanceExecutionSession,
+  deriveExecutionWorkspace
+} from "./execution-session.js";
 import { advanceRewardState, deriveRewardState, normalizeRewardState } from "./reward-core.js";
 import {
   buildMotivationalOutcomeReflection,
@@ -15,8 +19,8 @@ import {
   summarizeMotivationalLearning
 } from "./motivational-arbitration.js";
 
-export const ARI_COGNITIVE_LOOP_VERSION = "0.7.0";
-export const ARI_COGNITIVE_STATE_VERSION = "0.6.0";
+export const ARI_COGNITIVE_LOOP_VERSION = "0.8.0";
+export const ARI_COGNITIVE_STATE_VERSION = "0.7.0";
 export const ARI_JUDGMENT_CONSTITUTION_VERSION = "1.0.0";
 
 const CORE_VALUES = Object.freeze([
@@ -100,6 +104,12 @@ export function deriveCognitiveWorkspace({
     route,
     prior: prior?.beliefSystem || null
   });
+  const executionWorkspace = deriveExecutionWorkspace({
+    previous: prior?.executionSession || null,
+    turn,
+    route,
+    context
+  });
 
   return {
     version: ARI_COGNITIVE_LOOP_VERSION,
@@ -121,6 +131,7 @@ export function deriveCognitiveWorkspace({
     rewardCore,
     affectState: prior.affectState || null,
     beliefSystem,
+    executionWorkspace,
     motivationalContinuity: {
       enabled: true,
       sampleSize: motivationalLearning.sampleSize,
@@ -146,6 +157,8 @@ export function deriveCognitiveWorkspace({
       "Run a possibility pass: do not confuse unlikely with impossible, and do not confuse possibility with evidence.",
       "Treat current capability limits as provisional while remaining exact about capabilities that actually exist.",
       "Keep commitment to a worthwhile purpose separate from confidence in a particular method; let reality revise both.",
+      "For substantial work, resume the durable execution session instead of restarting. Preserve observed evidence, failed attempts, artifacts, and the next step.",
+      "Treat verification requested, test attempted, test failed, and test passed as distinct states. Useful failure is progress when it reduces uncertainty or changes the next strategy.",
       "Use prior Ari stances for continuity when relevant, but revise them when evidence or reasoning improves.",
       "Keep a narrow limitation narrow; continue helping with unaffected parts of the request.",
       "State the conclusion plainly and separate fact, inference, opinion, and uncertainty."
@@ -231,11 +244,20 @@ export function advanceCognitiveState({
     turn,
     result
   });
+  const nextExecutionSession = advanceExecutionSession({
+    previous: prior?.executionSession || null,
+    workspace: workspace?.executionWorkspace || null,
+    turn,
+    result
+  });
+  const rewardResult = nextExecutionSession
+    ? { ...result, executionSession: nextExecutionSession }
+    : result;
   const nextRewardState = advanceRewardState({
     persisted: prior.rewardState,
     turn,
     context: { userWorldModel: { ariCognitiveWorkspace: workspace } },
-    result
+    result: rewardResult
   });
   const nextAffectState =
     serializeFunctionalAffectState(metacognition?.functionalAffect) ||
@@ -270,6 +292,7 @@ export function advanceCognitiveState({
       unresolvedValueConflict: Boolean(workspace?.conscience?.activeSignals?.some((item) => item?.level === "high"))
     },
     beliefSystem: workspace?.beliefSystem || prior?.beliefSystem || null,
+    executionSession: nextExecutionSession,
     judgment: {
       constitutionVersion: ARI_JUDGMENT_CONSTITUTION_VERSION,
       storedCount: nextJudgments.length,
@@ -341,6 +364,7 @@ function meaningfulCognitiveSignature(state = {}) {
   const continuity = state?.continuity || {};
   const motivation = state?.motivationalLearning || {};
   const lastOutcome = state?.lastOutcome || {};
+  const executionSession = state?.executionSession || null;
 
   return {
     openLoops: (Array.isArray(state?.openLoops) ? state.openLoops : []).slice(0, 8).map((item) => ({
@@ -371,7 +395,14 @@ function meaningfulCognitiveSignature(state = {}) {
     continuity: {
       familiarity: clean(continuity?.familiarity, 60) || null,
       persistentRecognition: continuity?.persistentRecognition === true
-    }
+    },
+    executionSession: executionSession?.id ? {
+      id: clean(executionSession.id, 180),
+      status: clean(executionSession.status, 40),
+      nextStep: clean(executionSession.nextStep, 240),
+      progressCount: Array.isArray(executionSession.progressEvents) ? executionSession.progressEvents.length : 0,
+      evidenceCount: Array.isArray(executionSession.evidence) ? executionSession.evidence.length : 0
+    } : null
   };
 }
 
@@ -711,6 +742,7 @@ function normalizeState(value = null) {
       affectState: null,
       motivationalHistory: [],
       motivationalLearning: { sampleSize: 0, driveBias: 0, restraintBias: 0 },
+      executionSession: null,
       lastOutcome: null
     };
   }
@@ -724,6 +756,7 @@ function normalizeState(value = null) {
     affectState: normalizePersistedFunctionalAffectState(value?.affectState),
     motivationalHistory: normalizeMotivationalHistory(value?.motivationalHistory),
     motivationalLearning: summarizeMotivationalLearning(value?.motivationalHistory),
+    executionSession: value?.executionSession && typeof value.executionSession === "object" ? value.executionSession : null,
     lastOutcome: value?.lastOutcome && typeof value.lastOutcome === "object" ? value.lastOutcome : null
   };
 }
