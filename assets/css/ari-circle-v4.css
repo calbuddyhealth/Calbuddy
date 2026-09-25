@@ -698,8 +698,8 @@ body {
     linear-gradient(145deg,#f9fcff,#f4f6fd);
   background: var(--circle-profile-theme) !important;
   background-repeat: no-repeat !important;
-  background-size: 100% 230px !important;
-  background-color: #fff !important;
+  background-size: 100% 100% !important;
+  background-color: transparent !important;
 }
 
 .ari-circle-page .circle-profile[data-profile-template="aurora"] {
@@ -737,6 +737,16 @@ body {
     radial-gradient(circle at 15% 10%, rgba(44,205,255,.32), transparent 34%),
     radial-gradient(circle at 82% 28%, rgba(111,82,255,.42), transparent 42%),
     linear-gradient(145deg,#101a31,#18233f 55%,#221c43);
+}
+
+.ari-circle-page .circle-profile[data-profile-template="midnight"] .circle-profile__name,
+.ari-circle-page .circle-profile[data-profile-template="midnight"] .circle-profile__handle,
+.ari-circle-page .circle-profile[data-profile-template="midnight"] .circle-profile__bio {
+  color: #fff !important;
+}
+
+.ari-circle-page .circle-profile[data-profile-template="midnight"] .circle-profile__handle {
+  opacity: .78;
 }
 
 .ari-circle-page .circle-profile[data-profile-template="custom"] {
@@ -782,15 +792,7 @@ body {
 .ari-circle-page .circle-profile__body {
   position: relative !important;
   padding-top: 0 !important;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255,255,255,0) 0,
-      rgba(255,255,255,0) 58px,
-      rgba(255,255,255,.78) 84px,
-      rgba(255,255,255,.97) 118px,
-      #fff 168px
-    ) !important;
+  background: transparent !important;
 }
 
 .ari-circle-page .circle-profile[data-profile-template="custom"] .circle-profile__body {
