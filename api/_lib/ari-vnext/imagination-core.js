@@ -278,7 +278,7 @@ function deriveImaginationSignals({
     0.14 +
     (explicitImagination ? 0.46 : 0) +
     (creativeAttention ? 0.18 : 0) +
-    (frontierSelected ? 0.22 : frontierPressure * 0.1) +
+    (frontierSelected ? 0.34 : frontierPressure * 0.1) +
     (hypotheses >= 2 ? 0.14 : 0) +
     developerDepth * 0.12 +
     gardenPressure * 0.04 -
