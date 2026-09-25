@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f7f9ff">
+  <title>Agent Mailbox · ARI XP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&amp;family=Inter:wght@400;500;600;700;800&amp;family=Orbitron:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/account.css?v=3.0.0">
+  <link rel="stylesheet" href="assets/css/owner-agent-mailbox.css?v=1.0.0">
+</head>
+<body>
+  <main class="ari-account-page">
+    <header class="ari-account-header">
+      <a class="ari-icon-button" href="owner-moderation.html" aria-label="Back to owner tools">←</a>
+      <a class="ari-brand-mark" href="home.html" aria-label="ARI XP home"><span class="ari-brand-title">ARI</span><span class="ari-brand-subtitle">EXPERIENCE</span></a>
+      <a class="ari-header-button" href="owner-moderation.html">Owner</a>
+    </header>
+
+    <section class="ari-page-hero">
+      <div class="ari-page-symbol" aria-hidden="true">⇄</div>
+      <p class="ari-page-kicker">OWNER ONLY · AUDITED</p>
+      <h1 class="ari-page-title">Agent Mailbox</h1>
+      <p class="ari-page-description">Inspect Ari/SOL handoffs stored as bounded JSON artifacts in the configured JFrog Artifactory repository. Credentials are never exposed to this page.</p>
+    </section>
+
+    <div class="ari-status" id="mailboxStatus" role="status" aria-live="polite"></div>
+
+    <section id="mailboxWorkspace" hidden>
+      <section class="mailbox-summary" aria-label="Mailbox configuration">
+        <article><span>Provider</span><strong id="mailboxProvider">—</strong></article>
+        <article><span>Repository</span><strong id="mailboxRepository">—</strong></article>
+        <article><span>Prefix</span><strong id="mailboxPrefix">—</strong></article>
+        <article><span>Messages loaded</span><strong id="mailboxCount">0</strong></article>
+      </section>
+
+      <section class="ari-settings-section">
+        <div class="ari-section-heading">
+          <p class="ari-section-kicker">AUDIT FILTERS</p>
+          <h2>Mailbox activity</h2>
+        </div>
+        <div class="mailbox-filters">
+          <label>Recipient<input id="mailboxRecipient" type="text" inputmode="text" placeholder="all recipients"></label>
+          <label>Sender<input id="mailboxSender" type="text" inputmode="text" placeholder="all senders"></label>
+          <label>Kind
+            <select id="mailboxKind">
+              <option value="">All kinds</option>
+              <option value="finding">Finding</option>
+              <option value="question">Question</option>
+              <option value="answer">Answer</option>
+              <option value="experiment_result">Experiment result</option>
+              <option value="handoff">Handoff</option>
+              <option value="ack">Acknowledgement</option>
+              <option value="status">Status</option>
+            </select>
+          </label>
+          <label>Limit
+            <select id="mailboxLimit">
+              <option value="25">25</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+            </select>
+          </label>
+          <button id="mailboxRefresh" class="mailbox-refresh" type="button">Refresh audit</button>
+        </div>
+        <p class="mailbox-note">This view reads only the dedicated mailbox prefix. It cannot browse unrelated repositories, reveal JFrog credentials, or execute message contents.</p>
+      </section>
+
+      <section class="mailbox-layout">
+        <section class="mailbox-list-panel" aria-labelledby="mailboxListTitle">
+          <div class="mailbox-panel-heading">
+            <div><p class="ari-section-kicker">RECENT</p><h2 id="mailboxListTitle">Messages</h2></div>
+          </div>
+          <div id="mailboxList" class="mailbox-list"></div>
+        </section>
+
+        <section class="mailbox-detail-panel" aria-labelledby="mailboxDetailTitle">
+          <div class="mailbox-panel-heading">
+            <div><p class="ari-section-kicker">SELECTED</p><h2 id="mailboxDetailTitle">Message detail</h2></div>
+          </div>
+          <div id="mailboxDetail" class="mailbox-detail-empty">Select a message to inspect its stored JSON payload and audit metadata.</div>
+        </section>
+      </section>
+    </section>
+
+    <footer class="ari-settings-footer"><span class="ari-footer-mark">ARI</span><p>Server-verified Owner Mode · JFrog credentials remain server-side.</p></footer>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=1.1.0"></script>
+  <script src="js/settings-shared.js?v=1.0.0"></script>
+  <script src="js/owner-agent-mailbox.js?v=1.0.0"></script>
+</body>
+</html>
