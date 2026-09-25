@@ -28,43 +28,43 @@ const SOURCE = "ari-circle/profile/profile-renderer";
 
 const ICEBREAKER_DEFINITIONS = Object.freeze({
   ask_me_about: {
-    label: "💬 Ask me about..."
+    label: "Ask me about..."
   },
 
   current_obsession: {
-    label: "🔥 Current obsession..."
+    label: "My current obsession is..."
   },
 
   dream_trip: {
-    label: "✈️ Dream trip..."
+    label: "My dream trip is..."
   },
 
   make_me_laugh: {
-    label: "😂 Best way to make me laugh..."
+    label: "The best way to make me laugh is..."
   },
 
   comfort_show_movie: {
-    label: "🍿 My comfort show/movie..."
+    label: "My comfort show or movie is..."
   },
 
   song_every_word: {
-    label: "🎤 Song I know every word to..."
+    label: "A song I know every word to is..."
   },
 
   unpopular_opinion: {
-    label: "🤔 Unpopular opinion..."
+    label: "An unpopular opinion I have is..."
   },
 
   want_to_learn: {
-    label: "🎯 Something I want to learn..."
+    label: "Something I want to learn is..."
   },
 
   weirdly_good_at: {
-    label: "👀 Weirdly good at..."
+    label: "I’m weirdly good at..."
   },
 
   perfect_night: {
-    label: "🌙 Perfect night looks like..."
+    label: "My perfect night looks like..."
   }
 });
 
