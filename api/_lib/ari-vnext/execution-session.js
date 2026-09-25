@@ -51,11 +51,11 @@ export function deriveExecutionWorkspace({
   const prior = normalizeExecutionSession(previous);
   const message = clean(turn?.message, 4000);
   const activate = shouldActivateExecutionSession({ turn, route, previous: prior });
-  if (!activate && !isOpenSession(prior)) {
+  if (!activate) {
     return {
       version: ARI_EXECUTION_SESSION_VERSION,
       active: false,
-      session: null,
+      session: isOpenSession(prior) ? compactSession(prior) : null,
       resumeSuggested: false,
       hiddenChainOfThoughtStored: false
     };
@@ -98,12 +98,9 @@ export function advanceExecutionSession({
 } = {}) {
   const prior = normalizeExecutionSession(previous);
   const activeWorkspace = workspace?.active === true && workspace?.session;
-  if (!activeWorkspace && !isOpenSession(prior)) return null;
-
-  const base = activeWorkspace
-    ? normalizeExecutionSession(workspace.session)
-    : prior;
-  if (!base?.id) return null;
+  if (!activeWorkspace) return prior;
+  const base = normalizeExecutionSession(workspace.session);
+  if (!base?.id) return prior;
 
   const now = new Date().toISOString();
   const progressEvents = [
