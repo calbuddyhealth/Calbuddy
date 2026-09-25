@@ -259,28 +259,26 @@ export function deriveAriExecutivePolicy({
         active: true,
         id: clean(execution?.id, 180) || null,
         status: clean(execution?.status, 40) || "active",
-        title: clean(execution?.title, 220) || null,
         goal: clean(execution?.goal, 500) || null,
-        currentApproach: clean(execution?.currentApproach, 320) || null,
-        failedAttemptCount: Math.max(0, Math.round(finite(execution?.failedAttemptCount, 0))),
-        verifiedProgressCount: Math.max(0, Math.round(finite(execution?.verifiedProgressCount, 0))),
+        successCriteria: clean(execution?.successCriteria, 500) || null,
+        approach: clean(execution?.approach, 360) || null,
         nextStep: clean(execution?.nextStep, 500) || null,
-        hypotheses: Array.isArray(execution?.hypotheses)
-          ? execution.hypotheses.slice(0, 4).map((item) => ({
-              id: clean(item?.id, 120),
-              label: clean(item?.label, 260),
-              status: clean(item?.status, 60),
-              confidence: Number.isFinite(Number(item?.confidence)) ? Number(item.confidence) : null
+        failedAttemptCount: Array.isArray(execution?.failedAttempts) ? execution.failedAttempts.length : 0,
+        evidenceCount: Array.isArray(execution?.evidence) ? execution.evidence.length : 0,
+        artifactCount: Array.isArray(execution?.artifacts) ? execution.artifacts.length : 0,
+        recentProgress: Array.isArray(execution?.progressEvents)
+          ? execution.progressEvents.slice(-6).map((item) => ({
+              state: clean(item?.state, 80),
+              summary: clean(item?.summary, 260)
             }))
           : [],
-        experiment: execution?.experiment && typeof execution.experiment === "object"
-          ? {
-              question: clean(execution.experiment?.question, 420) || null,
-              method: clean(execution.experiment?.method, 420) || null,
-              expectedDiscriminator: clean(execution.experiment?.expectedDiscriminator, 360) || null,
-              status: clean(execution.experiment?.status, 60) || null
-            }
-          : null
+        hypotheses: Array.isArray(execution?.hypotheses)
+          ? execution.hypotheses.slice(0, 5).map((item) => ({
+              id: clean(item?.id, 120),
+              label: clean(item?.label, 260),
+              status: clean(item?.status, 60)
+            }))
+          : []
       } : null,
       cortex: cortex ? {
         active: cortex?.active === true,
@@ -329,6 +327,7 @@ export function executivePolicyToInstruction(policy = null) {
   const adaptation = signals.selfAdaptation;
   const cortex = signals.cortex;
   const omega = signals.omegaRCT;
+  const execution = signals.execution;
   const activeSystems = Object.entries(signals)
     .filter(([, value]) => value && (value.active !== false || Object.keys(value).length > 1))
     .map(([key]) => key);
@@ -353,13 +352,13 @@ export function executivePolicyToInstruction(policy = null) {
       ? `Delegated autonomy: research=${d.selfDirectedResearch ? "yes" : "no"}; self-revision proposals=${d.selfRevisionProposals ? "yes" : "no"}; branch-scoped development=${d.branchScopedDevelopment ? "eligible_when_tool_authorized" : "no"}. Foundational changes remain explicit proposals.`
       : "",
     execution?.active
-      ? `Durable execution session: [${execution.id}] ${execution.title || "investigation"}; status=${execution.status}; failed_attempts=${execution.failedAttemptCount}; verified_progress=${execution.verifiedProgressCount}. Resume from observed state rather than restarting. Current approach: ${execution.currentApproach || "not yet established"}. Next step: ${execution.nextStep || "choose the highest-information next action"}.`
+      ? `Durable execution session: [${execution.id}] status=${execution.status}; failed_attempts=${execution.failedAttemptCount}; evidence=${execution.evidenceCount}; artifacts=${execution.artifactCount}. Resume from observed state rather than restarting. Goal: ${execution.goal || "current substantial task"}. Current approach: ${execution.approach || "not yet established"}. Next step: ${execution.nextStep || "choose the highest-information next action"}.`
       : "",
     execution?.hypotheses?.length
       ? `Execution hypotheses remain provisional until distinguished by evidence: ${execution.hypotheses.map((item) => `[${item.id}] ${item.label} (${item.status})`).join(" | ")}.`
       : "",
-    execution?.experiment?.question
-      ? `Preferred discriminating experiment: ${execution.experiment.question}${execution.experiment.method ? ` Method: ${execution.experiment.method}` : ""}${execution.experiment.expectedDiscriminator ? ` Distinguishing result: ${execution.experiment.expectedDiscriminator}` : ""}.`
+    execution?.hypotheses?.length >= 2
+      ? "Choose the smallest safe experiment, inspection, or test whose result would best distinguish the leading hypotheses before adopting one as fact."
       : "",
     execution?.active
       ? "Execution truth: verification requested != test attempted != test passed. Record failures as useful evidence when they eliminate an explanation or force a strategy change; only claim completion from verified observable results."
