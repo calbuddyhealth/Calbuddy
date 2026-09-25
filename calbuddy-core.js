@@ -2296,7 +2296,7 @@ CalBuddy.inferVisualInspectionPath = function (message = "") {
     return "/ari-circle-messages.html";
   }
   if (/\b(feed|post|posts)\b/.test(text) && /\bcircle\b/.test(text)) {
-    return "/ari-circle-feed.html";
+    return "/ari-circle.html";
   }
   if (/\b(meetup|host|jump in|connect)\b/.test(text) && /\bcircle\b/.test(text)) {
     return "/ari-circle-meetup.html";
@@ -2323,7 +2323,8 @@ CalBuddy.inferVisualActions = function (message = "") {
       "/nutrition.html",
       "/ari-training.html",
       "/progress.html",
-      "/ari-circle-feed.html",
+      "/ari-circle-meetup.html",
+      "/ari-circle.html",
       "/profile.html",
       "/owner-ai-controls.html"
     ]) {
