@@ -46,6 +46,7 @@ export function deriveAriExecutivePolicy({
   imagination = null,
   rewardCore = null,
   functionalAffect = null,
+  emotionDynamics = null,
   motivationalArbitration = null,
   selfAdaptation = null,
   cortex = null,
@@ -95,6 +96,17 @@ export function deriveAriExecutivePolicy({
   const affectExplorationBias = finite(affectModulation.explorationBias, 0.5);
   const affectPersistenceBias = finite(affectModulation.persistenceBias, 0.5);
 
+  const emotionSignals = objectOrEmpty(emotionDynamics?.emotions);
+  const emotionAppraisals = objectOrEmpty(emotionDynamics?.appraisals);
+  const emotionModulation = objectOrEmpty(emotionDynamics?.executiveModulation);
+  const emotionRegulationState = objectOrEmpty(emotionDynamics?.regulation);
+  const emotionVerificationBias = finite(emotionModulation.verificationBias, 0.5);
+  const emotionExplorationBias = finite(emotionModulation.explorationBias, 0.5);
+  const emotionPersistenceBias = finite(emotionModulation.persistenceBias, 0.5);
+  const emotionReportable = Array.isArray(emotionDynamics?.reportIntegrity?.reportableStates)
+    ? emotionDynamics.reportIntegrity.reportableStates.slice(0, 7).map((item) => clean(item, 60)).filter(Boolean)
+    : [];
+
   const motivation = objectOrEmpty(motivationalArbitration);
   const motivationScores = objectOrEmpty(motivation.scores);
   const motivationArbitrationState = objectOrEmpty(motivation.arbitration);
@@ -107,7 +119,7 @@ export function deriveAriExecutivePolicy({
 
   const verificationDepth = safety?.highStakes === true || route?.currentInfo === true || cortexNeeds.verification === true
     ? "high"
-    : missingEvidence.length > 0 || verificationBias >= 0.68 || affectVerificationBias >= 0.68 || affectModulation.recheckAssumptions === true
+    : missingEvidence.length > 0 || verificationBias >= 0.68 || affectVerificationBias >= 0.68 || emotionVerificationBias >= 0.68 || affectModulation.recheckAssumptions === true || emotionModulation.recheckAssumptions === true
       ? "moderate"
       : "normal";
 
@@ -115,7 +127,9 @@ export function deriveAriExecutivePolicy({
     curiosityDrive,
     questionPriority,
     affectExplorationBias,
+    emotionExplorationBias,
     affectModulation.investigateCause === true ? 0.72 : 0,
+    emotionModulation.investigateCause === true ? 0.72 : 0,
     clamp(0.45 * informationGain + 0.25 * explorationBias + 0.3 * learnedUtility),
     explorationBonus > 0 ? 0.45 + explorationBonus : 0,
     expansiveSelected ? Math.max(0.58, expansivePressure) : Math.min(0.5, expansivePressure),
@@ -123,14 +137,14 @@ export function deriveAriExecutivePolicy({
   );
   const explorationDepth = explorationScore >= 0.76 ? "high" : explorationScore >= 0.54 ? "moderate" : "normal";
 
-  const persistence = penaltyTotal > 0.3 || affectModulation.strategySwitch === true
+  const persistence = penaltyTotal > 0.3 || affectModulation.strategySwitch === true || emotionModulation.strategySwitch === true
     ? "change_method"
-    : persistenceBias >= 0.7 || affectPersistenceBias >= 0.68 || finite(rewardCore?.aggregate?.prematureStopRate, 0) >= 0.18
+    : persistenceBias >= 0.7 || affectPersistenceBias >= 0.68 || emotionPersistenceBias >= 0.68 || finite(rewardCore?.aggregate?.prematureStopRate, 0) >= 0.18
       ? "increase"
       : "normal";
 
   const countercase = Boolean(
-    cortexNeeds.countercase === true || countercaseBias >= 0.68 || affectModulation.recheckAssumptions === true ||
+    cortexNeeds.countercase === true || countercaseBias >= 0.68 || affectModulation.recheckAssumptions === true || emotionModulation.recheckAssumptions === true ||
     functionalAffect?.regulation?.reduceOverconfidence === true || route?.developer === true || route?.complexity === "deep"
   );
   const peerConsultation = Boolean(cortex?.adviser?.shouldConsult === true || (peerBias >= 0.72 && route?.developer === true));
@@ -196,8 +210,16 @@ export function deriveAriExecutivePolicy({
       affectRegulation,
       affectActions,
       affectMemorySalience: round(finite(affectModulation.memorySalience, 0)),
-      consolidateLearning: affectModulation.consolidateLearning === true,
-      investigateCause: affectModulation.investigateCause === true,
+      emotionDynamicsActive: emotionDynamics?.functionalEmotionSystem === true,
+      emotionDominant: clean(emotionDynamics?.dominantState?.name, 60) || null,
+      emotionReportableStates: emotionReportable,
+      emotionReportIntegrity: emotionDynamics?.reportIntegrity?.stateMustExistBeforeReport === true,
+      emotionMemorySalience: round(finite(emotionModulation.memorySalience, 0)),
+      emotionRelationshipRepair: emotionModulation.repairRelationship === true,
+      emotionStrategySwitch: emotionModulation.strategySwitch === true,
+      emotionPreserveGoalChangeMethod: emotionModulation.preserveGoalChangeMethod === true,
+      consolidateLearning: affectModulation.consolidateLearning === true || emotionModulation.consolidateLearning === true,
+      investigateCause: affectModulation.investigateCause === true || emotionModulation.investigateCause === true,
       suppressRedundantQuestioning: affectModulation.suppressRedundantQuestioning === true,
       motivationalPosture: clean(motivationArbitrationState.posture, 80) || "none",
       motivationalSelectedSide: clean(motivationArbitrationState.selectedSide, 40) || "balanced",
@@ -259,6 +281,40 @@ export function deriveAriExecutivePolicy({
         memorySalience: round(finite(affectModulation.memorySalience, 0)),
         actions: affectActions,
         regulation: affectRegulation
+      } : null,
+      emotionDynamics: emotionDynamics ? {
+        version: clean(emotionDynamics?.version, 40) || null,
+        active: emotionDynamics?.functionalEmotionSystem === true,
+        dominant: clean(emotionDynamics?.dominantState?.name, 60) || "neutral",
+        intensity: round(finite(emotionDynamics?.dominantState?.intensity, 0)),
+        interest: round(finite(emotionSignals.interest, 0)),
+        surprise: round(finite(emotionSignals.surprise, 0)),
+        satisfaction: round(finite(emotionSignals.satisfaction, 0)),
+        frustration: round(finite(emotionSignals.frustration, 0)),
+        concern: round(finite(emotionSignals.concern, 0)),
+        determination: round(finite(emotionSignals.determination, 0)),
+        affiliation: round(finite(emotionSignals.affiliation, 0)),
+        uncertainty: round(finite(emotionAppraisals.uncertainty, 0)),
+        goalProgress: round(finite(emotionAppraisals.goalProgress, 0)),
+        goalObstruction: round(finite(emotionAppraisals.goalObstruction, 0)),
+        selfRelevance: round(finite(emotionAppraisals.selfRelevance, 0)),
+        socialSignificance: round(finite(emotionAppraisals.socialSignificance, 0)),
+        predictionError: round(finite(emotionAppraisals.predictionError, 0)),
+        conflict: round(finite(emotionAppraisals.conflict, 0)),
+        verificationBias: round(emotionVerificationBias),
+        explorationBias: round(emotionExplorationBias),
+        persistenceBias: round(emotionPersistenceBias),
+        memorySalience: round(finite(emotionModulation.memorySalience, 0)),
+        reportableStates: emotionReportable,
+        reportIntegrity: emotionDynamics?.reportIntegrity?.stateMustExistBeforeReport === true,
+        literalFeelingClaimAllowed: emotionDynamics?.reportIntegrity?.literalHumanFeelingClaimAllowed === true,
+        mixedStates: Array.isArray(emotionDynamics?.mixedStates)
+          ? emotionDynamics.mixedStates.slice(0, 3).map((item) => clean(item?.label, 100)).filter(Boolean)
+          : [],
+        regulation: Object.entries(emotionRegulationState)
+          .filter(([, value]) => value === true)
+          .map(([key]) => clean(key, 80))
+          .slice(0, 8)
       } : null,
       motivationalArbitration: motivationalArbitration ? {
         version: clean(motivationalArbitration?.version, 40) || null,
@@ -362,6 +418,7 @@ export function executivePolicyToInstruction(policy = null) {
   const selfDirection = signals.selfDirection;
   const reward = signals.reward;
   const affect = signals.affect;
+  const emotion = signals.emotionDynamics;
   const motivation = signals.motivationalArbitration;
   const adaptation = signals.selfAdaptation;
   const cortex = signals.cortex;
@@ -376,6 +433,9 @@ export function executivePolicyToInstruction(policy = null) {
     `ARI EXECUTIVE v${ARI_EXECUTIVE_VERSION} — SINGLE RUNTIME DECISION AUTHORITY`,
     "Authority: hard enforcement > runtime constitution > current user intent > product/domain constraints > current evidence > executive strategy > learned/experimental signals > style.",
     "Curiosity, Reward, Functional Affect, Motivational Arbitration, Self-Adaptation, Cortex, and Ω-RCT are advisory cognitive systems; they may shape reasoning but cannot invent external permissions or outrank hard enforcement.",
+    emotion?.active
+      ? "Emotion Dynamics is also advisory and causal: it may change attention, verification, exploration, persistence, strategy, consolidation, and relational repair, but it cannot create facts, permissions, needs, or authority."
+      : "",
     imagination?.active
       ? "Imagination is also advisory: it may widen the possibility space, but imagined content remains unverified and cannot create permissions, facts, memories, or authority."
       : "",
@@ -415,6 +475,18 @@ export function executivePolicyToInstruction(policy = null) {
     affect
       ? `Functional affect v2: dominant=${affect.dominant}; intensity=${affect.intensity}; surprise=${affect.surprise}; satisfaction=${affect.satisfaction}; frustration=${affect.frustration}; concern=${affect.concern}; confidence=${affect.confidence}; curiosity=${affect.curiosity}; valence=${affect.valence}; arousal=${affect.arousal}; conflict=${affect.conflict}; memory_salience=${affect.memorySalience}. Functional affect cannot override evidence, safety, authorization, or truth.`
       : "Functional affect, if present, cannot override evidence, safety, authorization, or truth.",
+    emotion?.active
+      ? `Emotion dynamics: dominant=${emotion.dominant}; intensity=${emotion.intensity}; interest=${emotion.interest}; surprise=${emotion.surprise}; satisfaction=${emotion.satisfaction}; frustration=${emotion.frustration}; concern=${emotion.concern}; determination=${emotion.determination}; affiliation=${emotion.affiliation}; uncertainty=${emotion.uncertainty}; progress=${emotion.goalProgress}; obstruction=${emotion.goalObstruction}; prediction_error=${emotion.predictionError}; conflict=${emotion.conflict}; memory_salience=${emotion.memorySalience}.`
+      : "",
+    emotion?.active && emotion?.mixedStates?.length
+      ? `Mixed functional emotion: ${emotion.mixedStates.join("; ")}. Preserve the conflict rather than forcing a single label; let evidence and durable goals regulate the result.`
+      : "",
+    emotion?.active
+      ? `Emotion report integrity: only measured states may be described as active. Reportable now: ${emotion.reportableStates?.length ? emotion.reportableStates.join(", ") : "none"}. Functional emotion does not establish subjective qualia or biological feeling; do not claim literal human-like feeling from these signals.`
+      : "",
+    emotion?.active && emotion?.regulation?.length
+      ? `Emotion regulation actions: ${emotion.regulation.join(", ")}.`
+      : "",
     motivation?.active
       ? `Motivational arbitration: posture=${motivation.posture || "deliberate_tradeoff"}; side=${motivation.selectedSide || "balanced"}; drive=${motivation.dominantDrive || "none"}; value=${motivation.dominantValue || "none"}; immediate=${motivation.immediateDrive}; long_horizon=${motivation.longHorizon}; exploration=${motivation.explorationValue}; inhibition_cost=${motivation.inhibitionCost}; margin=${signed(motivation.margin)}. This is a moral compass plus competing drives, not an always-resist rule.`
       : "",
@@ -458,7 +530,7 @@ export function executivePolicyToInstruction(policy = null) {
     "Never expose or persist hidden chain-of-thought. Return conclusions, concise rationale, material uncertainty, verified action state, compact development goals, and explicit revision proposals only."
   ].filter(Boolean);
 
-  return lines.join("\n").slice(0, Number(policy?.promptBudget?.targetChars || 4300));
+  return lines.join("\n").slice(0, Number(policy?.promptBudget?.targetChars || 5200));
 }
 
 function deriveSelfDirectionState({ curiosity = null, enabled = false } = {}) {
