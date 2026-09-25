@@ -45,6 +45,6 @@ test("missing workout dates are clarified before a saveable proposal is generate
 });
 
 test("runtime cache-busts the durable action adapter", () => {
-  assert.match(adapter, /const VERSION = "1\.5\.0"/);
-  assert.match(runtime, /ari-vnext-action-adapter\.js\?v=1\.5\.0/);
+  assert.match(adapter, /const VERSION = "1\.6\.0"/);
+  assert.match(runtime, /ari-vnext-action-adapter\.js\?v=1\.6\.0/);
 });
