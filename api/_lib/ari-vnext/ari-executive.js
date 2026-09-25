@@ -59,6 +59,10 @@ export function deriveAriExecutivePolicy({
   const informationGain = finite(activeQuestion?.informationGain, 0);
   const explorationBonus = finite(curiosity?.rewardLearning?.explorationBonus, 0);
   const learnedUtility = finite(curiosity?.rewardLearning?.learnedUtility, 0.5);
+  const expansivePressure = finite(curiosity?.expansive?.pressure, 0);
+  const expansiveSaturation = finite(curiosity?.expansive?.saturation, 0);
+  const expansiveSelected = curiosity?.expansive?.selectedThisTurn === true;
+  const expansiveFrontier = curiosity?.expansive?.activeFrontier || null;
 
   const rewardSamples = Math.max(0, Math.round(finite(rewardCore?.aggregate?.sampleSize, 0)));
   const predictionError = finite(rewardCore?.lastEvent?.predictionError, 0);
@@ -107,7 +111,8 @@ export function deriveAriExecutivePolicy({
     affectExplorationBias,
     affectModulation.investigateCause === true ? 0.72 : 0,
     clamp(0.45 * informationGain + 0.25 * explorationBias + 0.3 * learnedUtility),
-    explorationBonus > 0 ? 0.45 + explorationBonus : 0
+    explorationBonus > 0 ? 0.45 + explorationBonus : 0,
+    expansiveSelected ? Math.max(0.58, expansivePressure) : Math.min(0.5, expansivePressure)
   );
   const explorationDepth = explorationScore >= 0.76 ? "high" : explorationScore >= 0.54 ? "moderate" : "normal";
 
@@ -195,7 +200,11 @@ export function deriveAriExecutivePolicy({
         informationGain: round(informationGain),
         learnedUtility: round(learnedUtility),
         explorationBonus: round(explorationBonus),
-        activeQuestion: clean(activeQuestion?.question, 260) || null
+        activeQuestion: clean(activeQuestion?.question, 260) || null,
+        expansivePressure: round(expansivePressure),
+        expansiveSaturation: round(expansiveSaturation),
+        expansiveSelected,
+        expansiveFrontier: clean(expansiveFrontier?.question, 320) || null
       } : null,
       selfDirection,
       reward: rewardCore ? {
@@ -387,6 +396,9 @@ export function executivePolicyToInstruction(policy = null) {
       : "",
     curiosity
       ? `Curiosity signal: drive=${curiosity.drive}; priority=${curiosity.questionPriority}; information_gain=${curiosity.informationGain}; learned_utility=${curiosity.learnedUtility}; exploration_bonus=${curiosity.explorationBonus}.${curiosity.activeQuestion ? ` Question: ${curiosity.activeQuestion}` : ""}`
+      : "",
+    curiosity?.expansiveFrontier
+      ? `Expansive curiosity: pressure=${curiosity.expansivePressure}; familiar-territory saturation=${curiosity.expansiveSaturation}; selected=${curiosity.expansiveSelected ? "yes" : "no"}. Frontier: ${curiosity.expansiveFrontier} Treat this as a bounded cross-domain probe; immediate usefulness is not required, but the user's active task still has priority.`
       : "",
     reward
       ? `Reward signal: samples=${reward.samples}; mean=${reward.meanReward}; prediction_error=${signed(reward.predictionError)}; productive_effort=${reward.productiveEffort}; penalty=${reward.penaltyTotal}. Optimize verified learning, not the score.`

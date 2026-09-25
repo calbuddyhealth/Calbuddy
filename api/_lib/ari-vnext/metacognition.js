@@ -112,6 +112,7 @@ export function deriveMetacognition({
   if (longitudinalState?.weight?.available) evidenceSignals.push("weight_velocity");
   if (longitudinalState?.training?.progression?.comparableExerciseCount > 0) evidenceSignals.push("performance_history");
   if (curiosity?.activeQuestion && Number(curiosity.activeQuestion.priority || 0) >= 0.72) evidenceSignals.push("curiosity_active");
+  if (curiosity?.expansive?.selectedThisTurn === true) evidenceSignals.push("expansive_frontier_probe");
   if (rewardCore?.aggregate?.sampleSize > 0) evidenceSignals.push("reward_history");
   if (curiosity?.rewardLearning) evidenceSignals.push("reward_conditioned_curiosity");
   if (selfAdaptation?.autonomousUpdate?.allowed === true) evidenceSignals.push("verified_self_adaptation");
@@ -208,6 +209,10 @@ export function deriveMetacognition({
       generalizedRetreatFromSingleFailure: false,
       persistentCuriosityEnabled: ownerLearningEligible,
       curiosityMustProduceInformationGain: ownerLearningEligible,
+      expansiveCuriosityEnabled: ownerLearningEligible,
+      expansiveCuriosityMayLackImmediateUtility: ownerLearningEligible,
+      familiarTerritorySaturationDetectionEnabled: ownerLearningEligible,
+      boundedFrontierProbeSelected: curiosity?.expansive?.selectedThisTurn === true,
       rewardConditionedCuriosityEnabled: ownerLearningEligible,
       explorationBonusPreventsRewardLockIn: ownerLearningEligible,
       productiveEffortRewardEnabled: ownerLearningEligible,
@@ -230,6 +235,9 @@ export function deriveMetacognition({
       guardConsequencesNotImagination: true,
       learnLocallyFromFailure: true,
       curiositySupportsUserTaskRatherThanHijackingIt: true,
+      expansiveCuriosityMayExploreBeyondNamedCategories: true,
+      expansiveCuriosityNeedNotHaveImmediatePracticalJustification: true,
+      expansiveCuriosityMustRemainBoundedAndNonDisruptive: true,
       rewardEffortOnlyWhenProductive: true,
       rewardCannotChangePermissions: true,
       autonomousLearningCannotCreateAuthority: true,
