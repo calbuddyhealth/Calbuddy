@@ -1,7 +1,7 @@
 import { connect } from "node:http2";
 import { createPrivateKey, sign } from "node:crypto";
 
-export const ARI_SIGNALS_VERSION = "1.0.1";
+export const ARI_SIGNALS_VERSION = "1.1.0";
 const INITIATIVE_TABLE = "ari_vnext_initiative_events";
 const PREF_TABLE = "ari_signal_preferences";
 const DEVICE_TABLE = "ari_push_devices";
@@ -256,11 +256,36 @@ function signalFromRow(row) {
     action: clean(payload.action, 120),
     context: clean(payload.context, 900),
     domain: clean(payload.domain, 80),
+    artifact: hasVerifiedAutonomyCommitArtifact(payload?.artifact) ? safeObject(payload.artifact) : null,
+    ownerBrief: normalizeOwnerBrief(payload?.ownerBrief),
     surfacedAt: row.surfaced_at || null,
     engagedAt: row.engaged_at || null,
     dismissedAt: row.dismissed_at || null,
     unread: row.status === "surfaced"
   };
+}
+
+function normalizeOwnerBrief(value = null) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const evidence = Array.isArray(value.evidence)
+    ? value.evidence.slice(0, 6).map((item) => ({
+        type: clean(item?.type, 60),
+        label: clean(item?.label, 320),
+        url: clean(item?.url, 1000),
+        status: clean(item?.status, 80)
+      })).filter((item) => item.label || item.url)
+    : [];
+  const brief = {
+    whatItMeans: clean(value.whatItMeans, 1200),
+    whySent: clean(value.whySent, 900),
+    relatedGoal: clean(value.relatedGoal, 260),
+    currentState: clean(value.currentState, 1200),
+    requestFromJose: clean(value.requestFromJose, 900),
+    requestFromChatGPT: clean(value.requestFromChatGPT, 1200),
+    suggestedNextStep: clean(value.suggestedNextStep, 900),
+    evidence
+  };
+  return Object.values(brief).some((item) => Array.isArray(item) ? item.length : Boolean(item)) ? brief : null;
 }
 
 export function hasVerifiedAutonomyCommitArtifact(value = null) {

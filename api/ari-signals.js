@@ -12,7 +12,7 @@ import {
   verifyOwnerRequest
 } from "../server/ari-owner-auth.js";
 
-const OWNER_SIGNALS_VERSION = "2.0.0-owner";
+const OWNER_SIGNALS_VERSION = "2.1.0-owner";
 
 export default async function handler(req, res) {
   setHeaders(res);
@@ -93,6 +93,9 @@ function enrichOwnerSignal(signal = {}) {
   const attention = score >= 85 ? "act_now" : score >= 60 ? "watch" : "background";
   const expiresAt = signal.expiresAt || null;
   const expired = expiresAt ? Date.parse(expiresAt) <= Date.now() : false;
+  const whyNow = buildWhyNow({ category, priority, actionable });
+  const nextAction = action || (followUpPrompt ? "continue_conversation" : "review");
+  const detail = buildSignalDetail({ ...signal, category, action, followUpPrompt, whyNow, nextAction });
 
   return {
     ...signal,
@@ -101,10 +104,90 @@ function enrichOwnerSignal(signal = {}) {
     actionable,
     score,
     attention,
-    whyNow: buildWhyNow({ category, priority, actionable }),
-    nextAction: action || (followUpPrompt ? "continue_conversation" : "review"),
+    whyNow,
+    nextAction,
+    detail,
     expired
   };
+}
+
+function buildSignalDetail(signal = {}) {
+  const stored = signal.ownerBrief && typeof signal.ownerBrief === "object" ? signal.ownerBrief : {};
+  const action = clean(signal.action, 120);
+  const context = clean(signal.context, 1200);
+  const followUpPrompt = clean(signal.followUpPrompt, 1200);
+  const evidenceFromPrompt = extractBriefField(followUpPrompt, "Evidence");
+  const goalFromPrompt = extractBriefField(followUpPrompt, "Goal");
+  const artifact = signal.artifact && typeof signal.artifact === "object" ? signal.artifact : null;
+
+  const requestFromJose = clean(stored.requestFromJose, 900) || requestForJose(action);
+  const requestFromChatGPT = clean(stored.requestFromChatGPT, 1200)
+    || (action === "collaborate_on_autonomous_goal" ? stripHelpPrefix(followUpPrompt) : requestForChatGPT(action, followUpPrompt));
+  const evidence = Array.isArray(stored.evidence) ? stored.evidence.map(normalizeEvidence).filter(Boolean) : [];
+  if (!evidence.length && artifact?.commitUrl) {
+    evidence.push(normalizeEvidence({
+      type: "github_commit",
+      label: artifact.commitSha ? `Commit ${clean(artifact.commitSha, 120).slice(0, 12)} on ${clean(artifact.branch, 240)}` : "Isolated code change",
+      url: artifact.commitUrl,
+      status: artifact.status
+    }));
+  }
+  if (!evidence.length && evidenceFromPrompt) {
+    evidence.push({ type: "stored_evidence", label: evidenceFromPrompt, url: "", status: "observed" });
+  }
+
+  return {
+    whatItMeans: clean(stored.whatItMeans, 1200) || context || followUpPrompt || clean(signal.message, 1000),
+    whySent: clean(stored.whySent, 900) || clean(signal.whyNow, 900),
+    relatedGoal: clean(stored.relatedGoal, 260) || goalFromPrompt || clean(signal.domain, 180),
+    currentState: clean(stored.currentState, 1200) || context,
+    requestFromJose,
+    requestFromChatGPT,
+    suggestedNextStep: clean(stored.suggestedNextStep, 900) || suggestedNextStep(action, followUpPrompt),
+    evidence
+  };
+}
+
+function requestForJose(action = "") {
+  if (action === "collaborate_on_autonomous_goal") return "Confirm the outcome you want, any owner constraints, and whether Ari should continue this development goal.";
+  if (action === "review_autonomous_commit") return "Decide whether the isolated change should move forward after its evidence and integration risk are reviewed.";
+  if (/approval|authorize|confirm/i.test(action)) return "Provide the owner decision Ari is waiting for.";
+  return "";
+}
+
+function requestForChatGPT(action = "", followUpPrompt = "") {
+  if (action === "review_autonomous_commit") return stripHelpPrefix(followUpPrompt) || "Review the isolated change, evidence, tests, and integration risk before merge.";
+  if (action === "collaborate_on_autonomous_goal") return stripHelpPrefix(followUpPrompt);
+  return "";
+}
+
+function suggestedNextStep(action = "", followUpPrompt = "") {
+  if (action === "review_autonomous_commit") return "Review the isolated commit and its evidence before deciding whether to merge it.";
+  if (action === "collaborate_on_autonomous_goal") return "Review the goal context together, then choose the smallest evidence-producing next step.";
+  return stripHelpPrefix(followUpPrompt) || "Open this signal with Ari and decide the next action.";
+}
+
+function normalizeEvidence(item = null) {
+  if (!item || typeof item !== "object") return null;
+  const normalized = {
+    type: clean(item.type, 60),
+    label: clean(item.label, 320),
+    url: clean(item.url, 1000),
+    status: clean(item.status, 80)
+  };
+  return normalized.label || normalized.url ? normalized : null;
+}
+
+function stripHelpPrefix(value = "") {
+  return clean(value, 1200).replace(/^What I want help with:\s*/i, "").replace(/^Review evidence:\s*/i, "").trim();
+}
+
+function extractBriefField(text = "", label = "") {
+  const source = clean(text, 1400);
+  const key = clean(label, 40).replace(/[^a-z0-9_ -]/gi, "");
+  if (!source || !key) return "";
+  const match = new RegExp(`(?:^|\\b)${key}:\\s*([^.!?]{1,260})`, "i").exec(source);
+  return clean(match?.[1], 260);
 }
 
 function classifyOwnerCategory({ reason, action, fallback }) {
