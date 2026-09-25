@@ -582,6 +582,11 @@ function safeObject(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   try { return JSON.parse(JSON.stringify(value)); } catch { return {}; }
 }
+function dateValue(value) {
+  const parsed = value instanceof Date ? value.getTime() : Date.parse(String(value || ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function finiteOrNull(value) {
   if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
