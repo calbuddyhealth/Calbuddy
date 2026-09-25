@@ -138,17 +138,18 @@ async function processSpecialist(job) {
     );
   }
 
+  const verifiersQueued = await enqueueVerifierWhenRoundSettled({
+    job,
+    task,
+    treatCurrentWorkerAsComplete: true
+  });
+
   await completeAgentJob({
     msgId: job.msgId,
     taskId: job.taskId,
     workerKey: job.workerKey,
     mailboxMessageId: mailbox.messageId,
     providerModel: result?.provider?.model || null
-  });
-
-  const verifiersQueued = await enqueueVerifierWhenRoundSettled({
-    job,
-    task
   });
 
   return {
@@ -256,14 +257,6 @@ async function processVerifier(job) {
     throw codedError("AGENT_TASK_UPDATE_FAILED", "Could not persist background verifier state.");
   }
 
-  await completeAgentJob({
-    msgId: job.msgId,
-    taskId: job.taskId,
-    workerKey: job.workerKey,
-    mailboxMessageId: mailbox.messageId,
-    providerModel: verification?.provider?.model || null
-  });
-
   let resolversQueued = 0;
   if (
     !ready &&
@@ -315,6 +308,14 @@ async function processVerifier(job) {
     }
   }
 
+  await completeAgentJob({
+    msgId: job.msgId,
+    taskId: job.taskId,
+    workerKey: job.workerKey,
+    mailboxMessageId: mailbox.messageId,
+    providerModel: verification?.provider?.model || null
+  });
+
   return {
     completed: true,
     mailboxMessageId: mailbox.messageId,
@@ -322,7 +323,11 @@ async function processVerifier(job) {
   };
 }
 
-async function enqueueVerifierWhenRoundSettled({ job, task }) {
+async function enqueueVerifierWhenRoundSettled({
+  job,
+  task,
+  treatCurrentWorkerAsComplete = false
+}) {
   const workers = await loadAgentTaskWorkers({
     userId: job.userId,
     taskId: job.taskId
@@ -336,11 +341,15 @@ async function enqueueVerifierWhenRoundSettled({ job, task }) {
   if (!evidenceWorkers.length) return 0;
 
   const unsettled = evidenceWorkers.some(worker =>
-    ["planned", "running"].includes(worker.status)
+    ["planned", "running"].includes(worker.status) &&
+    !(treatCurrentWorkerAsComplete && worker.workerKey === job.workerKey)
   );
   if (unsettled) return 0;
 
-  const completed = evidenceWorkers.filter(worker => worker.status === "completed");
+  const completed = evidenceWorkers.filter(worker =>
+    worker.status === "completed" ||
+    (treatCurrentWorkerAsComplete && worker.workerKey === job.workerKey)
+  );
   if (!completed.length) {
     await updateAgentTaskSession({
       userId: job.userId,
