@@ -95,11 +95,14 @@ test("cognitive workspace carries prior state without claiming consciousness", (
   assert.equal(workspace.subjectiveConsciousnessClaimed, false);
   assert.equal(workspace.attention[0], "user_correction");
   assert.equal(workspace.conscience.activeSignals.some((item) => item.principle === "correction"), true);
+  assert.equal(workspace.behavioralIdentity.active, true);
+  assert.equal(workspace.behavioralIdentity.activeBehaviors[0].id, "repair_exactly");
 
   const instruction = cognitiveWorkspaceToInstruction(workspace);
   assert.match(instruction, /not evidence or a claim that Ari has subjective consciousness/i);
   assert.match(instruction, /truth\/evidence/);
   assert.match(instruction, /user agency\/consent/);
+  assert.match(instruction, /ARI BEHAVIORAL IDENTITY CONTROL/);
 });
 
 test("owner workspace activates independent judgment constitution for opinion questions", () => {
@@ -297,4 +300,61 @@ test("cognitive state advances from metacognition, self-model, and unresolved wo
   assert.equal(next.lastOutcome.primaryGoalId, "goal-1");
   assert.equal(next.openLoops.some((item) => item.type === "pending_action"), true);
   assert.equal(next.openLoops.some((item) => item.type === "goal_tradeoff"), true);
+});
+
+
+test("personality evaluation persists observable behavior and influences the next workspace", () => {
+  const firstWorkspace = deriveCognitiveWorkspace({
+    previous: { turnCount: 0 },
+    turn: { message: "What do you think about adding another orchestration layer?" },
+    route: { developer: true },
+    context: {}
+  });
+
+  const next = advanceCognitiveState({
+    previous: { turnCount: 0 },
+    workspace: firstWorkspace,
+    turn: {
+      turnId: "personality-eval-1",
+      surface: "home",
+      message: "What do you think about adding another orchestration layer?"
+    },
+    result: {
+      success: true,
+      reply: "I would not add it yet. The current architecture should stay simpler until a measurable failure shows that another layer buys us something.",
+      route: { developer: true },
+      metacognition: { confidence: "grounded", missingEvidence: [], evidenceSignals: ["current_architecture"] },
+      selfModel: { current: {} },
+      relationshipContinuity: {},
+      goalHierarchy: {},
+      safety: { highStakes: false }
+    }
+  });
+
+  assert.equal(next.personalityEvaluation.sampleSize, 1);
+  assert.equal(next.lastOutcome.personalityEvaluationStatus, "pass");
+  assert.equal(next.personalityEvaluation.last.dimensions.intelligent_disagreement.applicable, true);
+  assert.equal(next.personalityEvaluation.last.dimensions.intelligent_disagreement.status, "pass");
+
+  const secondWorkspace = deriveCognitiveWorkspace({
+    previous: {
+      ...next,
+      personalityEvaluation: {
+        ...next.personalityEvaluation,
+        improvementTargets: [{
+          id: "repair_quality",
+          priority: 0.9,
+          rollingScore: 0.6,
+          recentIssueCount: 2,
+          instruction: "Name the exact mistake before correcting it."
+        }]
+      }
+    },
+    turn: { message: "Actually, you misunderstood what I meant." },
+    route: { followUp: true },
+    context: {}
+  });
+
+  assert.equal(secondWorkspace.behavioralIdentity.evaluationFeedbackApplied, true);
+  assert.ok(secondWorkspace.behavioralIdentity.activeBehaviors.some((item) => item.id === "eval_repair_repair_quality"));
 });
