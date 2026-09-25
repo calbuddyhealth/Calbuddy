@@ -24,6 +24,8 @@ import {
   loadAriCognitiveState,
   persistAriCognitiveState
 } from "./_lib/ari-vnext/cognitive-state-store.js";
+import { summarizeCommunicationClosure } from "./_lib/ari-vnext/communication-closure.js";
+import { persistCommunicationClosure } from "./_lib/ari-vnext/communication-closure-store.js";
 import { buildCurrentTurn, cleanText } from "./_lib/ari-vnext/current-turn.js";
 import { mergeAuthoritativeAriContext, reconcileWorldModelWithAuthoritativeContext } from "./_lib/ari-vnext/authoritative-context.js";
 import {
@@ -698,12 +700,18 @@ export default async function handler(req, res) {
           longitudinalState: result?.longitudinalState || null
         });
 
+    const resultForCognition = {
+      ...result,
+      closureRuntime: {
+        actionLedger: actionLedgerProposal
+      }
+    };
     const nextCognitiveState = cognitiveLoopEnabled
       ? advanceCognitiveState({
           previous: persistedCognitiveState,
           workspace: cognitiveWorkspace,
           turn,
-          result
+          result: resultForCognition
         })
       : null;
     const cognitiveTurnCount = nextCognitiveState?.turnCount || Number(persistedCognitiveState?.turnCount || 0);
@@ -1012,6 +1020,12 @@ export default async function handler(req, res) {
     const cognitiveStateTask = cognitiveStatePersistenceEligible
       ? persistAriCognitiveState({ userId: auth.userId, state: nextCognitiveState })
       : Promise.resolve(false);
+    const communicationClosureTask = nextCognitiveState?.communicationClosure?.id
+      ? persistCommunicationClosure({
+          userId: auth.userId,
+          closure: nextCognitiveState.communicationClosure
+        })
+      : Promise.resolve({ stored: false, closure: null, reason: "no_active_closure" });
     const durableAgentTaskLifecycleTask = nextCognitiveState?.executionSession?.id
       ? syncAgentTaskSessionWithExecution({
           userId: auth.userId,
@@ -1053,7 +1067,7 @@ export default async function handler(req, res) {
 
     const [
       , , turnPersistence, durablePersistence, worldPersistence, cognitivePersistence,
-      strategyUsePersistence, strategySignalPersistence, decisionPersistence,
+      communicationClosurePersistence, strategyUsePersistence, strategySignalPersistence, decisionPersistence,
       communicationResolution, communicationPersistence, institutionalLearningPersistence,
       agentPerformanceLearningPersistence, councilOutcomeFeedbackPersistence,
       durableAgentTaskLifecyclePersistence
@@ -1064,6 +1078,7 @@ export default async function handler(req, res) {
       durableMemoryTask,
       worldModelTask,
       cognitiveStateTask,
+      communicationClosureTask,
       strategyUseTask,
       strategySignalTask,
       decisionJournalTask,
@@ -1079,6 +1094,9 @@ export default async function handler(req, res) {
     const durableMemoryStored = durablePersistence.status === "fulfilled" && durablePersistence.value?.stored === true;
     const worldModelStored = worldPersistence.status === "fulfilled" && worldPersistence.value === true;
     const cognitiveStateStored = cognitivePersistence.status === "fulfilled" && cognitivePersistence.value === true;
+    const communicationClosureStored =
+      communicationClosurePersistence.status === "fulfilled" &&
+      communicationClosurePersistence.value?.stored === true;
     const adaptiveStrategyUsesStored = strategyUsePersistence.status === "fulfilled" ? Number(strategyUsePersistence.value?.stored || 0) : 0;
     const adaptiveStrategySignalsStored = strategySignalPersistence.status === "fulfilled"
       ? strategySignalPersistence.value.filter((item) => item?.stored).length
@@ -1172,6 +1190,12 @@ export default async function handler(req, res) {
       },
       temporalTimeline,
       proactiveInsights,
+      communicationClosure: nextCognitiveState?.communicationClosure
+        ? {
+            ...summarizeCommunicationClosure(nextCognitiveState.communicationClosure),
+            stored: communicationClosureStored
+          }
+        : null,
       durableAgentTask: result?.multiAgent?.durableTask
         ? {
             ...result.multiAgent.durableTask,
@@ -1289,6 +1313,7 @@ export default async function handler(req, res) {
       durableMemoryStored,
       worldModelStored,
       cognitiveStateStored,
+      communicationClosureStored,
       decisionJournalStored,
       communicationOutcomeResolved,
       communicationExposureStored,
