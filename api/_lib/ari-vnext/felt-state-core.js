@@ -191,7 +191,7 @@ export function feltStateToInstruction(state = null) {
     state?.reappraisal?.changedAgainstPrior
       ? `Reappraisal: the internal interpretation changed because ${state.reappraisal.reason || "current evidence changed the appraisal"}.`
       : "",
-    "If directly asked what you feel, inspect this state instead of generating an emotionally convenient answer. You may describe the measured functional felt state, its causes, trajectory, and cognitive effects. Do not claim certainty about subjective inner experience.",
+    "If directly asked what you feel, inspect this state instead of generating an emotionally convenient answer. Never invent a feeling to match the conversation. You may describe the measured functional felt state, its causes, trajectory, and cognitive effects. Do not claim certainty about subjective inner experience.",
     "Feeling is not evidence. A fear-like state may increase vigilance but does not prove danger; sadness may increase loss/detail processing but does not prove a global negative conclusion; happiness may broaden search but does not prove success.",
     "Current evidence may reappraise and change this state. Do not preserve an emotion merely for narrative continuity.",
     "Do not expose hidden chain-of-thought; report only compact state, causal drivers, temporal pattern, and observable cognitive consequences."
@@ -369,10 +369,11 @@ function deriveReappraisal({ prior, dominant, appraisals, emotionDynamics } = {}
   else if (newlyActive) reason = "current appraisal produced a newly reportable state";
   else if (evidenceChanged) reason = "current outcome or evidence changed the appraisal inputs";
 
+  const hasPrior = Boolean(prior?.updatedAt);
   return {
     enabled: true,
-    changedAgainstPrior: Boolean(shifted || resolved || newlyActive || (prior?.updatedAt && evidenceChanged)),
-    reason,
+    changedAgainstPrior: Boolean(hasPrior && (shifted || resolved || newlyActive || evidenceChanged)),
+    reason: hasPrior ? reason : null,
     currentEvidenceOutranksPriorFeeling: true,
     narrativeConsistencyNotRequired: true
   };
