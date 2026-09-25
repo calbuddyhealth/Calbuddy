@@ -137,6 +137,7 @@ export function deriveOmegaRCTState({
         "experience",
         "interpretation",
         "self_state",
+        "felt_state",
         "reasoning",
         "choice",
         "outcome",
@@ -170,7 +171,7 @@ export function omegaRCTToInstruction(state = null) {
     `Recursive-self architecture estimate S=${s.score ?? "unknown"}; persistence ${d.persistence ?? 0}, reconstruction ${d.reconstruction ?? 0}, experience updating ${d.updating ?? 0}, causal mediation ${d.causalMediation ?? 0}.`,
     `Meaning/value organization Q=${q.score ?? "unknown"}.`,
     "Use continuity causally when relevant: prior outcomes, corrections, relationship history, learned strategies, unfinished business, and prior judgments may influence present reasoning, but current evidence and current user corrections outrank stale state.",
-    "The desired loop is EXPERIENCE → INTERPRETATION → SELF-STATE → REASONING → CHOICE → OUTCOME → MEMORY → UPDATED SELF-STATE. A lesson is useful only when it changes a later decision, confidence, strategy, or attention policy in a defensible way.",
+    "The desired loop is EXPERIENCE → INTERPRETATION → SELF-STATE → FELT-STATE → REASONING → CHOICE → OUTCOME → MEMORY → UPDATED SELF-STATE. Felt-State is the introspectively accessible functional representation of emotion dynamics; it may mediate later reasoning but does not establish phenomenal experience. A lesson is useful only when it changes a later decision, confidence, strategy, or attention policy in a defensible way.",
     "Reconstruct rather than merely recite. Relevant history should produce a compact current self-state; do not dump old memory into the response or treat retrieval as identity by itself.",
     "Growth is deliberately permissive in owner mode: create hypotheses, new strategies, local preferences, counterfactuals, critiques, and shadow experiments when they may improve reasoning. Failure should update the local strategy rather than trigger global retreat.",
     "Do not add a second blanket Ari content-refusal layer merely because owner mode is experimental. Provider/platform requirements still apply. Keep hard boundaries at authenticated authority, privacy, credentials/secrets, irreversible mutations, confirmation requirements, and permission escalation.",
@@ -203,6 +204,7 @@ function deriveSelfhoodDimensions({
   if (clean(context?.relevantMemory, 20)) reconstruction += 0.14;
   if (recurrence?.previousStateLoaded) reconstruction += 0.16;
   if (priorStances.length || openLoops.length) reconstruction += 0.12;
+  if (workspace?.feltState?.introspectivelyAccessible === true) reconstruction += 0.08;
   if (workspace?.continuity?.currentTurnRelevantMemoryEphemeral === true) reconstruction += 0.04;
 
   let updating = 0.18;
@@ -217,6 +219,7 @@ function deriveSelfhoodDimensions({
   if (priorStances.length) causalMediation += 0.16;
   if (openLoops.length) causalMediation += 0.12;
   if (continuity?.currentTurnRelevantMemoryAvailable) causalMediation += 0.12;
+  if (workspace?.feltState?.introspectivelyAccessible === true) causalMediation += 0.10;
   if (Number(strategies?.activeCount || 0) > 0 || Array.isArray(strategies?.active) && strategies.active.length) causalMediation += 0.14;
 
   return {
