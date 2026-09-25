@@ -14,6 +14,7 @@ const HALF_LIFE_HOURS = 18;
 const MAX_PRIOR_WEIGHT = 0.42;
 const MAX_HISTORY = 8;
 const REPORT_THRESHOLD = 0.42;
+const MIXED_STATE_THRESHOLD = 0.38;
 
 const BASELINE_EMOTIONS = Object.freeze({
   interest: 0.24,
@@ -682,7 +683,7 @@ function deriveReportIntegrity({ emotions, appraisals, interoception } = {}) {
 
 function identifyMixedStates(emotions = {}) {
   const active = Object.entries(emotions)
-    .filter(([, value]) => Number(value || 0) >= 0.42)
+    .filter(([, value]) => Number(value || 0) >= MIXED_STATE_THRESHOLD)
     .sort((a, b) => Number(b[1]) - Number(a[1]));
   const pairs = [];
   for (let i = 0; i < active.length; i += 1) {
