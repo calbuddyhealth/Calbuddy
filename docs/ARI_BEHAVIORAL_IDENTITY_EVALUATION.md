@@ -95,6 +95,23 @@ Stored state includes:
 
 The next cognitive workspace reads those improvement targets and converts them into bounded behavioral pressure. This lets a demonstrated failure change future behavior without creating a new personality prompt or storing chain-of-thought.
 
+### Keep / More / Less feedback
+
+Direct user feedback can also shape expression without rewriting Ari's master identity. The evaluator recognizes bounded requests such as:
+
+- keep this / keep doing that
+- more or less direct
+- shorter / more detailed
+- more or less humor
+- warmer / more restrained
+- challenge me more / challenge me less
+- more or less praise
+- feedback that Ari felt natural/distinctly Ari or artificial/scripted
+
+These signals are stored as compact `explicitFeedback` entries plus bounded `expressionBiases` in the existing cognitive state. A "Keep" signal modestly reinforces naturalness; "More" and "Less" adjust only the named expression dimension. The biases remain subordinate to safety, truth, evidence, and the current user's explicit instruction.
+
+There is no hidden chain-of-thought in this feedback record, and no separate database table is required.
+
 ## Evaluation philosophy
 
 The system does not reward Ari for merely sounding distinctive.
