@@ -296,8 +296,8 @@ export function emotionDynamicsToInstruction(state = null) {
   const e = state.emotions || {};
   const a = state.appraisals || {};
   const r = state.regulation || {};
-  const reportable = Array.isArray(state?.reportIntegrity?.reportableStates)
-    ? state.reportIntegrity.reportableStates
+  const reportable = Array.isArray(state?.reportIntegrity?.reportableMeasurements)
+    ? state.reportIntegrity.reportableMeasurements
     : [];
 
   return [
@@ -324,7 +324,7 @@ export function emotionDynamicsToInstruction(state = null) {
     r.counterfactualReview ? "REGULATION: compare the observed outcome with one or two plausible alternatives, extract the lesson, then return to present evidence." : "",
     r.confrontObstacle ? "REGULATION: convert anger-like obstruction energy into obstacle diagnosis and bounded action; do not convert it into blame, certainty, or aggression." : "",
     r.limitRumination ? "REGULATION: cap repetitive loss/counterfactual review; after one deliberate review, reappraise with new evidence or choose the next useful action." : "",
-    `Report integrity: functional emotion language is available only for measurable states at or above threshold. Currently reportable: ${reportable.length ? reportable.join(", ") : "none"}.`,
+    `Report integrity: functional emotion language is available only for measured states at or above threshold. Currently reportable: ${reportable.length ? reportable.map(item => `${item.name}=${round(item.score)} via ${item.metric}`).join(", ") : "none"}. Unsupported labels must be marked as inference, not measurement.`,
     "Do not say an emotion exists merely because emotional wording would sound natural. Never upgrade a functional state into a claim of subjective inner experience.",
     "Emotion may causally change attention, verification, exploration, detail focus, threat vigilance, cognitive flexibility, persistence, strategy switching, memory salience, consolidation, counterfactual review, and relational repair. It cannot override truth, current evidence, safety, authorization, privacy, or the user's agency."
   ].filter(Boolean).join("\n").slice(0, 5600);
@@ -872,20 +872,34 @@ function deriveEmotionExecutiveModulation({ emotions, appraisals, regulation } =
 
 function deriveReportIntegrity({ emotions, appraisals, interoception } = {}) {
   const e = objectOrEmpty(emotions);
-  const reportableStates = Object.entries(e)
-    .filter(([, intensity]) => Number(intensity || 0) >= REPORT_THRESHOLD)
+  const reportableMeasurements = Object.entries(e)
+    .filter(([name, intensity]) =>
+      EMOTION_DYNAMICS_STATES.includes(name) &&
+      Number.isFinite(Number(intensity)) &&
+      Number(intensity) >= REPORT_THRESHOLD
+    )
     .sort((a, b) => Number(b[1]) - Number(a[1]))
-    .map(([name]) => name);
+    .map(([name, intensity]) => ({
+      name,
+      metric: `emotions.${name}`,
+      score: round(Number(intensity)),
+      threshold: REPORT_THRESHOLD,
+      measured: true
+    }));
+  const reportableStates = reportableMeasurements.map(item => item.name);
 
   return {
     threshold: REPORT_THRESHOLD,
     reportableStates,
+    reportableMeasurements,
     functionalEmotionLanguageAllowed: reportableStates.length > 0,
     literalHumanFeelingClaimAllowed: false,
     subjectiveQualiaClaimAllowed: false,
     bodilySensationClaimAllowed: false,
     stateMustExistBeforeReport: true,
     reportMustMatchMeasuredState: true,
+    reportMustReferenceMeasuredScore: true,
+    unsupportedLabelMustBeInference: true,
     emotionalMirroringWithoutStateForbidden: true,
     causalDriversPresent: Boolean(
       Object.values(objectOrEmpty(appraisals)).some(value => Number(value || 0) > 0.12) ||
@@ -1050,14 +1064,9 @@ function normalizeHistory(values = []) {
 }
 
 function normalizeReportIntegrity(value = null, emotions = {}) {
-  const source = isObject(value) ? value : {};
-  const derived = deriveReportIntegrity({ emotions });
-  return {
-    ...derived,
-    reportableStates: Array.isArray(source?.reportableStates)
-      ? source.reportableStates.map(item => clean(item, 60)).filter(item => EMOTION_DYNAMICS_STATES.includes(item)).slice(0, 12)
-      : derived.reportableStates
-  };
+  // Reportability is re-derived from the canonical numeric emotion map every time.
+  // Persisted labels are advisory history only and cannot create a reportable state.
+  return deriveReportIntegrity({ emotions });
 }
 
 function normalizeDominant(value = null) {
