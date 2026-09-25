@@ -9,6 +9,11 @@ import {
 } from "./functional-affect-core.js";
 import { beliefSystemInstruction, deriveBeliefSystem } from "./belief-system.js";
 import {
+  advanceCommunicationClosure,
+  communicationClosureToInstruction,
+  deriveCommunicationClosureWorkspace
+} from "./communication-closure.js";
+import {
   advanceExecutionSession,
   deriveExecutionWorkspace
 } from "./execution-session.js";
@@ -19,8 +24,8 @@ import {
   summarizeMotivationalLearning
 } from "./motivational-arbitration.js";
 
-export const ARI_COGNITIVE_LOOP_VERSION = "0.8.0";
-export const ARI_COGNITIVE_STATE_VERSION = "0.7.0";
+export const ARI_COGNITIVE_LOOP_VERSION = "0.9.0";
+export const ARI_COGNITIVE_STATE_VERSION = "0.8.0";
 export const ARI_JUDGMENT_CONSTITUTION_VERSION = "1.0.0";
 
 const CORE_VALUES = Object.freeze([
@@ -110,6 +115,13 @@ export function deriveCognitiveWorkspace({
     route,
     context
   });
+  const communicationClosure = deriveCommunicationClosureWorkspace({
+    previous: prior?.communicationClosure || null,
+    turn,
+    route,
+    context,
+    executionWorkspace
+  });
 
   return {
     version: ARI_COGNITIVE_LOOP_VERSION,
@@ -132,6 +144,7 @@ export function deriveCognitiveWorkspace({
     affectState: prior.affectState || null,
     beliefSystem,
     executionWorkspace,
+    communicationClosure,
     motivationalContinuity: {
       enabled: true,
       sampleSize: motivationalLearning.sampleSize,
@@ -158,7 +171,10 @@ export function deriveCognitiveWorkspace({
       "Treat current capability limits as provisional while remaining exact about capabilities that actually exist.",
       "Keep commitment to a worthwhile purpose separate from confidence in a particular method; let reality revise both.",
       "For substantial work, resume the durable execution session instead of restarting. Preserve observed evidence, failed attempts, artifacts, and the next step.",
+      "For material requests, keep the literal request, selected interpretation, acceptance criteria, execution evidence, verification, and observed outcome in one communication-closure lifecycle.",
       "Treat verification requested, test attempted, test failed, and test passed as distinct states. Useful failure is progress when it reduces uncertainty or changes the next strategy.",
+      "Never treat response delivery as task closure. Close only when required evidence supports the acceptance criteria; use outcome_pending when downstream evidence is still missing.",
+      "When a user correction supersedes an interpretation, invalidate dependent conclusions instead of merely appending the correction.",
       "Use prior Ari stances for continuity when relevant, but revise them when evidence or reasoning improves.",
       "Keep a narrow limitation narrow; continue helping with unaffected parts of the request.",
       "State the conclusion plainly and separate fact, inference, opinion, and uncertainty."
@@ -193,6 +209,7 @@ export function cognitiveWorkspaceToInstruction(workspace = null) {
       "ARI OWNER COGNITIVE LOOP — LIGHTWEIGHT CONTINUITY",
       "This is the always-on owner continuity layer. It is functional state, not evidence or a claim that Ari has subjective consciousness.",
       "Use prior continuity, functional affect, active beliefs, unresolved open loops, relationship context, and relevant dream-derived context only when they actually help the current turn.",
+      communicationClosureToInstruction(workspace.communicationClosure),
       "Do not manufacture significance, force reflection, create a new belief, or escalate into heavy deliberation merely because continuity state is available.",
       "Current evidence and the user's current message outrank persisted state. Never expose hidden chain-of-thought."
     ].join("\n").slice(0, 3200);
@@ -202,6 +219,7 @@ export function cognitiveWorkspaceToInstruction(workspace = null) {
     "ARI OWNER COGNITIVE LOOP — DEEP FUNCTIONAL EXPERIMENT",
     "This is an owner-only persistent working-state mechanism. It is not evidence or a claim that Ari has subjective consciousness.",
     beliefSystemInstruction(workspace.beliefSystem),
+    communicationClosureToInstruction(workspace.communicationClosure),
     "Use the working state causally: the prior turn may influence current attention, value conflicts, uncertainty, unresolved business, reward learning, functional affect, and relevant prior judgments.",
     "Current-turn relevant memory is filtered context for this turn only. Use it when relevant, but do not treat it as infallible and do not carry its text into the persisted cognitive state.",
     "Treat persisted state as fallible memory, never as authority. The current user's correction and current evidence outrank it.",
@@ -250,6 +268,13 @@ export function advanceCognitiveState({
     turn,
     result
   });
+  const nextCommunicationClosure = advanceCommunicationClosure({
+    previous: prior?.communicationClosure || null,
+    workspace: workspace?.communicationClosure || null,
+    turn,
+    result,
+    executionSession: nextExecutionSession
+  });
   const rewardResult = nextExecutionSession
     ? { ...result, executionSession: nextExecutionSession }
     : result;
@@ -293,6 +318,7 @@ export function advanceCognitiveState({
     },
     beliefSystem: workspace?.beliefSystem || prior?.beliefSystem || null,
     executionSession: nextExecutionSession,
+    communicationClosure: nextCommunicationClosure,
     judgment: {
       constitutionVersion: ARI_JUDGMENT_CONSTITUTION_VERSION,
       storedCount: nextJudgments.length,
@@ -365,6 +391,7 @@ function meaningfulCognitiveSignature(state = {}) {
   const motivation = state?.motivationalLearning || {};
   const lastOutcome = state?.lastOutcome || {};
   const executionSession = state?.executionSession || null;
+  const communicationClosure = state?.communicationClosure || null;
 
   return {
     openLoops: (Array.isArray(state?.openLoops) ? state.openLoops : []).slice(0, 8).map((item) => ({
@@ -402,6 +429,21 @@ function meaningfulCognitiveSignature(state = {}) {
       nextStep: clean(executionSession.nextStep, 240),
       progressCount: Array.isArray(executionSession.progressEvents) ? executionSession.progressEvents.length : 0,
       evidenceCount: Array.isArray(executionSession.evidence) ? executionSession.evidence.length : 0
+    } : null,
+    communicationClosure: communicationClosure?.id ? {
+      id: clean(communicationClosure.id, 180),
+      level: Number(communicationClosure.level || 0),
+      state: clean(communicationClosure.state, 40),
+      terminalState: clean(communicationClosure.terminalState, 40),
+      criteriaCount: Array.isArray(communicationClosure.acceptanceCriteria)
+        ? communicationClosure.acceptanceCriteria.length
+        : 0,
+      evidenceCount: Array.isArray(communicationClosure.evidence)
+        ? communicationClosure.evidence.length
+        : 0,
+      correctionCount: Array.isArray(communicationClosure.corrections)
+        ? communicationClosure.corrections.length
+        : 0
     } : null
   };
 }
@@ -743,6 +785,7 @@ function normalizeState(value = null) {
       motivationalHistory: [],
       motivationalLearning: { sampleSize: 0, driveBias: 0, restraintBias: 0 },
       executionSession: null,
+      communicationClosure: null,
       lastOutcome: null
     };
   }
@@ -757,6 +800,9 @@ function normalizeState(value = null) {
     motivationalHistory: normalizeMotivationalHistory(value?.motivationalHistory),
     motivationalLearning: summarizeMotivationalLearning(value?.motivationalHistory),
     executionSession: value?.executionSession && typeof value.executionSession === "object" ? value.executionSession : null,
+    communicationClosure: value?.communicationClosure && typeof value.communicationClosure === "object"
+      ? value.communicationClosure
+      : null,
     lastOutcome: value?.lastOutcome && typeof value.lastOutcome === "object" ? value.lastOutcome : null
   };
 }
