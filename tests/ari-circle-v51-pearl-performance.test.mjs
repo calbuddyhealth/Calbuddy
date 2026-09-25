@@ -21,14 +21,14 @@ test("current Circle presentation remains light and consolidated", () => {
 });
 
 test("shared Circle header remains bounded and text-first", () => {
-  assert.match(shell, /const VERSION = "5\.4\.0"/);
+  assert.match(shell, /const VERSION = "5\.5\.0"/);
   assert.match(shell, /function normalizeSignatureHeader\(\)/);
   assert.match(shell, /circle-v51-wordmark/);
   assert.doesNotMatch(shell, /new MutationObserver/);
   assert.doesNotMatch(shell, /setInterval\s*\(/);
 });
 
-test("Connect and Feed redesigns avoid nested blur-heavy cards", () => {
+test("Connect and retained legacy Feed assets avoid nested blur-heavy cards", () => {
   assert.match(connectCss, /background:var\(--connect-card\)/);
   assert.match(feedCss, /feed-next-event-card/);
   assert.match(feedCss, /feed-quick-update__trigger/);
@@ -44,9 +44,8 @@ test("Connect has compact discovery identity", () => {
   assert.doesNotMatch(meetup, /REAL WORLD XP/);
 });
 
-test("Feed loads current shared shell without Profile compatibility layers", () => {
-  assert.match(feed, /id="ari-circle-v5-real-world-style"/);
+test("legacy Feed route redirects to Connect", () => {
+  assert.match(feed, /window\.location\.replace\("ari-circle-meetup\.html"\)/);
   assert.doesNotMatch(feed, /ari-circle-v4\.css/);
   assert.doesNotMatch(feed, /js\/ari-circle\/v4-ui\.js/);
-  assert.match(feed, /v5-real-world\.js\?v=5\.4\.1/);
 });
