@@ -2106,9 +2106,43 @@ body.ari-circle-page img {
   border-bottom: 1px solid rgba(36, 87, 245, 0.065);
 }
 
-#circle-top-save-button,
-#circle-profile-save-button {
+#circle-top-save-button {
   margin-top: 22px;
+}
+
+.circle-profile-save-status {
+  display:flex;
+  min-height:42px;
+  align-items:center;
+  justify-content:center;
+  margin:22px 0 0;
+  padding:0 14px;
+  border:1px solid rgba(36,87,245,.08);
+  border-radius:14px;
+  color:var(--circle-muted);
+  background:rgba(255,255,255,.62);
+  font-size:12px;
+  font-weight:750;
+  text-align:center;
+  transition:160ms ease;
+}
+
+.circle-profile-save-status[data-state="saving"] {
+  color:#3159be;
+  border-color:rgba(49,89,190,.14);
+  background:#f4f7ff;
+}
+
+.circle-profile-save-status[data-state="saved"] {
+  color:#2e7a5a;
+  border-color:rgba(46,122,90,.12);
+  background:#f4fbf7;
+}
+
+.circle-profile-save-status[data-state="error"] {
+  color:#a93f50;
+  border-color:rgba(169,63,80,.16);
+  background:#fff6f8;
 }
 
 .circle-editor-fields {
