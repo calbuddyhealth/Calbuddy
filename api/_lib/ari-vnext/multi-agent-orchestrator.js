@@ -5,10 +5,23 @@
 // mutation tools, and cannot recursively create unbounded descendants.
 
 import { agentPerformanceToCoordinatorInstruction } from "./agent-performance.js";
+import {
+  createAgentTaskSession,
+  isOpenAgentTaskSession,
+  loadAgentTaskSession,
+  loadAgentTaskWorkers,
+  publicAgentTaskSession,
+  updateAgentTaskSession,
+  upsertAgentTaskWorker
+} from "./agent-task-store.js";
+import {
+  listAgentMailboxMessages,
+  sendAgentMailboxMessage
+} from "../../../server/ari-supabase-agent-mailbox.js";
 
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 
-export const ARI_MULTI_AGENT_VERSION = "1.0.0";
+export const ARI_MULTI_AGENT_VERSION = "2.0.0";
 
 const DEFAULT_MAX_WORKERS = 3;
 const HARD_MAX_WORKERS = 4;
@@ -144,6 +157,7 @@ export async function runAriMultiAgentCouncil({
   metacognition = null,
   modelPolicy = null
 } = {}) {
+  const startedAt = Date.now();
   const plan = deriveMultiAgentPlan({ turn, route, safety, metacognition });
   if (!plan.active) {
     return {
@@ -165,39 +179,149 @@ export async function runAriMultiAgentCouncil({
     clean(modelPolicy?.model, 120) ||
     workerModel;
 
-  const coordinator = await planSpecialistTasks({
-    turn,
-    route,
-    safety,
-    plan,
-    modelPolicy,
-    model: workerModel
-  }).catch(() => null);
+  const anchor = durableExecutionAnchor(turn);
+  let taskSession = anchor
+    ? await loadAgentTaskSession({
+        userId: turn?.userId,
+        executionSessionId: anchor.id
+      }).catch(() => null)
+    : null;
+  const resumed = Boolean(taskSession && isOpenAgentTaskSession(taskSession));
 
-  const tasks = normalizeCoordinatorTasks(
-    coordinator?.tasks,
-    deriveFallbackTasks({ turn, route, safety, plan }),
+  let tasks = normalizeCoordinatorTasks(
+    taskSession?.plan?.tasks,
+    [],
     plan
   );
 
+  if (!tasks.length) {
+    const coordinator = await planSpecialistTasks({
+      turn,
+      route,
+      safety,
+      plan,
+      modelPolicy,
+      model: workerModel
+    }).catch(() => null);
+
+    tasks = normalizeCoordinatorTasks(
+      coordinator?.tasks,
+      deriveFallbackTasks({ turn, route, safety, plan }),
+      plan
+    );
+  }
+
+  if (anchor && !taskSession) {
+    const created = await createAgentTaskSession({
+      userId: turn?.userId,
+      executionSessionId: anchor.id,
+      conversationId: turn?.conversationId || null,
+      rootTurnId: turn?.turnId || null,
+      goal: anchor.goal || clean(turn?.message, 900),
+      successCriteria: anchor.successCriteria || "",
+      plan: durablePlanSnapshot(plan, tasks),
+      maxRounds: boundedInt(process.env.ARI_DURABLE_AGENT_MAX_ROUNDS, 2, 1, 3)
+    }).catch(() => ({ stored: false, session: null }));
+    taskSession = created?.session || null;
+  } else if (taskSession && !Array.isArray(taskSession?.plan?.tasks)) {
+    const updated = await updateAgentTaskSession({
+      userId: turn?.userId,
+      taskId: taskSession.id,
+      patch: {
+        plan: durablePlanSnapshot(plan, tasks),
+        lastTurnId: turn?.turnId || null
+      }
+    }).catch(() => null);
+    taskSession = updated?.session || taskSession;
+  }
+
+  let durableWorkers = taskSession
+    ? await loadAgentTaskWorkers({
+        userId: turn?.userId,
+        taskId: taskSession.id
+      }).catch(() => [])
+    : [];
+  let workspace = taskSession
+    ? await loadDurableWorkspace({
+        userId: turn?.userId,
+        taskId: taskSession.id
+      }).catch(() => [])
+    : [];
+
+  if (
+    taskSession &&
+    taskSession?.verification?.ready === true &&
+    !shouldRefreshDurableCouncil(turn, taskSession)
+  ) {
+    const synthesis = clean(
+      taskSession.synthesis || taskSession?.verification?.synthesis || buildDeterministicWorkspaceSummary(workspace),
+      9000
+    );
+    return {
+      version: ARI_MULTI_AGENT_VERSION,
+      active: true,
+      plan,
+      tasks,
+      workspace: workspace.filter(item => item?.success && item?.text).map(publicWorkerResult),
+      synthesis,
+      provider: taskSession?.verification?.provider || null,
+      degraded: !synthesis,
+      durableTask: {
+        ...publicAgentTaskSession({ ...taskSession, resumed: true }, durableWorkers),
+        verifiedSynthesisAvailable: Boolean(synthesis),
+        readyForAriSynthesis: true
+      },
+      authority: {
+        finalSynthesis: "ari",
+        councilIsAdvisory: true,
+        appWritesExecuted: false,
+        hiddenChainOfThoughtStored: false
+      }
+    };
+  }
+
+  if (taskSession) {
+    await updateAgentTaskSession({
+      userId: turn?.userId,
+      taskId: taskSession.id,
+      patch: {
+        status: "running",
+        lastTurnId: turn?.turnId || null,
+        nextStep: "Run unfinished specialist assignments and reconcile their evidence."
+      }
+    }).catch(() => null);
+  }
+
+  const durableCompleted = new Set(
+    workspace
+      .filter(item => item?.success === true)
+      .map(item => clean(item?.id, 80))
+      .filter(Boolean)
+  );
+  for (const worker of durableWorkers) {
+    if (worker?.status === "completed") durableCompleted.add(clean(worker.workerKey, 80));
+  }
+
+  const pendingTasks = tasks.filter(task => !durableCompleted.has(clean(task?.id, 80)));
   const firstWave = await Promise.all(
-    tasks.map((task, index) =>
-      runSpecialist({
+    pendingTasks.map((task, index) =>
+      runAndPersistSpecialist({
         turn,
         route,
         safety,
         plan,
-        task: { ...task, id: task.id || `agent_${index + 1}` },
+        task: { ...task, id: task.id || `agent_${index + 1}`, round: 1 },
         model: workerModel,
         modelPolicy,
-        workspace: []
-      }).catch((error) => failedWorker(task, error))
+        workspace: [],
+        taskSession
+      })
     )
   );
 
-  const workspace = firstWave.filter(Boolean);
-  const followupRequest = selectFollowupRequest(workspace, plan);
+  workspace = mergeWorkspace(workspace, firstWave);
 
+  const followupRequest = selectFollowupRequest(workspace, plan);
   if (followupRequest) {
     const followupTask = {
       id: "agent_followup_1",
@@ -205,23 +329,38 @@ export async function runAriMultiAgentCouncil({
       objective: followupRequest.objective,
       rationale: followupRequest.reason || "A specialist identified a material gap.",
       toolNeed: followupRequest.toolNeed || "none",
-      followup: true
+      followup: true,
+      round: 1
     };
-    const followup = await runSpecialist({
-      turn,
-      route,
-      safety,
-      plan,
-      task: followupTask,
-      model: workerModel,
-      modelPolicy,
-      workspace
-    }).catch((error) => failedWorker(followupTask, error));
-    if (followup) workspace.push(followup);
+    if (!workspace.some(item => item?.id === followupTask.id && item?.success)) {
+      const followup = await runAndPersistSpecialist({
+        turn,
+        route,
+        safety,
+        plan,
+        task: followupTask,
+        model: workerModel,
+        modelPolicy,
+        workspace,
+        taskSession
+      });
+      workspace = mergeWorkspace(workspace, [followup]);
+    }
   }
 
-  const successful = workspace.filter((item) => item?.success && item?.text);
+  let successful = workspace.filter((item) => item?.success && item?.text);
   if (!successful.length) {
+    if (taskSession) {
+      await updateAgentTaskSession({
+        userId: turn?.userId,
+        taskId: taskSession.id,
+        patch: {
+          status: "failed",
+          nextStep: "Retry the specialist wave with a different bounded assignment or model.",
+          lastTurnId: turn?.turnId || null
+        }
+      }).catch(() => null);
+    }
     return {
       version: ARI_MULTI_AGENT_VERSION,
       active: true,
@@ -231,11 +370,27 @@ export async function runAriMultiAgentCouncil({
       synthesis: "",
       provider: null,
       degraded: true,
-      reason: "all_specialists_failed"
+      reason: "all_specialists_failed",
+      durableTask: taskSession
+        ? publicAgentTaskSession({ ...taskSession, status: "failed", resumed }, durableWorkers)
+        : null
     };
   }
 
-  const verification = await verifySharedWorkspace({
+  const baseRound = Math.max(1, Number(taskSession?.roundCount || 0) + 1);
+  if (taskSession) {
+    await updateAgentTaskSession({
+      userId: turn?.userId,
+      taskId: taskSession.id,
+      patch: {
+        status: "verifying",
+        roundCount: baseRound,
+        lastTurnId: turn?.turnId || null
+      }
+    }).catch(() => null);
+  }
+
+  let verification = await verifySharedWorkspace({
     turn,
     route,
     safety,
@@ -245,10 +400,128 @@ export async function runAriMultiAgentCouncil({
     modelPolicy
   }).catch(() => null);
 
+  if (taskSession && verification) {
+    await persistVerifierMessage({
+      turn,
+      taskSession,
+      verification,
+      round: baseRound
+    }).catch(() => null);
+  }
+
+  const maxRounds = Number(taskSession?.maxRounds || 2);
+  const canRepairNow =
+    taskSession &&
+    verification?.ready === false &&
+    verification?.resolver?.objective &&
+    baseRound < maxRounds &&
+    Date.now() - startedAt < boundedInt(
+      process.env.ARI_DURABLE_AGENT_REPAIR_START_BUDGET_MS,
+      18000,
+      6000,
+      30000
+    );
+
+  if (canRepairNow) {
+    const repairRound = baseRound + 1;
+    const resolverTask = {
+      id: `resolver_round_${repairRound}`,
+      role: verification.resolver.role || "disagreement_resolver",
+      objective: verification.resolver.objective,
+      rationale: verification.resolver.reason || "The verifier identified a material unresolved disagreement.",
+      toolNeed: verification.resolver.toolNeed || "none",
+      followup: true,
+      round: repairRound
+    };
+
+    const resolver = await runAndPersistSpecialist({
+      turn,
+      route,
+      safety,
+      plan,
+      task: resolverTask,
+      model: verifierModel,
+      modelPolicy,
+      workspace: successful,
+      taskSession
+    });
+    workspace = mergeWorkspace(workspace, [resolver]);
+    successful = workspace.filter((item) => item?.success && item?.text);
+
+    if (resolver?.success) {
+      verification = await verifySharedWorkspace({
+        turn,
+        route,
+        safety,
+        plan,
+        workspace: successful,
+        model: verifierModel,
+        modelPolicy
+      }).catch(() => verification);
+
+      if (taskSession && verification) {
+        await persistVerifierMessage({
+          turn,
+          taskSession,
+          verification,
+          round: repairRound
+        }).catch(() => null);
+      }
+
+      if (taskSession) {
+        taskSession = (await updateAgentTaskSession({
+          userId: turn?.userId,
+          taskId: taskSession.id,
+          patch: { roundCount: repairRound, lastTurnId: turn?.turnId || null }
+        }).catch(() => null))?.session || taskSession;
+      }
+    }
+  }
+
   const synthesis = clean(
     verification?.text || buildDeterministicWorkspaceSummary(successful),
     9000
   );
+  const ready = verification?.ready !== false && Boolean(synthesis);
+  const nextStep = ready
+    ? "Use the reconciled specialist evidence in Ari's next execution or decision step."
+    : clean(
+        verification?.nextStep ||
+        "Resolve the strongest remaining disagreement with one bounded specialist check.",
+        1200
+      );
+
+  if (taskSession) {
+    const planPatch = {
+      ...(taskSession.plan || durablePlanSnapshot(plan, tasks)),
+      tasks,
+      pendingResolver: ready ? null : verification?.resolver || null
+    };
+    const stored = await updateAgentTaskSession({
+      userId: turn?.userId,
+      taskId: taskSession.id,
+      patch: {
+        status: "waiting",
+        plan: planPatch,
+        verification: publicVerification(verification),
+        synthesis,
+        nextStep,
+        lastTurnId: turn?.turnId || null
+      }
+    }).catch(() => null);
+    taskSession = stored?.session || {
+      ...taskSession,
+      status: "waiting",
+      plan: planPatch,
+      verification: publicVerification(verification),
+      synthesis,
+      nextStep
+    };
+    durableWorkers = await loadAgentTaskWorkers({
+      userId: turn?.userId,
+      taskId: taskSession.id
+    }).catch(() => durableWorkers);
+  }
 
   return {
     version: ARI_MULTI_AGENT_VERSION,
@@ -259,6 +532,16 @@ export async function runAriMultiAgentCouncil({
     synthesis,
     provider: verification?.provider || null,
     degraded: !verification?.text,
+    durableTask: taskSession
+      ? {
+          ...publicAgentTaskSession({ ...taskSession, resumed }, durableWorkers),
+          readyForAriSynthesis: ready,
+          verifiedSynthesisAvailable: Boolean(synthesis),
+          unresolvedCount: Array.isArray(verification?.unresolved)
+            ? verification.unresolved.length
+            : 0
+        }
+      : null,
     authority: {
       finalSynthesis: "ari",
       councilIsAdvisory: true,
