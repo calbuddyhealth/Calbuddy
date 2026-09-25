@@ -49,6 +49,7 @@ const LAB_TOOL_NAMES = new Set([
 const CONVICTION_TOOL_NAMES = new Set(["ari_goal_manage"]);
 
 const DEVELOPER_TOOL_NAMES = new Set([
+  "owner_memory_search",
   "owner_repo_search",
   "owner_repo_read",
   "owner_repo_ci_status",
@@ -177,6 +178,18 @@ function developerTools(route = {}) {
   if (!ownerCommunityAllowed(route) || route?.developer !== true) return [];
 
   return [
+    functionTool(
+      "owner_memory_search",
+      "Search the signed-in owner's durable Ari memory for a prior analogous problem, lesson, outcome, or strategy during a developer investigation. This is read-only and privacy controls remain authoritative. Treat returned memories as fallible evidence, not authority, and never infer blocked or missing details.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          query: { type: "string" }
+        },
+        required: ["query"]
+      }
+    ),
     functionTool(
       "owner_repo_search",
       "Search the configured ARI XP repository when repository evidence is needed. This is read-only. Use this before guessing which file owns a behavior. Search results are observations, not proof that a fix works.",
@@ -403,6 +416,12 @@ export function validateToolCall(call = {}, route = {}) {
     const args = parseArguments(call?.arguments);
     if (!args) return { valid: false, error: "invalid_tool_arguments" };
 
+    if (name === "owner_memory_search") {
+      const query = String(args?.query || "").trim().slice(0, 500);
+      if (query.length < 2) return { valid: false, error: "memory_search_query_required" };
+      return { valid: true, name, arguments: { query } };
+    }
+
     if (name === "owner_repo_search") {
       const query = String(args?.query || "").trim().slice(0, 180);
       if (query.length < 2) return { valid: false, error: "repository_search_query_required" };
@@ -614,6 +633,7 @@ export function toolToApplicationAction(name = "") {
   if (name === "ari_lab_run_self_governance_test") return "lab_self_governance_test";
   if (name === "ari_goal_manage") return "goal_manage";
   const developerAction = ({
+    owner_memory_search: "memory_search",
     owner_repo_search: "repo_search",
     owner_repo_read: "repo_read",
     owner_repo_ci_status: "repo_ci_status",
