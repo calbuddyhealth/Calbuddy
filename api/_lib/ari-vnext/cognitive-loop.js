@@ -14,10 +14,6 @@ import {
 } from "./execution-session.js";
 import { advanceRewardState, deriveRewardState, normalizeRewardState } from "./reward-core.js";
 import {
-  advanceExecutionSession,
-  deriveExecutionWorkspace
-} from "./execution-investigation.js";
-import {
   buildMotivationalOutcomeReflection,
   normalizeMotivationalHistory,
   summarizeMotivationalLearning
@@ -278,12 +274,6 @@ export function advanceCognitiveState({
     ...priorMotivationalHistory
   ]);
   const nextMotivationalLearning = summarizeMotivationalLearning(nextMotivationalHistory);
-  const nextExecutionSession = advanceExecutionSession({
-    previous: prior,
-    workspace: workspace?.execution || null,
-    turn,
-    result
-  });
 
   return {
     version: ARI_COGNITIVE_STATE_VERSION,
