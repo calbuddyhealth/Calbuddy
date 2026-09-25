@@ -1,6 +1,6 @@
 import { runBackgroundAgentBatch } from "./_lib/ari-vnext/background-agent-runtime.js";
 
-export const config = { maxDuration: 240 };
+export const config = { maxDuration: 120 };
 
 export default async function handler(req, res) {
   setHeaders(res);
@@ -29,7 +29,7 @@ export default async function handler(req, res) {
     });
   }
 
-  const batchSize = intEnv("ARI_ASYNC_WORKER_BATCH_SIZE", 2, 1, 6);
+  const batchSize = 1;
   const visibilitySeconds = intEnv(
     "ARI_ASYNC_WORKER_VISIBILITY_SECONDS",
     300,
@@ -40,7 +40,8 @@ export default async function handler(req, res) {
   try {
     const result = await runBackgroundAgentBatch({
       limit: batchSize,
-      visibilitySeconds
+      visibilitySeconds,
+      timeBudgetMs: intEnv("ARI_ASYNC_WORKER_TIME_BUDGET_MS", 105000, 30000, 110000)
     });
     console.info("[ARI Background Agent Worker]", {
       claimed: Number(result?.claimed || 0),
