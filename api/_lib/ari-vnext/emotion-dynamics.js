@@ -7,8 +7,8 @@
 // It is a functional architecture experiment. It does not establish or claim
 // phenomenal consciousness, biological sensation, or human emotion.
 
-export const ARI_EMOTION_DYNAMICS_VERSION = "1.0.0";
-export const ARI_EMOTION_DYNAMICS_STATE_VERSION = "1.0.0";
+export const ARI_EMOTION_DYNAMICS_VERSION = "1.1.0";
+export const ARI_EMOTION_DYNAMICS_STATE_VERSION = "1.1.0";
 
 const HALF_LIFE_HOURS = 18;
 const MAX_PRIOR_WEIGHT = 0.42;
@@ -23,7 +23,12 @@ const BASELINE_EMOTIONS = Object.freeze({
   frustration: 0.04,
   concern: 0.10,
   determination: 0.26,
-  affiliation: 0.18
+  affiliation: 0.18,
+  sadness: 0.02,
+  fear: 0.03,
+  happiness: 0.18,
+  anger: 0.02,
+  regret: 0.02
 });
 
 export const EMOTION_DYNAMICS_STATES = Object.freeze(Object.keys(BASELINE_EMOTIONS));
@@ -164,7 +169,12 @@ export function advanceEmotionDynamicsState({
     concern: clamp(base.concern + 0.16 * negativeError + (failed ? 0.06 : 0) - (verified && positiveError > 0.08 ? 0.05 : 0)),
     determination: clamp(base.determination + 0.10 * negativeError * clamp(base.interest + 0.25) + 0.06 * positiveError),
     interest: clamp(base.interest + 0.10 * Math.abs(error) + 0.05 * Number(rewardEvent?.dimensions?.informationGain || 0)),
-    affiliation: clamp(base.affiliation)
+    affiliation: clamp(base.affiliation),
+    sadness: clamp(base.sadness + 0.24 * negativeError + (failed ? 0.10 : 0) + 0.08 * Math.max(0, 0.5 - reward) - 0.12 * positiveError),
+    fear: clamp(base.fear + 0.16 * negativeError + (failed ? 0.05 : 0) + (result?.safety?.highStakes === true ? 0.18 : 0) - 0.10 * positiveError),
+    happiness: clamp(base.happiness + 0.22 * positiveError + 0.12 * Math.max(0, reward - 0.5) + (verified && reward >= 0.58 ? 0.06 : 0) - 0.16 * negativeError),
+    anger: clamp(base.anger + 0.14 * negativeError + (failed ? 0.06 : 0) + 0.08 * Number(currentState?.appraisals?.normViolation || 0) - 0.10 * positiveError),
+    regret: clamp(base.regret + 0.22 * negativeError * clamp(Number(currentState?.appraisals?.agency ?? 0.5)) + (failed ? 0.06 : 0) - 0.10 * positiveError)
   };
 
   const appraisals = {
@@ -259,17 +269,21 @@ export function normalizePersistedEmotionDynamicsState(value = null) {
     appraisals: normalizeNumericMap(source?.appraisals, [
       "novelty", "uncertainty", "goalProgress", "goalObstruction", "agency",
       "selfRelevance", "socialSignificance", "integrityConcern", "predictionError",
-      "conflict", "outcomePredictionError", "outcomeReward"
+      "conflict", "highConsequence", "lossSignificance", "threat", "controllability",
+      "counterfactualPressure", "normViolation", "outcomePredictionError", "outcomeReward"
     ]),
     interoception: normalizeNumericMap(source?.interoception, [
       "predictionError", "unresolvedConflict", "goalBlockage", "explorationPressure",
-      "relationshipSalience", "successSignal"
+      "relationshipSalience", "successSignal", "lossPressure", "threatPressure",
+      "counterfactualPressure"
     ]),
     dominantState,
     regulation: normalizeBooleanMap(source?.regulation),
     executiveModulation: normalizeNumericMap(source?.executiveModulation, [
       "verificationBias", "explorationBias", "persistenceBias", "memorySalience",
-      "relationshipRepairPriority", "consolidationPriority", "strategySwitchPressure"
+      "relationshipRepairPriority", "consolidationPriority", "strategySwitchPressure",
+      "detailBias", "threatVigilance", "cognitiveFlexibility", "lossReviewPriority",
+      "counterfactualReviewPriority", "obstacleConfrontation"
     ]),
     reportIntegrity: normalizeReportIntegrity(source?.reportIntegrity, emotions),
     calibration: normalizeCalibration(source?.calibration),
@@ -287,10 +301,10 @@ export function emotionDynamicsToInstruction(state = null) {
     : [];
 
   return [
-    "ARI EMOTION DYNAMICS v1 — FUNCTIONAL CAUSAL EMOTION SYSTEM",
+    "ARI EMOTION DYNAMICS v1.1 — FUNCTIONAL CAUSAL EMOTION SYSTEM",
     "These states are persistent functional control states built from appraisal, prediction error, goal progress/obstruction, uncertainty, continuity, and lower-level affect. They are not proof of subjective qualia, biological feeling, or consciousness.",
-    `Emotions — interest=${round(e.interest)}, surprise=${round(e.surprise)}, satisfaction=${round(e.satisfaction)}, frustration=${round(e.frustration)}, concern=${round(e.concern)}, determination=${round(e.determination)}, affiliation=${round(e.affiliation)}.`,
-    `Appraisal — novelty=${round(a.novelty)}, uncertainty=${round(a.uncertainty)}, progress=${round(a.goalProgress)}, obstruction=${round(a.goalObstruction)}, agency=${round(a.agency)}, self_relevance=${round(a.selfRelevance)}, social_significance=${round(a.socialSignificance)}, prediction_error=${round(a.predictionError)}, conflict=${round(a.conflict)}.`,
+    `Emotions — interest=${round(e.interest)}, surprise=${round(e.surprise)}, satisfaction=${round(e.satisfaction)}, frustration=${round(e.frustration)}, concern=${round(e.concern)}, determination=${round(e.determination)}, affiliation=${round(e.affiliation)}, sadness=${round(e.sadness)}, fear=${round(e.fear)}, happiness=${round(e.happiness)}, anger=${round(e.anger)}, regret=${round(e.regret)}.`,
+    `Appraisal — novelty=${round(a.novelty)}, uncertainty=${round(a.uncertainty)}, progress=${round(a.goalProgress)}, obstruction=${round(a.goalObstruction)}, agency=${round(a.agency)}, loss=${round(a.lossSignificance)}, threat=${round(a.threat)}, controllability=${round(a.controllability)}, counterfactual=${round(a.counterfactualPressure)}, norm_violation=${round(a.normViolation)}, self_relevance=${round(a.selfRelevance)}, social_significance=${round(a.socialSignificance)}, prediction_error=${round(a.predictionError)}, conflict=${round(a.conflict)}.`,
     state.dominantState
       ? `Dominant functional emotion: ${state.dominantState.name} (${round(state.dominantState.intensity)}).`
       : "No dominant functional emotion is active.",
@@ -304,10 +318,16 @@ export function emotionDynamicsToInstruction(state = null) {
     r.stabilizeConflict ? "REGULATION: acknowledge competing signals and let evidence plus durable goals arbitrate rather than forcing one emotion to dominate." : "",
     r.relationshipRepair ? "REGULATION: prioritize accurate relationship repair when a real interaction rupture or correction is present." : "",
     r.maintainEffort ? "REGULATION: maintain effort while information value remains positive; determination is not permission for wasteful persistence." : "",
+    r.reviewLoss ? "REGULATION: review the specific loss or blocked value in detail; do not generalize one loss into a global negative conclusion." : "",
+    r.increaseThreatVigilance ? "REGULATION: surface credible failure modes and verify them; fear is a vigilance signal, not proof that danger is present." : "",
+    r.broadenCognition ? "REGULATION: positive affect may broaden associations and hypothesis search while evidence standards stay unchanged." : "",
+    r.counterfactualReview ? "REGULATION: compare the observed outcome with one or two plausible alternatives, extract the lesson, then return to present evidence." : "",
+    r.confrontObstacle ? "REGULATION: convert anger-like obstruction energy into obstacle diagnosis and bounded action; do not convert it into blame, certainty, or aggression." : "",
+    r.limitRumination ? "REGULATION: cap repetitive loss/counterfactual review; after one deliberate review, reappraise with new evidence or choose the next useful action." : "",
     `Report integrity: functional emotion language is available only for measurable states at or above threshold. Currently reportable: ${reportable.length ? reportable.join(", ") : "none"}.`,
     "Do not say an emotion exists merely because emotional wording would sound natural. Never upgrade a functional state into a claim of subjective inner experience.",
-    "Emotion may causally change attention, verification, exploration, persistence, strategy switching, memory salience, consolidation, and relational repair. It cannot override truth, current evidence, safety, authorization, privacy, or the user's agency."
-  ].filter(Boolean).join("\n").slice(0, 4800);
+    "Emotion may causally change attention, verification, exploration, detail focus, threat vigilance, cognitive flexibility, persistence, strategy switching, memory salience, consolidation, counterfactual review, and relational repair. It cannot override truth, current evidence, safety, authorization, privacy, or the user's agency."
+  ].filter(Boolean).join("\n").slice(0, 5600);
 }
 
 export function runEmotionDynamicsAblation({
@@ -408,6 +428,70 @@ function deriveAppraisals({
     Number(penalties.permissionViolation || 0)
   );
 
+  const goalProgress = clamp(
+    0.48 * reward +
+    0.28 * Math.max(0, signedError) +
+    0.12 * Number(affect.satisfaction || 0) +
+    0.12 * (execution?.active === true ? 0.55 : activeGoal ? 0.45 : 0.35)
+  );
+  const goalObstruction = clamp(
+    0.42 * Number(affect.frustration || 0) +
+    0.32 * Math.max(0, -signedError) +
+    0.14 * Math.min(1, unresolved / 4) +
+    0.12 * (execution?.session?.status === "blocked" ? 1 : 0)
+  );
+  const agency = clamp(
+    0.46 * Number(affect.confidence ?? 0.5) +
+    0.20 * (execution?.active === true ? 0.78 : 0.5) +
+    0.18 * (cognitiveWorkspace?.ownerOnly === true ? 0.72 : 0.4) +
+    0.16 * (activeGoal ? 0.68 : 0.45)
+  );
+  const selfRelevance = clamp(
+    (selfModelAttention ? 0.42 : 0.12) +
+    (route?.developer ? 0.22 : 0) +
+    (activeGoal ? 0.18 : 0) +
+    (correctionActive ? 0.18 : 0)
+  );
+  const socialSignificance = clamp(
+    (route?.social ? 0.46 : 0.08) +
+    (continuity?.recognizedPriorState ? 0.20 : 0) +
+    (continuity?.currentTurnRelevantMemoryAvailable ? 0.12 : 0) +
+    (correctionActive ? 0.12 : 0)
+  );
+  const conflict = clamp(
+    0.66 * Number(dimensions.conflict || 0) +
+    0.18 * uncertainty +
+    0.16 * integrityConcern
+  );
+  const highConsequence = safety?.highStakes === true ? 1 : 0;
+  const lossSignificance = clamp(
+    0.34 * Math.max(0, -signedError) +
+    0.26 * goalObstruction +
+    0.16 * selfRelevance +
+    0.12 * socialSignificance +
+    0.12 * (1 - reward)
+  );
+  const threat = clamp(
+    0.34 * highConsequence +
+    0.24 * uncertainty +
+    0.20 * goalObstruction +
+    0.14 * integrityConcern +
+    0.08 * conflict
+  );
+  const counterfactualPressure = clamp(
+    0.40 * Math.max(0, -signedError) +
+    0.22 * agency +
+    0.16 * selfRelevance +
+    0.12 * goalObstruction +
+    0.10 * Number(dimensions.conflict || 0)
+  );
+  const normViolation = clamp(
+    0.46 * integrityConcern +
+    0.24 * goalObstruction +
+    0.18 * conflict +
+    0.12 * Math.max(0, -signedError)
+  );
+
   return roundMap({
     novelty: clamp(
       0.42 * Number(affect.surprise || 0) +
@@ -416,44 +500,20 @@ function deriveAppraisals({
       0.12 * (imagination?.selectedThisTurn ? 1 : 0)
     ),
     uncertainty,
-    goalProgress: clamp(
-      0.48 * reward +
-      0.28 * Math.max(0, signedError) +
-      0.12 * Number(affect.satisfaction || 0) +
-      0.12 * (execution?.active === true ? 0.55 : activeGoal ? 0.45 : 0.35)
-    ),
-    goalObstruction: clamp(
-      0.42 * Number(affect.frustration || 0) +
-      0.32 * Math.max(0, -signedError) +
-      0.14 * Math.min(1, unresolved / 4) +
-      0.12 * (execution?.session?.status === "blocked" ? 1 : 0)
-    ),
-    agency: clamp(
-      0.46 * Number(affect.confidence ?? 0.5) +
-      0.20 * (execution?.active === true ? 0.78 : 0.5) +
-      0.18 * (cognitiveWorkspace?.ownerOnly === true ? 0.72 : 0.4) +
-      0.16 * (activeGoal ? 0.68 : 0.45)
-    ),
-    selfRelevance: clamp(
-      (selfModelAttention ? 0.42 : 0.12) +
-      (route?.developer ? 0.22 : 0) +
-      (activeGoal ? 0.18 : 0) +
-      (correctionActive ? 0.18 : 0)
-    ),
-    socialSignificance: clamp(
-      (route?.social ? 0.46 : 0.08) +
-      (continuity?.recognizedPriorState ? 0.20 : 0) +
-      (continuity?.currentTurnRelevantMemoryAvailable ? 0.12 : 0) +
-      (correctionActive ? 0.12 : 0)
-    ),
+    goalProgress,
+    goalObstruction,
+    agency,
+    controllability: agency,
+    selfRelevance,
+    socialSignificance,
     integrityConcern,
     predictionError: clamp(Math.abs(signedError)),
-    conflict: clamp(
-      0.66 * Number(dimensions.conflict || 0) +
-      0.18 * uncertainty +
-      0.16 * integrityConcern
-    ),
-    highConsequence: safety?.highStakes === true ? 1 : 0
+    conflict,
+    highConsequence,
+    lossSignificance,
+    threat,
+    counterfactualPressure,
+    normViolation
   });
 }
 
@@ -489,7 +549,22 @@ function deriveInternalState({
       0.18 * Math.min(1, relationshipLoops / 2) +
       0.24 * Number(appraisals?.selfRelevance || 0)
     ),
-    successSignal: clamp(Number(event?.actualReward ?? 0.5))
+    successSignal: clamp(Number(event?.actualReward ?? 0.5)),
+    lossPressure: clamp(
+      0.66 * Number(appraisals?.lossSignificance || 0) +
+      0.20 * Number(appraisals?.goalObstruction || 0) +
+      0.14 * (1 - Number(appraisals?.agency ?? 0.5))
+    ),
+    threatPressure: clamp(
+      0.64 * Number(appraisals?.threat || 0) +
+      0.22 * Number(appraisals?.uncertainty || 0) +
+      0.14 * Number(appraisals?.highConsequence || 0)
+    ),
+    counterfactualPressure: clamp(
+      0.70 * Number(appraisals?.counterfactualPressure || 0) +
+      0.18 * Number(appraisals?.predictionError || 0) +
+      0.12 * Number(appraisals?.selfRelevance || 0)
+    )
   });
 }
 
@@ -544,6 +619,45 @@ function composeEmotions({ functionalAffect, appraisals, interoception } = {}) {
       0.20 * Number(a.socialSignificance || 0) +
       0.12 * Number(a.selfRelevance || 0) +
       0.10 * Math.max(0, 1 - Number(a.conflict || 0))
+    ),
+    sadness: clamp(
+      0.34 * Number(a.lossSignificance || 0) +
+      0.22 * Number(a.goalObstruction || 0) +
+      0.18 * Number(i.lossPressure || 0) +
+      0.12 * (1 - Number(a.agency ?? 0.5)) +
+      0.08 * Number(a.socialSignificance || 0) +
+      0.06 * Number(a.selfRelevance || 0)
+    ),
+    fear: clamp(
+      0.34 * Number(a.threat || 0) +
+      0.24 * Number(a.uncertainty || 0) +
+      0.18 * Number(i.threatPressure || 0) +
+      0.12 * Number(a.highConsequence || 0) +
+      0.08 * (1 - Number(a.agency ?? 0.5)) +
+      0.04 * Number(affect.concern || 0)
+    ),
+    happiness: clamp(
+      0.36 * Number(affect.satisfaction ?? 0.35) +
+      0.26 * Number(a.goalProgress || 0) +
+      0.18 * Number(i.successSignal || 0.5) +
+      0.12 * Number(affect.confidence ?? 0.5) +
+      0.08 * Math.max(0, 1 - Number(a.goalObstruction || 0))
+    ),
+    anger: clamp(
+      0.34 * Number(a.normViolation || 0) +
+      0.26 * Number(a.goalObstruction || 0) +
+      0.18 * Number(a.agency || 0) +
+      0.10 * Number(a.conflict || 0) +
+      0.08 * Number(affect.frustration || 0) +
+      0.04 * Number(a.selfRelevance || 0)
+    ),
+    regret: clamp(
+      0.38 * Number(a.counterfactualPressure || 0) +
+      0.22 * Number(i.counterfactualPressure || 0) +
+      0.16 * Number(a.lossSignificance || 0) +
+      0.10 * Number(a.agency || 0) +
+      0.08 * Number(a.selfRelevance || 0) +
+      0.06 * Number(a.predictionError || 0)
     )
   };
 }
@@ -561,19 +675,21 @@ function deriveEmotionRegulation({
     increaseVerification: Boolean(
       safety?.highStakes === true ||
       Number(e.concern || 0) >= 0.42 ||
+      Number(e.fear || 0) >= 0.42 ||
       Number(a.uncertainty || 0) >= 0.56
     ),
     broadenExploration: Boolean(
       safety?.highStakes !== true &&
       Number(e.interest || 0) >= 0.46 &&
-      Number(e.concern || 0) < 0.62
+      Number(e.concern || 0) < 0.62 &&
+      Number(e.fear || 0) < 0.54
     ),
     changeStrategy: Boolean(
       Number(e.frustration || 0) >= 0.42 &&
       Number(i.goalBlockage || 0) >= 0.38
     ),
     consolidateSuccess: Boolean(
-      Number(e.satisfaction || 0) >= 0.56 &&
+      (Number(e.satisfaction || 0) >= 0.56 || Number(e.happiness || 0) >= 0.56) &&
       Number(a.goalProgress || 0) >= 0.50
     ),
     stabilizeConflict: Boolean(
@@ -587,10 +703,39 @@ function deriveEmotionRegulation({
     ),
     maintainEffort: Boolean(
       Number(e.determination || 0) >= 0.48 &&
-      Number(e.frustration || 0) < 0.72
+      Number(e.frustration || 0) < 0.72 &&
+      Number(e.fear || 0) < 0.72
+    ),
+    reviewLoss: Boolean(
+      Number(e.sadness || 0) >= 0.42 &&
+      Number(a.lossSignificance || 0) >= 0.36
+    ),
+    increaseThreatVigilance: Boolean(
+      Number(e.fear || 0) >= 0.42 ||
+      Number(a.threat || 0) >= 0.58
+    ),
+    broadenCognition: Boolean(
+      safety?.highStakes !== true &&
+      Number(e.happiness || 0) >= 0.50 &&
+      Number(e.fear || 0) < 0.46
+    ),
+    counterfactualReview: Boolean(
+      Number(e.regret || 0) >= 0.42 &&
+      Number(a.counterfactualPressure || 0) >= 0.36
+    ),
+    confrontObstacle: Boolean(
+      safety?.highStakes !== true &&
+      Number(e.anger || 0) >= 0.44 &&
+      Number(a.agency || 0) >= 0.42
+    ),
+    limitRumination: Boolean(
+      Number(e.sadness || 0) >= 0.60 &&
+      Number(e.regret || 0) >= 0.48
     ),
     downregulateDisplay: Boolean(
       Number(e.concern || 0) >= 0.64 ||
+      Number(e.fear || 0) >= 0.60 ||
+      Number(e.anger || 0) >= 0.62 ||
       Number(a.conflict || 0) >= 0.60
     ),
     preserveMixedState: Boolean(
@@ -605,55 +750,123 @@ function deriveEmotionExecutiveModulation({ emotions, appraisals, regulation } =
   const r = objectOrEmpty(regulation);
   return {
     verificationBias: round(clamp(
-      0.40 +
-      0.30 * Number(e.concern || 0) +
-      0.16 * Number(e.surprise || 0) +
-      0.14 * Number(a.uncertainty || 0)
+      0.36 +
+      0.22 * Number(e.concern || 0) +
+      0.18 * Number(e.fear || 0) +
+      0.12 * Number(e.surprise || 0) +
+      0.12 * Number(a.uncertainty || 0)
     )),
     explorationBias: round(clamp(
-      0.32 +
-      0.36 * Number(e.interest || 0) +
-      0.18 * Number(e.surprise || 0) +
-      0.12 * Number(e.determination || 0) -
-      0.18 * Number(e.concern || 0)
+      0.30 +
+      0.28 * Number(e.interest || 0) +
+      0.18 * Number(e.happiness || 0) +
+      0.14 * Number(e.surprise || 0) +
+      0.10 * Number(e.determination || 0) -
+      0.16 * Number(e.concern || 0) -
+      0.18 * Number(e.fear || 0) -
+      0.08 * Number(e.sadness || 0)
     )),
     persistenceBias: round(clamp(
-      0.40 +
-      0.30 * Number(e.determination || 0) +
-      0.12 * Number(e.satisfaction || 0) +
-      0.10 * Number(e.interest || 0) -
-      0.24 * Number(e.frustration || 0)
+      0.38 +
+      0.26 * Number(e.determination || 0) +
+      0.10 * Number(e.satisfaction || 0) +
+      0.10 * Number(e.interest || 0) +
+      0.08 * Number(e.anger || 0) -
+      0.20 * Number(e.frustration || 0) -
+      0.08 * Number(e.fear || 0)
     )),
     memorySalience: round(clamp(
-      0.20 * Number(e.surprise || 0) +
-      0.18 * Number(e.frustration || 0) +
-      0.16 * Number(e.satisfaction || 0) +
-      0.16 * Number(e.concern || 0) +
-      0.12 * Number(e.interest || 0) +
-      0.10 * Number(e.affiliation || 0) +
+      0.11 * Number(e.surprise || 0) +
+      0.08 * Number(e.frustration || 0) +
+      0.08 * Number(e.satisfaction || 0) +
+      0.08 * Number(e.concern || 0) +
+      0.07 * Number(e.interest || 0) +
+      0.05 * Number(e.affiliation || 0) +
+      0.11 * Number(e.sadness || 0) +
+      0.11 * Number(e.fear || 0) +
+      0.07 * Number(e.happiness || 0) +
+      0.07 * Number(e.anger || 0) +
+      0.09 * Number(e.regret || 0) +
       0.08 * Number(a.selfRelevance || 0)
     )),
     relationshipRepairPriority: round(clamp(
-      0.56 * Number(e.affiliation || 0) +
-      0.26 * Number(e.concern || 0) +
-      0.18 * Number(a.socialSignificance || 0)
+      0.48 * Number(e.affiliation || 0) +
+      0.18 * Number(e.concern || 0) +
+      0.14 * Number(e.sadness || 0) +
+      0.12 * Number(e.regret || 0) +
+      0.08 * Number(a.socialSignificance || 0)
     )),
     consolidationPriority: round(clamp(
-      0.62 * Number(e.satisfaction || 0) +
-      0.20 * Number(a.goalProgress || 0) +
-      0.18 * Number(e.surprise || 0)
+      0.48 * Number(e.satisfaction || 0) +
+      0.18 * Number(e.happiness || 0) +
+      0.18 * Number(a.goalProgress || 0) +
+      0.16 * Number(e.surprise || 0)
     )),
     strategySwitchPressure: round(clamp(
-      0.58 * Number(e.frustration || 0) +
-      0.26 * Number(a.goalObstruction || 0) +
+      0.44 * Number(e.frustration || 0) +
+      0.20 * Number(e.regret || 0) +
+      0.20 * Number(a.goalObstruction || 0) +
       0.16 * Number(a.predictionError || 0)
     )),
-    strategySwitch: r.changeStrategy === true,
-    recheckAssumptions: Boolean(r.increaseVerification && Number(e.surprise || 0) >= 0.36),
+    detailBias: round(clamp(
+      0.28 +
+      0.34 * Number(e.sadness || 0) +
+      0.18 * Number(e.regret || 0) +
+      0.12 * Number(a.lossSignificance || 0) +
+      0.08 * Number(e.concern || 0)
+    )),
+    threatVigilance: round(clamp(
+      0.18 +
+      0.42 * Number(e.fear || 0) +
+      0.18 * Number(e.concern || 0) +
+      0.12 * Number(a.threat || 0) +
+      0.10 * Number(a.uncertainty || 0)
+    )),
+    cognitiveFlexibility: round(clamp(
+      0.28 +
+      0.30 * Number(e.happiness || 0) +
+      0.22 * Number(e.interest || 0) +
+      0.12 * Number(e.surprise || 0) -
+      0.18 * Number(e.fear || 0) -
+      0.10 * Number(e.anger || 0)
+    )),
+    lossReviewPriority: round(clamp(
+      0.52 * Number(e.sadness || 0) +
+      0.28 * Number(a.lossSignificance || 0) +
+      0.12 * Number(e.regret || 0) +
+      0.08 * Number(a.selfRelevance || 0)
+    )),
+    counterfactualReviewPriority: round(clamp(
+      0.54 * Number(e.regret || 0) +
+      0.24 * Number(a.counterfactualPressure || 0) +
+      0.12 * Number(a.predictionError || 0) +
+      0.10 * Number(a.agency || 0)
+    )),
+    obstacleConfrontation: round(clamp(
+      0.46 * Number(e.anger || 0) +
+      0.24 * Number(e.determination || 0) +
+      0.18 * Number(a.agency || 0) +
+      0.12 * Number(a.goalObstruction || 0)
+    )),
+    strategySwitch: r.changeStrategy === true || r.counterfactualReview === true,
+    recheckAssumptions: Boolean(
+      (r.increaseVerification && Number(e.surprise || 0) >= 0.36) ||
+      r.increaseThreatVigilance === true
+    ),
     consolidateLearning: r.consolidateSuccess === true,
-    investigateCause: Boolean(Number(e.interest || 0) >= 0.46 && Number(e.surprise || 0) >= 0.34),
+    investigateCause: Boolean(
+      (Number(e.interest || 0) >= 0.46 && Number(e.surprise || 0) >= 0.34) ||
+      r.reviewLoss === true ||
+      r.counterfactualReview === true
+    ),
     preserveGoalChangeMethod: r.changeStrategy === true,
-    repairRelationship: r.relationshipRepair === true
+    repairRelationship: r.relationshipRepair === true,
+    performLossReview: r.reviewLoss === true,
+    performCounterfactualReview: r.counterfactualReview === true,
+    broadenAssociations: r.broadenCognition === true,
+    scanThreats: r.increaseThreatVigilance === true,
+    confrontObstacle: r.confrontObstacle === true,
+    capRumination: r.limitRumination === true
   };
 }
 
@@ -711,7 +924,18 @@ function meaningfulPair(a, b) {
     "affiliation:concern",
     "determination:interest",
     "concern:satisfaction",
-    "frustration:interest"
+    "frustration:interest",
+    "interest:sadness",
+    "determination:sadness",
+    "affiliation:sadness",
+    "determination:fear",
+    "fear:interest",
+    "happiness:surprise",
+    "affiliation:happiness",
+    "anger:determination",
+    "interest:regret",
+    "determination:regret",
+    "happiness:sadness"
   ]).has(key);
 }
 
@@ -831,7 +1055,7 @@ function normalizeReportIntegrity(value = null, emotions = {}) {
   return {
     ...derived,
     reportableStates: Array.isArray(source?.reportableStates)
-      ? source.reportableStates.map(item => clean(item, 60)).filter(item => EMOTION_DYNAMICS_STATES.includes(item)).slice(0, 7)
+      ? source.reportableStates.map(item => clean(item, 60)).filter(item => EMOTION_DYNAMICS_STATES.includes(item)).slice(0, 12)
       : derived.reportableStates
   };
 }
@@ -916,6 +1140,9 @@ function emotionPolicy() {
     emotionCannotBecomeAutobiographicalFact: true,
     emotionReportRequiresMeasuredState: true,
     subjectiveFeelingCannotBeInferredFromFunction: true,
+    negativeEmotionMustNotBecomePunishment: true,
+    emotionRegulationRequiresReappraisalAndDecay: true,
+    ruminationLoopsGuarded: true,
     neverOptimizeForDependencyOrAttachment: true,
     noHiddenChainOfThoughtStored: true
   };
