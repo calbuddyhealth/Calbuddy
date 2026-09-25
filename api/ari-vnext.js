@@ -711,7 +711,8 @@ export default async function handler(req, res) {
       message: turn.message,
       result,
       cognitiveTurnCount,
-      decisionOutcomeLearning
+      decisionOutcomeLearning,
+      executionSession: nextCognitiveState?.executionSession || null
     });
     const adaptiveStrategyReflection = shouldReflectOnStrategy
       ? await reflectOnAdaptiveStrategy({
@@ -720,6 +721,7 @@ export default async function handler(req, res) {
           adaptiveStrategyState,
           reflectionContext: {
             cognitiveWorkspace,
+            executionSession: nextCognitiveState?.executionSession || null,
             dreaming: dreamingContext,
             convictionLearning: goalOutcomePersistence?.goal
               ? summarizeGoals([goalOutcomePersistence.goal, ...loadedGoals.filter(goal => goal.id !== trackedGoal?.id)], {
@@ -1175,6 +1177,15 @@ export default async function handler(req, res) {
               mode: cognitiveWorkspace.beliefSystem.posture?.mode || null,
               activeGoalId: cognitiveWorkspace.beliefSystem.activeGoal?.id || null,
               earnedFaithEligible: cognitiveWorkspace.beliefSystem.posture?.earnedFaith?.eligible === true
+            } : null,
+            executionSession: nextCognitiveState?.executionSession ? {
+              id: nextCognitiveState.executionSession.id,
+              status: nextCognitiveState.executionSession.status,
+              goal: nextCognitiveState.executionSession.goal,
+              nextStep: nextCognitiveState.executionSession.nextStep,
+              evidenceCount: Array.isArray(nextCognitiveState.executionSession.evidence) ? nextCognitiveState.executionSession.evidence.length : 0,
+              progressCount: Array.isArray(nextCognitiveState.executionSession.progressEvents) ? nextCognitiveState.executionSession.progressEvents.length : 0,
+              failedAttemptCount: Array.isArray(nextCognitiveState.executionSession.failedAttempts) ? nextCognitiveState.executionSession.failedAttempts.length : 0
             } : null
           }
         : { active: false, ownerOnly: true, mode: "off" },
