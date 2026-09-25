@@ -380,6 +380,11 @@
 
     throwIfAborted(signal);
 
+    if (isVisual) {
+      await ensureVNext(signal);
+      throwIfAborted(signal);
+    }
+
     if (userContext?.ownerMode !== true) {
       return {
         success: false,
@@ -389,7 +394,7 @@
       };
     }
 
-    const result = await legacy.askAri({
+    let result = await legacy.askAri({
       ...input,
       message,
       userContext,
@@ -397,6 +402,10 @@
     });
 
     throwIfAborted(signal);
+
+    if (isVisual && result?.pendingAction?.id) {
+      result = await normalizePendingAction(result);
+    }
 
     return result
       ? {
