@@ -2,7 +2,7 @@
 // Specialized cognitive systems produce state/signals; this module alone turns
 // experimental cognition into behavioral instructions for the primary model.
 
-export const ARI_EXECUTIVE_VERSION = "1.1.0";
+export const ARI_EXECUTIVE_VERSION = "1.2.0";
 export const ARI_RUNTIME_CONSTITUTION_VERSION = "1.0.0";
 export const ARI_RULE_AUTHORITY_VERSION = "1.0.0";
 
@@ -49,6 +49,7 @@ export function deriveAriExecutivePolicy({
   selfAdaptation = null,
   cortex = null,
   omegaRCT = null,
+  executionSession = null,
   instructionActivation = null
 } = {}) {
   const consequenceTier = safety?.highStakes === true ? "high" : "ordinary";
@@ -122,6 +123,9 @@ export function deriveAriExecutivePolicy({
   );
   const peerConsultation = Boolean(cortex?.adviser?.shouldConsult === true || (peerBias >= 0.72 && route?.developer === true));
   const autonomousInternalLearning = selfAdaptation?.autonomousUpdate?.allowed === true;
+  const execution = executionSession?.active === true && executionSession?.session
+    ? executionSession.session
+    : null;
 
   return {
     version: ARI_EXECUTIVE_VERSION,
@@ -167,6 +171,9 @@ export function deriveAriExecutivePolicy({
       calibratedConfidence: true,
       preserveCuriosityFloor: Boolean(curiosity),
       usefulFailureIsLearning: Boolean(rewardCore),
+      resumeDurableExecution: Boolean(execution),
+      discriminateHypothesesWithSmallExperiments: Boolean(execution),
+      separateAttemptFromVerification: Boolean(execution),
       autonomousInternalLearning,
       autonomousLearningInternalOnly: autonomousInternalLearning,
       affectRegulation,
@@ -248,6 +255,33 @@ export function deriveAriExecutivePolicy({
         countercase: round(countercaseBias),
         peerConsultation: round(peerBias)
       } : null,
+      execution: execution ? {
+        active: true,
+        id: clean(execution?.id, 180) || null,
+        status: clean(execution?.status, 40) || "active",
+        title: clean(execution?.title, 220) || null,
+        goal: clean(execution?.goal, 500) || null,
+        currentApproach: clean(execution?.currentApproach, 320) || null,
+        failedAttemptCount: Math.max(0, Math.round(finite(execution?.failedAttemptCount, 0))),
+        verifiedProgressCount: Math.max(0, Math.round(finite(execution?.verifiedProgressCount, 0))),
+        nextStep: clean(execution?.nextStep, 500) || null,
+        hypotheses: Array.isArray(execution?.hypotheses)
+          ? execution.hypotheses.slice(0, 4).map((item) => ({
+              id: clean(item?.id, 120),
+              label: clean(item?.label, 260),
+              status: clean(item?.status, 60),
+              confidence: Number.isFinite(Number(item?.confidence)) ? Number(item.confidence) : null
+            }))
+          : [],
+        experiment: execution?.experiment && typeof execution.experiment === "object"
+          ? {
+              question: clean(execution.experiment?.question, 420) || null,
+              method: clean(execution.experiment?.method, 420) || null,
+              expectedDiscriminator: clean(execution.experiment?.expectedDiscriminator, 360) || null,
+              status: clean(execution.experiment?.status, 60) || null
+            }
+          : null
+      } : null,
       cortex: cortex ? {
         active: cortex?.active === true,
         mode: clean(cortex?.mode, 60) || null,
@@ -317,6 +351,18 @@ export function executivePolicyToInstruction(policy = null) {
       : "",
     d.selfDirectedResearch || d.selfRevisionProposals || d.branchScopedDevelopment
       ? `Delegated autonomy: research=${d.selfDirectedResearch ? "yes" : "no"}; self-revision proposals=${d.selfRevisionProposals ? "yes" : "no"}; branch-scoped development=${d.branchScopedDevelopment ? "eligible_when_tool_authorized" : "no"}. Foundational changes remain explicit proposals.`
+      : "",
+    execution?.active
+      ? `Durable execution session: [${execution.id}] ${execution.title || "investigation"}; status=${execution.status}; failed_attempts=${execution.failedAttemptCount}; verified_progress=${execution.verifiedProgressCount}. Resume from observed state rather than restarting. Current approach: ${execution.currentApproach || "not yet established"}. Next step: ${execution.nextStep || "choose the highest-information next action"}.`
+      : "",
+    execution?.hypotheses?.length
+      ? `Execution hypotheses remain provisional until distinguished by evidence: ${execution.hypotheses.map((item) => `[${item.id}] ${item.label} (${item.status})`).join(" | ")}.`
+      : "",
+    execution?.experiment?.question
+      ? `Preferred discriminating experiment: ${execution.experiment.question}${execution.experiment.method ? ` Method: ${execution.experiment.method}` : ""}${execution.experiment.expectedDiscriminator ? ` Distinguishing result: ${execution.experiment.expectedDiscriminator}` : ""}.`
+      : "",
+    execution?.active
+      ? "Execution truth: verification requested != test attempted != test passed. Record failures as useful evidence when they eliminate an explanation or force a strategy change; only claim completion from verified observable results."
       : "",
     "Useful failure is learning: change the failed method, preserve what still worked, and stop when marginal information value is low or a hard boundary requires it.",
     d.autonomousInternalLearning
