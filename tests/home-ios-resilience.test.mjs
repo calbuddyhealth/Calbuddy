@@ -19,7 +19,7 @@ test("home loads the repaired iOS request resilience layer and latency guard aft
 test("Home runtime loader accepts both runtime namespaces and cannot wait forever", () => {
   assert.match(resilience, /window\.AriRuntime/);
   assert.match(resilience, /window\.Ari\?\.Runtime/);
-  assert.match(resilience, /REQUIRED_RUNTIME_VERSION\s*=\s*"1\.6\.2"/);
+  assert.match(resilience, /REQUIRED_RUNTIME_VERSION\s*=\s*"1\.6\.3"/);
   assert.match(resilience, /RUNTIME_LOAD_TIMEOUT_MS\s*=\s*5000/);
   assert.match(resilience, /window\.setInterval\(finishIfReady, 25\)/);
   assert.match(resilience, /did not initialize/);
