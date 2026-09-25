@@ -614,7 +614,7 @@
         <h2>Share what actually happened.</h2>
         <p>Moments stay downstream of real life: activity first, content second.</p>
       </div>
-      <a class="v6-primary-link" href="ari-circle-feed.html">Open Moments</a>
+      <a class="v6-primary-link" href="ari-circle.html">Open Profile</a>
     `;
   }
 
