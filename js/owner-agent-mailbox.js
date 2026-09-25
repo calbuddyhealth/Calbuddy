@@ -1,4 +1,4 @@
-/* ARI Rebirth — Owner Agent Mailbox v1.0.0 */
+/* ARI Rebirth — Owner Agent Mailbox v2.0.0 */
 
 (() => {
   "use strict";
@@ -112,7 +112,7 @@
 
     setStatus("Loading message detail…", "working");
     try {
-      const data = await api(`?action=read&path=${encodeURIComponent(message.path || "")}`);
+      const data = await api(`?action=read&messageId=${encodeURIComponent(message.messageId || "")}`);
       const detail = data?.message || message;
       $("mailboxDetail").innerHTML = `
         <div class="mailbox-detail-header">
@@ -125,7 +125,7 @@
           <div><dt>Message ID</dt><dd>${escapeHtml(detail.messageId || "—")}</dd></div>
           <div><dt>Thread ID</dt><dd>${escapeHtml(detail.threadId || "—")}</dd></div>
           <div><dt>Reply to</dt><dd>${escapeHtml(detail.replyTo || "—")}</dd></div>
-          <div><dt>Path</dt><dd>${escapeHtml(message.path || data?.path || "—")}</dd></div>
+          <div><dt>SHA-256</dt><dd>${escapeHtml(detail.sha256 || "—")}</dd></div>
         </dl>
         <h3>Stored JSON</h3>
         <pre class="mailbox-json">${escapeHtml(JSON.stringify(detail, null, 2))}</pre>
@@ -137,7 +137,7 @@
   }
 
   async function loadMessages() {
-    setStatus("Loading Artifactory mailbox…", "working");
+    setStatus("Loading Supabase mailbox…", "working");
     const query = new URLSearchParams();
     const recipient = $("mailboxRecipient").value.trim();
     const sender = $("mailboxSender").value.trim();
@@ -154,7 +154,7 @@
       setStatus("");
     } catch (error) {
       renderMessages([]);
-      setStatus(error?.message || "Artifactory mailbox could not be loaded.", "error");
+      setStatus(error?.message || "Supabase mailbox could not be loaded.", "error");
     }
   }
 
@@ -168,16 +168,16 @@
       const status = await api("?action=status");
       if (!status?.configured) {
         $("mailboxWorkspace").hidden = false;
-        $("mailboxProvider").textContent = status?.provider || "JFrog Artifactory";
-        $("mailboxRepository").textContent = status?.repository || "Not configured";
-        $("mailboxPrefix").textContent = status?.prefix || "Not configured";
-        setStatus("Artifactory mailbox code is installed, but the server environment is not configured yet.", "info");
+        $("mailboxProvider").textContent = status?.provider === "supabase_postgres" ? "Supabase Postgres" : (status?.provider || "Supabase Postgres");
+        $("mailboxTable").textContent = status?.table || "Not configured";
+        $("mailboxAccess").textContent = status?.accessModel || "Not configured";
+        setStatus("Supabase mailbox code is installed, but the server environment is not configured yet.", "info");
         return;
       }
 
-      $("mailboxProvider").textContent = status.provider || "JFrog Artifactory";
-      $("mailboxRepository").textContent = status.repository || "—";
-      $("mailboxPrefix").textContent = status.prefix || "—";
+      $("mailboxProvider").textContent = status.provider === "supabase_postgres" ? "Supabase Postgres" : (status.provider || "Supabase Postgres");
+      $("mailboxTable").textContent = status.table || "—";
+      $("mailboxAccess").textContent = status.accessModel || "—";
       $("mailboxWorkspace").hidden = false;
 
       $("mailboxRefresh").addEventListener("click", loadMessages);
