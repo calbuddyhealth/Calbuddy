@@ -94,6 +94,7 @@ export default async function handler(req, res) {
       disconfirmingCriteria: review.disconfirmingCriteria || null,
       preliminaryVerdict: review.preliminaryVerdict || null,
       preliminaryRationale: review.preliminaryRationale || null,
+      observedAt: new Date().toISOString(),
       reviewedAt: new Date().toISOString(),
       sourceSignalId: signal.id
     };
