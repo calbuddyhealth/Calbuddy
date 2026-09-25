@@ -262,6 +262,8 @@ export function buildDreamModelPayload(evidence = {}) {
     cognitiveState: evidence.cognitiveState || null,
     emotionDynamicsState: evidence?.cognitiveState?.emotionDynamicsState || null,
     emotionHistory: (evidence?.cognitiveState?.emotionDynamicsState?.history || []).slice(0, 8),
+    feltState: evidence?.cognitiveState?.feltState || null,
+    feltHistory: (evidence?.cognitiveState?.feltState?.history || []).slice(0, 8),
     curiosityFrontier: evidence?.worldModel?.sourceSummary?.curiosityState?.expansive || null,
     imaginationState: evidence?.worldModel?.sourceSummary?.imaginationState || null,
     imaginationGarden: (evidence?.worldModel?.sourceSummary?.imaginationState?.garden || []).slice(0, 12),
