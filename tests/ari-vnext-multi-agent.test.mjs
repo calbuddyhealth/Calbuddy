@@ -38,7 +38,7 @@ test("multi-agent delegation stays bounded and owner-scoped by default", () => {
       metacognition: { cortex: { interventionLevel: "deep", needs: { hypotheses: true } } }
     });
 
-    assert.equal(ARI_MULTI_AGENT_VERSION, "2.0.0");
+    assert.equal(ARI_MULTI_AGENT_VERSION, "2.1.0");
     assert.equal(ownerPlan.active, true);
     assert.equal(ownerPlan.maxWorkers, 4);
     assert.equal(ownerPlan.maxFollowups, 1);
@@ -131,6 +131,47 @@ test("council instruction keeps agent output advisory and untrusted", () => {
   assert.match(instruction, /Ari remains the sole final synthesis and action authority/i);
   assert.match(instruction, /No specialist was authorized to perform ARI XP application mutations/i);
   assert.match(instruction, /Do not expose hidden chain-of-thought/i);
+});
+
+test("queued background council state is visible without inventing specialist findings", () => {
+  const council = {
+    version: ARI_MULTI_AGENT_VERSION,
+    active: true,
+    backgroundExecution: true,
+    plan: { reason: "complexity_earned_delegation", targetWorkers: 3 },
+    workspace: [],
+    synthesis: "",
+    durableTask: {
+      id: "11111111-1111-4111-8111-111111111111",
+      executionSessionId: "exec-background-test",
+      status: "running",
+      roundCount: 1,
+      maxRounds: 2,
+      resumed: false,
+      workerCount: 3,
+      completedWorkers: 0,
+      failedWorkers: 0,
+      queuedWorkers: 3,
+      runningWorkers: 0,
+      mailboxThreadId: "11111111-1111-4111-8111-111111111111",
+      readyForAriSynthesis: false,
+      unresolvedCount: 0,
+      nextStep: "Background specialists are queued.",
+      backgroundExecution: true,
+      backgroundEnabled: true
+    }
+  };
+
+  const instruction = multiAgentCouncilToInstruction(council);
+  assert.match(instruction, /durably queued/i);
+  assert.match(instruction, /No reconciled specialist result is available/i);
+  assert.match(instruction, /do not invent findings/i);
+
+  const diagnostics = publicMultiAgentCouncil(council);
+  assert.equal(diagnostics.verifiedSynthesisAvailable, false);
+  assert.equal(diagnostics.durableTask.backgroundExecution, true);
+  assert.equal(diagnostics.durableTask.queuedWorkers, 3);
+  assert.equal(diagnostics.durableTask.runningWorkers, 0);
 });
 
 test("public council diagnostics expose coordination metadata without hidden reasoning", () => {
