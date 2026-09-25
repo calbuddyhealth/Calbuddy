@@ -1,12 +1,12 @@
 /* =============================================================
    ARI CIRCLE — PROFILE V4
-   Version: 4.3.1
+   Version: 4.5.0
 
-   Lightweight social profile layer.
-   - Feed / Meet Up / Quests navigation
-   - Posts + About only
+   Lightweight compatibility layer for the identity-first Profile.
+   - Primary navigation is Connect + Profile
+   - Legacy infinite profile posts remain inactive
+   - Four-slot mixed-media showcase is owned by profile-gallery-v1
    - No profile flair or reaction scoring
-   - Supports private photo/video posts with signed media URLs
    - Reuses the already-loaded Circle context to avoid duplicate identity calls
    - Renders post copy before private media signing finishes
    - Keeps the existing legacy profile renderer/editor/controllers
@@ -16,7 +16,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "4.4.0";
+  const VERSION = "4.5.0";
   const MEDIA_BUCKET = "ari-circle-post-media";
   const SIGNED_URL_SECONDS = 60 * 60;
   const AGE_CACHE_KEY = "ari_circle_profile_verified_age_v1";
@@ -453,7 +453,7 @@
         state.isOwner = state.profileUserId === viewer.id;
       }
 
-      injectMainNav();
+      $("circleV3Nav")?.remove();
       ensureSafetyAnchor();
 
       const cachedAge = readVerifiedAgeCache();
