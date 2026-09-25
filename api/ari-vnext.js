@@ -711,7 +711,8 @@ export default async function handler(req, res) {
     const resultForCognition = {
       ...result,
       closureRuntime: {
-        actionLedger: actionLedgerProposal
+        actionLedger: actionLedgerProposal,
+        decisionOutcomeLearning
       }
     };
     const nextCognitiveState = cognitiveLoopEnabled
