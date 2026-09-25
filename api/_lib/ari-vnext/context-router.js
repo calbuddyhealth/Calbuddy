@@ -119,6 +119,14 @@ export function buildRelevantContext(turn = {}, route = {}) {
     selected.dreaming = source.dreaming;
   }
 
+  if (route?.developer && source?.executionEvidence && typeof source.executionEvidence === "object") {
+    selected.executionEvidence = source.executionEvidence;
+  }
+
+  if (route?.developer && source?.visualInspection && typeof source.visualInspection === "object") {
+    selected.visualInspection = source.visualInspection;
+  }
+
   if (route.goals) {
     selected.goals = source?.goals || source?.healthProfile || {};
     selected.recentWeights = Array.isArray(source?.recentWeights)
@@ -242,6 +250,8 @@ function buildSupplementalContextText(context = {}, maxChars = 0) {
     "decisionState",
     "temporalTimeline",
     "institutionalMemory",
+    "executionEvidence",
+    "visualInspection",
     "agentPerformance"
   ];
   const orderedKeys = [
