@@ -22,19 +22,13 @@ test("Edit Profile exposes curated backgrounds without replacing the avatar", ()
   assert.doesNotMatch(editor, /avatar_url/);
 });
 
-test("Edit Profile stores exactly one selected icebreaker answer", () => {
-  assert.match(editor, /name = "icebreaker\.key"/);
-  assert.match(editor, /name = "icebreaker\.answer"/);
-  assert.match(editor, /Choose one question to show on your profile/);
-  assert.match(editor, /const icebreakers = icebreakerKey && icebreakerAnswer[\s\S]*\{ \[icebreakerKey\]: icebreakerAnswer \}/);
-  assert.doesNotMatch(editor, /Answer any, all, or none/);
-});
-
-test("Profile renders only one icebreaker publicly", () => {
-  assert.match(renderer, /const item = items\[0\] \|\| null/);
-  assert.match(renderer, /this\.appendIcebreaker\(item\)/);
-  assert.match(renderer, /icebreakersToggle\.hidden = true/);
-  assert.match(renderer, /promoteIcebreaker/);
+test("Break the Ice is removed from Edit Profile and the public profile", () => {
+  assert.doesNotMatch(editor, /Break the Ice/i);
+  assert.doesNotMatch(editor, /icebreaker/i);
+  assert.doesNotMatch(renderer, /Break the Ice/i);
+  assert.doesNotMatch(renderer, /icebreaker/i);
+  assert.doesNotMatch(circleHtml, /circle-icebreakers/);
+  assert.doesNotMatch(circleHtml, /circle-icebreaker-template/);
 });
 
 test("four showcase slots support photo video and text without an infinite profile feed", () => {
