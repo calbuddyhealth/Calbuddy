@@ -19,7 +19,7 @@ function functionalAffect(overrides = {}) {
     surprise: 0.48,
     satisfaction: 0.36,
     frustration: 0.12,
-    concern: 0.58,
+    concern: 0.78,
     confidence: 0.42,
     curiosity: 0.82,
     ...(overrides.signals || {})
