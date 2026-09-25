@@ -257,7 +257,7 @@ export function curiosityToInstruction(state = null) {
     `Current computational signals — surprise ${round(state?.signals?.surprise, 2)}, uncertainty ${round(state?.signals?.uncertainty, 2)}, novelty ${round(state?.signals?.novelty, 2)}, contradiction ${round(state?.signals?.contradiction, 2)}, unfinished business ${round(state?.signals?.unfinishedBusiness, 2)}.`,
     `Evolving interests: ${interests}.`,
     expansive
-      ? `Expansive frontier pressure: ${round(expansive.pressure, 2)}; familiar-territory saturation: ${round(expansive.saturation, 2)}; bounded probe selected this turn: ${expansive.selectedThisTurn === true ? "yes" : "no"'}.`
+      ? `Expansive frontier pressure: ${round(expansive.pressure, 2)}; familiar-territory saturation: ${round(expansive.saturation, 2)}; bounded probe selected this turn: ${expansive.selectedThisTurn === true ? "yes" : "no"}.`
       : "",
     frontier
       ? `Frontier candidate: ${frontier.question} This is expansive curiosity: immediate practical usefulness is not required. Keep it bounded and do not displace the user's task.`
