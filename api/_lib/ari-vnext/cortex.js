@@ -50,6 +50,7 @@ export function deriveAriCortexPlan({
   const priorStances = Array.isArray(workspace?.judgment?.priorStances)
     ? workspace.judgment.priorStances
     : [];
+  const imaginationActive = context?.userWorldModel?.sourceSummary?.imaginationState?.pressure >= 0.42;
 
   const signals = deriveExecutiveSignals({
     route,
@@ -57,7 +58,8 @@ export function deriveAriCortexPlan({
     confidence,
     missingEvidence,
     judgmentRequested,
-    priorStances
+    priorStances,
+    imaginationActive
   });
   const interventionScore = scoreIntervention(signals);
   const interventionLevel = interventionScore >= 0.68
@@ -73,7 +75,8 @@ export function deriveAriCortexPlan({
     missingEvidence,
     judgmentRequested,
     priorStances,
-    interventionLevel
+    interventionLevel,
+    imaginationActive
   });
   const adviser = deriveCortexAdviserPlan({
     route,
@@ -203,6 +206,7 @@ export function deriveCapabilityRegistry({
     countercase: capability(true, "cortex", "attack the leading view with the strongest credible countercase"),
     evidence_verification: capability(true, "cortex", "separate supported claims from inference and missing evidence"),
     possibility_search: capability(true, "cortex", "explore plausible unconventional or low-probability possibilities without treating them as facts"),
+    imagination_workspace: capability(true, "imagination_core", "construct sandboxed hypothetical worlds, divergent futures, analogies, recombinations, and counterfactual scenarios while preserving imagined/unverified epistemic status"),
     web_research: capability(webResearchAvailable, "tool", "fresh external information when the route requires it"),
     external_adviser: capability(Boolean(adviser?.shouldConsult && adviser?.selected?.model), "provider", "one bounded independent adviser call selected from configured models and reliability evidence", {
       role: adviser?.role || null,
@@ -216,13 +220,14 @@ export function deriveCapabilityRegistry({
   };
 }
 
-function deriveExecutiveSignals({ route, safety, confidence, missingEvidence, judgmentRequested, priorStances }) {
+function deriveExecutiveSignals({ route, safety, confidence, missingEvidence, judgmentRequested, priorStances, imaginationActive = false }) {
   return {
     deepComplexity: route?.complexity === "deep",
     developerProblem: route?.developer === true,
     freshnessRequired: route?.currentInfo === true,
     highConsequence: safety?.highStakes === true,
     judgmentRequested,
+    imaginationActive: imaginationActive || route?.creative === true || route?.imagination === true,
     evidenceIncomplete: confidence === "partial" || confidence === "limited" || missingEvidence.length > 0,
     priorJudgmentRelevant: priorStances.length > 0,
     crossDomain: [route?.training, route?.nutrition, route?.goals, route?.social, route?.developer]
@@ -237,6 +242,7 @@ function scoreIntervention(signals = {}) {
   if (signals.freshnessRequired) score += 0.3;
   if (signals.highConsequence) score += 0.3;
   if (signals.judgmentRequested) score += 0.3;
+  if (signals.imaginationActive) score += 0.16;
   if (signals.evidenceIncomplete) score += 0.18;
   if (signals.priorJudgmentRelevant) score += 0.08;
   if (signals.crossDomain) score += 0.1;
@@ -259,13 +265,15 @@ function deriveNeeds({
   missingEvidence = [],
   judgmentRequested = false,
   priorStances = [],
-  interventionLevel = "none"
+  interventionLevel = "none",
+  imaginationActive = false
 } = {}) {
   const complex = route?.developer || route?.complexity === "deep" || judgmentRequested;
   return {
     hypotheses: Boolean(complex),
     countercase: Boolean(complex || safety?.highStakes),
     possibilityPass: Boolean(complex && !safety?.highStakes),
+    imaginationPass: Boolean(imaginationActive || route?.creative || route?.imagination || (route?.developer && route?.complexity === "deep")),
     externalEvidence: Boolean(route?.currentInfo),
     verification: Boolean(route?.currentInfo || safety?.highStakes || confidence !== "grounded" || missingEvidence.length),
     priorJudgmentCheck: priorStances.length > 0,
@@ -288,6 +296,7 @@ function selectCapabilities({
   if (needs.hypotheses) add("hypothesis_search");
   if (needs.countercase) add("countercase");
   if (needs.possibilityPass) add("possibility_search");
+  if (needs.imaginationPass) add("imagination_workspace");
   if (needs.verification) add("evidence_verification");
   if (needs.externalEvidence) add("web_research");
   if (adviser?.shouldConsult) add("external_adviser");
