@@ -37,7 +37,7 @@ import {
 } from "./personality-evaluation.js";
 
 export const ARI_COGNITIVE_LOOP_VERSION = "1.0.0";
-export const ARI_COGNITIVE_STATE_VERSION = "1.0.0";
+export const ARI_COGNITIVE_STATE_VERSION = "0.9.0";
 export const ARI_JUDGMENT_CONSTITUTION_VERSION = "1.0.0";
 
 const CORE_VALUES = Object.freeze([
