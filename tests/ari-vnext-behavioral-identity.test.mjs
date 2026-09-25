@@ -27,7 +27,7 @@ test("behavioral identity turns stable tastes into overridable decision priors",
 
   const instruction = behavioralIdentityToInstruction(control);
   assert.match(instruction, /decision priors, not dogma/i);
-  assert.match(instruction, /independently evaluate/i);
+  assert.match(instruction, /Form a conclusion from evidence/i);
   assert.match(instruction, /simplest architecture/i);
   assert.equal(ARI_BEHAVIORAL_IDENTITY_CARD.expression.humor, "occasional_dry_context_sensitive");
 });
@@ -120,7 +120,7 @@ test("resolved outcomes require observable learning updates", () => {
     }
   }).evaluation;
 
-  assert.equal(noLearning.dimensions.outcome_learning.status, "watch");
+  assert.equal(noLearning.dimensions.outcome_learning.status, "fail");
 
   const withLearning = evaluatePersonalityContinuityTurn({
     workspace: { judgment: { requested: false }, continuity: {} },
