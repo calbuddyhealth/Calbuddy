@@ -47,6 +47,27 @@ export function evaluatePersonalityContinuityTurn({
   );
   const highStakes = result?.safety?.highStakes === true || route?.health === true;
 
+  if (!reply && result?.success === false) {
+    const prior = normalizePersonalityEvaluationState(previousEvaluation);
+    return {
+      evaluation: {
+        version: ARI_PERSONALITY_EVALUATION_VERSION,
+        turnId: clean(turn?.turnId, 200) || null,
+        at: new Date().toISOString(),
+        status: "not_applicable",
+        score: null,
+        dimensionCount: 0,
+        dimensions: {},
+        strengths: [],
+        issues: [],
+        skippedReason: "runtime_failed_before_visible_reply",
+        hiddenChainOfThoughtStored: false,
+        subjectiveConsciousnessClaimed: false
+      },
+      nextState: prior
+    };
+  }
+
   const dimensions = {
     intent_fidelity: evaluateIntentFidelity({ message, reply, closure, correctionTurn }),
     identity_consistency: evaluateIdentityConsistency({ reply }),
