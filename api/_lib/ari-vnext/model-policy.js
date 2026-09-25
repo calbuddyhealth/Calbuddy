@@ -1,6 +1,6 @@
 // ARI vNext model routing.
 
-export const MODEL_POLICY_VERSION = "2.3.0";
+export const MODEL_POLICY_VERSION = "2.4.0";
 
 export function resolveModelPolicy(route = {}) {
   const intelligence = route?.intelligenceEntitlement || null;
@@ -14,7 +14,8 @@ export function resolveModelPolicy(route = {}) {
   const currentModel = process.env.OPENAI_ARI_VNEXT_CURRENT_MODEL || "gpt-5.4-mini";
 
   const mode = resolveWorkMode(route);
-  const model = mode === "current"
+  const freshness = resolveFreshness(route);
+  const model = freshness === "live"
     ? currentModel
     : mode === "deep"
       ? deepModel
@@ -28,19 +29,22 @@ export function resolveModelPolicy(route = {}) {
     intelligenceTier: intelligence?.intelligenceTier || "standard",
     accessClass: intelligence?.accessClass || "casual",
     mode,
+    freshness,
     model,
     supportsReasoning,
     reasoningEffort: supportsReasoning
       ? mode === "deep"
         ? "high"
-        : mode === "current"
+        : mode === "fast"
           ? "low"
           : "medium"
       : null,
-    maxOutputTokens: mode === "deep" ? 2200 : mode === "current" ? 1200 : mode === "standard" ? 1800 : 700,
-    timeoutMs: mode === "deep" ? 45000 : mode === "current" ? 25000 : mode === "standard" ? 26000 : 12000,
-    costTier: mode === "deep" ? "escalated" : mode === "current" ? "live_search" : "economy",
-    liveSearchRequired: Boolean(route?.currentInfo),
+    maxOutputTokens: mode === "deep" ? 2200 : mode === "standard" ? 1800 : 700,
+    timeoutMs: mode === "deep" ? 45000 : mode === "standard" ? 26000 : 12000,
+    costTier: freshness === "live"
+      ? mode === "deep" ? "deep_live_search" : mode === "standard" ? "standard_live_search" : "fast_live_search"
+      : mode === "deep" ? "escalated" : "economy",
+    liveSearchRequired: freshness === "live",
     casualConversation: route?.casualConversation === true
   };
 }
@@ -72,6 +76,7 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
 
   const model = owner ? advancedModel : casualConversation ? fastModel : advancedModel;
   const mode = resolveWorkMode(route);
+  const freshness = resolveFreshness(route);
   const reasoningProfile = normalizeAdvancedReasoningProfile(intelligence?.reasoningProfile);
   const supportsReasoning = isReasoningModel(model);
   const reasoningEffort = supportsReasoning
@@ -83,6 +88,7 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
     intelligenceTier: intelligence?.intelligenceTier || (owner ? "owner_experimental" : ariUnlimited ? "ari_unlimited" : "premium_advanced"),
     accessClass: intelligence?.accessClass || (owner ? "owner" : ariUnlimited ? "ari_unlimited" : premium ? "premium" : "casual"),
     mode,
+    freshness,
     model,
     supportsReasoning,
     reasoningProfile,
@@ -93,11 +99,9 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
         : 500
       : mode === "deep"
         ? 3200
-        : mode === "current"
-          ? 2000
-          : mode === "fast"
-            ? 1400
-            : 2400,
+        : mode === "fast"
+          ? 1400
+          : 2400,
     timeoutMs: casualConversation
       ? owner
         ? 22000
@@ -120,7 +124,7 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
         : ariUnlimited
           ? "ari_unlimited_advanced_sol"
           : "premium_advanced",
-    liveSearchRequired: Boolean(route?.currentInfo),
+    liveSearchRequired: freshness === "live",
     conversationBeta: true,
     ownerModelContinuity: owner,
     casualConversation
@@ -128,7 +132,6 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
 }
 
 function resolveWorkMode(route = {}) {
-  const currentInfo = Boolean(route?.currentInfo);
   const mustUseDeep = Boolean(
     route?.complexity === "deep" ||
     route?.health ||
@@ -143,15 +146,17 @@ function resolveWorkMode(route = {}) {
     (route?.nutrition && route?.goals)
   );
 
-  return currentInfo
-    ? "current"
-    : mustUseDeep
-      ? "deep"
-      : mustUseStandard
-        ? "standard"
-        : route?.complexity === "fast"
-          ? "fast"
-          : "standard";
+  return mustUseDeep
+    ? "deep"
+    : mustUseStandard
+      ? "standard"
+      : route?.complexity === "fast"
+        ? "fast"
+        : "standard";
+}
+
+function resolveFreshness(route = {}) {
+  return route?.currentInfo === true ? "live" : "static";
 }
 
 function resolveAdvancedReasoningEffort({
@@ -166,7 +171,6 @@ function resolveAdvancedReasoningEffort({
   if (reasoningProfile === "balanced") return mode === "fast" ? "low" : "medium";
   if (reasoningProfile === "deep") return "xhigh";
   if (mode === "fast") return "low";
-  if (mode === "current") return owner ? "medium" : "low";
   if (mode === "deep" || route?.health || route?.developer) return "high";
   return "medium";
 }
