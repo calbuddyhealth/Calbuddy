@@ -547,7 +547,7 @@ const ProfileRenderer = {
       } else {
         this.dom.coverImage.removeAttribute("src");
         this.dom.coverImage.hidden = true;
-        if (this.dom.coverFallback) this.dom.coverFallback.hidden = false;
+        if (this.dom.coverFallback) this.dom.coverFallback.hidden = true;
       }
     }
   },

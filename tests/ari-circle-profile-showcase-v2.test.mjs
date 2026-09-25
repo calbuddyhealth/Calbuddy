@@ -33,6 +33,13 @@ test("profile background templates fill the entire identity card through the act
   assert.doesNotMatch(profileCss, /#fff 168px/);
 });
 
+test("built-in profile templates disable legacy cover overlays so no horizontal seam is rendered", () => {
+  assert.match(profileCss, /data-profile-template\]:not\(\[data-profile-template="custom"\]\)[\s\S]*circle-profile__cover::before/);
+  assert.match(profileCss, /circle-profile__cover::after[\s\S]*content: none !important/);
+  assert.match(profileCss, /circle-profile__cover-fallback[\s\S]*display: none !important/);
+  assert.match(renderer, /coverFallback\.hidden = true/);
+});
+
 test("Break the Ice is removed from Edit Profile and the public profile", () => {
   assert.doesNotMatch(editor, /Break the Ice/i);
   assert.doesNotMatch(editor, /icebreaker/i);
