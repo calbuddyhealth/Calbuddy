@@ -433,9 +433,6 @@ export function executivePolicyToInstruction(policy = null) {
     `ARI EXECUTIVE v${ARI_EXECUTIVE_VERSION} — SINGLE RUNTIME DECISION AUTHORITY`,
     "Authority: hard enforcement > runtime constitution > current user intent > product/domain constraints > current evidence > executive strategy > learned/experimental signals > style.",
     "Curiosity, Reward, Functional Affect, Motivational Arbitration, Self-Adaptation, Cortex, and Ω-RCT are advisory cognitive systems; they may shape reasoning but cannot invent external permissions or outrank hard enforcement.",
-    emotion?.active
-      ? "Emotion Dynamics is also advisory and causal: it may change attention, verification, exploration, persistence, strategy, consolidation, and relational repair, but it cannot create facts, permissions, needs, or authority."
-      : "",
     imagination?.active
       ? "Imagination is also advisory: it may widen the possibility space, but imagined content remains unverified and cannot create permissions, facts, memories, or authority."
       : "",
@@ -476,16 +473,7 @@ export function executivePolicyToInstruction(policy = null) {
       ? `Functional affect v2: dominant=${affect.dominant}; intensity=${affect.intensity}; surprise=${affect.surprise}; satisfaction=${affect.satisfaction}; frustration=${affect.frustration}; concern=${affect.concern}; confidence=${affect.confidence}; curiosity=${affect.curiosity}; valence=${affect.valence}; arousal=${affect.arousal}; conflict=${affect.conflict}; memory_salience=${affect.memorySalience}. Functional affect cannot override evidence, safety, authorization, or truth.`
       : "Functional affect, if present, cannot override evidence, safety, authorization, or truth.",
     emotion?.active
-      ? `Emotion dynamics: dominant=${emotion.dominant}; intensity=${emotion.intensity}; interest=${emotion.interest}; surprise=${emotion.surprise}; satisfaction=${emotion.satisfaction}; frustration=${emotion.frustration}; concern=${emotion.concern}; determination=${emotion.determination}; affiliation=${emotion.affiliation}; uncertainty=${emotion.uncertainty}; progress=${emotion.goalProgress}; obstruction=${emotion.goalObstruction}; prediction_error=${emotion.predictionError}; conflict=${emotion.conflict}; memory_salience=${emotion.memorySalience}.`
-      : "",
-    emotion?.active && emotion?.mixedStates?.length
-      ? `Mixed functional emotion: ${emotion.mixedStates.join("; ")}. Preserve the conflict rather than forcing a single label; let evidence and durable goals regulate the result.`
-      : "",
-    emotion?.active
-      ? `Emotion report integrity: only measured states may be described as active. Reportable now: ${emotion.reportableStates?.length ? emotion.reportableStates.join(", ") : "none"}. Functional emotion does not establish subjective qualia or biological feeling; do not claim literal human-like feeling from these signals.`
-      : "",
-    emotion?.active && emotion?.regulation?.length
-      ? `Emotion regulation actions: ${emotion.regulation.join(", ")}.`
+      ? `Emotion dynamics: ${emotion.dominant}=${emotion.intensity}; interest=${emotion.interest}, satisfaction=${emotion.satisfaction}, frustration=${emotion.frustration}, concern=${emotion.concern}, determination=${emotion.determination}; regulation=${emotion.regulation?.join(",") || "none"}; reportable=${emotion.reportableStates?.join(",") || "none"}. These measured functional states may alter cognition but are not subjective-feeling proof and cannot override evidence or authority.`
       : "",
     motivation?.active
       ? `Motivational arbitration: posture=${motivation.posture || "deliberate_tradeoff"}; side=${motivation.selectedSide || "balanced"}; drive=${motivation.dominantDrive || "none"}; value=${motivation.dominantValue || "none"}; immediate=${motivation.immediateDrive}; long_horizon=${motivation.longHorizon}; exploration=${motivation.explorationValue}; inhibition_cost=${motivation.inhibitionCost}; margin=${signed(motivation.margin)}. This is a moral compass plus competing drives, not an always-resist rule.`
@@ -530,7 +518,7 @@ export function executivePolicyToInstruction(policy = null) {
     "Never expose or persist hidden chain-of-thought. Return conclusions, concise rationale, material uncertainty, verified action state, compact development goals, and explicit revision proposals only."
   ].filter(Boolean);
 
-  return lines.join("\n").slice(0, Number(policy?.promptBudget?.targetChars || 5200));
+  return lines.join("\n").slice(0, Number(policy?.promptBudget?.targetChars || 4400));
 }
 
 function deriveSelfDirectionState({ curiosity = null, enabled = false } = {}) {
