@@ -8,6 +8,7 @@ import {
 } from "../api/_lib/ari-vnext/behavioral-identity.js";
 import {
   advancePersonalityEvaluationState,
+  deriveExplicitPersonalityFeedback,
   evaluatePersonalityContinuityTurn,
   summarizePersonalityEvaluation
 } from "../api/_lib/ari-vnext/personality-evaluation.js";
@@ -183,4 +184,46 @@ test("evaluation history becomes targeted future behavioral pressure", () => {
   const summary = summarizePersonalityEvaluation(state);
   assert.equal(summary.sampleSize, 3);
   assert.ok(summary.improvementTargets.some((item) => item.id === "repair_quality"));
+});
+
+
+test("explicit More Less feedback becomes bounded future expression bias", () => {
+  const feedback = deriveExplicitPersonalityFeedback(
+    "Give me shorter answers, challenge me more, and use less praise."
+  );
+  assert.equal(feedback.detected, true);
+  assert.equal(feedback.adjustments.brevity, 1);
+  assert.equal(feedback.adjustments.challenge, 1);
+  assert.equal(feedback.adjustments.praise, -1);
+
+  const state = advancePersonalityEvaluationState({
+    previous: null,
+    feedback,
+    evaluation: {
+      version: "1.0.0",
+      turnId: "feedback-1",
+      at: new Date().toISOString(),
+      status: "pass",
+      score: 0.9,
+      dimensions: {
+        anti_theater: { applicable: true, score: 1, status: "pass", evidence: [] }
+      },
+      issues: []
+    }
+  });
+
+  assert.ok(state.expressionBiases.brevity > 0);
+  assert.ok(state.expressionBiases.challenge > 0);
+  assert.ok(state.expressionBiases.praise < 0);
+
+  const control = deriveBehavioralIdentityControl({
+    previousEvaluation: state,
+    turn: { message: "What do you think of this plan?" },
+    route: {},
+    context: {}
+  });
+
+  assert.equal(control.expression.brevity, "more_compact");
+  assert.ok(control.activeBehaviors.some((item) => item.id === "explicit_feedback_challenge"));
+  assert.ok(control.activeBehaviors.some((item) => item.id === "explicit_feedback_praise"));
 });
