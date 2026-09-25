@@ -3,11 +3,12 @@
 
 import { advancedConversationInstruction } from "./conversation-contract.js";
 import { beliefSystemInstruction } from "./belief-system.js";
+import { behavioralIdentityToInstruction } from "./behavioral-identity.js";
 import { communicationClosureToInstruction } from "./communication-closure.js";
 import { convictionInstruction } from "./conviction-learning.js";
 import { dreamingContextToInstruction } from "./dreaming-core.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.20.0";
+export const CONTEXT_ROUTER_VERSION = "1.21.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -403,6 +404,11 @@ function cognitiveContextRules(context = {}) {
   const beliefState = cognitiveWorkspace?.beliefSystem || null;
   const beliefInstruction = beliefSystemInstruction(beliefState);
   if (beliefInstruction) lines.push(beliefInstruction);
+
+  const behavioralIdentityInstruction = behavioralIdentityToInstruction(
+    cognitiveWorkspace?.behavioralIdentity || null
+  );
+  if (behavioralIdentityInstruction) lines.push(behavioralIdentityInstruction);
 
   const closureInstruction = communicationClosureToInstruction(cognitiveWorkspace?.communicationClosure || null);
   if (closureInstruction) lines.push(closureInstruction);
