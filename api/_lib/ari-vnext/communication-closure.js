@@ -902,11 +902,22 @@ function deriveUnverifiedClaims({ result = {}, verifiedCompletion = false, evide
 function hasVerifiedCompletionEvidence({ result = {}, executionSession = null, evidence = [] } = {}) {
   if (result?.executionEvidence?.completionVerified === true) return true;
   if (result?.executorReceipt?.verified === true && Boolean(result?.executorReceipt?.id)) return true;
-  if (executionSession?.status === "completed") {
-    return evidence.some(item => item?.verified === true);
-  }
+
   const verification = result?.executionEvidence?.verification || result?.verification || null;
-  return normalizeVerificationStatus(verification?.status) === "passed";
+  if (normalizeVerificationStatus(verification?.status) === "passed") return true;
+
+  if (executionSession?.status === "completed") {
+    const verifiedProgress = (Array.isArray(executionSession?.progressEvents) ? executionSession.progressEvents : [])
+      .some(item => item?.state === "test_passed" || item?.state === "action_verified");
+    if (verifiedProgress) return true;
+
+    return evidence.some(item =>
+      item?.verified === true &&
+      ["verification", "trusted_executor_receipt", "test_passed", "action_verified"].includes(clean(item?.kind, 80))
+    );
+  }
+
+  return false;
 }
 
 function terminalStateFor(state = "unknown") {
