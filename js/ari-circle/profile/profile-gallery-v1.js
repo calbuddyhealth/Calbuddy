@@ -12,7 +12,7 @@
   const VERSION = "2.0.0";
   const BUCKET = "ari-circle-post-media";
   const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
-  const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+  const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
   const MAX_VIDEO_SECONDS = 30;
   const MAX_TEXT_LENGTH = 600;
   const SIGNED_SECONDS = 60 * 60;
@@ -485,7 +485,7 @@
       return;
     }
     if (requestedType === "video" && file.size > MAX_VIDEO_BYTES) {
-      status("That video is unusually large. Choose one under 100 MB.", { tone: "error" });
+      status("That video is unusually large. Choose one under 25 MB.", { tone: "error" });
       return;
     }
 
