@@ -302,3 +302,16 @@
   .circle-showcase-dialog__choices{gap:7px}
   .circle-showcase-dialog__choices button{min-height:108px;padding:10px 5px}
 }
+
+
+/* Keep video playback controls unobstructed while the owner is editing. */
+.circle-profile-gallery__video .circle-profile-gallery__photo-actions{
+  top:7px;
+  right:7px;
+  bottom:auto;
+  left:auto;
+  width:min(132px,68%);
+}
+.circle-profile-gallery__video .circle-profile-gallery__photo-actions button{
+  min-width:58px;
+}
