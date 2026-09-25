@@ -1834,7 +1834,9 @@ CalBuddy.executeAction = async function (action) {
       replace: githubEdit.replace,
       newContent: githubEdit.newContent,
       replaceAll: githubEdit.replaceAll === true,
+      autonomousDevelopment: githubEdit.autonomousDevelopment === true,
       commitMessage:
+        githubEdit.commitMessage ||
         payload.title ||
         action.title ||
         `Ari owner-authorized update ${filePath}`,
