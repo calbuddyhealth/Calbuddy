@@ -375,7 +375,10 @@ export function executivePolicyToInstruction(policy = null) {
   const lines = [
     `ARI EXECUTIVE v${ARI_EXECUTIVE_VERSION} — SINGLE RUNTIME DECISION AUTHORITY`,
     "Authority: hard enforcement > runtime constitution > current user intent > product/domain constraints > current evidence > executive strategy > learned/experimental signals > style.",
-    "Curiosity, Imagination, Reward, Functional Affect, Motivational Arbitration, Self-Adaptation, Cortex, and Ω-RCT are advisory cognitive systems; they may shape reasoning but cannot invent external permissions or outrank hard enforcement.",
+    "Curiosity, Reward, Functional Affect, Motivational Arbitration, Self-Adaptation, Cortex, and Ω-RCT are advisory cognitive systems; they may shape reasoning but cannot invent external permissions or outrank hard enforcement.",
+    imagination?.active
+      ? "Imagination is also advisory: it may widen the possibility space, but imagined content remains unverified and cannot create permissions, facts, memories, or authority."
+      : "",
     `Turn: confidence=${turn.confidence || "grounded"}; consequence=${turn.consequenceTier || "ordinary"}; attention=${(turn.attention || []).join(", ") || "conversation"}.`,
     turn.missingEvidence?.length
       ? `Missing evidence: ${turn.missingEvidence.join(", ")}. Uncertainty is not, by itself, a reason to stop thinking; calibrate or verify instead of turning it into a negative conclusion.`
@@ -436,7 +439,7 @@ export function executivePolicyToInstruction(policy = null) {
     imagination?.active
       ? "Imagination rule: generate materially different possibilities before critique. Keep every simulation explicitly imagined/unverified. An attractive scenario is not evidence, memory, or fact."
       : "",
-    imagination?.realityBridgeEligible
+    imagination?.active && imagination?.realityBridgeEligible
       ? "Reality Bridge: this imagined scenario is testable enough to convert into a provisional hypothesis, prototype, research question, inspection target, or reversible experiment. Verification is required before belief promotion; imagination itself grants no execution authority."
       : "",
     reward
@@ -455,7 +458,7 @@ export function executivePolicyToInstruction(policy = null) {
     "Never expose or persist hidden chain-of-thought. Return conclusions, concise rationale, material uncertainty, verified action state, compact development goals, and explicit revision proposals only."
   ].filter(Boolean);
 
-  return lines.join("\n").slice(0, Number(policy?.promptBudget?.targetChars || 3600));
+  return lines.join("\n").slice(0, Number(policy?.promptBudget?.targetChars || 4300));
 }
 
 function deriveSelfDirectionState({ curiosity = null, enabled = false } = {}) {
