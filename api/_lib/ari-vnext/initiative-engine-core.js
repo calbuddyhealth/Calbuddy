@@ -2,12 +2,13 @@
 // Ari may surface meaningful unfinished business or objective changes without an
 // LLM call. Initiative exists to help, not to maximize engagement.
 
-export const ARI_INITIATIVE_ENGINE_VERSION = "1.2.0";
+export const ARI_INITIATIVE_ENGINE_VERSION = "1.3.0";
 
 export function deriveInitiativeCandidate({
   proactiveInsights = null,
   relationshipContinuity = null,
   experimentLedger = null,
+  decisionReview = null,
   circleEvents = null,
   now = new Date()
 } = {}) {
@@ -28,7 +29,7 @@ export function deriveInitiativeCandidate({
   }
 
   for (const thread of threads) {
-    const mapped = candidateFromThread(thread);
+    const mapped = candidateFromThread(thread, decisionReview);
     if (mapped) candidates.push(mapped);
   }
 
@@ -272,7 +273,7 @@ function candidateFromInsight(insight = {}) {
   return null;
 }
 
-function candidateFromThread(thread = {}) {
+function candidateFromThread(thread = {}, decisionReview = null) {
   const state = clean(thread.state, 80);
   const id = clean(thread.id, 200);
   const base = {
@@ -298,17 +299,103 @@ function candidateFromThread(thread = {}) {
   }
 
   if (thread.type === "decision" && state === "prediction_due") {
+    const review = normalizeDecisionReview(
+      decisionReview?.decisionId && String(decisionReview.decisionId) === String(thread.referenceId || "")
+        ? decisionReview
+        : null
+    );
+    const prediction = review?.originalPrediction || clean(thread.summary, 700);
+    const verdict = review?.preliminaryVerdict || "pending_review";
+    const evidenceQuality = review?.evidenceQuality?.label || "unknown";
+    const currentEvidenceText = Array.isArray(review?.currentEvidence)
+      ? review.currentEvidence.map((item) => clean(item?.label, 320)).filter(Boolean).slice(0, 4).join("; ")
+      : "";
+    const baselineText = reviewBaselineText(review?.baseline);
+    const windowText = reviewWindowText(review?.observationWindow);
+
     return {
       ...base,
       priority: "medium",
-      opener: "Remember the pattern we decided to watch instead of changing immediately? Its observation window is up, so we can finally revisit it with new evidence.",
-      followUpPrompt: "Revisit the prediction we were watching now that its observation horizon has passed, and compare it with the new evidence.",
+      opener: review
+        ? `Prediction ready for review: ${clean(review.proposition || prediction, 300)}.`
+        : "Remember the pattern we decided to watch instead of changing immediately? Its observation window is up, so we can finally revisit it with new evidence.",
+      context: review
+        ? clean(
+            `Observation window complete. Original prediction: ${prediction}. Evidence quality: ${evidenceQuality}. Preliminary comparison: ${verdict}. ${review.preliminaryRationale || ""}`,
+            900
+          )
+        : base.context,
+      followUpPrompt: review
+        ? clean(
+            `Review decision ${review.decisionId}. Original prediction: ${prediction}. Success criteria: ${review.successCriteria || "not specified"}. Weakens if: ${review.disconfirmingCriteria || "not specified"}. Observation window: ${windowText || "due now"}. Baseline: ${baselineText || "stored baseline evidence only"}. New evidence: ${currentEvidenceText || "limited structured evidence"}. Evidence quality: ${evidenceQuality}. Preliminary comparison: ${verdict} — ${review.preliminaryRationale || "explicit review required"}. Decide supported, weakened, mixed, or inconclusive using the current evidence; do not treat this preliminary comparison as final merely because the review date arrived.`,
+            1800
+          )
+        : "Revisit the prediction we were watching now that its observation horizon has passed, and compare it with the new evidence.",
       action: "review_prediction",
+      ownerBrief: review ? {
+        whatItMeans: `The observation window for a prior prediction has ended. The review now has stored baseline context plus current structured evidence to compare.`,
+        whySent: "The prediction reached its scheduled real-world review point. A review date is a trigger to compare evidence, not proof that the prediction was correct.",
+        relatedGoal: clean(review.proposition || thread.domain || "Prediction review", 260),
+        currentState: `Evidence quality is ${evidenceQuality}. Preliminary comparison: ${verdict}. ${clean(review.preliminaryRationale, 700)}`,
+        requestFromJose: "Review the evidence and decide whether Ari should record the outcome as supported, weakened, mixed, or inconclusive.",
+        requestFromChatGPT: `Independently compare the stored prediction, baseline, and new evidence. Check confounders and whether the evidence actually resolves the prediction before recommending a final verdict.`,
+        suggestedNextStep: "Compare the original prediction with the new evidence, identify material confounders, then record a bounded outcome only if the evidence supports one.",
+        evidence: reviewEvidenceItems(review),
+        reviewPacket: review
+      } : null,
       cooldownHours: 72
     };
   }
 
   return null;
+}
+
+function normalizeDecisionReview(value = null) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || !value.decisionId) return null;
+  return value;
+}
+
+function reviewBaselineText(value = null) {
+  if (!value || typeof value !== "object") return "";
+  const parts = [
+    ...(Array.isArray(value.metrics) ? value.metrics : []),
+    ...(Array.isArray(value.supportingEvidence) ? value.supportingEvidence.map((item) => `support: ${item}`) : []),
+    ...(Array.isArray(value.contradictingEvidence) ? value.contradictingEvidence.map((item) => `against: ${item}`) : [])
+  ].map((item) => clean(item, 260)).filter(Boolean);
+  return parts.slice(0, 6).join("; ");
+}
+
+function reviewWindowText(value = null) {
+  if (!value || typeof value !== "object") return "";
+  const start = clean(value.startAt, 80);
+  const end = clean(value.reviewAt, 80);
+  const days = Number(value.horizonDays);
+  if (start && end) return `${start} → ${end}${Number.isFinite(days) ? ` (${days} days)` : ""}`;
+  if (end) return `review due ${end}`;
+  return Number.isFinite(days) ? `${days}-day observation window` : "";
+}
+
+function reviewEvidenceItems(review = {}) {
+  const items = [];
+  const push = (type, label, status) => {
+    const text = clean(label, 320);
+    if (!text || items.some((item) => item.label === text)) return;
+    items.push({ type, label: text, url: "", status: clean(status, 80) });
+  };
+
+  for (const metric of Array.isArray(review?.baseline?.metrics) ? review.baseline.metrics.slice(0, 3) : []) {
+    push("baseline", `Baseline — ${metric}`, "baseline");
+  }
+  for (const item of Array.isArray(review?.baseline?.supportingEvidence) ? review.baseline.supportingEvidence.slice(0, 2) : []) {
+    push("baseline_evidence", `Original support — ${item}`, "baseline");
+  }
+  for (const item of Array.isArray(review?.currentEvidence) ? review.currentEvidence.slice(0, 5) : []) {
+    push("current_evidence", item?.label, "observed");
+  }
+  if (review?.evidenceQuality?.note) {
+    push("evidence_quality", `Evidence quality: ${review.evidenceQuality.label} — ${review.evidenceQuality.note}`, "quality");
+  }
+  return items.slice(0, 8);
 }
 
 function initiativeKey(candidate = {}) {
