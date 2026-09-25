@@ -28,7 +28,11 @@ const SECRET_VALUE = /\b(?:sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9_]{20,}|eyJ
 
 export function getSupabaseMailboxConfiguration() {
   const url = clean(process.env.SUPABASE_URL, 1200).replace(/\/+$/, "");
-  const serviceRoleKey = clean(process.env.SUPABASE_SERVICE_ROLE_KEY, 9000);
+  const serviceRoleKey = clean(
+    process.env.SUPABASE_SECRET_KEY ||
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+    9000
+  );
   const enabled = String(process.env.ARI_AGENT_MAILBOX_ENABLED || "true")
     .trim()
     .toLowerCase() !== "false";
@@ -310,7 +314,7 @@ export function mailboxStatus() {
     enabled: config.enabled,
     table: config.table,
     provider: "supabase_postgres",
-    accessModel: "server_only_service_role",
+    accessModel: "server_only",
     credentialsExposed: false
   };
 }
@@ -424,7 +428,9 @@ async function supabaseFetch(config, path, options, fetchImpl) {
       ...options,
       headers: {
         apikey: config.serviceRoleKey,
-        Authorization: `Bearer ${config.serviceRoleKey}`,
+        ...(looksLikeJwt(config.serviceRoleKey)
+          ? { Authorization: `Bearer ${config.serviceRoleKey}` }
+          : {}),
         Accept: "application/json",
         ...(options?.headers || {})
       },
@@ -449,6 +455,10 @@ async function supabaseFetch(config, path, options, fetchImpl) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function looksLikeJwt(value = "") {
+  return String(value).split(".").length === 3;
 }
 
 function unavailable() {
