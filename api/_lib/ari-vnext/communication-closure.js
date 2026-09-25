@@ -146,6 +146,8 @@ export function advanceCommunicationClosure({
     interpretation,
     correction,
     evidence,
+    result,
+    executionSession,
     loopId: base.id,
     turnId: turn?.turnId,
     now
@@ -189,6 +191,16 @@ export function advanceCommunicationClosure({
     observedOutcome,
     state
   });
+  const learning = deriveClosureLearning({
+    base,
+    turn,
+    result,
+    executionSession,
+    correction,
+    outcomeDelta,
+    claimsResult,
+    now
+  });
 
   const closedAt = ["closed", "verified", "failed", "rejected", "superseded"].includes(state)
     ? now
@@ -210,6 +222,9 @@ export function advanceCommunicationClosure({
     userAcceptance,
     observedOutcome,
     outcomeDelta,
+    lessons: mergeUnique(base.lessons, learning.lessons, 12, item => item.id),
+    beliefUpdates: mergeUnique(base.beliefUpdates, learning.beliefUpdates, 12, item => item.id),
+    strategyUpdates: mergeUnique(base.strategyUpdates, learning.strategyUpdates, 12, item => item.id),
     dependencyInvalidations: mergeUnique(
       base.dependencyInvalidations,
       claimsResult.invalidations,
@@ -552,6 +567,8 @@ function updateClaims({
   interpretation,
   correction = null,
   evidence = [],
+  result = {},
+  executionSession = null,
   loopId,
   turnId,
   now
@@ -610,10 +627,190 @@ function updateClaims({
     });
   }
 
+  const activeInterpretation = [...list]
+    .reverse()
+    .find(item => item?.kind === "selected_interpretation" && item?.status === "active");
+  const action = clean(
+    result?.requestUnderstanding?.applicationAction ||
+    result?.action?.applicationAction,
+    180
+  );
+  let actionClaim = null;
+  if (action && activeInterpretation?.id) {
+    const actionClaimId = `claim_${stableId(`${loopId}|action|${action}|${turnId || ""}`)}`;
+    actionClaim = list.find(item => item?.id === actionClaimId) || {
+      id: actionClaimId,
+      claim: `Selected application action: ${action}`,
+      kind: "action_selection",
+      status: result?.executorReceipt?.verified === true
+        ? "verified"
+        : result?.pendingAction?.id
+          ? "proposed"
+          : "observed",
+      confidence: Number(result?.requestUnderstanding?.verifierConfidence || 0.8),
+      evidenceIds: evidence.filter(item => item?.verified === true).map(item => item.id).slice(-6),
+      derivedFrom: [activeInterpretation.id],
+      supersededBy: null,
+      sourceTurnId: clean(turnId, 180) || null,
+      createdAt: now,
+      updatedAt: now
+    };
+    if (!list.some(item => item?.id === actionClaimId)) list.push(actionClaim);
+  }
+
+  const verifiedOutcome = hasVerifiedCompletionEvidence({ result, executionSession, evidence });
+  if (verifiedOutcome && activeInterpretation?.id) {
+    const outcomeClaimId = `claim_${stableId(`${loopId}|verified_outcome|${turnId || ""}`)}`;
+    if (!list.some(item => item?.id === outcomeClaimId)) {
+      list.push({
+        id: outcomeClaimId,
+        claim: clean(
+          executionSession?.goal
+            ? `Verified outcome for: ${executionSession.goal}`
+            : "The material outcome was verified against observable evidence.",
+          1200
+        ),
+        kind: "observed_outcome",
+        status: "verified",
+        confidence: 1,
+        evidenceIds: evidence.filter(item => item?.verified === true).map(item => item.id).slice(-8),
+        derivedFrom: [
+          activeInterpretation.id,
+          ...(actionClaim?.id ? [actionClaim.id] : [])
+        ],
+        supersededBy: null,
+        sourceTurnId: clean(turnId, 180) || null,
+        createdAt: now,
+        updatedAt: now
+      });
+    }
+  }
+
   return {
     claims: list.slice(-20),
     invalidations
   };
+}
+
+
+function deriveClosureLearning({
+  base = {},
+  turn = {},
+  result = {},
+  executionSession = null,
+  correction = null,
+  outcomeDelta = null,
+  claimsResult = null,
+  now
+} = {}) {
+  const lessons = [];
+  const beliefUpdates = [];
+  const strategyUpdates = [];
+  const turnId = clean(turn?.turnId, 180);
+
+  if (correction) {
+    beliefUpdates.push({
+      id: `belief_update_${stableId(`${base.id}|correction|${correction.id}`)}`,
+      target: "selected_interpretation",
+      operation: "supersede",
+      from: clean(correction.supersededClaim, 900),
+      to: clean(correction.correctedClaim, 900),
+      evidence: "explicit_user_correction",
+      at: now
+    });
+    lessons.push({
+      id: `lesson_${stableId(`${base.id}|correction|${correction.id}`)}`,
+      kind: "semantic_correction",
+      summary: "The prior working interpretation was superseded by an explicit user correction; downstream claims depending on it must be reconsidered.",
+      sourceTurnId: turnId || null,
+      at: now
+    });
+  }
+
+  const failedAttempts = Array.isArray(executionSession?.failedAttempts)
+    ? executionSession.failedAttempts
+    : [];
+  const latestFailure = failedAttempts[failedAttempts.length - 1] || null;
+  if (latestFailure) {
+    lessons.push({
+      id: `lesson_${stableId(`${base.id}|failure|${latestFailure.id || latestFailure.summary}`)}`,
+      kind: "execution_failure",
+      summary: clean(latestFailure.lesson || latestFailure.summary, 700),
+      sourceAttemptId: clean(latestFailure.id, 180) || null,
+      at: now
+    });
+    strategyUpdates.push({
+      id: `strategy_update_${stableId(`${base.id}|failure|${latestFailure.id || latestFailure.summary}`)}`,
+      operation: "avoid_unchanged_retry",
+      summary: "Use the failed attempt as evidence and change the method before retrying the same unresolved step.",
+      sourceAttemptId: clean(latestFailure.id, 180) || null,
+      at: now
+    });
+  }
+
+  if (result?.executionWorkspaceUpdate?.approachChanged === true) {
+    strategyUpdates.push({
+      id: `strategy_update_${stableId(`${base.id}|approach|${turnId}`)}`,
+      operation: "approach_changed",
+      summary: clean(
+        result?.executionWorkspaceUpdate?.approach ||
+        result?.executionWorkspaceUpdate?.nextStep ||
+        "The execution approach changed in response to observed evidence.",
+        700
+      ),
+      sourceTurnId: turnId || null,
+      at: now
+    });
+  }
+
+  const realWorldOutcome = turn?.context?.decisionOutcomeLearning || null;
+  if (realWorldOutcome?.resolved === true) {
+    beliefUpdates.push({
+      id: `belief_update_${stableId(`${base.id}|real_world_outcome|${realWorldOutcome.decisionId || turnId}`)}`,
+      target: clean(realWorldOutcome.proposition, 700) || "prior_decision",
+      operation: "update_from_outcome",
+      outcomeDirection: clean(realWorldOutcome.outcomeDirection, 80) || null,
+      source: clean(realWorldOutcome.source, 120) || "explicit_user_real_world_report",
+      at: now
+    });
+    lessons.push({
+      id: `lesson_${stableId(`${base.id}|real_world_outcome|${realWorldOutcome.decisionId || turnId}`)}`,
+      kind: "real_world_outcome",
+      summary: "A previously recorded decision received real-world outcome evidence and is eligible to update future reasoning.",
+      sourceDecisionId: clean(realWorldOutcome.decisionId, 180) || null,
+      at: now
+    });
+  }
+
+  if (outcomeDelta?.status === "matched") {
+    lessons.push({
+      id: `lesson_${stableId(`${base.id}|verified_match|${turnId}`)}`,
+      kind: "verified_success",
+      summary: "The observed verified outcome matched the current acceptance contract.",
+      sourceTurnId: turnId || null,
+      at: now
+    });
+  } else if (outcomeDelta?.status === "mismatch") {
+    strategyUpdates.push({
+      id: `strategy_update_${stableId(`${base.id}|outcome_mismatch|${turnId}`)}`,
+      operation: "reconsider_strategy",
+      summary: "The observed result did not match the expected outcome; dependent assumptions and the current strategy should be reconsidered.",
+      sourceTurnId: turnId || null,
+      at: now
+    });
+  }
+
+  if (Array.isArray(claimsResult?.invalidations) && claimsResult.invalidations.length) {
+    lessons.push({
+      id: `lesson_${stableId(`${base.id}|dependency_invalidation|${turnId}`)}`,
+      kind: "dependency_invalidation",
+      summary: `${claimsResult.invalidations.length} dependent claim(s) were invalidated because an upstream interpretation was superseded.`,
+      sourceTurnId: turnId || null,
+      at: now
+    });
+  }
+
+  return { lessons, beliefUpdates, strategyUpdates };
 }
 
 function deriveObservedOutcome({ result = {}, executionSession = null, verifiedCompletion = false, evidence = [] } = {}) {
