@@ -1,7 +1,7 @@
 import { deriveCoachingState } from "./_lib/ari-vnext/coaching-state.js";
 import { loadCircleInitiativeEvents } from "./_lib/ari-vnext/circle-event-initiative.js";
 import { buildRelevantContext } from "./_lib/ari-vnext/context-router.js";
-import { listRecentDecisions, summarizeDecisionState } from "./_lib/ari-vnext/decision-journal.js";
+import { buildDecisionReviewPacket, listRecentDecisions, summarizeDecisionState } from "./_lib/ari-vnext/decision-journal.js";
 import { listUserExperiments, summarizeExperimentLedger } from "./_lib/ari-vnext/experiment-ledger.js";
 import { deriveInitiativeCandidate } from "./_lib/ari-vnext/initiative-engine.js";
 import {
@@ -105,6 +105,12 @@ export default async function handler(req, res) {
       coachingState,
       longitudinalState
     });
+    const decisionReview = buildDecisionReviewPacket({
+      decision: decisionState?.due?.[0] || null,
+      longitudinalState,
+      coachingState,
+      now
+    });
     const relationshipContinuity = deriveRelationshipContinuity({
       userWorldModel: runtimeWorldModel,
       decisionState,
@@ -124,6 +130,7 @@ export default async function handler(req, res) {
       proactiveInsights,
       relationshipContinuity,
       experimentLedger,
+      decisionReview,
       circleEvents,
       now
     });
@@ -134,6 +141,7 @@ export default async function handler(req, res) {
         shouldInitiate: false,
         reason: initiativeState.reason || "nothing_meaningful_enough",
         relationshipContinuity,
+        decisionReview,
         proactiveInsights: compactInsights(proactiveInsights),
         circleEvents: compactCircleEventState(circleEvents),
         cost: { languageModelCalls: 0 },
@@ -149,6 +157,7 @@ export default async function handler(req, res) {
         reason: "repeat_suppressed",
         suppression,
         relationshipContinuity,
+        decisionReview,
         proactiveInsights: compactInsights(proactiveInsights),
         circleEvents: compactCircleEventState(circleEvents),
         cost: { languageModelCalls: 0 },
