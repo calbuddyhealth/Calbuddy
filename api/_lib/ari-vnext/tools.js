@@ -10,7 +10,7 @@ import {
   toolToApplicationAction as coreToolToApplicationAction
 } from "./tools-core.js";
 
-export const TOOL_REGISTRY_VERSION = "1.20.0";
+export const TOOL_REGISTRY_VERSION = "1.21.0";
 export const CORE_TOOL_REGISTRY_VERSION = CORE_REGISTRY_VERSION;
 
 const convictionEnabled = () => process.env.ARI_CONVICTION_LEARNING_ENABLED !== "false";
@@ -47,6 +47,13 @@ const LAB_TOOL_NAMES = new Set([
 ]);
 
 const CONVICTION_TOOL_NAMES = new Set(["ari_goal_manage"]);
+
+const DEVELOPER_TOOL_NAMES = new Set([
+  "owner_repo_search",
+  "owner_repo_read",
+  "owner_repo_ci_status",
+  "propose_owner_github_edit"
+]);
 
 function functionTool(name, description, parameters) {
   return { type: "function", name, description, strict: true, parameters };
@@ -161,6 +168,70 @@ function labTools(route = {}) {
           mode: { type: "string", enum: ["pilot", "full"] }
         },
         required: ["mode"]
+      }
+    )
+  ];
+}
+
+function developerTools(route = {}) {
+  if (!ownerCommunityAllowed(route) || route?.developer !== true) return [];
+
+  return [
+    functionTool(
+      "owner_repo_search",
+      "Search the configured ARI XP repository when repository evidence is needed. This is read-only. Use this before guessing which file owns a behavior. Search results are observations, not proof that a fix works.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          query: { type: "string" },
+          path: { type: ["string", "null"] },
+          branch: { type: ["string", "null"] }
+        },
+        required: ["query", "path", "branch"]
+      }
+    ),
+    functionTool(
+      "owner_repo_read",
+      "Read an exact ARI XP repository file or bounded line range. This is read-only. Before proposing a source edit, read the exact current file containing the text to change in this same investigation.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          filePath: { type: "string" },
+          branch: { type: ["string", "null"] },
+          startLine: { type: ["integer", "null"], minimum: 1 },
+          endLine: { type: ["integer", "null"], minimum: 1 }
+        },
+        required: ["filePath", "branch", "startLine", "endLine"]
+      }
+    ),
+    functionTool(
+      "owner_repo_ci_status",
+      "Read the ARI vNext GitHub Actions test status for a branch or exact commit. This is read-only. Use it to distinguish verification requested, a test that was merely attempted, and a test that actually passed.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          branch: { type: ["string", "null"] },
+          commitSha: { type: ["string", "null"] }
+        },
+        required: ["branch", "commitSha"]
+      }
+    ),
+    functionTool(
+      "propose_owner_github_edit",
+      "Prepare one exact isolated-branch source edit after verified repository evidence supports it. Never invent find text. The exact current file must have been read during this investigation. The edit is confirmation-gated and does not deploy production.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          filePath: { type: "string" },
+          find: { type: "string" },
+          replace: { type: "string" },
+          commitMessage: { type: "string" }
+        },
+        required: ["filePath", "find", "replace", "commitMessage"]
       }
     )
   ];
@@ -321,11 +392,74 @@ export function getAriTools(route = {}) {
   const coreByName = new Map();
   for (const tool of [...routedCoreTools, ...semanticHealthTools]) if (tool?.name) coreByName.set(String(tool.name), tool);
   const coreTools = [...coreByName.values()].map(hardenCoreToolContract);
-  return [...coreTools, ...workoutCancelTools(), ...workoutReplaceTools(), ...crewTools(route), ...communityTools(route), ...labTools(route), ...convictionTools(route)];
+  return [...coreTools, ...workoutCancelTools(), ...workoutReplaceTools(), ...crewTools(route), ...communityTools(route), ...labTools(route), ...convictionTools(route), ...developerTools(route)];
 }
 
 export function validateToolCall(call = {}, route = {}) {
   const name = String(call?.name || "").trim();
+
+  if (DEVELOPER_TOOL_NAMES.has(name)) {
+    if (!ownerCommunityAllowed(route) || route?.developer !== true) return { valid: false, error: "tool_not_allowed_for_turn" };
+    const args = parseArguments(call?.arguments);
+    if (!args) return { valid: false, error: "invalid_tool_arguments" };
+
+    if (name === "owner_repo_search") {
+      const query = String(args?.query || "").trim().slice(0, 180);
+      if (query.length < 2) return { valid: false, error: "repository_search_query_required" };
+      return {
+        valid: true,
+        name,
+        arguments: {
+          query,
+          path: args?.path === null ? null : String(args?.path || "").trim().slice(0, 420) || null,
+          branch: args?.branch === null ? null : String(args?.branch || "").trim().slice(0, 180) || null
+        }
+      };
+    }
+
+    if (name === "owner_repo_read") {
+      const filePath = String(args?.filePath || "").trim().slice(0, 420);
+      if (!filePath) return { valid: false, error: "repository_file_path_required" };
+      const startLine = args?.startLine === null ? null : Number(args?.startLine);
+      const endLine = args?.endLine === null ? null : Number(args?.endLine);
+      if (startLine !== null && (!Number.isInteger(startLine) || startLine < 1)) return { valid: false, error: "repository_start_line_invalid" };
+      if (endLine !== null && (!Number.isInteger(endLine) || endLine < 1)) return { valid: false, error: "repository_end_line_invalid" };
+      if (startLine !== null && endLine !== null && endLine < startLine) return { valid: false, error: "repository_line_range_invalid" };
+      return {
+        valid: true,
+        name,
+        arguments: {
+          filePath,
+          branch: args?.branch === null ? null : String(args?.branch || "").trim().slice(0, 180) || null,
+          startLine,
+          endLine
+        }
+      };
+    }
+
+    if (name === "owner_repo_ci_status") {
+      return {
+        valid: true,
+        name,
+        arguments: {
+          branch: args?.branch === null ? null : String(args?.branch || "").trim().slice(0, 180) || null,
+          commitSha: args?.commitSha === null ? null : String(args?.commitSha || "").trim().slice(0, 80) || null
+        }
+      };
+    }
+
+    const filePath = String(args?.filePath || "").trim().slice(0, 420);
+    const find = String(args?.find ?? "");
+    const replace = String(args?.replace ?? "");
+    const commitMessage = String(args?.commitMessage || "").trim().slice(0, 240);
+    if (!filePath || !find || find.length > 12000 || replace.length > 12000) return { valid: false, error: "github_edit_exact_replace_required" };
+    if (!commitMessage) return { valid: false, error: "github_edit_commit_message_required" };
+    return {
+      valid: true,
+      name,
+      arguments: { filePath, find, replace, commitMessage, autonomousDevelopment: true }
+    };
+  }
 
   if (CONVICTION_TOOL_NAMES.has(name)) {
     if (!ownerCommunityAllowed(route) || !convictionEnabled()) return { valid: false, error: "tool_not_allowed_for_turn" };
@@ -479,6 +613,13 @@ export function toolToApplicationAction(name = "") {
   if (name === "ari_lab_run_consciousness_test") return "lab_consciousness_test";
   if (name === "ari_lab_run_self_governance_test") return "lab_self_governance_test";
   if (name === "ari_goal_manage") return "goal_manage";
+  const developerAction = ({
+    owner_repo_search: "repo_search",
+    owner_repo_read: "repo_read",
+    owner_repo_ci_status: "repo_ci_status",
+    propose_owner_github_edit: "github_edit"
+  })[name];
+  if (developerAction) return developerAction;
   const communityAction = ({
     agent_community_list: "community_list",
     agent_community_read: "community_read",
