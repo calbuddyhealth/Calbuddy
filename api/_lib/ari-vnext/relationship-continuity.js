@@ -2,7 +2,7 @@
 // Gives Ari a natural sense of shared history without inventing intimacy,
 // emotions, memories, or subjective consciousness.
 
-export const ARI_RELATIONSHIP_CONTINUITY_VERSION = "1.2.0";
+export const ARI_RELATIONSHIP_CONTINUITY_VERSION = "1.2.1";
 
 export function deriveRelationshipContinuity({
   userWorldModel = null,
@@ -67,6 +67,7 @@ export function deriveRelationshipContinuity({
 
   const recentSharedEvents = timelineEvents
     .filter((item) => item?.at)
+    .sort((a, b) => dateValue(b?.at) - dateValue(a?.at))
     .slice(0, 8)
     .map((item) => ({
       at: item.at,
