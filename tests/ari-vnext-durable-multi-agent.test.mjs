@@ -7,6 +7,7 @@ import {
   loadAgentTaskSession,
   loadAgentTaskWorkers,
   publicAgentTaskSession,
+  syncAgentTaskSessionWithExecution,
   updateAgentTaskSession,
   upsertAgentTaskWorker
 } from "../api/_lib/ari-vnext/agent-task-store.js";
@@ -201,6 +202,50 @@ test("task and worker state updates contain metadata only and preserve mailbox l
     const workerPayload = JSON.parse(calls[0].options.body);
     assert.equal(Object.hasOwn(workerPayload, "result_text"), false);
     assert.equal(Object.hasOwn(workerPayload, "chain_of_thought"), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    process.env = originalEnv;
+  }
+});
+
+test("execution completion closes the durable agent task without deleting its audit trail", async () => {
+  const originalEnv = { ...process.env };
+  const originalFetch = globalThis.fetch;
+  try {
+    configure();
+    const calls = [];
+    globalThis.fetch = async (url, options = {}) => {
+      calls.push({ url: String(url), options });
+      if (!options.method || options.method === "GET") {
+        return response(200, [sessionRow({ status: "waiting" })]);
+      }
+      const patch = JSON.parse(options.body);
+      return response(200, [sessionRow({
+        status: patch.status || "waiting",
+        next_step: patch.next_step ?? null,
+        last_turn_id: patch.last_turn_id || "turn-2",
+        completed_at: patch.completed_at || null
+      })]);
+    };
+
+    const synced = await syncAgentTaskSessionWithExecution({
+      userId: USER_ID,
+      executionSession: {
+        id: "exec_durable_test",
+        status: "completed",
+        nextStep: null
+      },
+      turnId: "turn-2"
+    });
+
+    assert.equal(synced.stored, true);
+    assert.equal(synced.session.status, "completed");
+    const patchCall = calls.find(item => item.options.method === "PATCH");
+    const patch = JSON.parse(patchCall.options.body);
+    assert.equal(patch.status, "completed");
+    assert.equal(patch.next_step, null);
+    assert.ok(patch.completed_at);
+    assert.doesNotMatch(String(patchCall.url), /delete/i);
   } finally {
     globalThis.fetch = originalFetch;
     process.env = originalEnv;
