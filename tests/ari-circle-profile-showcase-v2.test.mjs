@@ -42,7 +42,7 @@ test("four showcase slots support photo video and text without an infinite profi
   assert.match(gallery, /MAX_TEXT_LENGTH = 600/);
   assert.match(galleryCss, /circle-profile-gallery__video/);
   assert.match(galleryCss, /circle-profile-gallery__text/);
-  assert.match(migration, /position between 1 and 4/i);
+  assert.match(migration, /requested_position not between 1 and 4/i);
   assert.match(migration, /content_type in \('image','video','text'\)/i);
 });
 
