@@ -1643,40 +1643,6 @@ body.ari-circle-page img {
   line-height: 1.55;
 }
 
-.circle-icebreakers {
-  display: grid;
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.circle-icebreaker {
-  padding: 18px 0;
-  border-bottom: 1px solid rgba(36, 87, 245, 0.065);
-}
-
-.circle-icebreaker:last-child {
-  border-bottom: 0;
-}
-
-.circle-icebreaker__prompt {
-  margin: 0;
-  color: var(--circle-muted);
-  font-family: "Orbitron", sans-serif;
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1.55;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-}
-
-.circle-icebreaker__answer {
-  margin: 9px 0 0;
-  color: var(--circle-ink);
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.6;
-}
-
 .circle-details__stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
