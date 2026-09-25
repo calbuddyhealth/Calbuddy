@@ -252,7 +252,7 @@ test("background specialists expose read-only evidence tools and no mutation too
   assert.doesNotMatch(source, /owner_agent_mailbox_send/);
   assert.doesNotMatch(source, /execute_pending_action/);
   assert.match(source, /No external tool use is authorized|read-only/i);
-  assert.match(source, /MAX_TOOL_STEPS = 5/);
+  assert.match(source, /MAX_TOOL_STEPS = 3/);
 });
 
 test("developer councils enqueue background jobs while ordinary council path remains available", async () => {
@@ -300,11 +300,35 @@ test("background worker endpoint requires CRON_SECRET and can safely drain an em
     assert.equal(authorized.statusCode, 200);
     assert.equal(authorized.payload.success, true);
     assert.equal(authorized.payload.claimed, 0);
+    assert.equal(authorized.payload.timeBudgetMs, 105000);
     assert.equal(authorized.headers["X-ARI-Agent-Worker"], "pgmq-v1");
   } finally {
     globalThis.fetch = originalFetch;
     process.env = originalEnv;
   }
+});
+
+test("background worker uses a 120 second envelope with a shorter internal deadline", async () => {
+  const workerSource = await readFile(
+    new URL("../api/ari-agent-worker.js", import.meta.url),
+    "utf8"
+  );
+  const specialistSource = await readFile(
+    new URL("../api/_lib/ari-vnext/background-specialist.js", import.meta.url),
+    "utf8"
+  );
+  const runtimeSource = await readFile(
+    new URL("../api/_lib/ari-vnext/background-agent-runtime.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(workerSource, /maxDuration:\s*120/);
+  assert.match(workerSource, /ARI_ASYNC_WORKER_TIME_BUDGET_MS", 105000/);
+  assert.match(workerSource, /const batchSize = 1/);
+  assert.match(specialistSource, /ARI_ASYNC_WORKER_MODEL_TIMEOUT_MS,\s*18000/);
+  assert.match(specialistSource, /AGENT_WORKER_BUDGET_EXHAUSTED/);
+  assert.match(runtimeSource, /timeBudgetMs = 105000/);
+  assert.match(runtimeSource, /Math\.min\(Number\(limit\) \|\| 1, 1\)/);
 });
 
 test("Vercel schedules the background agent worker every minute", async () => {
