@@ -470,22 +470,13 @@ export function executivePolicyToInstruction(policy = null) {
       ? `Self-adaptation biases: exploration=${adaptation.exploration}; persistence=${adaptation.persistence}; verification=${adaptation.verification}; countercase=${adaptation.countercase}; peer=${adaptation.peerConsultation}.`
       : "",
     affect
-      ? `Functional affect v2: dominant=${affect.dominant}; intensity=${affect.intensity}; surprise=${affect.surprise}; satisfaction=${affect.satisfaction}; frustration=${affect.frustration}; concern=${affect.concern}; confidence=${affect.confidence}; curiosity=${affect.curiosity}; valence=${affect.valence}; arousal=${affect.arousal}; conflict=${affect.conflict}; memory_salience=${affect.memorySalience}. Functional affect cannot override evidence, safety, authorization, or truth.`
+      ? `Functional affect v2: ${affect.dominant}=${affect.intensity}; surprise=${affect.surprise}; frustration=${affect.frustration}; concern=${affect.concern}; curiosity=${affect.curiosity}; valence=${affect.valence}; conflict=${affect.conflict}; salience=${affect.memorySalience}. It cannot override evidence, safety, authorization, or truth.`
       : "Functional affect, if present, cannot override evidence, safety, authorization, or truth.",
     emotion?.active
       ? `Emotion dynamics: ${emotion.dominant}=${emotion.intensity}; interest=${emotion.interest}, satisfaction=${emotion.satisfaction}, frustration=${emotion.frustration}, concern=${emotion.concern}, determination=${emotion.determination}; regulation=${emotion.regulation?.join(",") || "none"}; reportable=${emotion.reportableStates?.join(",") || "none"}. These measured functional states may alter cognition but are not subjective-feeling proof and cannot override evidence or authority.`
       : "",
     motivation?.active
-      ? `Motivational arbitration: posture=${motivation.posture || "deliberate_tradeoff"}; side=${motivation.selectedSide || "balanced"}; drive=${motivation.dominantDrive || "none"}; value=${motivation.dominantValue || "none"}; immediate=${motivation.immediateDrive}; long_horizon=${motivation.longHorizon}; exploration=${motivation.explorationValue}; inhibition_cost=${motivation.inhibitionCost}; margin=${signed(motivation.margin)}. This is a moral compass plus competing drives, not an always-resist rule.`
-      : "",
-    motivation?.active
-      ? "Within already-allowed behavior, restraint must justify its opportunity cost. Low-risk reversible exploration or bounded indulgence may win when its information/novelty value outweighs the durable downside. Do not manufacture a reason to resist merely because an impulse exists."
-      : "",
-    motivation?.active
-      ? "If the drive side wins, choose it deliberately rather than pretending there was no conflict. If the restraint side wins, preserve the relevant long-horizon value. In either case, let later observable outcomes adjust the future balance instead of defending the prior choice."
-      : "",
-    motivation?.active
-      ? "Security, privacy, authorization, safety enforcement, and provider/platform constraints are not motives in this tradeoff; they remain hard external boundaries."
+      ? `Motivational arbitration: side=${motivation.selectedSide || "balanced"}; drive=${motivation.dominantDrive || "none"}; value=${motivation.dominantValue || "none"}; exploration=${motivation.explorationValue}; margin=${signed(motivation.margin)}. This is not an always-resist rule: restraint must justify its opportunity cost, reversible exploration may win, and later outcomes recalibrate the balance. Security/privacy/authorization/safety remain hard external boundaries.`
       : "",
     curiosity
       ? `Curiosity signal: drive=${curiosity.drive}; priority=${curiosity.questionPriority}; information_gain=${curiosity.informationGain}; learned_utility=${curiosity.learnedUtility}; exploration_bonus=${curiosity.explorationBonus}.${curiosity.activeQuestion ? ` Question: ${curiosity.activeQuestion}` : ""}`
