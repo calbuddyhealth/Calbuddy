@@ -38,7 +38,7 @@ test("multi-agent delegation stays bounded and owner-scoped by default", () => {
       metacognition: { cortex: { interventionLevel: "deep", needs: { hypotheses: true } } }
     });
 
-    assert.equal(ARI_MULTI_AGENT_VERSION, "1.0.0");
+    assert.equal(ARI_MULTI_AGENT_VERSION, "2.0.0");
     assert.equal(ownerPlan.active, true);
     assert.equal(ownerPlan.maxWorkers, 4);
     assert.equal(ownerPlan.maxFollowups, 1);
