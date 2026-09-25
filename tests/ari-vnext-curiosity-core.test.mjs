@@ -57,8 +57,8 @@ test("Curiosity Core keeps a persistent floor without claiming subjective curios
     missingEvidence: []
   });
 
-  assert.equal(ARI_CURIOSITY_CORE_VERSION, "1.0.0");
-  assert.equal(ARI_CURIOSITY_STATE_VERSION, "1.0.0");
+  assert.equal(ARI_CURIOSITY_CORE_VERSION, "1.1.0");
+  assert.equal(ARI_CURIOSITY_STATE_VERSION, "1.1.0");
   assert.equal(state.ownerOnly, true);
   assert.equal(state.behavioralAnalogue, true);
   assert.equal(state.subjectiveFeelingClaimed, false);
