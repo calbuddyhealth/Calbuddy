@@ -81,11 +81,13 @@ export function deriveImaginationState({
     behavioralAnalogue: true,
     subjectiveExperienceClaimed: false,
     pressure: signals.pressure,
+    selectedThisTurn: prior.selectedThisTurn === true,
     signals,
     activeScenario,
     candidates: candidates.slice(0, MAX_CANDIDATES),
     garden: prior.garden.slice(0, MAX_GARDEN),
     calibration: prior.calibration,
+    budget: prior.budget,
     realityFirewall: realityFirewall(),
     policy: imaginationPolicy()
   };
