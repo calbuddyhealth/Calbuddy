@@ -524,13 +524,6 @@ export default async function handler(req, res) {
         storedCount: explicitMemoryAction.storedCount,
         failedCount: explicitMemoryAction.failedCount
       },
-      durableAgentTask: result?.multiAgent?.durableTask
-        ? {
-            ...result.multiAgent.durableTask,
-            lifecycleStatus: durableAgentTaskLifecycle?.session?.status || result.multiAgent.durableTask.status || null,
-            lifecycleSynced: durableAgentTaskLifecycle?.stored === true
-          }
-        : null,
       conversationStyle: {
         automatic: savedConversationStyle.automatic !== false,
         explicitLocks: Array.isArray(savedConversationStyle.explicitLocks)
@@ -1179,6 +1172,13 @@ export default async function handler(req, res) {
       },
       temporalTimeline,
       proactiveInsights,
+      durableAgentTask: result?.multiAgent?.durableTask
+        ? {
+            ...result.multiAgent.durableTask,
+            lifecycleStatus: durableAgentTaskLifecycle?.session?.status || result.multiAgent.durableTask.status || null,
+            lifecycleSynced: durableAgentTaskLifecycle?.stored === true
+          }
+        : null,
       cognitiveLoop: cognitiveLoopEnabled
         ? {
             active: true,
