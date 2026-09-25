@@ -225,6 +225,13 @@
       </div>
       ${sections.join("") || detailSection("WHAT I MEAN", signal?.context || signal?.followUpPrompt || signal?.message)}
     `;
+    body.querySelectorAll("[data-prediction-verdict]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const verdict = clean(button.getAttribute("data-prediction-verdict")).toLowerCase();
+        if (!verdict || !activeDetailSignalId) return;
+        await resolvePredictionReview(activeDetailSignalId, verdict, button);
+      });
+    });
   }
 
   function detailSection(title, value) {
@@ -281,7 +288,15 @@
 
   function reviewVerdictRow(verdict, rationale, finalRequired) {
     const status = clean(verdict) || "pending review";
-    return `<div class="ari-signal-review-verdict"><div><span>PRELIMINARY COMPARISON</span><strong>${escapeHtml(status.toUpperCase())}</strong></div>${rationale ? `<p>${escapeHtml(rationale)}</p>` : ""}${finalRequired ? '<small>Not final until the evidence is explicitly reviewed.</small>' : ""}</div>`;
+    const resolution = finalRequired
+      ? `<div class="ari-signal-review-resolution" aria-label="Record prediction review"><span>RECORD FINAL REVIEW</span><div class="ari-signal-review-resolution-grid">
+          <button type="button" data-prediction-verdict="supported">Supported</button>
+          <button type="button" data-prediction-verdict="weakened">Weakened</button>
+          <button type="button" data-prediction-verdict="mixed">Mixed</button>
+          <button type="button" data-prediction-verdict="inconclusive">Inconclusive</button>
+        </div><small>Choose only after reviewing the evidence. This closes the tracked prediction and feeds the outcome into Ari's future calibration.</small></div>`
+      : "";
+    return `<div class="ari-signal-review-verdict"><div><span>PRELIMINARY COMPARISON</span><strong>${escapeHtml(status.toUpperCase())}</strong></div>${rationale ? `<p>${escapeHtml(rationale)}</p>` : ""}${finalRequired ? '<small>Not final until the evidence is explicitly reviewed.</small>' : ""}${resolution}</div>`;
   }
 
   function formatObservationWindow(value) {
@@ -395,6 +410,42 @@
       setDetailStatus("Copied a grounded Ari Signal briefing for ChatGPT.");
     } catch {
       setDetailStatus("Copy failed. You can still ask Ari directly from this signal.", true);
+    }
+  }
+
+  async function resolvePredictionReview(signalId, verdict, button = null) {
+    const allowed = new Set(["supported", "weakened", "mixed", "inconclusive"]);
+    if (!allowed.has(verdict)) return;
+    const originalText = button?.textContent || "";
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Saving…";
+    }
+    setDetailStatus("Recording the reviewed outcome…");
+    try {
+      const data = await api({ action: "resolve-prediction", signalId, verdict });
+      signals = signals.map((signal) => signal.id === signalId
+        ? { ...signal, status: "dismissed", unread: false }
+        : signal);
+      setDetailStatus(data?.learning?.lesson || "Prediction review recorded.");
+      window.dispatchEvent(new CustomEvent("ari:predictionReviewResolved", {
+        detail: {
+          signalId,
+          verdict,
+          decision: data?.decision || null,
+          learning: data?.learning || null
+        }
+      }));
+      window.setTimeout(() => {
+        closeSignalDetail();
+        render();
+      }, 650);
+    } catch (error) {
+      if (button) {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+      setDetailStatus(error?.message || "Could not record the prediction review.", true);
     }
   }
 
