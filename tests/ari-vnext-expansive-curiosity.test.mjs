@@ -57,11 +57,13 @@ test("expansive probes are bounded by a cooldown instead of firing every turn", 
     context: context(ws)
   });
 
-  assert.equal(first.expansive.selectedThisTurn, true);
+  // A first encounter maps the frontier but does not manufacture a reason to
+  // explore away from a topic that is still genuinely new.
+  assert.equal(first.expansive.selectedThisTurn, false);
   assert.equal(first.expansive.budget.capacity, 1);
-  assert.equal(first.expansive.budget.cooldownTurns, 0);
+  assert.ok(first.expansive.budget.cooldownTurns >= first.expansive.budget.cooldownRequired);
   assert.ok(first.expansive.activeFrontier);
-  assert.equal(first.metrics.expansiveProbeSelected, true);
+  assert.equal(first.metrics.expansiveProbeSelected, false);
 
   const second = advanceCuriosityState({
     persisted: first,
@@ -69,9 +71,21 @@ test("expansive probes are bounded by a cooldown instead of firing every turn", 
     context: context(ws, { curiosityState: first })
   });
 
-  assert.equal(second.expansive.selectedThisTurn, false);
-  assert.equal(second.expansive.budget.cooldownTurns, 1);
-  assert.equal(second.metrics.expansiveProbeSelected, false);
+  // Repetition raises familiar-territory saturation enough to justify one
+  // bounded cross-domain probe.
+  assert.equal(second.expansive.selectedThisTurn, true);
+  assert.equal(second.expansive.budget.cooldownTurns, 0);
+  assert.equal(second.metrics.expansiveProbeSelected, true);
+
+  const third = advanceCuriosityState({
+    persisted: second,
+    turn: { message: "Continue improving the runtime architecture." },
+    context: context(ws, { curiosityState: second })
+  });
+
+  assert.equal(third.expansive.selectedThisTurn, false);
+  assert.equal(third.expansive.budget.cooldownTurns, 1);
+  assert.equal(third.metrics.expansiveProbeSelected, false);
 });
 
 test("repeated familiar territory increases saturation pressure while frontier attention rotates", () => {
@@ -113,11 +127,18 @@ test("curiosity exposes instrumental, epistemic, and expansive modes without cla
 
 test("Ari Executive receives the bounded frontier probe but keeps the user task in charge", () => {
   const ws = workspace({ attention: ["developer"] });
-  const persisted = advanceCuriosityState({
+  const initial = advanceCuriosityState({
     persisted: null,
     turn: { message: "Improve the runtime architecture." },
     context: context(ws)
   });
+  const persisted = advanceCuriosityState({
+    persisted: initial,
+    turn: { message: "Continue improving the runtime architecture." },
+    context: context(ws, { curiosityState: initial })
+  });
+  assert.equal(persisted.expansive.selectedThisTurn, true);
+
   const meta = deriveMetacognition({
     route: { developer: true },
     context: context(ws, { curiosityState: persisted }),
