@@ -93,6 +93,7 @@ import {
 import {
   buildAttemptEvent,
   buildOutcomeEvent,
+  selectResumableGoalAttempt,
   goalCandidateFromMessage,
   summarizeGoals
 } from "./_lib/ari-vnext/conviction-learning.js";
@@ -581,15 +582,22 @@ export default async function handler(req, res) {
       (!fitnessRoute || routePreview.developer) &&
       /\b(?:implement|build|test|run|investigate|try|attempt|continue|change (?:the )?approach|make all changes|work on|figure out)\b/i.test(turn.message)
     );
-    const goalAttemptEvent = shouldTrackGoalAttempt
+    const resumableGoalAttempt = shouldTrackGoalAttempt
+      ? selectResumableGoalAttempt(trackedGoal, turn)
+      : null;
+    const goalAttemptEvent = shouldTrackGoalAttempt && !resumableGoalAttempt
       ? buildAttemptEvent({ goal: trackedGoal, turn })
       : null;
-    const goalAttemptPersistence = goalAttemptEvent
-      ? await saveGoalEvent({ userId: auth.userId, goalId: trackedGoal.id, event: goalAttemptEvent })
-      : { stored: false, reason: "not_tracked" };
-    const trackedAttemptId = goalAttemptPersistence?.stored
-      ? goalAttemptEvent.payload.attemptId
-      : null;
+    const goalAttemptPersistence = resumableGoalAttempt
+      ? { stored: false, resumed: true, reason: "pending_attempt_resumed", goal: trackedGoal }
+      : goalAttemptEvent
+        ? await saveGoalEvent({ userId: auth.userId, goalId: trackedGoal.id, event: goalAttemptEvent })
+        : { stored: false, resumed: false, reason: "not_tracked" };
+    const trackedAttemptId = resumableGoalAttempt?.id || (
+      goalAttemptPersistence?.stored
+        ? goalAttemptEvent.payload.attemptId
+        : null
+    );
 
     const modelStartedAt = Date.now();
     const result = await runAriVNext(turn).catch(async (error) => {
@@ -664,6 +672,7 @@ export default async function handler(req, res) {
       activeGoalId: trackedGoal?.id || convictionLearning?.activeGoalId || null,
       attemptId: trackedAttemptId,
       attemptStored: Boolean(goalAttemptPersistence?.stored),
+      attemptResumed: Boolean(goalAttemptPersistence?.resumed),
       outcomeStored: Boolean(goalOutcomePersistence?.stored),
       outcomeReason: goalOutcomePersistence?.reason || null,
       verifiedLearning: Boolean(goalOutcomePersistence?.goal?.latestOutcome?.newLearning),
