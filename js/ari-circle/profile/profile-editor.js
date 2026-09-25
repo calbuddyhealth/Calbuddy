@@ -263,7 +263,10 @@ const ProfileEditor = {
     });
     this.dom.form.addEventListener("change", event => {
       const control = event.target;
-      const immediate = control?.tagName === "SELECT" || control?.type === "date";
+      const isIcebreakerQuestion = control?.name === "icebreaker.key";
+      const immediate =
+        !isIcebreakerQuestion &&
+        (control?.tagName === "SELECT" || control?.type === "date");
       this.scheduleAutoSave({ immediate });
     });
 
@@ -387,14 +390,14 @@ const ProfileEditor = {
     answer.placeholder = "Write one answer";
     answerLabel.append(answerTitle, answer);
 
-    let previousQuestion = "";
     const sync = () => {
       const nextQuestion = question.value;
+      const previousQuestion = question.dataset.previousValue || "";
       answer.disabled = !nextQuestion;
       if (!nextQuestion || (previousQuestion && previousQuestion !== nextQuestion)) {
         answer.value = "";
       }
-      previousQuestion = nextQuestion;
+      question.dataset.previousValue = nextQuestion;
     };
     question.addEventListener("change", sync);
     sync();
@@ -440,6 +443,7 @@ const ProfileEditor = {
 
     if (this.dom.icebreakerQuestion) {
       this.dom.icebreakerQuestion.value = selected?.key || "";
+      this.dom.icebreakerQuestion.dataset.previousValue = selected?.key || "";
     }
     if (this.dom.icebreakerAnswer) {
       this.dom.icebreakerAnswer.disabled = !selected?.key;
@@ -513,7 +517,6 @@ const ProfileEditor = {
     this.state.submitting = true;
     this.setAutoSaveState("saving", "Saving…");
 
-    CircleStore.setProfile(mergedProfile);
     CircleEvents.emit(EVENT_NAMES.PROFILE_UPDATED, {
       profile: mergedProfile,
       changes: nextProfile,
