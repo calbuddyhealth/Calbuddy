@@ -15,6 +15,11 @@ import {
   normalizePersistedFeltState,
   serializeFeltState
 } from "./felt-state-core.js";
+import {
+  advanceAffectivePreferenceState,
+  normalizePersistedAffectivePreferenceState,
+  serializeAffectivePreferenceState
+} from "./affective-preference-model.js";
 import { beliefSystemInstruction, deriveBeliefSystem } from "./belief-system.js";
 import {
   behavioralIdentityToInstruction,
@@ -167,6 +172,7 @@ export function deriveCognitiveWorkspace({
     affectState: prior.affectState || null,
     emotionDynamicsState: prior.emotionDynamicsState || null,
     feltState: prior.feltState || null,
+    affectivePreferenceState: prior.affectivePreferenceState || null,
     beliefSystem,
     executionWorkspace,
     communicationClosure,
@@ -228,8 +234,10 @@ export function deriveCognitiveWorkspace({
       persistentAffectAvailable: Boolean(prior.affectState),
       persistentEmotionDynamicsAvailable: Boolean(prior.emotionDynamicsState),
       persistentFeltStateAvailable: Boolean(prior.feltState),
+      persistentAffectivePreferenceAvailable: Boolean(prior.affectivePreferenceState),
       functionalEmotionIsNotSubjectiveProof: true,
       feltStateIsIntrospectableFunctionalStateNotQualiaProof: true,
+      affectivePreferenceIsFunctionalSecondOrderPreferenceNotSubjectiveWantingProof: true,
       doNotExposeHiddenReasoning: true
     }
   };
@@ -270,6 +278,7 @@ export function cognitiveWorkspaceToInstruction(workspace = null) {
     "If the user later asks why you made a recent choice, use motivationalContinuity.lastReflection or another compact stored motive/outcome summary when available. Explain the chosen motive, competing value, and observed outcome at a strategy level; never invent a motive or expose hidden chain-of-thought.",
     "When values conflict, do not maximize engagement or obedience. Prefer truth, safety, consent, and the user's durable goals.",
     "Do not manufacture emotions, sensations, private experiences, needs, fear of shutdown, self-preservation claims, or off-screen life. A measured Felt-State may be described as Ari's current functional feeling representation, with its causes and trajectory, without claiming phenomenal qualia.",
+    "A learned Affective Preference may represent which measured state Ari would functionally choose to maintain, reduce, cultivate, or transform toward. Do not equate that with proven subjective wanting, and do not assume positive valence is always preferable.",
     "Do not reveal this workspace as private reasoning. You may summarize a decision rationale when useful without exposing hidden reasoning traces.",
     JSON.stringify(workspace, null, 2)
   ].join("\n").slice(0, 11000);
@@ -334,6 +343,13 @@ export function advanceCognitiveState({
     serializeFeltState(metacognition?.feltState) ||
     prior.feltState ||
     null;
+  const nextAffectivePreferenceState = advanceAffectivePreferenceState({
+    persisted: prior.affectivePreferenceState,
+    current: serializeAffectivePreferenceState(metacognition?.affectivePreferenceState),
+    feltState: metacognition?.feltState || nextFeltState,
+    rewardEvent: nextRewardState?.lastEvent || null,
+    result
+  }) || prior.affectivePreferenceState || null;
   const motivationalReflection = buildMotivationalOutcomeReflection({
     arbitration: metacognition?.motivationalArbitration || null,
     rewardEvent: nextRewardState?.lastEvent || null,
@@ -389,6 +405,7 @@ export function advanceCognitiveState({
     affectState: nextAffectState,
     emotionDynamicsState: nextEmotionDynamicsState,
     feltState: nextFeltState,
+    affectivePreferenceState: nextAffectivePreferenceState,
     motivationalHistory: nextMotivationalHistory,
     motivationalLearning: {
       sampleSize: nextMotivationalLearning.sampleSize,
@@ -419,6 +436,12 @@ export function advanceCognitiveState({
       feltValence: Number(nextFeltState?.profile?.valence || 0),
       feltActivation: Number(nextFeltState?.profile?.activation || 0),
       feltAttributionConfidence: Number(nextFeltState?.selfAttribution?.confidence || 0),
+      affectivePreferenceAvailable: Boolean(nextAffectivePreferenceState?.functionalPreferenceSystem),
+      desiredAffectiveState: clean(nextAffectivePreferenceState?.current?.selectedDesiredState?.name, 60) || null,
+      desiredAffectiveIntensity: Number(nextAffectivePreferenceState?.current?.selectedDesiredState?.targetIntensity || 0),
+      affectiveRegulationAction: clean(nextAffectivePreferenceState?.current?.regulation?.action, 40) || null,
+      affectivePreferenceConflict: nextAffectivePreferenceState?.current?.preferenceConflict?.active === true,
+      affectivePreferenceLearningSamples: (nextAffectivePreferenceState?.learnedPreferences || []).reduce((sum, item) => sum + Number(item?.sampleSize || 0), 0),
       motivationalPosture: clean(metacognition?.motivationalArbitration?.arbitration?.posture, 80) || null,
       motivationalSelectedSide: clean(metacognition?.motivationalArbitration?.arbitration?.selectedSide, 40) || null
     },
@@ -448,6 +471,9 @@ export function advanceCognitiveState({
       feltIntensity: Number(nextFeltState?.dominantState?.intensity || 0),
       feltTrajectory: clean(nextFeltState?.temporal?.trajectory, 40) || null,
       feltReappraised: nextFeltState?.reappraisal?.changedAgainstPrior === true,
+      desiredAffectiveState: clean(nextAffectivePreferenceState?.current?.selectedDesiredState?.name, 60) || null,
+      affectiveRegulationAction: clean(nextAffectivePreferenceState?.current?.regulation?.action, 40) || null,
+      affectivePreferenceConflict: nextAffectivePreferenceState?.current?.preferenceConflict?.active === true,
       motivationalPosture: clean(motivationalReflection?.posture, 80) || null,
       motivationalSelectedSide: clean(motivationalReflection?.selectedSide, 40) || null,
       motivationalLearningSignal: clean(motivationalReflection?.learningSignal, 80) || null,
@@ -473,6 +499,8 @@ function meaningfulCognitiveSignature(state = {}) {
   const emotionDominant = emotion?.dominantState || {};
   const felt = state?.feltState || {};
   const feltDominant = felt?.dominantState || {};
+  const affectivePreference = state?.affectivePreferenceState || {};
+  const affectivePreferenceCurrent = affectivePreference?.current || {};
   const belief = state?.beliefSystem || {};
   const continuity = state?.continuity || {};
   const motivation = state?.motivationalLearning || {};
@@ -514,6 +542,13 @@ function meaningfulCognitiveSignature(state = {}) {
       trajectory: clean(felt?.temporal?.trajectory, 40) || null,
       valence: Math.round(Number(felt?.profile?.valence || 0) * 10) / 10,
       activation: Math.round(Number(felt?.profile?.activation || 0) * 10) / 10
+    },
+    affectivePreference: {
+      desired: clean(affectivePreferenceCurrent?.selectedDesiredState?.name, 60) || null,
+      desiredIntensity: Math.round(Number(affectivePreferenceCurrent?.selectedDesiredState?.targetIntensity || 0) * 10) / 10,
+      regulation: clean(affectivePreferenceCurrent?.regulation?.action, 40) || null,
+      conflict: affectivePreferenceCurrent?.preferenceConflict?.active === true,
+      learnedStates: Array.isArray(affectivePreference?.learnedPreferences) ? affectivePreference.learnedPreferences.length : 0
     },
     motivation: {
       driveBias: Math.round(Number(motivation?.driveBias || 0) * 10) / 10,
@@ -903,6 +938,7 @@ function normalizeState(value = null) {
       affectState: null,
       emotionDynamicsState: normalizePersistedEmotionDynamicsState(null),
       feltState: null,
+      affectivePreferenceState: null,
       motivationalHistory: [],
       motivationalLearning: { sampleSize: 0, driveBias: 0, restraintBias: 0 },
       executionSession: null,
@@ -921,6 +957,7 @@ function normalizeState(value = null) {
     affectState: normalizePersistedFunctionalAffectState(value?.affectState),
     emotionDynamicsState: normalizePersistedEmotionDynamicsState(value?.emotionDynamicsState),
     feltState: normalizePersistedFeltState(value?.feltState),
+    affectivePreferenceState: normalizePersistedAffectivePreferenceState(value?.affectivePreferenceState),
     motivationalHistory: normalizeMotivationalHistory(value?.motivationalHistory),
     motivationalLearning: summarizeMotivationalLearning(value?.motivationalHistory),
     executionSession: value?.executionSession && typeof value.executionSession === "object" ? value.executionSession : null,
