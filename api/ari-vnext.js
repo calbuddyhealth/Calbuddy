@@ -98,7 +98,8 @@ import {
   summarizeGoals
 } from "./_lib/ari-vnext/conviction-learning.js";
 import { ensureGoal, loadGoals, saveGoalEvent } from "./_lib/ari-vnext/goal-store.js";
-import { loadDreamingContext } from "./_lib/ari-vnext/dreaming-store.js";\nimport { loadExperienceContext } from "./_lib/ari-vnext/experience-store.js";
+import { loadDreamingContext } from "./_lib/ari-vnext/dreaming-store.js";
+import { loadExperienceContext } from "./_lib/ari-vnext/experience-store.js";
 import { syncAgentTaskSessionWithExecution } from "./_lib/ari-vnext/agent-task-store.js";
 
 const AUTH_TIMEOUT_MS = Number(process.env.ARI_AUTH_TIMEOUT_MS) > 0
