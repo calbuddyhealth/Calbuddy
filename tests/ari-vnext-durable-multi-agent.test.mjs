@@ -82,7 +82,7 @@ function workerRow(overrides = {}) {
 
 test("durable agent task migration is server-only and worker results stay in mailbox", () => {
   const migration = fs.readFileSync(
-    "supabase/migrations/20260925070000_ari_durable_agent_tasks.sql",
+    "supabase/migrations/20260925081234_ari_durable_agent_tasks.sql",
     "utf8"
   );
 
