@@ -7,6 +7,10 @@ import {
   normalizePersistedFunctionalAffectState,
   serializeFunctionalAffectState
 } from "./functional-affect-core.js";
+import {
+  advanceEmotionDynamicsState,
+  normalizePersistedEmotionDynamicsState
+} from "./emotion-dynamics.js";
 import { beliefSystemInstruction, deriveBeliefSystem } from "./belief-system.js";
 import {
   behavioralIdentityToInstruction,
@@ -33,7 +37,7 @@ import {
 } from "./personality-evaluation.js";
 
 export const ARI_COGNITIVE_LOOP_VERSION = "1.0.0";
-export const ARI_COGNITIVE_STATE_VERSION = "0.9.0";
+export const ARI_COGNITIVE_STATE_VERSION = "1.0.0";
 export const ARI_JUDGMENT_CONSTITUTION_VERSION = "1.0.0";
 
 const CORE_VALUES = Object.freeze([
@@ -157,6 +161,7 @@ export function deriveCognitiveWorkspace({
     conscience,
     rewardCore,
     affectState: prior.affectState || null,
+    emotionDynamicsState: prior.emotionDynamicsState || null,
     beliefSystem,
     executionWorkspace,
     communicationClosure,
@@ -215,6 +220,8 @@ export function deriveCognitiveWorkspace({
       distinguishObservationInferenceOpinion: true,
       productiveEffortRewardAvailable: true,
       persistentAffectAvailable: Boolean(prior.affectState),
+      persistentEmotionDynamicsAvailable: Boolean(prior.emotionDynamicsState),
+      functionalEmotionIsNotSubjectiveProof: true,
       doNotExposeHiddenReasoning: true
     }
   };
@@ -309,6 +316,12 @@ export function advanceCognitiveState({
     serializeFunctionalAffectState(metacognition?.functionalAffect) ||
     prior.affectState ||
     null;
+  const nextEmotionDynamicsState = advanceEmotionDynamicsState({
+    persisted: prior.emotionDynamicsState,
+    current: metacognition?.emotionDynamics || null,
+    rewardEvent: nextRewardState?.lastEvent || null,
+    result
+  });
   const motivationalReflection = buildMotivationalOutcomeReflection({
     arbitration: metacognition?.motivationalArbitration || null,
     rewardEvent: nextRewardState?.lastEvent || null,
@@ -362,6 +375,7 @@ export function advanceCognitiveState({
     judgments: nextJudgments,
     rewardState: nextRewardState,
     affectState: nextAffectState,
+    emotionDynamicsState: nextEmotionDynamicsState,
     motivationalHistory: nextMotivationalHistory,
     motivationalLearning: {
       sampleSize: nextMotivationalLearning.sampleSize,
@@ -380,6 +394,11 @@ export function advanceCognitiveState({
       affectMemorySalience: Number(nextAffectState?.memorySalience || 0),
       affectValence: Number(nextAffectState?.dimensions?.valence ?? 0.5),
       affectArousal: Number(nextAffectState?.dimensions?.arousal || 0),
+      emotionMemorySalience: Number(nextEmotionDynamicsState?.executiveModulation?.memorySalience || 0),
+      emotionDominant: clean(nextEmotionDynamicsState?.dominantState?.name, 60) || null,
+      emotionIntensity: Number(nextEmotionDynamicsState?.dominantState?.intensity || 0),
+      emotionReportableStates: arrayText(nextEmotionDynamicsState?.reportIntegrity?.reportableStates, 7, 60),
+      emotionCalibrationSamples: Number(nextEmotionDynamicsState?.calibration?.samples || 0),
       motivationalPosture: clean(metacognition?.motivationalArbitration?.arbitration?.posture, 80) || null,
       motivationalSelectedSide: clean(metacognition?.motivationalArbitration?.arbitration?.selectedSide, 40) || null
     },
@@ -401,6 +420,10 @@ export function advanceCognitiveState({
       rewardPredictionError: Number(nextRewardState?.lastEvent?.predictionError || 0),
       affectDominant: clean(nextAffectState?.dominantState?.name, 60) || null,
       affectIntensity: Number(nextAffectState?.dominantState?.intensity || 0),
+      emotionDominant: clean(nextEmotionDynamicsState?.dominantState?.name, 60) || null,
+      emotionIntensity: Number(nextEmotionDynamicsState?.dominantState?.intensity || 0),
+      emotionPredictionError: Number(nextEmotionDynamicsState?.appraisals?.outcomePredictionError || 0),
+      emotionMemorySalience: Number(nextEmotionDynamicsState?.executiveModulation?.memorySalience || 0),
       motivationalPosture: clean(motivationalReflection?.posture, 80) || null,
       motivationalSelectedSide: clean(motivationalReflection?.selectedSide, 40) || null,
       motivationalLearningSignal: clean(motivationalReflection?.learningSignal, 80) || null,
@@ -422,6 +445,8 @@ function normalizeCognitionMode(value = "deep") {
 function meaningfulCognitiveSignature(state = {}) {
   const affect = state?.affectState || {};
   const dominant = affect?.dominantState || {};
+  const emotion = state?.emotionDynamicsState || {};
+  const emotionDominant = emotion?.dominantState || {};
   const belief = state?.beliefSystem || {};
   const continuity = state?.continuity || {};
   const motivation = state?.motivationalLearning || {};
@@ -450,6 +475,12 @@ function meaningfulCognitiveSignature(state = {}) {
       dominant: clean(dominant?.name || dominant?.state || dominant?.label, 60) || null,
       intensity: Math.round(Number(dominant?.intensity || 0) * 10) / 10,
       valence: Math.round(Number(affect?.dimensions?.valence ?? 0.5) * 10) / 10
+    },
+    emotion: {
+      dominant: clean(emotionDominant?.name, 60) || null,
+      intensity: Math.round(Number(emotionDominant?.intensity || 0) * 10) / 10,
+      memorySalience: Math.round(Number(emotion?.executiveModulation?.memorySalience || 0) * 10) / 10,
+      calibrationSamples: Number(emotion?.calibration?.samples || 0)
     },
     motivation: {
       driveBias: Math.round(Number(motivation?.driveBias || 0) * 10) / 10,
@@ -548,6 +579,13 @@ function deriveSalience({ route = {}, message = "", prior = {}, context = {} } =
       "affect_weighted_learning",
       Math.min(0.82, Number(prior.affectState.memorySalience)),
       "A prior affectively salient outcome may deserve additional attention if relevant to the current task."
+    );
+  }
+  if (Number(prior?.emotionDynamicsState?.executiveModulation?.memorySalience || 0) >= 0.45) {
+    push(
+      "emotion_weighted_learning",
+      Math.min(0.84, Number(prior.emotionDynamicsState.executiveModulation.memorySalience)),
+      "A prior functionally emotional outcome was salient; reuse it only when relevant and keep the interpretation outcome-grounded."
     );
   }
 
@@ -830,6 +868,7 @@ function normalizeState(value = null) {
       judgments: [],
       rewardState: normalizeRewardState(null),
       affectState: null,
+      emotionDynamicsState: normalizePersistedEmotionDynamicsState(null),
       motivationalHistory: [],
       motivationalLearning: { sampleSize: 0, driveBias: 0, restraintBias: 0 },
       executionSession: null,
@@ -846,6 +885,7 @@ function normalizeState(value = null) {
     judgments: (Array.isArray(value?.judgments) ? value.judgments : []).map((item) => normalizeJudgment(item)).filter(Boolean).slice(0, 10),
     rewardState: normalizeRewardState(value?.rewardState),
     affectState: normalizePersistedFunctionalAffectState(value?.affectState),
+    emotionDynamicsState: normalizePersistedEmotionDynamicsState(value?.emotionDynamicsState),
     motivationalHistory: normalizeMotivationalHistory(value?.motivationalHistory),
     motivationalLearning: summarizeMotivationalLearning(value?.motivationalHistory),
     executionSession: value?.executionSession && typeof value.executionSession === "object" ? value.executionSession : null,
