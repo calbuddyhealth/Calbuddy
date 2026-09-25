@@ -122,3 +122,55 @@ test("Ari Signals owner feed ranks actionable workflow signals", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+
+test("existing autonomy signals without ownerBrief still get grounded details", async () => {
+  configureEnv();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const href = String(url);
+    if (href.endsWith("/auth/v1/user")) {
+      return jsonResponse(200, { id: OWNER_ID, email: "owner@example.com" });
+    }
+    if (href.includes("/rest/v1/ari_vnext_initiative_events")) {
+      return jsonResponse(200, [{
+        id: "signal-old",
+        user_id: OWNER_ID,
+        initiative_key: "ari_autonomy:goal:existing",
+        reason_id: "ari_autonomous_research_cycle",
+        priority: "high",
+        status: "surfaced",
+        payload: {
+          opener: "I need Jose + ChatGPT on one of my development goals.",
+          context: "The goal needs a broader persistence change outside isolated branch authority.",
+          followUpPrompt: "What I want help with: Goal: improve durable continuity. Evidence: the current store cannot represent the missing state.",
+          action: "collaborate_on_autonomous_goal",
+          domain: "development"
+        },
+        surfaced_at: new Date().toISOString(),
+        engaged_at: null,
+        dismissed_at: null,
+        expires_at: null,
+        updated_at: new Date().toISOString()
+      }]);
+    }
+    if (href.includes("/rest/v1/ari_signal_preferences")) {
+      return jsonResponse(200, []);
+    }
+    throw new Error(`Unexpected fetch: ${href}`);
+  };
+
+  try {
+    const req = { method: "GET", headers: { authorization: "Bearer owner-session" } };
+    const res = responseRecorder();
+    await handler(req, res);
+    assert.equal(res.statusCode, 200);
+    const signal = res.body?.signals?.[0];
+    assert.equal(signal?.detail?.whatItMeans, "The goal needs a broader persistence change outside isolated branch authority.");
+    assert.equal(signal?.detail?.relatedGoal, "improve durable continuity");
+    assert.match(signal?.detail?.requestFromChatGPT || "", /improve durable continuity/i);
+    assert.equal(signal?.detail?.evidence?.[0]?.label, "the current store cannot represent the missing state");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
