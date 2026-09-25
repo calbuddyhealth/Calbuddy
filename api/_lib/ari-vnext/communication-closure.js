@@ -42,6 +42,7 @@ const CORRECTION_PATTERN = /\b(?:no[, ]|that's wrong|that is wrong|not what i sa
 const ACCEPTANCE_PATTERN = /^(?:yes|yeah|yep|correct|exactly|that's right|that is right|perfect)\b/i;
 const REJECTION_PATTERN = /^(?:no|nope|incorrect|wrong|that's wrong|that is wrong)\b/i;
 const COMPLETION_PATTERN = /\b(?:done|finished|complete|completed|resolved|fixed|merged|deployed|saved|sent|submitted)\b/i;
+const DOWNSTREAM_OUTCOME_PATTERN = /\b(?:experiment|intervention|prediction|predict|recommend|recommendation|try this|trial|expected outcome|real[- ]world outcome|follow[- ]?up|see if|whether .* works?)\b/i;
 
 export function deriveCommunicationClosureWorkspace({
   previous = null,
@@ -368,6 +369,10 @@ function buildAcceptanceCriteria({ level, route = {}, session = null, userReques
     push("verified_result", "Do not mark the material result complete until an independent test, trusted receipt, or equivalent observable evidence verifies it.");
   }
 
+  if (DOWNSTREAM_OUTCOME_PATTERN.test(userRequest)) {
+    push("downstream_outcome", "Keep the loop open until downstream real-world evidence resolves whether the intervention, experiment, prediction, or recommendation worked.", true);
+  }
+
   return criteria.slice(0, 6);
 }
 
@@ -486,6 +491,16 @@ function updateAcceptanceCriteria({
       }
       return next;
     }
+    if (item.id === "downstream_outcome") {
+      const outcomeResolved =
+        result?.closureRuntime?.decisionOutcomeLearning?.resolved === true ||
+        result?.decisionOutcomeLearning?.resolved === true;
+      if (outcomeResolved) {
+        next.status = "passed";
+        next.evidenceRefs = evidenceRefs;
+      }
+      return next;
+    }
     if (item.id === "requested_result") {
       if (executionSession?.status === "completed" && verifiedCompletion) {
         next.status = "passed";
@@ -520,6 +535,10 @@ function resolveClosureState({
   if (execStatus === "active") return "executing";
 
   if (verifiedCompletion) {
+    const downstreamPending = acceptanceCriteria.some(
+      item => item?.id === "downstream_outcome" && item?.required !== false && item?.status !== "passed"
+    );
+    if (downstreamPending) return "outcome_pending";
     const allRequiredPassed = acceptanceCriteria
       .filter(item => item?.required !== false)
       .every(item => ["passed", "observed"].includes(item?.status));
@@ -892,6 +911,7 @@ function hasVerifiedCompletionEvidence({ result = {}, executionSession = null, e
 
 function terminalStateFor(state = "unknown") {
   if (["closed", "verified"].includes(state)) return "verified";
+  if (state === "outcome_pending") return "open";
   if (state === "failed") return "failed";
   if (state === "rejected") return "rejected";
   if (state === "superseded") return "superseded";
