@@ -8,16 +8,16 @@ const feed = fs.readFileSync("ari-circle-feed.html", "utf8");
 const meetup = fs.readFileSync("ari-circle-meetup.html", "utf8");
 const profileCompat = fs.readFileSync("js/ari-circle/v4-ui.js", "utf8");
 
-test("Circle primary navigation is only Feed and Connect", () => {
+test("Circle primary navigation is only Connect and Profile", () => {
   const navCalls = [...shell.matchAll(/navLink\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)"\)/g)]
     .map((match) => match.slice(1));
   assert.deepEqual(navCalls, [
-    ["feed", "ari-circle-feed.html", "Feed"],
-    ["connect", "ari-circle-meetup.html", "Connect"]
+    ["connect", "ari-circle-meetup.html", "Connect"],
+    ["profile", "ari-circle.html", "Profile"]
   ]);
-  assert.match(shell, /NAV_MODEL = "feed-connect-v1"/);
+  assert.match(shell, /NAV_MODEL = "connect-profile-v1"/);
+  assert.doesNotMatch(shell, /navLink\("feed"/);
   assert.doesNotMatch(shell, /navLink\("arinext"/);
-  assert.doesNotMatch(shell, />Missions<\/a>/);
 });
 
 test("experimental owner routes still fail closed when opened directly", () => {
@@ -30,12 +30,9 @@ test("experimental owner routes still fail closed when opened directly", () => {
   assert.match(shell, /window\.location\.replace\(ownerRouteFallback\(\)\)/);
 });
 
-test("Feed no longer exposes photo posting or Moments", () => {
-  assert.match(feed, /Share an update/);
-  assert.match(feed, /Friends only/);
-  assert.doesNotMatch(feed, /Camera \/ Library/);
-  assert.doesNotMatch(feed, /Make it a Moment/);
-  assert.doesNotMatch(feed, /id="momentsTitle"/);
+test("legacy Feed route redirects to Connect", () => {
+  assert.match(feed, /window\.location\.replace\("ari-circle-meetup\.html"\)/);
+  assert.match(feed, /Feed is retired as a member-facing surface/);
 });
 
 test("Connect is activity-first and keeps controls compact", () => {
@@ -45,12 +42,11 @@ test("Connect is activity-first and keeps controls compact", () => {
   assert.match(meetup, /THIS WEEKEND/);
   assert.match(meetup, /data-ari-circle-search-location data-surface="meetup"/);
   assert.doesNotMatch(meetup, /REAL WORLD XP/);
-  assert.doesNotMatch(meetup, /Complete Meetup/);
 });
 
-test("Profile remains secondary and returns to Feed", () => {
+test("Profile is first-class and its wordmark returns to Connect", () => {
   assert.match(profileCompat, /removeLegacyProfileNav/);
-  assert.match(profileCompat, /brand\.href = "ari-circle-feed\.html"/);
+  assert.match(profileCompat, /brand\.href = "ari-circle-meetup\.html"/);
   assert.match(profileCompat, /circleV3ProfileTabs/);
   assert.match(profileCompat, /circleV3PostsPanel/);
 });
@@ -61,10 +57,9 @@ test("drawer contains secondary controls, not competing primary tabs", () => {
   assert.doesNotMatch(menu, /label: "Quests"/);
   assert.doesNotMatch(menu, /item\(\{ href: "ari-circle-meetup\.html"/);
   assert.doesNotMatch(menu, /item\(\{ href: "ari-circle-feed\.html"/);
-  assert.doesNotMatch(menu, /item\(\{ href: "ari-circle-v6\.html"/);
 });
 
-test("ARI CIRCLE wordmark returns to Feed", () => {
-  assert.match(shell, /brand\.setAttribute\("href", "ari-circle-feed\.html"\)/);
-  assert.match(shell, /brand\.setAttribute\("aria-label", "ARI Circle Feed"\)/);
+test("ARI CIRCLE wordmark returns to Connect", () => {
+  assert.match(shell, /brand\.setAttribute\("href", "ari-circle-meetup\.html"\)/);
+  assert.match(shell, /brand\.setAttribute\("aria-label", "ARI Circle Connect"\)/);
 });

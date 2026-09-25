@@ -763,7 +763,8 @@ function evaluateVisualCoverage({ report, instruction = "" } = {}) {
         "/nutrition.html",
         "/ari-training.html",
         "/progress.html",
-        "/ari-circle-feed.html",
+        "/ari-circle-meetup.html",
+        "/ari-circle.html",
         "/profile.html",
         "/owner-ai-controls.html"
       ]

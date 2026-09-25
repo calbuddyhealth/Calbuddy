@@ -132,12 +132,16 @@ test("visual evidence questions use the completed inspection directly instead of
   assert.ok(hydrateStart > fastPathStart, "visual evidence fast path should run before full app-context hydration");
 });
 
+test("generic Circle visual requests open Connect while Circle posting requests open Profile", () => {
+  assert.match(core, /if \(\/\\b\(feed\|post\|posts\)\\b\/\.test\(text\) && \/\\bcircle\\b\/\.test\(text\)\) \{[\s\S]*return "\/ari-circle\.html"/);
+  assert.match(core, /if \(\/\\bcircle\\b\/\.test\(text\)\) return "\/ari-circle-meetup\.html"/);
+});
+
 test("visual route maps important ARI XP screens", () => {
   for (const path of [
     "/home.html",
     "/ari-circle.html",
     "/ari-circle-messages.html",
-    "/ari-circle-feed.html",
     "/ari-circle-meetup.html",
     "/ari-training.html",
     "/nutrition.html",
@@ -156,7 +160,8 @@ test("whole-app inspection becomes a bounded multi-page visual tour", () => {
     "/nutrition.html",
     "/ari-training.html",
     "/progress.html",
-    "/ari-circle-feed.html",
+    "/ari-circle-meetup.html",
+    "/ari-circle.html",
     "/profile.html",
     "/owner-ai-controls.html"
   ]) {

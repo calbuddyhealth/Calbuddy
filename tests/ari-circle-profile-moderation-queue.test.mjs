@@ -10,10 +10,11 @@ const worker = fs.readFileSync("api/ari-circle-moderation-worker.js", "utf8");
 const gallery = fs.readFileSync("js/ari-circle/profile/profile-gallery-v1.js", "utf8");
 const vercel = fs.readFileSync("vercel.json", "utf8");
 
-test("profile photos upload privately before moderation", () => {
+test("profile images upload privately before moderation while other showcase types stay available", () => {
   assert.match(gallery, /profile-gallery-pending/);
-  assert.match(gallery, /moderation_status: "uploading"/);
-  assert.match(gallery, /Photo uploaded\. Checking before it becomes visible to other people/);
+  assert.match(gallery, /moderation_status: contentType === "image" \? "uploading" : "approved"/);
+  assert.match(gallery, /Image uploaded\. Checking before it becomes visible to other people/);
+  assert.match(gallery, /supportedTypes: Object\.freeze\(\["image","video","text"\]\)/);
   assert.doesNotMatch(gallery, /AriCircleProfileSafety\.screen/);
   assert.doesNotMatch(gallery, /screenPhoto\(/);
 });

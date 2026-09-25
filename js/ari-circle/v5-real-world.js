@@ -1,13 +1,13 @@
 /* =============================================================
-   ARI CIRCLE V5.4.0 — SIMPLE SOCIAL SHELL
-   Feed · Connect are the member-facing Circle experience.
+   ARI CIRCLE V5.5.0 — CONNECT + PROFILE SHELL
+   Connect · Profile are the member-facing Circle experience.
    One current navigation owner, bounded lifecycle refreshes, and no retired
    Buddies/Challenges route shims.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "5.4.0";
+  const VERSION = "5.5.0";
   if (window.AriCircleV5RealWorld?.version === VERSION) return;
 
   const STYLE_ID = "ariCircleV5RealWorldStyle";
@@ -21,9 +21,9 @@
   const NAV_ID = "ariCircleV5BottomNav";
   const CONNECT_STYLE_ID = "ariCircleConnectModeStyle";
   const CONNECT_NAV_ID = "ariCircleConnectModeNav";
-  const NAV_MODEL = "feed-connect-v1";
+  const NAV_MODEL = "connect-profile-v1";
   const HALO_SEEN_KEY = "ari-circle-v522-wordmark-seen";
-  const OWNER_ROUTE_FALLBACK = "ari-circle-feed.html";
+  const OWNER_ROUTE_FALLBACK = "ari-circle-meetup.html";
   const MISSIONS_ROUTE_FALLBACK = "ari-circle-meetup.html";
   let queued = false;
   let happeningLoaded = false;
@@ -33,7 +33,7 @@
 
   const ICONS = Object.freeze({
     connect: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="8" r="3"></circle><circle cx="16.5" cy="9" r="2.5"></circle><path d="M3.5 19c.5-3.5 2.3-5.3 5-5.3s4.6 1.8 5.1 5.3M14.2 14.2c3.4-.4 5.6 1.2 6.3 4.8"></path></svg>`,
-    feed: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4.5" width="16" height="15" rx="3"></rect><path d="M8 9h8M8 12.5h5M8 16h7"></path></svg>`,
+    profile: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4.5 21a7.5 7.5 0 0 1 15 0"></path></svg>`,
     message: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18.25 3.75 20l.85-3.45A7.9 7.9 0 0 1 3 11.75C3 7.47 6.9 4 11.7 4h.6c4.8 0 8.7 3.47 8.7 7.75s-3.9 7.75-8.7 7.75h-.6A9.5 9.5 0 0 1 7 18.25Z"></path></svg>`
   });
 
@@ -147,8 +147,8 @@
 
   function activeKey() {
     const path = pathName();
-    if (path.includes("ari-circle-meetup") || path.includes("ari-circle-quest")) return "connect";
-    if (path.endsWith("/ari-circle-feed.html")) return "feed";
+    if (path.includes("ari-circle-meetup") || path.includes("ari-circle-quest") || path.endsWith("/ari-circle-feed.html")) return "connect";
+    if (path.endsWith("/ari-circle.html")) return "profile";
     return "";
   }
 
@@ -162,8 +162,8 @@
 
   function bottomNavMarkup() {
     return `<div class="circle-v5-bottom-nav__dock">
-      ${navLink("feed", "ari-circle-feed.html", "Feed")}
       ${navLink("connect", "ari-circle-meetup.html", "Connect")}
+      ${navLink("profile", "ari-circle.html", "Profile")}
     </div>`;
   }
 
@@ -225,8 +225,8 @@
       const brand = header.querySelector(".feed-brand, .circle-v5-brand, .circle-header__brand");
       if (brand) {
         brand.classList.add("circle-v51-brand");
-        brand.setAttribute("href", "ari-circle-feed.html");
-        brand.setAttribute("aria-label", "ARI Circle Feed");
+        brand.setAttribute("href", "ari-circle-meetup.html");
+        brand.setAttribute("aria-label", "ARI Circle Connect");
         if (brand.dataset.circleV51Brand !== VERSION) {
           brand.innerHTML = haloMarkup();
           brand.dataset.circleV51Brand = VERSION;

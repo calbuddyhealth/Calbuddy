@@ -1,6 +1,6 @@
 // js/ari-circle/profile/profile-renderer.js
 // ARI Circle
-// V1.0.0
+// V2.0.0
 //
 // Purpose:
 // - Render ARI Circle profile data from CircleStore into ari-circle.html.
@@ -23,52 +23,51 @@
 
 import CircleStore from "../core/circle-store.js";
 
-const VERSION = "1.0.0";
+const VERSION = "2.0.0";
 const SOURCE = "ari-circle/profile/profile-renderer";
 
 const ICEBREAKER_DEFINITIONS = Object.freeze({
   ask_me_about: {
-    label: "💬 Ask me about..."
+    label: "Ask me about..."
   },
 
   current_obsession: {
-    label: "🔥 Current obsession..."
+    label: "My current obsession is..."
   },
 
   dream_trip: {
-    label: "✈️ Dream trip..."
+    label: "My dream trip is..."
   },
 
   make_me_laugh: {
-    label: "😂 Best way to make me laugh..."
+    label: "The best way to make me laugh is..."
   },
 
   comfort_show_movie: {
-    label: "🍿 My comfort show/movie..."
+    label: "My comfort show or movie is..."
   },
 
   song_every_word: {
-    label: "🎤 Song I know every word to..."
+    label: "A song I know every word to is..."
   },
 
   unpopular_opinion: {
-    label: "🤔 Unpopular opinion..."
+    label: "An unpopular opinion I have is..."
   },
 
   want_to_learn: {
-    label: "🎯 Something I want to learn..."
+    label: "Something I want to learn is..."
   },
 
   weirdly_good_at: {
-    label: "👀 Weirdly good at..."
+    label: "I’m weirdly good at..."
   },
 
   perfect_night: {
-    label: "🌙 Perfect night looks like..."
+    label: "My perfect night looks like..."
   }
 });
 
-const DEFAULT_VISIBLE_ICEBREAKERS = 4;
 
 function normalizeString(value) {
   if (typeof value !== "string") {
@@ -306,6 +305,7 @@ const ProfileRenderer = {
     }
 
     this.cacheDom();
+    this.promoteIcebreaker();
     this.bindStore();
     this.bindLocalActions();
     this.render(
@@ -542,13 +542,19 @@ const ProfileRenderer = {
       );
   },
 
+  promoteIcebreaker() {
+    const icebreaker = document.getElementById("circle-icebreakers");
+    const about = document.getElementById("circle-about");
+    if (icebreaker && about && icebreaker.nextElementSibling !== about) {
+      about.insertAdjacentElement("beforebegin", icebreaker);
+    }
+  },
+
   bindLocalActions() {
-    this.dom.icebreakersToggle
-      ?.addEventListener(
-        "click",
-        () =>
-          this.toggleIcebreakers()
-      );
+    if (this.dom.icebreakersToggle) {
+      this.dom.icebreakersToggle.hidden = true;
+      this.dom.icebreakersToggle.setAttribute("aria-expanded", "false");
+    }
   },
 
   render(state) {
@@ -695,33 +701,26 @@ const ProfileRenderer = {
           : displayName;
     }
 
+    const cover = document.getElementById("circle-cover");
+    const templateName = coverUrl?.startsWith("template:")
+      ? coverUrl.slice("template:".length)
+      : (coverUrl ? "custom" : "pearl");
+
+    if (cover) cover.dataset.profileTemplate = templateName || "pearl";
+
     if (this.dom.coverImage) {
-      if (coverUrl) {
-        this.dom.coverImage.src =
-          coverUrl;
+      const customCoverUrl = coverUrl && !coverUrl.startsWith("template:")
+        ? coverUrl
+        : null;
 
-        this.dom.coverImage.hidden =
-          false;
-
-        this.dom.coverFallback &&
-          (
-            this.dom.coverFallback.hidden =
-              true
-          );
+      if (customCoverUrl) {
+        this.dom.coverImage.src = customCoverUrl;
+        this.dom.coverImage.hidden = false;
+        if (this.dom.coverFallback) this.dom.coverFallback.hidden = true;
       } else {
-        this.dom.coverImage.removeAttribute(
-          "src"
-        );
-
-        this.dom.coverImage.hidden =
-          true;
-
-        if (
-          this.dom.coverFallback
-        ) {
-          this.dom.coverFallback.hidden =
-            false;
-        }
+        this.dom.coverImage.removeAttribute("src");
+        this.dom.coverImage.hidden = true;
+        if (this.dom.coverFallback) this.dom.coverFallback.hidden = false;
       }
     }
   },
@@ -885,11 +884,7 @@ const ProfileRenderer = {
   },
 
   renderIcebreakers(profile) {
-    if (
-      !this.dom.icebreakerList
-    ) {
-      return;
-    }
+    if (!this.dom.icebreakerList) return;
 
     const raw =
       profile.icebreakers ||
@@ -897,85 +892,23 @@ const ProfileRenderer = {
       profile.breakTheIce ||
       [];
 
-    const items =
-      normalizeIcebreakers(
-        raw
-      );
+    const items = normalizeIcebreakers(raw);
+    const item = items[0] || null;
 
     this.dom.icebreakerList.replaceChildren();
 
-    if (!items.length) {
-      if (
-        this.dom.icebreakersEmpty
-      ) {
-        this.dom.icebreakersEmpty.hidden =
-          false;
-      }
+    if (this.dom.icebreakersToggle) {
+      this.dom.icebreakersToggle.hidden = true;
+      this.dom.icebreakersToggle.setAttribute("aria-expanded", "false");
+    }
 
-      if (
-        this.dom.icebreakersToggle
-      ) {
-        this.dom.icebreakersToggle.hidden =
-          true;
-
-        this.dom.icebreakersToggle
-          .setAttribute(
-            "aria-expanded",
-            "false"
-          );
-      }
-
+    if (!item) {
+      if (this.dom.icebreakersEmpty) this.dom.icebreakersEmpty.hidden = false;
       return;
     }
 
-    if (
-      this.dom.icebreakersEmpty
-    ) {
-      this.dom.icebreakersEmpty.hidden =
-        true;
-    }
-
-    const visibleLimit =
-      this.state.icebreakersExpanded
-        ? items.length
-        : DEFAULT_VISIBLE_ICEBREAKERS;
-
-    items
-      .slice(
-        0,
-        visibleLimit
-      )
-      .forEach(
-        item =>
-          this.appendIcebreaker(
-            item
-          )
-      );
-
-    if (
-      this.dom.icebreakersToggle
-    ) {
-      const hasExtra =
-        items.length >
-        DEFAULT_VISIBLE_ICEBREAKERS;
-
-      this.dom.icebreakersToggle.hidden =
-        !hasExtra;
-
-      this.dom.icebreakersToggle.textContent =
-        this.state.icebreakersExpanded
-          ? "Show Less ↑"
-          : "Show All ↓";
-
-      this.dom.icebreakersToggle
-        .setAttribute(
-          "aria-expanded",
-          String(
-            this.state
-              .icebreakersExpanded
-          )
-        );
-    }
+    if (this.dom.icebreakersEmpty) this.dom.icebreakersEmpty.hidden = true;
+    this.appendIcebreaker(item);
   },
 
   appendIcebreaker(item) {
@@ -1043,18 +976,9 @@ const ProfileRenderer = {
   },
 
   toggleIcebreakers() {
-    const profile =
-      CircleStore.get(
-        "profile"
-      ) || {};
-
-    this.state.icebreakersExpanded =
-      !this.state
-        .icebreakersExpanded;
-
-    this.renderIcebreakers(
-      profile
-    );
+    // V2 profiles deliberately expose only one selected prompt.
+    this.state.icebreakersExpanded = false;
+    this.renderIcebreakers(CircleStore.get("profile") || {});
   },
 
   renderCircleDetails(circle) {

@@ -1,15 +1,15 @@
 /* =============================================================
    ARI CIRCLE — PROFILE COMPATIBILITY SHELL
-   Version: 5.5.0
+   Version: 5.6.0
 
-   Profile remains a purpose-specific secondary surface. Primary navigation is
-   owned only by the shared For You · Meet Up · Feed shell.
+   Profile is a first-class Circle surface. Primary navigation is owned only
+   by the shared Connect · Profile shell.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "5.5.0";
-  const REAL_WORLD_VERSION = "5.4.0";
+  const VERSION = "5.6.0";
+  const REAL_WORLD_VERSION = "5.5.0";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   const VISUAL_AUTHORITY_MATCH = "ari-circle-v5-visual-authority.css";
@@ -98,8 +98,8 @@
 
     const brand = header.querySelector(".circle-header__brand");
     if (brand) {
-      brand.href = "ari-circle-feed.html";
-      brand.setAttribute("aria-label", "ARI Circle Feed");
+      brand.href = "ari-circle-meetup.html";
+      brand.setAttribute("aria-label", "ARI Circle Connect");
       if (brand.parentElement !== header) header.append(brand);
     }
 

@@ -123,17 +123,18 @@ test("ARI Next stays mobile and Safari-safe without a second sticky navigation b
   assert.doesNotMatch(css, /v6-mode-nav|v6-moments-bridge/);
 });
 
-test("ARI Next remains owner-only while Feed and Connect are the member model", () => {
+test("ARI Next remains owner-only while Connect and Profile are the member model", () => {
   assert.doesNotMatch(html, /REAL-WORLD ACTION NETWORK · LAB/i);
   assert.match(html, /ari-circle-v6-experience\.css\?v=0\.3\.1/);
   assert.match(html, /action-network-v6\.js\?v=0\.3\.0/);
   assert.match(html, /intent-bundles-v1\.js\?v=1\.2\.0/);
   assert.match(html, /circle-menu-v5\.js\?v=2\.6\.0/);
-  assert.match(html, /v5-real-world\.js\?v=5\.4\.0/);
-  assert.match(homeHtml, /href="ari-circle-feed\.html"[^>]*class="ari-nav-link nav-circle"/i);
+  assert.match(html, /v5-real-world\.js\?v=5\.5\.0/);
+  assert.match(homeHtml, /href="ari-circle-meetup\.html"[^>]*class="ari-nav-link nav-circle"/i);
   assert.match(legacyProfileHtml, /id="circle-profile"/i);
-  assert.match(shell, /navLink\("feed", "ari-circle-feed\.html", "Feed"\)/);
   assert.match(shell, /navLink\("connect", "ari-circle-meetup\.html", "Connect"\)/);
+  assert.match(shell, /navLink\("profile", "ari-circle\.html", "Profile"\)/);
+  assert.doesNotMatch(shell, /navLink\("feed"/);
   assert.doesNotMatch(shell, /navLink\("arinext"/);
   assert.doesNotMatch(shell, />Missions<\/a>/);
   assert.match(productionMenu, /ari-circle\.html\?panel=notifications/i);
