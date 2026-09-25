@@ -10,7 +10,7 @@ import {
   toolToApplicationAction as coreToolToApplicationAction
 } from "./tools-core.js";
 
-export const TOOL_REGISTRY_VERSION = "1.22.0";
+export const TOOL_REGISTRY_VERSION = "1.23.0";
 export const CORE_TOOL_REGISTRY_VERSION = CORE_REGISTRY_VERSION;
 
 const convictionEnabled = () => process.env.ARI_CONVICTION_LEARNING_ENABLED !== "false";
@@ -237,7 +237,7 @@ function developerTools(route = {}) {
     ),
     functionTool(
       "owner_agent_mailbox_list",
-      "List recent messages in Ari's configured owner-only Artifactory agent mailbox. Use this when another Ari/SOL worker may have left findings, questions, answers, experiment results, handoffs, acknowledgements, or status messages. This cannot browse arbitrary Artifactory repositories or paths.",
+      "List recent messages in Ari's owner-only Supabase agent mailbox. Use this when another Ari/SOL worker may have left findings, questions, answers, experiment results, handoffs, acknowledgements, or status messages. This reads only the server-owned mailbox table and never exposes Supabase service credentials.",
       {
         type: "object",
         additionalProperties: false,
@@ -252,19 +252,19 @@ function developerTools(route = {}) {
     ),
     functionTool(
       "owner_agent_mailbox_read",
-      "Read one exact JSON message previously returned by owner_agent_mailbox_list from Ari's configured Artifactory mailbox. Use only the exact mailbox path returned by the trusted list operation.",
+      "Read one exact message previously returned by owner_agent_mailbox_list from Ari's Supabase mailbox. Use only the exact messageId returned by the trusted list operation.",
       {
         type: "object",
         additionalProperties: false,
         properties: {
-          path: { type: "string" }
+          messageId: { type: "string" }
         },
-        required: ["path"]
+        required: ["messageId"]
       }
     ),
     functionTool(
       "owner_agent_mailbox_send",
-      "Write one bounded JSON message into Ari's configured Artifactory agent mailbox so another authorized Ari/SOL worker can inspect a finding, question, answer, experiment result, handoff, acknowledgement, or status update. This cannot choose the JFrog host, repository, token, or arbitrary file path. Never include credentials, private secrets, hidden reasoning, or unnecessary personal information.",
+      "Write one bounded JSON message into Ari's server-only Supabase agent mailbox so another authorized Ari/SOL worker can inspect a finding, question, answer, experiment result, handoff, acknowledgement, or status update. This cannot choose a database, table, service key, or arbitrary network destination. Never include credentials, private secrets, hidden reasoning, or unnecessary personal information.",
       {
         type: "object",
         additionalProperties: false,
@@ -531,9 +531,9 @@ export function validateToolCall(call = {}, route = {}) {
     }
 
     if (name === "owner_agent_mailbox_read") {
-      const path = String(args?.path || "").trim().slice(0, 700);
-      if (!path || path.includes("..") || !path.endsWith(".json")) return { valid: false, error: "agent_mailbox_path_invalid" };
-      return { valid: true, name, arguments: { path } };
+      const messageId = String(args?.messageId || "").trim().toLowerCase();
+      if (!isUuid(messageId)) return { valid: false, error: "agent_mailbox_message_id_invalid" };
+      return { valid: true, name, arguments: { messageId } };
     }
 
     if (name === "owner_agent_mailbox_send") {
