@@ -413,23 +413,25 @@
     signal.unread = false;
     render();
     closePanel();
+    const initiative = {
+      id: signal.id,
+      initiativeKey: signal.initiativeKey,
+      reasonId: signal.reasonId,
+      priority: signal.priority,
+      opener: signal.message,
+      followUpPrompt: signal.followUpPrompt,
+      action: signal.action,
+      context: signal.context,
+      domain: signal.domain,
+      reviewPacket: signal?.detail?.reviewPacket || null
+    };
+    window.Ari?.Runtime?.stageInitiativeContext?.(initiative);
     window.dispatchEvent(new CustomEvent("ari:vnextInitiative", {
       detail: {
         success: true,
         shouldInitiate: true,
         fromSignal: true,
-        initiative: {
-          id: signal.id,
-          initiativeKey: signal.initiativeKey,
-          reasonId: signal.reasonId,
-          priority: signal.priority,
-          opener: signal.message,
-          followUpPrompt: signal.followUpPrompt,
-          action: signal.action,
-          context: signal.context,
-          domain: signal.domain,
-          reviewPacket: signal?.detail?.reviewPacket || null
-        }
+        initiative
       }
     }));
     const url = new URL(window.location.href);
