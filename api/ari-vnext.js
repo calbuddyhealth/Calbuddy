@@ -95,6 +95,7 @@ import {
 } from "./_lib/ari-vnext/conviction-learning.js";
 import { ensureGoal, loadGoals, saveGoalEvent } from "./_lib/ari-vnext/goal-store.js";
 import { loadDreamingContext } from "./_lib/ari-vnext/dreaming-store.js";
+import { syncAgentTaskSessionWithExecution } from "./_lib/ari-vnext/agent-task-store.js";
 
 const AUTH_TIMEOUT_MS = Number(process.env.ARI_AUTH_TIMEOUT_MS) > 0
   ? Number(process.env.ARI_AUTH_TIMEOUT_MS)
@@ -523,6 +524,13 @@ export default async function handler(req, res) {
         storedCount: explicitMemoryAction.storedCount,
         failedCount: explicitMemoryAction.failedCount
       },
+      durableAgentTask: result?.multiAgent?.durableTask
+        ? {
+            ...result.multiAgent.durableTask,
+            lifecycleStatus: durableAgentTaskLifecycle?.session?.status || result.multiAgent.durableTask.status || null,
+            lifecycleSynced: durableAgentTaskLifecycle?.stored === true
+          }
+        : null,
       conversationStyle: {
         automatic: savedConversationStyle.automatic !== false,
         explicitLocks: Array.isArray(savedConversationStyle.explicitLocks)
@@ -1011,6 +1019,13 @@ export default async function handler(req, res) {
     const cognitiveStateTask = cognitiveStatePersistenceEligible
       ? persistAriCognitiveState({ userId: auth.userId, state: nextCognitiveState })
       : Promise.resolve(false);
+    const durableAgentTaskLifecycleTask = nextCognitiveState?.executionSession?.id
+      ? syncAgentTaskSessionWithExecution({
+          userId: auth.userId,
+          executionSession: nextCognitiveState.executionSession,
+          turnId: turn.turnId
+        })
+      : Promise.resolve({ stored: false, session: null, reason: "no_execution_session" });
     const strategyUseTask = deepCognitionEnabled && adaptiveStrategyState?.active?.length
       ? recordAdaptiveStrategyUses({
           userId: auth.userId,
@@ -1047,7 +1062,8 @@ export default async function handler(req, res) {
       , , turnPersistence, durablePersistence, worldPersistence, cognitivePersistence,
       strategyUsePersistence, strategySignalPersistence, decisionPersistence,
       communicationResolution, communicationPersistence, institutionalLearningPersistence,
-      agentPerformanceLearningPersistence, councilOutcomeFeedbackPersistence
+      agentPerformanceLearningPersistence, councilOutcomeFeedbackPersistence,
+      durableAgentTaskLifecyclePersistence
     ] = await Promise.allSettled([
       usageTask,
       strategyReflectionUsageTask,
@@ -1062,7 +1078,8 @@ export default async function handler(req, res) {
       communicationExposureTask,
       institutionalLearningTask,
       agentPerformanceLearningTask,
-      councilOutcomeFeedbackTask
+      councilOutcomeFeedbackTask,
+      durableAgentTaskLifecycleTask
     ]);
 
     const continuityTurnStored = turnPersistence.status === "fulfilled" && turnPersistence.value === true;
@@ -1109,6 +1126,9 @@ export default async function handler(req, res) {
           reason: "outcome_feedback_task_failed",
           outcomeStatus: null
         };
+    const durableAgentTaskLifecycle = durableAgentTaskLifecyclePersistence.status === "fulfilled"
+      ? durableAgentTaskLifecyclePersistence.value
+      : { stored: false, session: null, reason: "lifecycle_sync_failed" };
 
     const responsePayload = {
       ...result,
