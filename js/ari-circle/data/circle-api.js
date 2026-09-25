@@ -4008,6 +4008,11 @@ const CircleApi = {
       return;
     }
 
+    const requestId =
+      normalizeString(
+        detail?.requestId
+      );
+
     try {
       const context =
         CircleStore.get(
@@ -4029,7 +4034,32 @@ const CircleApi = {
       CircleStore.setProfile(
         saved
       );
+
+      CircleEvents.emit(
+        "circle:profile-saved",
+        {
+          requestId,
+          autosave:
+            detail?.autosave === true,
+          profile:
+            saved
+        }
+      );
     } catch (error) {
+      CircleEvents.emit(
+        "circle:profile-save-failed",
+        {
+          requestId,
+          autosave:
+            detail?.autosave === true,
+          error:
+            normalizeString(
+              error?.message
+            ) ||
+            "Could not save your Circle."
+        }
+      );
+
       CircleEvents.reportError(
         error,
         {
