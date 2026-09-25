@@ -46,6 +46,7 @@ export function evaluatePersonalityContinuityTurn({
     closure?.outcomeDelta?.status && closure.outcomeDelta.status !== "pending"
   );
   const highStakes = result?.safety?.highStakes === true || route?.health === true;
+  const explicitFeedback = deriveExplicitPersonalityFeedback(message);
 
   if (!reply && result?.success === false) {
     const prior = normalizePersonalityEvaluationState(previousEvaluation);
@@ -119,14 +120,54 @@ export function evaluatePersonalityContinuityTurn({
     evaluation,
     nextState: advancePersonalityEvaluationState({
       previous: previousEvaluation,
-      evaluation
+      evaluation,
+      feedback: explicitFeedback
     })
   };
 }
 
-export function advancePersonalityEvaluationState({ previous = null, evaluation = null } = {}) {
+export function deriveExplicitPersonalityFeedback(message = "") {
+  const text = clean(message, 2000).toLowerCase();
+  if (!text) return { detected: false, adjustments: {}, keep: false, note: null };
+
+  const adjustments = {};
+  const set = (key, value) => { adjustments[key] = clampSigned(value); };
+
+  if (/\b(?:be |a little )?more direct\b|\bmore blunt\b/.test(text)) set("directness", 1);
+  if (/\bless direct\b|\bsofter delivery\b/.test(text)) set("directness", -1);
+  if (/\bmore concise\b|\bshorter answers?\b|\bbe briefer\b/.test(text)) set("brevity", 1);
+  if (/\bmore detail(?:ed)?\b|\blonger answers?\b|\bgo deeper\b/.test(text)) set("brevity", -1);
+  if (/\bmore humor\b|\bmore funny\b|\bfunnier\b|\bjoke more\b/.test(text)) set("humor", 1);
+  if (/\bless humor\b|\bstop joking\b|\bfewer jokes\b/.test(text)) set("humor", -1);
+  if (/\bwarmer\b|\bmore warm\b|\bmore compassionate\b/.test(text)) set("warmth", 1);
+  if (/\bless warm\b|\bless emotional\b|\bmore clinical\b/.test(text)) set("warmth", -1);
+  if (/\bchallenge me more\b|\bpush back more\b|\bdisagree more\b/.test(text)) set("challenge", 1);
+  if (/\bchallenge me less\b|\bless pushback\b|\bless disagreement\b/.test(text)) set("challenge", -1);
+  if (/\bless praise\b|\bstop praising\b|\bdon't praise\b|\bdo not praise\b/.test(text)) set("praise", -1);
+  if (/\bmore praise\b|\bmore encouragement\b/.test(text)) set("praise", 1);
+  if (/\b(?:felt|feels|was) (?:artificial|fake|robotic|scripted)\b/.test(text)) set("naturalness", -1);
+  if (/\b(?:felt|feels|was) (?:distinctly ari|like ari|natural|authentic)\b/.test(text)) set("naturalness", 1);
+
+  const keep = /\bkeep (?:that|this)(?: style| tone| approach)?\b|\bkeep doing that\b/.test(text);
+  const detected = keep || Object.keys(adjustments).length > 0;
+
+  return {
+    detected,
+    adjustments,
+    keep,
+    note: detected ? clean(message, 360) : null
+  };
+}
+
+export function advancePersonalityEvaluationState({ previous = null, evaluation = null, feedback = null } = {}) {
   const prior = normalizePersonalityEvaluationState(previous);
   if (!evaluation || typeof evaluation !== "object") return prior;
+
+  const feedbackRecord = normalizeFeedback(feedback);
+  const explicitFeedback = feedbackRecord?.detected
+    ? [feedbackRecord, ...prior.explicitFeedback].slice(0, 8)
+    : prior.explicitFeedback;
+  const expressionBiases = applyFeedbackBiases(prior.expressionBiases, feedbackRecord);
 
   const recent = [compactEvaluation(evaluation), ...prior.recent]
     .filter(Boolean)
@@ -145,6 +186,8 @@ export function advancePersonalityEvaluationState({ previous = null, evaluation 
     recent,
     aggregate,
     improvementTargets,
+    explicitFeedback,
+    expressionBiases,
     hiddenChainOfThoughtStored: false,
     subjectiveConsciousnessClaimed: false
   };
@@ -160,6 +203,8 @@ export function normalizePersonalityEvaluationState(value = null) {
       recent: [],
       aggregate: {},
       improvementTargets: [],
+      explicitFeedback: [],
+      expressionBiases: defaultExpressionBiases(),
       hiddenChainOfThoughtStored: false,
       subjectiveConsciousnessClaimed: false
     };
@@ -177,6 +222,11 @@ export function normalizePersonalityEvaluationState(value = null) {
     recent,
     aggregate: normalizeAggregate(value.aggregate),
     improvementTargets: normalizeTargets(value.improvementTargets),
+    explicitFeedback: (Array.isArray(value.explicitFeedback) ? value.explicitFeedback : [])
+      .map(normalizeFeedback)
+      .filter((item) => item?.detected)
+      .slice(0, 8),
+    expressionBiases: normalizeExpressionBiases(value.expressionBiases),
     hiddenChainOfThoughtStored: false,
     subjectiveConsciousnessClaimed: false
   };
@@ -197,6 +247,8 @@ export function summarizePersonalityEvaluation(value = null) {
       rollingScore: item.rollingScore,
       recentIssueCount: item.recentIssueCount
     })),
+    expressionBiases: state.expressionBiases,
+    explicitFeedbackCount: state.explicitFeedback.length,
     aggregate: state.aggregate,
     hiddenChainOfThoughtStored: false
   };
@@ -462,6 +514,57 @@ function normalizeTargets(value = null) {
     }))
     .filter((item) => item.id)
     .slice(0, 4);
+}
+
+function defaultExpressionBiases() {
+  return {
+    directness: 0,
+    brevity: 0,
+    humor: 0,
+    warmth: 0,
+    challenge: 0,
+    praise: 0,
+    naturalness: 0
+  };
+}
+
+function normalizeExpressionBiases(value = null) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const defaults = defaultExpressionBiases();
+  const output = {};
+  for (const key of Object.keys(defaults)) output[key] = clampSigned(Number(source[key] || 0));
+  return output;
+}
+
+function applyFeedbackBiases(previous = null, feedback = null) {
+  const next = normalizeExpressionBiases(previous);
+  if (!feedback?.detected) return next;
+  for (const [key, delta] of Object.entries(feedback.adjustments || {})) {
+    if (!Object.hasOwn(next, key)) continue;
+    next[key] = clampSigned(next[key] + Number(delta || 0) * 0.35);
+  }
+  return next;
+}
+
+function normalizeFeedback(value = null) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const adjustments = {};
+  for (const [key, amount] of Object.entries(value.adjustments || {})) {
+    const cleanKey = clean(key, 40);
+    if (!cleanKey) continue;
+    adjustments[cleanKey] = clampSigned(Number(amount || 0));
+  }
+  return {
+    detected: value.detected === true || value.keep === true || Object.keys(adjustments).length > 0,
+    adjustments,
+    keep: value.keep === true,
+    note: clean(value.note, 360) || null,
+    at: clean(value.at, 80) || new Date().toISOString()
+  };
+}
+
+function clampSigned(value) {
+  return Math.max(-1, Math.min(1, Number(value) || 0));
 }
 
 function improvementInstruction(id = "") {
