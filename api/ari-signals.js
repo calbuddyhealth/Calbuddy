@@ -12,7 +12,7 @@ import {
   verifyOwnerRequest
 } from "../server/ari-owner-auth.js";
 
-const OWNER_SIGNALS_VERSION = "2.1.0-owner";
+const OWNER_SIGNALS_VERSION = "2.2.0-owner";
 
 export default async function handler(req, res) {
   setHeaders(res);
@@ -144,13 +144,15 @@ function buildSignalDetail(signal = {}) {
     requestFromJose,
     requestFromChatGPT,
     suggestedNextStep: clean(stored.suggestedNextStep, 900) || suggestedNextStep(action, followUpPrompt),
-    evidence
+    evidence,
+    reviewPacket: normalizeReviewPacket(stored.reviewPacket)
   };
 }
 
 function requestForJose(action = "") {
   if (action === "collaborate_on_autonomous_goal") return "Confirm the outcome you want, any owner constraints, and whether Ari should continue this development goal.";
   if (action === "review_autonomous_commit") return "Decide whether the isolated change should move forward after its evidence and integration risk are reviewed.";
+  if (action === "review_prediction") return "Review the evidence and decide whether the tracked prediction should be recorded as supported, weakened, mixed, or inconclusive.";
   if (/approval|authorize|confirm/i.test(action)) return "Provide the owner decision Ari is waiting for.";
   return "";
 }
@@ -158,12 +160,14 @@ function requestForJose(action = "") {
 function requestForChatGPT(action = "", followUpPrompt = "") {
   if (action === "review_autonomous_commit") return stripHelpPrefix(followUpPrompt) || "Review the isolated change, evidence, tests, and integration risk before merge.";
   if (action === "collaborate_on_autonomous_goal") return stripHelpPrefix(followUpPrompt);
+  if (action === "review_prediction") return stripHelpPrefix(followUpPrompt) || "Compare the original prediction with the new evidence and identify whether the result is supported, weakened, mixed, or inconclusive.";
   return "";
 }
 
 function suggestedNextStep(action = "", followUpPrompt = "") {
   if (action === "review_autonomous_commit") return "Review the isolated commit and its evidence before deciding whether to merge it.";
   if (action === "collaborate_on_autonomous_goal") return "Review the goal context together, then choose the smallest evidence-producing next step.";
+  if (action === "review_prediction") return "Compare the original prediction with the new evidence, check confounders, then record a bounded verdict only if the evidence supports one.";
   return stripHelpPrefix(followUpPrompt) || "Open this signal with Ari and decide the next action.";
 }
 
