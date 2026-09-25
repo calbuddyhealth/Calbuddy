@@ -238,12 +238,7 @@ function compactBriefEvidence(text = "") {
 
 function extractBriefField(text = "", label = "") {
   const source = clean(text, 1400);
-  const key = clean(label, 40).replace(/[.*+?^${}()|[\]\\]/g, "\\    context: clean(candidate.context, 900),
-    artifact: verifiedAutonomousCommitArtifact(candidate?.artifact),
-    cooldownHours: clampInt(candidate.cooldownHours, 12, 168, 48),
-    requiresLanguageModelCall: false
-  };
-}");
+  const key = clean(label, 40).replace(/[^a-z0-9_ -]/gi, "");
   if (!source || !key) return "";
   const match = new RegExp(`(?:^|\\b)${key}:\\s*([^.!?]{1,260})`, "i").exec(source);
   return clean(match?.[1], 260);
