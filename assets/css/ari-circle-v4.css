@@ -754,6 +754,10 @@ body {
   background: transparent !important;
 }
 
+.ari-circle-page .circle-profile__cover-fallback[hidden] {
+  display: none !important;
+}
+
 .ari-circle-page .circle-profile__cover-edit {
   display: none !important;
 }
