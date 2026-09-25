@@ -527,11 +527,13 @@ const ProfileRenderer = {
     }
 
     const cover = document.getElementById("circle-cover");
+    const profileCard = document.getElementById("circle-profile");
     const templateName = coverUrl?.startsWith("template:")
       ? coverUrl.slice("template:".length)
       : (coverUrl ? "custom" : "pearl");
 
     if (cover) cover.dataset.profileTemplate = templateName || "pearl";
+    if (profileCard) profileCard.dataset.profileTemplate = templateName || "pearl";
 
     if (this.dom.coverImage) {
       const customCoverUrl = coverUrl && !coverUrl.startsWith("template:")
