@@ -5,7 +5,7 @@
 export const ARI_DEVELOPER_WORKSPACE_VERSION = "1.0.0";
 
 const WORKFLOW_FILE = "ari-vnext-tests.yml";
-const MAX_READ_BYTES = 420_000;
+const MAX_READ_BYTES = 140_000;
 const MAX_SEARCH_RESULTS = 18;
 
 const ALLOWED_PREFIXES = Object.freeze([
@@ -233,56 +233,26 @@ async function searchRepository({
     }
   }
 
-  const branchData = await githubFetch(
-    `https://api.github.com/repos/${repo}/branches/${encodeURIComponent(branch)}`,
-    token
+  const qualifiers = [`repo:${repo}`];
+  if (pathPrefix) qualifiers.push(`path:${pathPrefix}`);
+  const q = `${text} ${qualifiers.join(" ")}`;
+  const data = await githubFetch(
+    `https://api.github.com/search/code?q=${encodeURIComponent(q)}&per_page=${MAX_SEARCH_RESULTS}`,
+    token,
+    { headers: { Accept: "application/vnd.github.text-match+json" } }
   );
-  const treeSha = branchData?.commit?.commit?.tree?.sha;
-  if (!treeSha) {
-    return { success: false, code: "REPOSITORY_BRANCH_UNAVAILABLE", message: "The repository branch tree could not be resolved.", query: text, branch };
-  }
 
-  const tree = await githubFetch(
-    `https://api.github.com/repos/${repo}/git/trees/${treeSha}?recursive=1`,
-    token
-  );
-  const candidates = (Array.isArray(tree?.tree) ? tree.tree : [])
-    .filter(item => item?.type === "blob" && Number(item?.size || 0) <= MAX_READ_BYTES)
-    .map(item => String(item.path || ""))
-    .filter(Boolean)
-    .filter(candidate => !pathPrefix || candidate.startsWith(pathPrefix))
-    .filter(candidate => validatePath(candidate).valid)
-    .filter(candidate => searchable(candidate))
-    .slice(0, 350);
-
-  const needle = text.toLowerCase();
-  const matches = [];
-
-  for (const candidate of candidates) {
-    if (matches.length >= MAX_SEARCH_RESULTS) break;
-    if (candidate.toLowerCase().includes(needle)) {
-      matches.push({ filePath: candidate, line: null, preview: "path match" });
-      continue;
-    }
-
-    let file;
-    try {
-      file = await githubFetch(
-        `https://api.github.com/repos/${repo}/contents/${encodePath(candidate)}?ref=${encodeURIComponent(branch)}`,
-        token
-      );
-    } catch {
-      continue;
-    }
-    if (!file?.content) continue;
-    const content = Buffer.from(String(file.content), "base64").toString("utf8");
-    const index = content.toLowerCase().indexOf(needle);
-    if (index < 0) continue;
-    const before = content.slice(0, index);
-    const line = before.split("\n").length;
-    const preview = content.slice(Math.max(0, index - 180), Math.min(content.length, index + needle.length + 260));
-    matches.push({ filePath: candidate, line, preview: clean(preview, 520) });
-  }
+  const matches = (Array.isArray(data?.items) ? data.items : [])
+    .map(item => {
+      const textMatch = Array.isArray(item?.text_matches) ? item.text_matches[0] : null;
+      return {
+        filePath: String(item?.path || ""),
+        sha: item?.sha || null,
+        preview: clean(textMatch?.fragment || "code search match", 620)
+      };
+    })
+    .filter(item => item.filePath && validatePath(item.filePath).valid)
+    .slice(0, MAX_SEARCH_RESULTS);
 
   return {
     success: true,
@@ -292,6 +262,7 @@ async function searchRepository({
     query: text,
     path: pathPrefix || null,
     branch,
+    note: branch === "main" ? null : "GitHub code search indexes the repository default branch; read exact files from the requested branch before editing.",
     resultCount: matches.length,
     matches
   };
