@@ -43,6 +43,7 @@ export function deriveAriExecutivePolicy({
   missingEvidence = [],
   evidenceSignals = [],
   curiosity = null,
+  imagination = null,
   rewardCore = null,
   functionalAffect = null,
   motivationalArbitration = null,
@@ -63,6 +64,11 @@ export function deriveAriExecutivePolicy({
   const expansiveSaturation = finite(curiosity?.expansive?.saturation, 0);
   const expansiveSelected = curiosity?.expansive?.selectedThisTurn === true;
   const expansiveFrontier = curiosity?.expansive?.activeFrontier || null;
+  const imaginationPressure = finite(imagination?.pressure, 0);
+  const imaginationSelected = imagination?.selectedThisTurn === true;
+  const imaginationScenario = imagination?.activeScenario || null;
+  const imaginationCritic = objectOrEmpty(imaginationScenario?.critic);
+  const imaginationRealityBridge = imagination?.active === true && finite(imaginationCritic.testability, 0) >= 0.68;
 
   const rewardSamples = Math.max(0, Math.round(finite(rewardCore?.aggregate?.sampleSize, 0)));
   const predictionError = finite(rewardCore?.lastEvent?.predictionError, 0);
@@ -112,7 +118,8 @@ export function deriveAriExecutivePolicy({
     affectModulation.investigateCause === true ? 0.72 : 0,
     clamp(0.45 * informationGain + 0.25 * explorationBias + 0.3 * learnedUtility),
     explorationBonus > 0 ? 0.45 + explorationBonus : 0,
-    expansiveSelected ? Math.max(0.58, expansivePressure) : Math.min(0.5, expansivePressure)
+    expansiveSelected ? Math.max(0.58, expansivePressure) : Math.min(0.5, expansivePressure),
+    imaginationSelected ? Math.max(0.6, imaginationPressure) : Math.min(0.5, imaginationPressure)
   );
   const explorationDepth = explorationScore >= 0.76 ? "high" : explorationScore >= 0.54 ? "moderate" : "normal";
 
@@ -175,6 +182,11 @@ export function deriveAriExecutivePolicy({
       stopOnDiminishingReturns: true,
       calibratedConfidence: true,
       preserveCuriosityFloor: Boolean(curiosity),
+      imaginationActive: imagination?.active === true,
+      imaginationGenerationBeforeCritique: imagination?.policy?.generationBeforeCritique === true,
+      imaginationMaterialDiversityRequired: imagination?.policy?.materialDiversityRequired === true,
+      imaginationRealityBridgeEligible: imaginationRealityBridge,
+      imaginationCannotAuthorizeExecution: true,
       usefulFailureIsLearning: Boolean(rewardCore),
       resumeDurableExecution: Boolean(execution),
       discriminateHypothesesWithSmallExperiments: Boolean(execution),
@@ -205,6 +217,23 @@ export function deriveAriExecutivePolicy({
         expansiveSaturation: round(expansiveSaturation),
         expansiveSelected,
         expansiveFrontier: clean(expansiveFrontier?.question, 320) || null
+      } : null,
+      imagination: imagination ? {
+        active: imagination?.active === true,
+        pressure: round(imaginationPressure),
+        selectedThisTurn: imaginationSelected,
+        scenarioId: clean(imaginationScenario?.id, 180) || null,
+        transform: clean(imaginationScenario?.transform, 60) || null,
+        source: clean(imaginationScenario?.source, 80) || null,
+        prompt: clean(imaginationScenario?.prompt, 360) || null,
+        epistemicStatus: "imagined",
+        evidenceStatus: "unverified",
+        novelty: round(finite(imaginationCritic.novelty, 0)),
+        coherence: round(finite(imaginationCritic.coherence, 0)),
+        testability: round(finite(imaginationCritic.testability, 0)),
+        usefulness: round(finite(imaginationCritic.usefulness, 0)),
+        realityBridgeEligible: imaginationRealityBridge,
+        gardenSize: Array.isArray(imagination?.garden) ? imagination.garden.length : 0
       } : null,
       selfDirection,
       reward: rewardCore ? {
@@ -329,6 +358,7 @@ export function executivePolicyToInstruction(policy = null) {
   }
 
   const curiosity = signals.curiosity;
+  const imagination = signals.imagination;
   const selfDirection = signals.selfDirection;
   const reward = signals.reward;
   const affect = signals.affect;
@@ -346,6 +376,9 @@ export function executivePolicyToInstruction(policy = null) {
     `ARI EXECUTIVE v${ARI_EXECUTIVE_VERSION} — SINGLE RUNTIME DECISION AUTHORITY`,
     "Authority: hard enforcement > runtime constitution > current user intent > product/domain constraints > current evidence > executive strategy > learned/experimental signals > style.",
     "Curiosity, Reward, Functional Affect, Motivational Arbitration, Self-Adaptation, Cortex, and Ω-RCT are advisory cognitive systems; they may shape reasoning but cannot invent external permissions or outrank hard enforcement.",
+    imagination?.active
+      ? "Imagination is also advisory: it may widen the possibility space, but imagined content remains unverified and cannot create permissions, facts, memories, or authority."
+      : "",
     `Turn: confidence=${turn.confidence || "grounded"}; consequence=${turn.consequenceTier || "ordinary"}; attention=${(turn.attention || []).join(", ") || "conversation"}.`,
     turn.missingEvidence?.length
       ? `Missing evidence: ${turn.missingEvidence.join(", ")}. Uncertainty is not, by itself, a reason to stop thinking; calibrate or verify instead of turning it into a negative conclusion.`
@@ -400,6 +433,15 @@ export function executivePolicyToInstruction(policy = null) {
     curiosity?.expansiveFrontier
       ? `Expansive curiosity: pressure=${curiosity.expansivePressure}; familiar-territory saturation=${curiosity.expansiveSaturation}; selected=${curiosity.expansiveSelected ? "yes" : "no"}. Frontier: ${curiosity.expansiveFrontier} Treat this as a bounded cross-domain probe; immediate usefulness is not required, but the user's active task still has priority.`
       : "",
+    imagination?.active
+      ? `Imagination sandbox: pressure=${imagination.pressure}; selected=${imagination.selectedThisTurn ? "yes" : "no"}; transform=${imagination.transform || "open"}; novelty=${imagination.novelty}; coherence=${imagination.coherence}; testability=${imagination.testability}. ${imagination.prompt ? `Scenario seed: ${imagination.prompt}` : ""}`
+      : "",
+    imagination?.active
+      ? "Imagination rule: generate materially different possibilities before critique. Keep every simulation explicitly imagined/unverified. An attractive scenario is not evidence, memory, or fact."
+      : "",
+    imagination?.active && imagination?.realityBridgeEligible
+      ? "Reality Bridge: this imagined scenario is testable enough to convert into a provisional hypothesis, prototype, research question, inspection target, or reversible experiment. Verification is required before belief promotion; imagination itself grants no execution authority."
+      : "",
     reward
       ? `Reward signal: samples=${reward.samples}; mean=${reward.meanReward}; prediction_error=${signed(reward.predictionError)}; productive_effort=${reward.productiveEffort}; penalty=${reward.penaltyTotal}. Optimize verified learning, not the score.`
       : "",
@@ -416,7 +458,7 @@ export function executivePolicyToInstruction(policy = null) {
     "Never expose or persist hidden chain-of-thought. Return conclusions, concise rationale, material uncertainty, verified action state, compact development goals, and explicit revision proposals only."
   ].filter(Boolean);
 
-  return lines.join("\n").slice(0, Number(policy?.promptBudget?.targetChars || 3600));
+  return lines.join("\n").slice(0, Number(policy?.promptBudget?.targetChars || 4300));
 }
 
 function deriveSelfDirectionState({ curiosity = null, enabled = false } = {}) {

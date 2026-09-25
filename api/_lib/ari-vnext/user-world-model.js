@@ -3,6 +3,7 @@
 // behavior and measured response so Ari can notice mismatches without shaming.
 
 import { advanceCuriosityState, normalizeCuriosityState } from "./curiosity-core.js";
+import { advanceImaginationState, normalizeImaginationState } from "./imagination-core.js";
 
 export const ARI_USER_WORLD_MODEL_VERSION = "1.1.1";
 const TABLE = "ari_vnext_user_models";
@@ -120,6 +121,14 @@ export function deriveUserWorldModel({
     context,
     tensions: currentTensions
   });
+  const imaginationState = advanceImaginationState({
+    persisted: normalizeImaginationState(persisted?.sourceSummary?.imaginationState),
+    turn,
+    context,
+    curiosity: curiosityState,
+    executionSession: context?.userWorldModel?.ariCognitiveWorkspace?.executionWorkspace || null,
+    safety: { highStakes: context?.safety?.highStakes === true }
+  });
 
   return {
     version: ARI_USER_WORLD_MODEL_VERSION,
@@ -148,7 +157,8 @@ export function deriveUserWorldModel({
       longitudinalTraining: !blocked.has("behavior") && (Number(adherence?.plannedCount || 0) > 0 || Boolean(persisted?.sourceSummary?.longitudinalTraining)),
       longitudinalWeight: !blocked.has("behavior") && (Boolean(weight?.available) || Boolean(persisted?.sourceSummary?.longitudinalWeight)),
       experimentOutcomes: blocked.has("fitness_outcomes") ? 0 : Math.max(Number(experiments?.completedCount || 0), Number(persisted?.sourceSummary?.experimentOutcomes || 0)),
-      curiosityState
+      curiosityState,
+      imaginationState
     }
   };
 }
@@ -259,7 +269,8 @@ function normalizeModel(row) {
     tensions: Array.isArray(source.tensions) ? source.tensions.slice(0, 5) : [],
     sourceSummary: {
       ...source,
-      ...(source.curiosityState ? { curiosityState: normalizeCuriosityState(source.curiosityState) } : {})
+      ...(source.curiosityState ? { curiosityState: normalizeCuriosityState(source.curiosityState) } : {}),
+      ...(source.imaginationState ? { imaginationState: normalizeImaginationState(source.imaginationState) } : {})
     },
     updatedAt: row.updated_at || null
   };
