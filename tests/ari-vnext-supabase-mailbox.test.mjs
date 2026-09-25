@@ -193,9 +193,9 @@ test("mailbox list is user scoped and maps durable Supabase rows", async () => {
     assert.equal(result.count, 1);
     assert.equal(result.messages[0].messageId, MESSAGE_ID);
     assert.equal(result.messages[0].sender, "sol-reviewer");
-    assert.match(observedUrl, /user_id=eq%\.0b3b0f56-676f-4859-a9f4-b377dd73544f/);
-    assert.match(observedUrl, /recipient=eq%\.ari-orchestrator/);
-    assert.match(observedUrl, /kind=eq%\.answer/);
+    assert.match(observedUrl, /user_id=eq\.0b3b0f56-676f-4859-a9f4-b377dd73544f/);
+    assert.match(observedUrl, /recipient=eq\.ari-orchestrator/);
+    assert.match(observedUrl, /kind=eq\.answer/);
   } finally {
     process.env = original;
   }
@@ -224,8 +224,8 @@ test("mailbox read requires exact user and message UUIDs", async () => {
       userId: OWNER_ID,
       messageId: MESSAGE_ID,
       fetchImpl: async (url) => {
-        assert.match(url, /id=eq%\.4ae1be6c-60fb-4b32-b2df-263f47afcc6d/);
-        assert.match(url, /user_id=eq%\.0b3b0f56-676f-4859-a9f4-b377dd73544f/);
+        assert.match(url, /id=eq\.4ae1be6c-60fb-4b32-b2df-263f47afcc6d/);
+        assert.match(url, /user_id=eq\.0b3b0f56-676f-4859-a9f4-b377dd73544f/);
         return response(200, [{
           id: MESSAGE_ID,
           thread_id: "thread-test",
