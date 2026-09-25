@@ -232,6 +232,54 @@ export async function upsertAgentTaskWorker({
   }
 }
 
+export async function syncAgentTaskSessionWithExecution({
+  userId,
+  executionSession = null,
+  turnId = null
+} = {}) {
+  const executionId = clean(executionSession?.id, 180);
+  if (!executionId) return { stored: false, session: null, reason: "execution_session_missing" };
+
+  const current = await loadAgentTaskSession({
+    userId,
+    executionSessionId: executionId
+  });
+  if (!current) return { stored: false, session: null, reason: "task_session_missing" };
+
+  const executionStatus = clean(executionSession?.status, 40).toLowerCase();
+  const mappedStatus =
+    executionStatus === "completed" ? "completed" :
+    executionStatus === "abandoned" ? "abandoned" :
+    executionStatus === "blocked" || executionStatus === "waiting" ? "waiting" :
+    null;
+
+  const patch = {
+    lastTurnId: clean(turnId, 180) || current.lastTurnId || null,
+    nextStep: executionStatus === "completed"
+      ? null
+      : clean(executionSession?.nextStep, 1200) || current.nextStep || null
+  };
+
+  if (mappedStatus) patch.status = mappedStatus;
+  if (mappedStatus === "completed" || mappedStatus === "abandoned") {
+    patch.completedAt = new Date().toISOString();
+  }
+
+  if (
+    !mappedStatus &&
+    patch.nextStep === current.nextStep &&
+    patch.lastTurnId === current.lastTurnId
+  ) {
+    return { stored: false, session: current, reason: "no_change" };
+  }
+
+  return await updateAgentTaskSession({
+    userId,
+    taskId: current.id,
+    patch
+  });
+}
+
 export function publicAgentTaskSession(session = null, workers = []) {
   const value = normalizeSession(session);
   if (!value) return null;
