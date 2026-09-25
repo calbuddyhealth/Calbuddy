@@ -68,7 +68,7 @@ export function deriveAriExecutivePolicy({
   const imaginationSelected = imagination?.selectedThisTurn === true;
   const imaginationScenario = imagination?.activeScenario || null;
   const imaginationCritic = objectOrEmpty(imaginationScenario?.critic);
-  const imaginationRealityBridge = finite(imaginationCritic.testability, 0) >= 0.68;
+  const imaginationRealityBridge = imagination?.active === true && finite(imaginationCritic.testability, 0) >= 0.68;
 
   const rewardSamples = Math.max(0, Math.round(finite(rewardCore?.aggregate?.sampleSize, 0)));
   const predictionError = finite(rewardCore?.lastEvent?.predictionError, 0);
