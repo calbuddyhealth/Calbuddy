@@ -401,6 +401,7 @@ test("execution runtime modules remain syntactically valid", () => {
   for (const path of [
     "api/ari-vnext.js",
     "api/_lib/ari-vnext/execution-session.js",
+    "api/_lib/ari-vnext/agent-task-store.js",
     "api/_lib/ari-vnext/developer-workspace.js",
     "api/_lib/ari-vnext/model-policy.js",
     "api/_lib/ari-vnext/reward-core.js",
