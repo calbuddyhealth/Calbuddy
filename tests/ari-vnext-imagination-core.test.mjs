@@ -266,7 +266,7 @@ test("Cortex exposes and selects the imagination workspace for deep creative arc
   });
 
   assert.equal(plan.active, true);
-  assert.equal(plan.capabilities.imagination_workspace.available, true);
+  assert.equal(plan.capabilityRegistry.imagination_workspace.available, true);
   assert.equal(plan.needs.imaginationPass, true);
   assert.ok(plan.selectedCapabilities.includes("imagination_workspace"));
 });
