@@ -22,6 +22,16 @@ test("Edit Profile exposes curated backgrounds without replacing the avatar", ()
   assert.doesNotMatch(editor, /avatar_url/);
 });
 
+test("profile background templates continue behind and around the avatar", () => {
+  assert.match(renderer, /profileCard\.dataset\.profileTemplate = templateName/);
+  assert.match(profileCss, /\.circle-profile\[data-profile-template="aurora"\]/);
+  assert.match(profileCss, /--circle-profile-theme:/);
+  assert.match(profileCss, /background-size: 100% 230px/);
+  assert.match(profileCss, /rgba\(255,255,255,0\) 58px/);
+  assert.match(profileCss, /#fff 168px/);
+  assert.match(profileCss, /\.circle-profile__cover[\s\S]*background: transparent !important/);
+});
+
 test("Break the Ice is removed from Edit Profile and the public profile", () => {
   assert.doesNotMatch(editor, /Break the Ice/i);
   assert.doesNotMatch(editor, /icebreaker/i);
