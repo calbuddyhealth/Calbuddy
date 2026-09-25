@@ -211,6 +211,7 @@ export function selectDreamInsightsForTurn(insights = [], { message = "", route 
       let score = clamp01(item.confidence) * 2;
       for (const word of words) if (text.includes(word)) score += 0.35;
       if (route?.developer && ["belief", "goal", "strategy", "capability", "contradiction", "curiosity"].includes(item.kind)) score += 0.7;
+      if (route?.developer && /imag|counterfactual|scenario|prototype|analogy/i.test(text)) score += 0.25;
       if (item.kind === "curiosity" && route?.followUp) score += 0.35;
       if ((route?.social || route?.memory || route?.followUp || route?.casualConversation) && ["communication", "relationship"].includes(item.kind)) score += 0.65;
       if (route?.goals && item.kind === "goal") score += 0.6;
@@ -257,6 +258,8 @@ export function buildDreamModelPayload(evidence = {}) {
     worldModel: evidence.worldModel || null,
     cognitiveState: evidence.cognitiveState || null,
     curiosityFrontier: evidence?.worldModel?.sourceSummary?.curiosityState?.expansive || null,
+    imaginationState: evidence?.worldModel?.sourceSummary?.imaginationState || null,
+    imaginationGarden: (evidence?.worldModel?.sourceSummary?.imaginationState?.garden || []).slice(0, 12),
     goals: (evidence.goals || []).slice(0, 12),
     goalEvents: (evidence.goalEvents || []).slice(0, 24),
     decisions: (evidence.decisions || []).slice(0, 16),
