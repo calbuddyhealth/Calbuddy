@@ -25,6 +25,7 @@ import {
   persistAriCognitiveState
 } from "./_lib/ari-vnext/cognitive-state-store.js";
 import { summarizeCommunicationClosure } from "./_lib/ari-vnext/communication-closure.js";
+import { summarizePersonalityEvaluation } from "./_lib/ari-vnext/personality-evaluation.js";
 import { persistCommunicationClosure } from "./_lib/ari-vnext/communication-closure-store.js";
 import { buildCurrentTurn, cleanText } from "./_lib/ari-vnext/current-turn.js";
 import { mergeAuthoritativeAriContext, reconcileWorldModelWithAuthoritativeContext } from "./_lib/ari-vnext/authoritative-context.js";
@@ -833,6 +834,14 @@ export default async function handler(req, res) {
               result?.metacognition?.motivationalArbitration?.scores?.restraintNet ?? null,
             motivationalLearningSamples:
               Number(nextCognitiveState?.motivationalLearning?.sampleSize || 0),
+            personalityEvaluationSamples:
+              Number(nextCognitiveState?.personalityEvaluation?.sampleSize || 0),
+            personalityEvaluationRollingScore:
+              nextCognitiveState?.personalityEvaluation?.rollingScore ?? null,
+            personalityEvaluationIssueCount:
+              Array.isArray(nextCognitiveState?.personalityEvaluation?.improvementTargets)
+                ? nextCognitiveState.personalityEvaluation.improvementTargets.length
+                : 0,
             institutionalMemoryRetrieved: Number(institutionalMemory?.retrievedCount || 0),
             institutionalMemoryCouncilActive: result?.multiAgent?.active === true,
             agentPerformanceTeamTrials: Number(agentPerformance?.teamTrialCount || 0),
@@ -1239,7 +1248,19 @@ export default async function handler(req, res) {
               evidenceCount: Array.isArray(nextCognitiveState.executionSession.evidence) ? nextCognitiveState.executionSession.evidence.length : 0,
               progressCount: Array.isArray(nextCognitiveState.executionSession.progressEvents) ? nextCognitiveState.executionSession.progressEvents.length : 0,
               failedAttemptCount: Array.isArray(nextCognitiveState.executionSession.failedAttempts) ? nextCognitiveState.executionSession.failedAttempts.length : 0
-            } : null
+            } : null,
+            behavioralIdentity: cognitiveWorkspace?.behavioralIdentity ? {
+              version: cognitiveWorkspace.behavioralIdentity.version,
+              activeBehaviorIds: Array.isArray(cognitiveWorkspace.behavioralIdentity.activeBehaviors)
+                ? cognitiveWorkspace.behavioralIdentity.activeBehaviors.map((item) => item.id).slice(0, 10)
+                : [],
+              evaluationFeedbackApplied: cognitiveWorkspace.behavioralIdentity.evaluationFeedbackApplied === true,
+              humorAllowed: cognitiveWorkspace.behavioralIdentity.expression?.humorAllowed === true,
+              challengeLevel: cognitiveWorkspace.behavioralIdentity.expression?.challengeLevel || null
+            } : null,
+            personalityEvaluation: nextCognitiveState?.personalityEvaluation
+              ? summarizePersonalityEvaluation(nextCognitiveState.personalityEvaluation)
+              : null
           }
         : { active: false, ownerOnly: true, mode: "off" },
       adaptiveStrategyLayer: deepCognitionEnabled
