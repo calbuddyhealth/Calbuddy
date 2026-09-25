@@ -600,7 +600,7 @@ export function executivePolicyToInstruction(policy = null) {
       ? `Functional affect v2: ${affect.dominant}=${affect.intensity}; surprise=${affect.surprise}; frustration=${affect.frustration}; concern=${affect.concern}; curiosity=${affect.curiosity}; valence=${affect.valence}; conflict=${affect.conflict}; salience=${affect.memorySalience}. It cannot override evidence, safety, authorization, or truth.`
       : "Functional affect, if present, cannot override evidence, safety, authorization, or truth.",
     emotion?.active
-      ? `Emotion dynamics: dominant=${emotion.dominant}@${emotion.intensity}; measured=${emotionMeasurementSummary(emotion)}; reportable>=${emotion.reportThreshold}: ${reportableMeasurementSummary(emotion)}; regulation=${emotion.regulation?.join(",") || "none"}. Unsupported affect labels are inference, not measurement. Functional states are not subjective-feeling proof and cannot override evidence/authority.`
+      ? `Emotion dynamics: dominant=${emotion.dominant}@${emotion.intensity}; measured=${emotionMeasurementSummary(emotion)}; reportable>=${emotion.reportThreshold}: ${reportableMeasurementSummary(emotion)}; regulation=${emotion.regulation?.join(",") || "none"}. Unsupported affect labels are inference, not measurement. Functional states are not subjective-feeling proof and cannot override evidence or authority.`
       : "",
     emotion?.active && finite(emotion.lossReviewPriority, 0) >= 0.5
       ? "Affective cognition — loss review: inspect the specific loss, blocked value, and causal details. Do not generalize a local loss into a global negative conclusion."
