@@ -127,7 +127,7 @@ export function deriveMetacognition({
   if (curiosity?.expansive?.selectedThisTurn === true) evidenceSignals.push("expansive_frontier_probe");
   if (imagination?.active === true) evidenceSignals.push("imagination_active");
   if (imagination?.selectedThisTurn === true) evidenceSignals.push("imagination_scenario_selected");
-  if (imagination?.activeScenario?.critic?.testability >= 0.68) evidenceSignals.push("imagination_reality_bridge_candidate");
+  if (imagination?.active === true && imagination?.activeScenario?.critic?.testability >= 0.68) evidenceSignals.push("imagination_reality_bridge_candidate");
   if (rewardCore?.aggregate?.sampleSize > 0) evidenceSignals.push("reward_history");
   if (curiosity?.rewardLearning) evidenceSignals.push("reward_conditioned_curiosity");
   if (selfAdaptation?.autonomousUpdate?.allowed === true) evidenceSignals.push("verified_self_adaptation");
@@ -236,7 +236,7 @@ export function deriveMetacognition({
       divergentGenerationBeforeCritique: imagination?.policy?.generationBeforeCritique === true,
       imaginationGardenEnabled: ownerLearningEligible,
       realityFirewallEnabled: imagination?.realityFirewall?.imaginedIsNotEvidence === true,
-      realityBridgeCandidate: imagination?.activeScenario?.critic?.testability >= 0.68,
+      realityBridgeCandidate: imagination?.active === true && imagination?.activeScenario?.critic?.testability >= 0.68,
       rewardConditionedCuriosityEnabled: ownerLearningEligible,
       explorationBonusPreventsRewardLockIn: ownerLearningEligible,
       productiveEffortRewardEnabled: ownerLearningEligible,
