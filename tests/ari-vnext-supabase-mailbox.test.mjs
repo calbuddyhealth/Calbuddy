@@ -103,6 +103,78 @@ test("mailbox send writes one user-scoped row through Supabase REST", async () =
   }
 });
 
+test("mailbox idempotency prevents duplicate background worker messages", async () => {
+  const original = { ...process.env };
+  try {
+    configureMailbox();
+    const key = "agent-job:42:result";
+    const calls = [];
+
+    const first = await sendAgentMailboxMessage({
+      userId: OWNER_ID,
+      sender: "ari-worker-agent-1",
+      recipient: "ari-orchestrator",
+      kind: "finding",
+      threadId: "11111111-1111-4111-8111-111111111111",
+      subject: "Background result",
+      payload: { content: "Observed result." },
+      idempotencyKey: key,
+      fetchImpl: async (url, options = {}) => {
+        calls.push({ url, options });
+        if (!options.method || options.method === "GET") return response(200, []);
+        const body = JSON.parse(options.body);
+        return response(201, [{ ...body, created_at: body.created_at }]);
+      }
+    });
+
+    assert.equal(first.success, true);
+    assert.equal(first.duplicate, false);
+    assert.equal(first.idempotencyKey, key);
+    assert.equal(calls.length, 2);
+    assert.match(calls[0].url, /idempotency_key=eq\.agent-job%3A42%3Aresult/);
+    assert.match(calls[1].url, /on_conflict=user_id%2Cidempotency_key/);
+    assert.match(calls[1].options.headers.Prefer, /resolution=ignore-duplicates/);
+    assert.equal(JSON.parse(calls[1].options.body).idempotency_key, key);
+
+    const duplicateCalls = [];
+    const duplicate = await sendAgentMailboxMessage({
+      userId: OWNER_ID,
+      sender: "ari-worker-agent-1",
+      recipient: "ari-orchestrator",
+      kind: "finding",
+      threadId: "11111111-1111-4111-8111-111111111111",
+      payload: { content: "Would otherwise duplicate." },
+      idempotencyKey: key,
+      fetchImpl: async (url, options = {}) => {
+        duplicateCalls.push({ url, options });
+        return response(200, [{
+          id: MESSAGE_ID,
+          idempotency_key: key,
+          thread_id: "11111111-1111-4111-8111-111111111111",
+          reply_to: null,
+          sender: "ari-worker-agent-1",
+          recipient: "ari-orchestrator",
+          kind: "finding",
+          subject: "Background result",
+          payload: { content: "Observed result." },
+          metadata: { transport: "supabase_postgres", immutable: true },
+          message_bytes: 300,
+          content_sha256: "c".repeat(64),
+          created_at: "2026-09-25T09:00:00.000Z"
+        }]);
+      }
+    });
+
+    assert.equal(duplicate.success, true);
+    assert.equal(duplicate.duplicate, true);
+    assert.equal(duplicate.messageId, MESSAGE_ID);
+    assert.equal(duplicateCalls.length, 1);
+    assert.equal(duplicateCalls[0].options.method, "GET");
+  } finally {
+    process.env = original;
+  }
+});
+
 test("modern Supabase secret keys are sent only as apikey", async () => {
   const original = { ...process.env };
   try {
