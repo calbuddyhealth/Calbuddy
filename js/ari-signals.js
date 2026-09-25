@@ -233,6 +233,77 @@
     return `<section class="ari-signal-detail-section"><h4>${escapeHtml(title)}</h4><p>${escapeHtml(textValue)}</p></section>`;
   }
 
+  function predictionReviewSection(review) {
+    if (!review || typeof review !== "object") return "";
+    const windowText = formatObservationWindow(review.observationWindow);
+    const baselineItems = [
+      ...(Array.isArray(review?.baseline?.metrics) ? review.baseline.metrics : []),
+      ...(Array.isArray(review?.baseline?.supportingEvidence)
+        ? review.baseline.supportingEvidence.map((item) => `Original support — ${item}`)
+        : [])
+    ].map(clean).filter(Boolean).slice(0, 6);
+    const evidenceItems = (Array.isArray(review.currentEvidence) ? review.currentEvidence : [])
+      .map((item) => clean(item?.label))
+      .filter(Boolean)
+      .slice(0, 8);
+    const quality = clean(review?.evidenceQuality?.label);
+    const qualityNote = clean(review?.evidenceQuality?.note);
+    const verdict = clean(review.preliminaryVerdict).replace(/_/g, " ");
+    const rationale = clean(review.preliminaryRationale);
+
+    const rows = [
+      review.originalPrediction ? reviewRow("ORIGINAL PREDICTION", review.originalPrediction) : "",
+      review.successCriteria ? reviewRow("WOULD SUPPORT IT IF", review.successCriteria) : "",
+      review.disconfirmingCriteria ? reviewRow("WOULD WEAKEN IT IF", review.disconfirmingCriteria) : "",
+      windowText ? reviewRow("OBSERVATION WINDOW", windowText) : "",
+      baselineItems.length ? reviewListRow("BASELINE", baselineItems) : "",
+      evidenceItems.length ? reviewListRow("NEW EVIDENCE", evidenceItems) : "",
+      quality ? reviewRow("EVIDENCE QUALITY", [quality.toUpperCase(), qualityNote].filter(Boolean).join(" — ")) : "",
+      verdict ? reviewVerdictRow(verdict, rationale, review.finalVerdictRequired !== false) : ""
+    ].filter(Boolean).join("");
+
+    return rows
+      ? `<section class="ari-signal-review-card"><p class="ari-signal-review-kicker">PREDICTION REVIEW</p>${rows}</section>`
+      : "";
+  }
+
+  function reviewRow(labelText, value) {
+    const textValue = clean(value);
+    if (!textValue) return "";
+    return `<div class="ari-signal-review-row"><span>${escapeHtml(labelText)}</span><p>${escapeHtml(textValue)}</p></div>`;
+  }
+
+  function reviewListRow(labelText, items) {
+    const rows = (Array.isArray(items) ? items : []).map(clean).filter(Boolean);
+    if (!rows.length) return "";
+    return `<div class="ari-signal-review-row"><span>${escapeHtml(labelText)}</span><ul>${rows.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
+  }
+
+  function reviewVerdictRow(verdict, rationale, finalRequired) {
+    const status = clean(verdict) || "pending review";
+    return `<div class="ari-signal-review-verdict"><div><span>PRELIMINARY COMPARISON</span><strong>${escapeHtml(status.toUpperCase())}</strong></div>${rationale ? `<p>${escapeHtml(rationale)}</p>` : ""}${finalRequired ? '<small>Not final until the evidence is explicitly reviewed.</small>' : ""}</div>`;
+  }
+
+  function formatObservationWindow(value) {
+    if (!value || typeof value !== "object") return "";
+    const start = formatDate(value.startAt);
+    const end = formatDate(value.reviewAt);
+    const days = Number(value.horizonDays);
+    if (start && end) return `${start} → ${end}${Number.isFinite(days) ? ` · ${days} days` : ""}`;
+    if (end) return `Review due ${end}`;
+    return Number.isFinite(days) ? `${days}-day observation window` : "";
+  }
+
+  function formatDate(value) {
+    const timestamp = Date.parse(String(value || ""));
+    if (!Number.isFinite(timestamp)) return "";
+    try {
+      return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(timestamp));
+    } catch {
+      return String(value || "").slice(0, 10);
+    }
+  }
+
   function evidenceSection(items) {
     const evidence = Array.isArray(items) ? items.filter(Boolean).slice(0, 6) : [];
     if (!evidence.length) return "";
@@ -269,6 +340,28 @@
     const signal = signals.find((item) => item.id === id);
     if (!signal) return;
     const detail = signal.detail || {};
+    const review = detail.reviewPacket && typeof detail.reviewPacket === "object" ? detail.reviewPacket : null;
+    const reviewLines = review ? [
+      review.originalPrediction ? `Original prediction: ${review.originalPrediction}` : "",
+      review.successCriteria ? `Would support it if: ${review.successCriteria}` : "",
+      review.disconfirmingCriteria ? `Would weaken it if: ${review.disconfirmingCriteria}` : "",
+      formatObservationWindow(review.observationWindow) ? `Observation window: ${formatObservationWindow(review.observationWindow)}` : "",
+      Array.isArray(review?.baseline?.metrics) && review.baseline.metrics.length
+        ? `Baseline: ${review.baseline.metrics.join("; ")}`
+        : "",
+      Array.isArray(review.currentEvidence) && review.currentEvidence.length
+        ? `New evidence: ${review.currentEvidence.map((item) => clean(item?.label)).filter(Boolean).join("; ")}`
+        : "",
+      review?.evidenceQuality?.label
+        ? `Evidence quality: ${review.evidenceQuality.label}${review.evidenceQuality.note ? ` — ${review.evidenceQuality.note}` : ""}`
+        : "",
+      review.preliminaryVerdict
+        ? `Preliminary comparison: ${review.preliminaryVerdict} — ${clean(review.preliminaryRationale)}`
+        : "",
+      review.finalVerdictRequired !== false
+        ? "Final review required: compare the evidence before resolving the prediction."
+        : ""
+    ].filter(Boolean) : [];
     const lines = [
       "ARI Signal",
       signal.message,
@@ -278,6 +371,7 @@
       detail.currentState ? `Current state: ${detail.currentState}` : "",
       detail.requestFromJose ? `What Ari needs from Jose: ${detail.requestFromJose}` : "",
       detail.requestFromChatGPT ? `What Ari needs from ChatGPT: ${detail.requestFromChatGPT}` : "",
+      ...reviewLines,
       detail.suggestedNextStep ? `Suggested next step: ${detail.suggestedNextStep}` : "",
       Array.isArray(detail.evidence) && detail.evidence.length
         ? `Evidence: ${detail.evidence.map((item) => [clean(item?.label), clean(item?.url)].filter(Boolean).join(" — ")).filter(Boolean).join("; ")}`
