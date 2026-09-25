@@ -200,7 +200,7 @@
       await rpc("ari_circle_block_user", { target_user_id:id });
       $("circleProfileVisitorDialog")?.close?.();
       toast("Blocked.");
-      setTimeout(() => location.replace("ari-circle-feed.html"), 450);
+      setTimeout(() => location.replace("ari-circle-meetup.html"), 450);
     } catch (error) {
       toast(error.message || "Could not block this profile.");
     }
