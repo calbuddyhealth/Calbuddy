@@ -335,7 +335,7 @@ test("owner metacognition preserves Reward Core state while Ari Executive owns r
   assert.equal(ordinary.rewardCore, null);
   assert.equal(ordinary.exploration.productiveEffortRewardEnabled, false);
   assert.equal(owner.executivePolicy.authority.singleRuntimeDecisionAuthority, true);
-  assert.match(instruction, /ARI EXECUTIVE v1\.2\.0/);
+  assert.match(instruction, /ARI EXECUTIVE v1\.3\.0/);
   assert.match(instruction, /Reward signal:/i);
   assert.match(instruction, /Useful failure is learning/i);
   assert.doesNotMatch(instruction, /ARI REWARD CORE v1/);
