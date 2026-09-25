@@ -288,27 +288,28 @@ async function loadAgentTaskSessionById({ userId, taskId } = {}) {
 function normalizeSession(row) {
   if (!row || typeof row !== "object" || Array.isArray(row)) return null;
   const id = cleanUuid(row.id);
-  const executionSessionId = clean(row.execution_session_id, 180);
+  const executionSessionId = clean(row.execution_session_id ?? row.executionSessionId, 180);
   if (!id || !executionSessionId) return null;
   return {
     id,
-    userId: cleanUserId(row.user_id),
+    userId: cleanUserId(row.user_id ?? row.userId),
     executionSessionId,
-    conversationId: clean(row.conversation_id, 180) || null,
-    rootTurnId: clean(row.root_turn_id, 180) || null,
-    lastTurnId: clean(row.last_turn_id, 180) || null,
+    conversationId: clean(row.conversation_id ?? row.conversationId, 180) || null,
+    rootTurnId: clean(row.root_turn_id ?? row.rootTurnId, 180) || null,
+    lastTurnId: clean(row.last_turn_id ?? row.lastTurnId, 180) || null,
     goal: clean(row.goal, 900),
-    successCriteria: clean(row.success_criteria, 1200) || null,
+    successCriteria: clean(row.success_criteria ?? row.successCriteria, 1200) || null,
     status: normalizeSessionStatus(row.status),
     plan: safeJson(row.plan),
     verification: safeJson(row.verification),
     synthesis: clean(row.synthesis, 9000) || null,
-    nextStep: clean(row.next_step, 1200) || null,
-    roundCount: boundedInt(row.round_count, 0, 0, 4),
-    maxRounds: boundedInt(row.max_rounds, 2, 1, 4),
-    createdAt: clean(row.created_at, 120) || null,
-    updatedAt: clean(row.updated_at, 120) || null,
-    completedAt: clean(row.completed_at, 120) || null
+    nextStep: clean(row.next_step ?? row.nextStep, 1200) || null,
+    roundCount: boundedInt(row.round_count ?? row.roundCount, 0, 0, 4),
+    maxRounds: boundedInt(row.max_rounds ?? row.maxRounds, 2, 1, 4),
+    createdAt: clean(row.created_at ?? row.createdAt, 120) || null,
+    updatedAt: clean(row.updated_at ?? row.updatedAt, 120) || null,
+    completedAt: clean(row.completed_at ?? row.completedAt, 120) || null,
+    resumed: row.resumed === true
   };
 }
 
@@ -328,8 +329,8 @@ function normalizeSessionPatch(patch = {}) {
 function normalizeWorker(row) {
   if (!row || typeof row !== "object" || Array.isArray(row)) return null;
   const id = cleanUuid(row.id);
-  const taskId = cleanUuid(row.task_id);
-  const workerKey = clean(row.worker_key, 80);
+  const taskId = cleanUuid(row.task_id ?? row.taskId);
+  const workerKey = clean(row.worker_key ?? row.workerKey, 80);
   if (!taskId || !workerKey) return null;
   return {
     id,
@@ -340,13 +341,13 @@ function normalizeWorker(row) {
     round: boundedInt(row.round, 0, 0, 4),
     followup: row.followup === true,
     status: normalizeWorkerStatus(row.status),
-    mailboxMessageId: cleanUuid(row.mailbox_message_id) || null,
-    providerModel: clean(row.provider_model, 160) || null,
-    errorCode: clean(row.error_code, 240) || null,
-    createdAt: clean(row.created_at, 120) || null,
-    startedAt: clean(row.started_at, 120) || null,
-    completedAt: clean(row.completed_at, 120) || null,
-    updatedAt: clean(row.updated_at, 120) || null
+    mailboxMessageId: cleanUuid(row.mailbox_message_id ?? row.mailboxMessageId) || null,
+    providerModel: clean(row.provider_model ?? row.providerModel, 160) || null,
+    errorCode: clean(row.error_code ?? row.errorCode, 240) || null,
+    createdAt: clean(row.created_at ?? row.createdAt, 120) || null,
+    startedAt: clean(row.started_at ?? row.startedAt, 120) || null,
+    completedAt: clean(row.completed_at ?? row.completedAt, 120) || null,
+    updatedAt: clean(row.updated_at ?? row.updatedAt, 120) || null
   };
 }
 
