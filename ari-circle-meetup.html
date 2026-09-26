@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
   <link rel="stylesheet" href="assets/css/ari-circle-search-location-v1.css?v=1.2.0" />
-  <link rel="stylesheet" href="assets/css/ari-circle-connect-v1.css?v=1.5.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-connect-v1.css?v=1.6.0" />
 </head>
 <body class="circle-v5-real-world circle-connect-next">
   <main class="circle-v5-page" id="meetupPage" hidden>
@@ -122,6 +122,26 @@
         </label>
         <p class="circle-v5-form-note">Use a public area or neighborhood here. Share an exact meeting point only inside the Meetup Room when appropriate.</p>
 
+        <div class="circle-v5-field circle-connect-cover-field">
+          <div class="circle-connect-cover-field__label">
+            <span>Invitation photo</span>
+            <small>optional</small>
+          </div>
+          <input id="meetupFormCover" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" hidden />
+          <div class="circle-connect-cover-picker" id="meetupCoverPicker">
+            <button class="circle-connect-cover-add" id="meetupCoverChoose" type="button">
+              <span aria-hidden="true">＋</span>
+              <strong>Add photo</strong>
+              <small>Make the meetup easier to spot</small>
+            </button>
+            <div class="circle-connect-cover-preview" id="meetupCoverPreview" hidden>
+              <img id="meetupCoverPreviewImage" alt="Meetup invitation preview" />
+              <button id="meetupCoverRemove" type="button">Remove</button>
+            </div>
+          </div>
+          <p class="circle-v5-form-note">Your photo is safety-screened before upload. If you skip it, Ari Circle uses a category visual automatically.</p>
+        </div>
+
         <label class="circle-v5-field">Open spots
           <select class="circle-v5-select" id="meetupFormGuestSpots">
             <option value="1">1 spot</option>
@@ -205,6 +225,6 @@
   <script src="js/ari-circle/location/search-location-v1.js?v=1.2.0" defer></script>
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.0" defer></script>
   <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.5.1" defer></script>
-  <script src="js/ari-circle/connect/connect-v1.js?v=1.2.0" defer></script>
+  <script src="js/ari-circle/connect/connect-v1.js?v=1.3.0" defer></script>
 </body>
 </html>
