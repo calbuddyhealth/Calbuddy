@@ -1,5 +1,5 @@
 // js/ari-circle/profile/profile-editor.js
-// ARI Circle — Profile Editor V2.5.0
+// ARI Circle — Profile Editor V2.5.1
 //
 // The profile is intentionally compact: identity, about, interests,
 // and four showcase slots managed separately by profile-gallery-v1.
@@ -8,7 +8,7 @@ import CircleStore from "../core/circle-store.js";
 import CircleEvents, { EVENT_NAMES } from "../core/circle-events.js";
 import ProfileMedia, { MEDIA_TYPES } from "../media/profile-media.js";
 
-const VERSION = "2.5.0";
+const VERSION = "2.5.1";
 const SOURCE = "ari-circle/profile/profile-editor";
 const AUTOSAVE_DELAY_MS = 650;
 const PROFILE_SAVED_EVENT = "circle:profile-saved";
@@ -703,6 +703,16 @@ const ProfileEditor = {
 
   close() {
     this.flushAutoSave();
+
+    const active = document.activeElement;
+    if (
+      active &&
+      this.dom.dialog?.contains(active) &&
+      typeof active.blur === "function"
+    ) {
+      active.blur();
+    }
+
     if (!this.dom.dialog || typeof this.dom.dialog.close !== "function") return false;
     if (this.dom.dialog.open) this.dom.dialog.close();
     return true;
