@@ -2,58 +2,73 @@
 
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
-import { randomUUID } from "node:crypto";
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const MODE = String(process.argv[2] || "worker").toLowerCase();
 const PROFILE_DIR = resolve(process.env.ARI_CHATGPT_BROWSER_PROFILE_DIR || ".ari-private/chatgpt-profile");
+const OWNER_APP_URL = String(process.env.ARI_OWNER_APP_URL || "https://www.calbuddyhealth.com/").trim();
 const BRIDGE_URL = String(process.env.ARI_CHATGPT_BROWSER_BRIDGE_URL || "https://www.calbuddyhealth.com/api/ari-chatgpt-browser-worker").trim();
-const WORKER_SECRET = String(process.env.ARI_CHATGPT_BROWSER_WORKER_SECRET || "").trim();
 const WORKER_ID = String(process.env.ARI_CHATGPT_BROWSER_WORKER_ID || `owner-browser-${process.platform}`).trim().toLowerCase();
 const ONCE = process.argv.includes("--once");
 
 await mkdir(PROFILE_DIR, { recursive: true });
-
 const { chromium } = await loadPlaywright();
 
 if (MODE === "login") {
-  await interactiveLogin();
+  await interactiveSetup();
 } else if (MODE === "worker") {
   await runWorker();
 } else {
   fail("Usage: node scripts/ari-chatgpt-browser-worker.mjs <login|worker> [--once]");
 }
 
-async function interactiveLogin() {
+async function interactiveSetup() {
   const context = await chromium.launchPersistentContext(PROFILE_DIR, {
     headless: false,
     viewport: { width: 1320, height: 900 }
   });
-  const page = context.pages()[0] || await context.newPage();
-  attachTopLevelNavigationGuard(page, { loginMode: true });
-  await page.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded", timeout: 60000 });
-  process.stdout.write("Sign in to ChatGPT in the browser window. Ari never receives or stores your password.\n");
+
+  const ownerPage = context.pages()[0] || await context.newPage();
+  await ownerPage.goto(OWNER_APP_URL, { waitUntil: "domcontentloaded", timeout: 60000 });
+  process.stdout.write("Sign in to ARI XP in the browser window. This owner session authorizes the local bridge worker.\n");
+
   try {
-    await waitForComposer(page, 15 * 60 * 1000);
-    process.stdout.write("Authenticated ChatGPT browser profile is ready.\n");
+    const ownerSession = await waitForAriOwnerSession(ownerPage, 15 * 60 * 1000);
+    process.stdout.write(`ARI XP owner session detected for ${ownerSession.userId}.\n`);
+
+    const chatgptPage = await context.newPage();
+    attachChatgptNavigationGuard(chatgptPage, { loginMode: true });
+    await chatgptPage.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded", timeout: 60000 });
+    process.stdout.write("Now sign in to ChatGPT in this browser window. Ari never receives or stores your ChatGPT password.\n");
+    await waitForComposer(chatgptPage, 15 * 60 * 1000);
+    process.stdout.write("ARI XP owner session and ChatGPT browser session are both ready.\n");
   } finally {
     await context.close();
   }
 }
 
 async function runWorker() {
-  if (!WORKER_SECRET) fail("ARI_CHATGPT_BROWSER_WORKER_SECRET is required.");
   if (!/^https:\/\//i.test(BRIDGE_URL)) fail("ARI_CHATGPT_BROWSER_BRIDGE_URL must be HTTPS.");
+  if (!/^https:\/\//i.test(OWNER_APP_URL)) fail("ARI_OWNER_APP_URL must be HTTPS.");
 
   const context = await chromium.launchPersistentContext(PROFILE_DIR, {
     headless: true,
     viewport: { width: 1280, height: 900 }
   });
-  const page = context.pages()[0] || await context.newPage();
-  attachTopLevelNavigationGuard(page, { loginMode: false });
 
-  let sessionState = await detectSessionState(page);
-  process.stdout.write(`ARI ChatGPT browser worker ${VERSION}: ${sessionState}.\n`);
+  const ownerPage = context.pages()[0] || await context.newPage();
+  await ownerPage.goto(OWNER_APP_URL, { waitUntil: "domcontentloaded", timeout: 60000 });
+
+  let ownerSession = await waitForAriOwnerSession(ownerPage, 20000).catch(() => null);
+  if (!ownerSession?.accessToken) {
+    await context.close();
+    fail("ARI XP owner session is missing or expired. Run: npm run chatgpt:browser:login");
+  }
+
+  const chatgptPage = await context.newPage();
+  attachChatgptNavigationGuard(chatgptPage, { loginMode: false });
+  let sessionState = await detectChatgptSessionState(chatgptPage);
+  process.stdout.write(`ARI ChatGPT browser worker ${VERSION}: owner authenticated, ChatGPT ${sessionState}.\n`);
 
   const stop = async () => {
     await context.close().catch(() => {});
@@ -63,16 +78,26 @@ async function runWorker() {
   process.on("SIGTERM", stop);
 
   while (true) {
+    ownerSession = await refreshAriOwnerSession(ownerPage).catch(() => null);
+    if (!ownerSession?.accessToken) {
+      process.stderr.write("ARI XP owner session expired. Run the login command again.\n");
+      break;
+    }
+
     const claim = await bridgeRequest({
       operation: "claim",
       workerId: WORKER_ID,
       version: VERSION,
       sessionState
-    }).catch((error) => ({ success: false, error: error?.message || String(error) }));
+    }, ownerSession.accessToken).catch((error) => ({
+      success: false,
+      error: error?.message || String(error)
+    }));
 
     if (claim?.job) {
       const job = claim.job;
       let result;
+
       if (sessionState !== "authenticated") {
         result = {
           success: false,
@@ -80,13 +105,14 @@ async function runWorker() {
           errorMessage: "The local ChatGPT browser profile is not authenticated. Run the login command again."
         };
       } else {
-        result = await executeDiscussionTurn(page, job).catch((error) => ({
+        result = await executeDiscussionTurn(chatgptPage, job).catch((error) => ({
           success: false,
           errorCode: error?.code || "CHATGPT_BROWSER_AUTOMATION_FAILED",
           errorMessage: String(error?.message || error).slice(0, 1000)
         }));
       }
 
+      ownerSession = await refreshAriOwnerSession(ownerPage).catch(() => ownerSession);
       await bridgeRequest({
         operation: "complete",
         workerId: WORKER_ID,
@@ -95,7 +121,7 @@ async function runWorker() {
         jobId: job.id,
         leaseToken: job.leaseToken,
         ...result
-      }).catch((error) => {
+      }, ownerSession.accessToken).catch((error) => {
         process.stderr.write(`Bridge completion failed: ${error?.message || error}\n`);
       });
 
@@ -106,7 +132,7 @@ async function runWorker() {
 
     if (ONCE) break;
     await sleep(2500);
-    sessionState = await detectSessionState(page);
+    sessionState = await detectChatgptSessionState(chatgptPage);
   }
 
   await context.close();
@@ -121,11 +147,19 @@ async function executeDiscussionTurn(page, job) {
     ? validateConversationUrl(job?.conversationUrl)
     : "https://chatgpt.com/";
 
-  if (!target) throw coded("CHATGPT_CONVERSATION_URL_INVALID", "The stored ChatGPT conversation URL is not a permitted discussion URL.");
+  if (!target) {
+    throw coded(
+      "CHATGPT_CONVERSATION_URL_INVALID",
+      "The stored ChatGPT conversation URL is not a permitted discussion URL."
+    );
+  }
 
   await page.goto(target, { waitUntil: "domcontentloaded", timeout: 60000 });
   await waitForComposer(page, 20000).catch(() => {
-    throw coded("CHATGPT_LOGIN_REQUIRED", "ChatGPT did not expose the message composer. Re-authenticate the local browser profile.");
+    throw coded(
+      "CHATGPT_LOGIN_REQUIRED",
+      "ChatGPT did not expose the message composer. Re-authenticate the local browser profile."
+    );
   });
 
   const before = await assistantMessageCount(page);
@@ -145,7 +179,50 @@ async function executeDiscussionTurn(page, job) {
   };
 }
 
-async function detectSessionState(page) {
+async function refreshAriOwnerSession(page) {
+  const session = await readAriOwnerSession(page);
+  if (session?.accessToken) return session;
+  await page.reload({ waitUntil: "domcontentloaded", timeout: 30000 });
+  return readAriOwnerSession(page);
+}
+
+async function waitForAriOwnerSession(page, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const session = await readAriOwnerSession(page).catch(() => null);
+    if (session?.accessToken && session?.userId) return session;
+    await sleep(750);
+  }
+  throw new Error("ARI XP owner session unavailable.");
+}
+
+async function readAriOwnerSession(page) {
+  return page.evaluate(async () => {
+    try {
+      let session = null;
+
+      if (window.CalBuddy?.getCurrentSession) {
+        session = await window.CalBuddy.getCurrentSession();
+      }
+
+      if (!session) {
+        const client = window.calbuddySupabase || window.supabaseClient || window.CalBuddy?.supabase;
+        if (client?.auth?.getSession) {
+          const result = await client.auth.getSession();
+          session = result?.data?.session || null;
+        }
+      }
+
+      const accessToken = String(session?.access_token || "").trim();
+      const userId = String(session?.user?.id || "").trim();
+      return accessToken && userId ? { accessToken, userId } : null;
+    } catch {
+      return null;
+    }
+  });
+}
+
+async function detectChatgptSessionState(page) {
   try {
     await page.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded", timeout: 30000 });
     await waitForComposer(page, 10000);
@@ -158,6 +235,7 @@ async function detectSessionState(page) {
 async function submitMessage(page, message) {
   const composer = await composerLocator(page);
   await composer.click();
+
   try {
     await composer.fill(message);
   } catch {
@@ -181,16 +259,25 @@ async function waitForAssistantReply(page, baseline, timeoutMs) {
   while (Date.now() < deadline) {
     const messages = page.locator('[data-message-author-role="assistant"]');
     const count = await messages.count().catch(() => 0);
+
     if (count > baseline) {
       const text = String(await messages.nth(count - 1).innerText().catch(() => "")).trim();
-      const stopVisible = await page.locator('button[data-testid="stop-button"], button[aria-label*="Stop" i]').first().isVisible().catch(() => false);
+      const stopVisible = await page
+        .locator('button[data-testid="stop-button"], button[aria-label*="Stop" i]')
+        .first()
+        .isVisible()
+        .catch(() => false);
+
       if (text && text === last && !stopVisible) stable += 1;
       else stable = 0;
+
       last = text;
       if (stable >= 2) return text;
     }
+
     await sleep(750);
   }
+
   throw coded("CHATGPT_REPLY_TIMEOUT", "Timed out waiting for ChatGPT to finish the discussion turn.");
 }
 
@@ -201,6 +288,7 @@ async function waitForComposer(page, timeoutMs) {
     'textarea[placeholder*="Message" i]',
     'div[contenteditable="true"]'
   ];
+
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     for (const selector of selectors) {
@@ -209,6 +297,7 @@ async function waitForComposer(page, timeoutMs) {
     }
     await sleep(500);
   }
+
   throw new Error("ChatGPT composer unavailable.");
 }
 
@@ -220,16 +309,21 @@ async function assistantMessageCount(page) {
   return page.locator('[data-message-author-role="assistant"]').count().catch(() => 0);
 }
 
-function attachTopLevelNavigationGuard(page, { loginMode }) {
+function attachChatgptNavigationGuard(page, { loginMode }) {
   page.on("framenavigated", (frame) => {
     if (frame !== page.mainFrame()) return;
     const raw = frame.url();
     if (!/^https?:/i.test(raw)) return;
+
     let host = "";
     try { host = new URL(raw).hostname; } catch { return; }
-    const allowed = host === "chatgpt.com" || (loginMode && (host === "auth.openai.com" || host === "openai.com"));
+
+    const allowed =
+      host === "chatgpt.com" ||
+      (loginMode && (host === "auth.openai.com" || host === "openai.com"));
+
     if (!allowed) {
-      process.stderr.write(`Blocked unexpected top-level navigation: ${host}\n`);
+      process.stderr.write(`Blocked unexpected ChatGPT top-level navigation: ${host}\n`);
       void page.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" }).catch(() => {});
     }
   });
@@ -248,17 +342,21 @@ function validateConversationUrl(value) {
   }
 }
 
-async function bridgeRequest(payload) {
+async function bridgeRequest(payload, accessToken) {
+  const token = String(accessToken || "").trim();
+  if (!token) throw new Error("ARI XP owner access token is unavailable.");
+
   const response = await fetch(BRIDGE_URL, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${WORKER_SECRET}`,
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
       Accept: "application/json"
     },
     body: JSON.stringify(payload),
     signal: AbortSignal.timeout(20000)
   });
+
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data?.code || data?.error || `Bridge HTTP ${response.status}`);
   return data;

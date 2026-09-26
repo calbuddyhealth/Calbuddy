@@ -1,4 +1,4 @@
-import { randomUUID, timingSafeEqual } from "node:crypto";
+import { randomUUID } from "node:crypto";
 
 const THREAD_TABLE = "ari_chatgpt_browser_threads";
 const JOB_TABLE = "ari_chatgpt_browser_jobs";
@@ -9,7 +9,7 @@ const MAX_MESSAGE_CHARS = 8000;
 const MAX_RESPONSE_CHARS = 24000;
 
 export function chatgptBrowserBridgeEnabled() {
-  return String(process.env.ARI_CHATGPT_BROWSER_BRIDGE_ENABLED || "").trim().toLowerCase() === "true";
+  return String(process.env.ARI_CHATGPT_BROWSER_BRIDGE_ENABLED || "true").trim().toLowerCase() !== "false";
 }
 
 export function normalizeChatgptConversationUrl(value = "") {
@@ -25,15 +25,6 @@ export function normalizeChatgptConversationUrl(value = "") {
   } catch {
     return "";
   }
-}
-
-export function workerSecretMatches(value = "") {
-  const expected = String(process.env.ARI_CHATGPT_BROWSER_WORKER_SECRET || "").trim();
-  const supplied = String(value || "").trim();
-  if (!expected || !supplied) return false;
-  const a = Buffer.from(expected);
-  const b = Buffer.from(supplied);
-  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 export async function executeOwnerChatgptDiscussionAction({

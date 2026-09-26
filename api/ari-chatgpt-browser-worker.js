@@ -1,30 +1,31 @@
 import {
   claimNextChatgptBrowserJob,
   completeChatgptBrowserJob,
-  heartbeatChatgptBrowserWorker,
-  workerSecretMatches
+  heartbeatChatgptBrowserWorker
 } from "../server/ari-chatgpt-browser-bridge.js";
+import {
+  verifyOwnerRequest,
+  sendOwnerAuthorizationError,
+  setOwnerSecurityHeaders
+} from "../server/ari-owner-auth.js";
 
 export const config = { maxDuration: 30 };
 
 export default async function handler(req, res) {
   setHeaders(res);
+  setOwnerSecurityHeaders(res);
 
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ success: false, code: "METHOD_NOT_ALLOWED" });
   }
 
-  const secret = bearer(req);
-  if (!workerSecretMatches(secret)) {
-    return res.status(401).json({ success: false, code: "CHATGPT_BROWSER_WORKER_UNAUTHORIZED" });
+  const authorization = await verifyOwnerRequest(req);
+  if (!authorization?.authorized) {
+    return sendOwnerAuthorizationError(res, authorization);
   }
 
-  const ownerUserId = clean(process.env.ARI_OWNER_USER_ID, 200);
-  if (!ownerUserId) {
-    return res.status(503).json({ success: false, code: "OWNER_ID_NOT_CONFIGURED" });
-  }
-
+  const ownerUserId = authorization.user.id;
   const body = resolveBody(req);
   const operation = clean(body?.operation, 40).toLowerCase();
   const workerId = clean(body?.workerId, 120).toLowerCase();
@@ -74,11 +75,6 @@ export default async function handler(req, res) {
   }
 }
 
-function bearer(req) {
-  const header = String(req?.headers?.authorization || "").trim();
-  return /^Bearer\s+/i.test(header) ? header.replace(/^Bearer\s+/i, "").trim() : "";
-}
-
 function resolveBody(req) {
   if (req?.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) return req.body;
   if (typeof req?.body === "string") {
@@ -89,10 +85,7 @@ function resolveBody(req) {
 
 function setHeaders(res) {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Cache-Control", "private, no-store, max-age=0");
-  res.setHeader("Pragma", "no-cache");
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-ARI-ChatGPT-Browser-Bridge", "v1");
+  res.setHeader("X-ARI-ChatGPT-Browser-Bridge", "v2-owner-session");
 }
 
 function clean(value, max = 1000) {

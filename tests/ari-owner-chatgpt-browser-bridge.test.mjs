@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 
 import {
   normalizeChatgptConversationUrl,
-  workerSecretMatches
+  chatgptBrowserBridgeEnabled
 } from "../server/ari-chatgpt-browser-bridge.js";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
@@ -20,26 +20,39 @@ test("ChatGPT browser bridge accepts only normal chatgpt.com conversation URLs",
   assert.equal(normalizeChatgptConversationUrl("http://chatgpt.com/c/abc"), "");
 });
 
-test("worker secret comparison is explicit and fail-closed", () => {
-  const prior = process.env.ARI_CHATGPT_BROWSER_WORKER_SECRET;
-  process.env.ARI_CHATGPT_BROWSER_WORKER_SECRET = "unit-test-secret";
-  assert.equal(workerSecretMatches("unit-test-secret"), true);
-  assert.equal(workerSecretMatches("unit-test-secrex"), false);
-  assert.equal(workerSecretMatches(""), false);
-  if (prior === undefined) delete process.env.ARI_CHATGPT_BROWSER_WORKER_SECRET;
-  else process.env.ARI_CHATGPT_BROWSER_WORKER_SECRET = prior;
+test("bridge is enabled by default but can be explicitly disabled", () => {
+  const prior = process.env.ARI_CHATGPT_BROWSER_BRIDGE_ENABLED;
+  delete process.env.ARI_CHATGPT_BROWSER_BRIDGE_ENABLED;
+  assert.equal(chatgptBrowserBridgeEnabled(), true);
+  process.env.ARI_CHATGPT_BROWSER_BRIDGE_ENABLED = "false";
+  assert.equal(chatgptBrowserBridgeEnabled(), false);
+  if (prior === undefined) delete process.env.ARI_CHATGPT_BROWSER_BRIDGE_ENABLED;
+  else process.env.ARI_CHATGPT_BROWSER_BRIDGE_ENABLED = prior;
 });
 
-test("browser worker is discussion-only and uses a local persistent profile instead of a password variable", async () => {
+test("browser worker uses local ARI XP owner auth and a separate local ChatGPT session", async () => {
   const source = await read("scripts/ari-chatgpt-browser-worker.mjs");
   assert.match(source, /launchPersistentContext\(PROFILE_DIR/);
   assert.match(source, /\.ari-private\/chatgpt-profile/);
+  assert.match(source, /https:\/\/www\.calbuddyhealth\.com\//);
+  assert.match(source, /window\.CalBuddy\?\.getCurrentSession/);
+  assert.match(source, /window\.calbuddySupabase/);
+  assert.match(source, /Authorization: `Bearer \$\{token\}`/);
   assert.match(source, /https:\/\/chatgpt\.com\//);
   assert.match(source, /data-message-author-role="assistant"/);
-  assert.match(source, /ARI_CHATGPT_BROWSER_WORKER_SECRET/);
+  assert.doesNotMatch(source, /ARI_CHATGPT_BROWSER_WORKER_SECRET/);
   assert.doesNotMatch(source, /process\.env\.[A-Z0-9_]*PASSWORD/);
   assert.doesNotMatch(source, /process\.env\.[A-Z0-9_]*COOKIE/);
   assert.doesNotMatch(source, /billing|settings\/|\/settings/i);
+});
+
+test("worker API reuses hardened verified owner authorization", async () => {
+  const source = await read("api/ari-chatgpt-browser-worker.js");
+  assert.match(source, /verifyOwnerRequest\(req\)/);
+  assert.match(source, /sendOwnerAuthorizationError/);
+  assert.match(source, /authorization\.user\.id/);
+  assert.doesNotMatch(source, /workerSecretMatches/);
+  assert.doesNotMatch(source, /ARI_CHATGPT_BROWSER_WORKER_SECRET/);
 });
 
 test("bridge tables are server-only with RLS and no browser-role grants", async () => {
