@@ -16,13 +16,16 @@ test("birthday correction is a pending owner-review workflow, never a direct DOB
   assert.doesNotMatch(sql, /update public\.ari_account_state[\s\S]{0,500}requested_date_of_birth[\s\S]{0,500}insert into public\.ari_age_correction_requests/i);
 });
 
-test("request requires password authentication evidence and a meaningful explanation", () => {
-  const sql = source("supabase/migrations/20260818232000_age_correction_support_workflow.sql");
-  assert.match(sql, /auth\.jwt\(\)->'amr'/i);
-  assert.match(sql, /item->>'method' = 'password'/i);
+test("current request contract keeps password reauthentication while explanation is optional", () => {
+  const sql = source("supabase/migrations/20260926175500_optional_age_correction_explanation.sql");
+  assert.match(sql, /drop constraint if exists ari_age_correction_explanation_length/i);
+  assert.match(sql, /check \(char_length\(explanation\) <= 2000\)/i);
+  assert.match(sql, /requested_explanation text default null/i);
+  assert.match(sql, /left\(btrim\(coalesce\(requested_explanation, ''\)\), 2000\)/i);
+  assert.match(sql, /password_auth_at := public\.ari_recent_password_auth_at\(\)/i);
   assert.match(sql, /now\(\) - interval '5 minutes'/i);
-  assert.match(sql, /char_length\(btrim\(coalesce\(requested_explanation/i);
-  assert.match(sql, /between 20 and 2000/i);
+  assert.doesNotMatch(sql, /between 20 and 2000/i);
+  assert.doesNotMatch(sql, /explain why the birthday needs to be corrected/i);
   assert.doesNotMatch(sql, /current_password\s+text/i);
   assert.doesNotMatch(sql, /password\s+text\s+not\s+null/i);
 });
@@ -90,9 +93,15 @@ test("account correction UI reauthenticates with Supabase and never stores the p
   assert.match(html, /Current sign-in email/i);
   assert.match(html, /Current password/i);
   assert.match(html, /Submit for owner review/i);
+  assert.match(html, /Reason for correction[\s\S]*\(optional\)/i);
+  assert.match(html, /id="birthdayExplanationInput"[^>]*maxlength="2000"/i);
+  assert.doesNotMatch(html, /id="birthdayExplanationInput"[^>]*(?:minlength|required)/i);
+  assert.match(html, /id="birthdayCorrectionStatus"/i);
   assert.match(js, /auth\.signInWithPassword/i);
   assert.match(js, /ari_request_my_age_correction/i);
   assert.match(js, /birthdayPasswordInput"\)\.value = ""/i);
+  assert.match(js, /setBirthdayStatus\("Verifying your account…", "working"\)/i);
+  assert.doesNotMatch(js, /explanation\.length\s*</i);
   assert.doesNotMatch(js, /localStorage\.setItem\([^\n]*password/i);
 });
 

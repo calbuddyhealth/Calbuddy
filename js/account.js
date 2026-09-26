@@ -1,4 +1,4 @@
-/* ARI XP — My Account v3.5.1 */
+/* ARI XP — My Account v3.5.2 */
 
 (() => {
   "use strict";
@@ -10,6 +10,10 @@
 
   function setStatus(message = "", type = "") {
     window.AriSettings?.setStatus($("accountStatus"), message, type);
+  }
+
+  function setBirthdayStatus(message = "", type = "") {
+    window.AriSettings?.setStatus($("birthdayCorrectionStatus"), message, type);
   }
 
   function openDialog(id) {
@@ -355,6 +359,7 @@
     $("birthdayEmailInput").value = currentSession?.user?.email || "";
     $("birthdayPasswordInput").value = "";
     $("birthdayExplanationInput").value = "";
+    setBirthdayStatus();
     openDialog("birthdayCorrectionDialog");
   }
 
@@ -368,24 +373,19 @@
     const existingDob = String(currentAgeCorrection?.date_of_birth || currentState?.date_of_birth || "").trim();
 
     if (!sessionEmail || enteredEmail !== sessionEmail) {
-      setStatus("Enter the email address for the account you are currently signed into.", "error");
+      setBirthdayStatus("Enter the email address for the account you are currently signed into.", "error");
       return;
     }
     if (!password) {
-      setStatus("Enter your current password to verify this request.", "error");
+      setBirthdayStatus("Enter your current password to verify this request.", "error");
       return;
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(requestedDob) || requestedDob === existingDob) {
-      setStatus(requestedDob === existingDob ? "That is already your protected account birthday." : "Enter the correct birthday.", "error");
+      setBirthdayStatus(requestedDob === existingDob ? "That is already your protected account birthday." : "Enter the correct birthday.", "error");
       return;
     }
-    if (explanation.length < 20) {
-      setStatus("Please explain why the birthday needs to be corrected.", "error");
-      return;
-    }
-
     button.disabled = true;
-    setStatus("Verifying your account…", "working");
+    setBirthdayStatus("Verifying your account…", "working");
 
     try {
       const { data: authData, error: authError } = await window.calbuddySupabase.auth.signInWithPassword({
@@ -402,7 +402,7 @@
       }
 
       currentSession = authData.session ? { ...currentSession, ...authData.session, user: authData.user } : currentSession;
-      setStatus("Submitting for owner review…", "working");
+      setBirthdayStatus("Submitting for owner review…", "working");
 
       const { data, error } = await window.calbuddySupabase.rpc("ari_request_my_age_correction", {
         requested_date_of_birth: requestedDob,
@@ -424,7 +424,7 @@
       setStatus("Birthday correction submitted. Your current age and safety settings stay unchanged until the owner approves or denies it.", "success");
     } catch (error) {
       $("birthdayPasswordInput").value = "";
-      setStatus(error?.message || "Birthday correction could not be submitted.", "error");
+      setBirthdayStatus(error?.message || "Birthday correction could not be submitted.", "error");
     } finally {
       button.disabled = false;
     }
