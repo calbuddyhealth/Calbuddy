@@ -23,7 +23,7 @@ test("Connect cards render uploaded cover media or code-generated category fallb
   assert.match(connect, /row\.cover_image_path/);
   assert.match(connect, /getPublicUrl\(cleanPath\)/);
   assert.match(connect, /circle-connect-card__media-fallback/);
-  assert.match(connect, /circle-connect-media--movies/);
+  assert.match(connect, /\["Movies", "🍿", "movies"\]/);
   assert.match(connect, /ari_circle_list_meetups_with_media/);
   assert.match(css, /\.circle-connect-card__content\s*\{/);
   assert.match(css, /aspect-ratio:4 \/ 3/);
