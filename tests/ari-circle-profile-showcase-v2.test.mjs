@@ -124,6 +124,14 @@ test("showcase refresh never exposes raw Safari Load failed errors", () => {
   assert.doesNotMatch(gallery, /status\(error\.message \|\| "Profile showcase is unavailable right now\."/);
 });
 
+test("Edit Profile prevents iOS focus auto-zoom and blurs before closing", () => {
+  assert.match(circleCss, /#circle-profile-editor input[\s\S]*#circle-profile-editor select[\s\S]*#circle-profile-editor textarea/);
+  assert.match(circleCss, /font-size: 16px !important/);
+  assert.match(editor, /this\.dom\.dialog\?\.contains\(active\)/);
+  assert.match(editor, /active\.blur\(\)/);
+  assert.match(circleHtml, /assets\/css\/ari-circle\.css\?v=2\.0\.2/);
+});
+
 test("Edit Profile autosaves changes and reports persisted state", () => {
   assert.match(editor, /AUTOSAVE_DELAY_MS = 650/);
   assert.match(editor, /scheduleAutoSave/);
