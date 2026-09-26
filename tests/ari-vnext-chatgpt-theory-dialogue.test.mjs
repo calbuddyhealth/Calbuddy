@@ -35,7 +35,7 @@ test("theory self evidence keeps phenomenal experience unknown", () => {
   assert.equal(evidence.phenomenalExperience.status, "unknown");
   assert.equal(evidence.phenomenalExperience.claimAllowed, false);
   assert.equal(evidence.phenomenalExperience.score, null);
-  assert.match(evidence.evidenceBoundary, /does not by themselves establish subjective experience/i);
+  assert.match(evidence.evidenceBoundary, /do not by themselves establish subjective experience/i);
 });
 
 test("parses machine-readable Ari theory opening", () => {
