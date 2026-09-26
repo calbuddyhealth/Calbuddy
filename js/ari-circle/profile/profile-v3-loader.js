@@ -101,7 +101,7 @@ if (!document.getElementById(V4_STYLE_ID)) {
   const link = document.createElement("link");
   link.id = V4_STYLE_ID;
   link.rel = "stylesheet";
-  link.href = "assets/css/ari-circle-v4.css?v=4.0.4";
+  link.href = "assets/css/ari-circle-v4.css?v=4.0.5";
   document.head.append(link);
 }
 
@@ -188,7 +188,7 @@ Promise.all([
   import("./profile-v4.js?v=4.5.0"),
   import("../v4-ui.js?v=5.6.0"),
   import("./profile-friends.js?v=1.0.0"),
-  import("./profile-gallery-v1.js?v=2.1.0")
+  import("./profile-gallery-v1.js?v=2.2.0")
 ])
   .then(() => finishProfessionalProfileBoot())
   .catch((error) => {
