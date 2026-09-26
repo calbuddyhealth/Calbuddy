@@ -384,7 +384,7 @@ test.describe("ARI XP App Store browser smoke", () => {
     await expect(page.locator("#hostMeetupButton")).toHaveCount(1);
     await expect(page.locator("#hostMeetupForm")).toHaveCount(1);
     await expect(page.locator('a.feed-brand[href="ari-circle-meetup.html"]')).toHaveCount(1);
-    await expect(page.locator('script[src*="js/ari-circle/v5-real-world.js?v=5.5.0"]')).toHaveCount(1);
+    await expect(page.locator('script[src*="js/ari-circle/v5-real-world.js?v=5.5.1"]')).toHaveCount(1);
 
     await page.goto(`${BASE_URL}/ari-circle.html`, { waitUntil: "domcontentloaded" });
     await expect(page.locator("#circle-profile")).toHaveCount(1);
