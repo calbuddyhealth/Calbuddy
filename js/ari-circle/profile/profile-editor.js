@@ -1,5 +1,5 @@
 // js/ari-circle/profile/profile-editor.js
-// ARI Circle — Profile Editor V2.3.0
+// ARI Circle — Profile Editor V2.4.0
 //
 // The profile is intentionally compact: identity, about, interests,
 // and four showcase slots managed separately by profile-gallery-v1.
@@ -7,7 +7,7 @@
 import CircleStore from "../core/circle-store.js";
 import CircleEvents, { EVENT_NAMES } from "../core/circle-events.js";
 
-const VERSION = "2.3.0";
+const VERSION = "2.4.0";
 const SOURCE = "ari-circle/profile/profile-editor";
 const AUTOSAVE_DELAY_MS = 650;
 const PROFILE_SAVED_EVENT = "circle:profile-saved";
@@ -46,9 +46,10 @@ const PROFILE_FIELDS = Object.freeze([
     options: [
       { value: "", label: "Default" },
       { value: "template:midnight", label: "Midnight" },
-      { value: "template:arctic-glass", label: "Arctic Glass" },
-      { value: "template:electric-dusk", label: "Electric Dusk" },
-      { value: "template:champagne", label: "Champagne" }
+      { value: "template:violet-spectrum", label: "Violet Spectrum" },
+      { value: "template:fire-spectrum", label: "Fire Spectrum" },
+      { value: "template:pink-spectrum", label: "Pink Spectrum" },
+      { value: "__custom_photo__", label: "Custom photo…" }
     ]
   },
   {
@@ -211,6 +212,16 @@ const ProfileEditor = {
       }),
       CircleEvents.on(PROFILE_SAVE_FAILED_EVENT, payload => {
         this.handlePersisted(false, payload?.detail || {});
+      }),
+      CircleEvents.on("circle:profile-media-uploaded", payload => {
+        const detail = payload?.detail || {};
+        if (
+          normalizeString(detail?.mediaType).toLowerCase() === "cover" &&
+          normalizeString(detail?.publicUrl)
+        ) {
+          this.syncBackgroundControl(detail.publicUrl);
+          this.scheduleAutoSave({ immediate: true });
+        }
       })
     );
   },
@@ -224,6 +235,15 @@ const ProfileEditor = {
     });
     this.dom.form.addEventListener("change", event => {
       const control = event.target;
+
+      if (
+        control?.name === "cover_url" &&
+        control?.value === "__custom_photo__"
+      ) {
+        this.chooseCustomBackground();
+        return;
+      }
+
       const immediate =
         control?.tagName === "SELECT" ||
         control?.type === "date";
@@ -317,18 +337,8 @@ const ProfileEditor = {
 
       let value = getNestedProfileValue(profile, field.key);
       if (field.key === "cover_url") {
-        const isKnownOption = [...control.options].some(option => option.value === value);
-        const isRetiredTemplate = value.startsWith("template:") && !isKnownOption;
-
-        if (isRetiredTemplate) {
-          value = "";
-        } else if (value && !isKnownOption) {
-          const current = document.createElement("option");
-          current.value = value;
-          current.textContent = "Current background image";
-          current.dataset.legacyCover = "true";
-          control.append(current);
-        }
+        this.syncBackgroundControl(value);
+        continue;
       }
       control.value = value;
     }
@@ -338,6 +348,85 @@ const ProfileEditor = {
     this.state.lastSavedSnapshot = this.profileSnapshot(this.collectProfile());
     this.state.suppressAutoSave = false;
     this.setAutoSaveState("saved", "Saved automatically");
+    return true;
+  },
+
+  syncBackgroundControl(value) {
+    const control =
+      this.dom.form?.elements?.namedItem("cover_url");
+
+    if (!control) return false;
+
+    control
+      .querySelectorAll("option[data-custom-current]")
+      .forEach(option => option.remove());
+
+    let nextValue =
+      normalizeString(value);
+
+    const isKnownOption =
+      [...control.options]
+        .some(option => option.value === nextValue);
+
+    if (
+      nextValue.startsWith("template:") &&
+      !isKnownOption
+    ) {
+      nextValue = "";
+    } else if (
+      nextValue &&
+      !isKnownOption
+    ) {
+      const current =
+        document.createElement("option");
+
+      current.value = nextValue;
+      current.textContent = "Custom photo (current)";
+      current.dataset.customCurrent = "true";
+
+      const customChoice =
+        [...control.options]
+          .find(option => option.value === "__custom_photo__");
+
+      if (customChoice) {
+        control.insertBefore(current, customChoice);
+      } else {
+        control.append(current);
+      }
+    }
+
+    control.value = nextValue;
+    return true;
+  },
+
+  chooseCustomBackground() {
+    const profile =
+      CircleStore.get("profile") || {};
+
+    const currentValue =
+      getNestedProfileValue(profile, "cover_url");
+
+    this.state.suppressAutoSave = true;
+    this.syncBackgroundControl(currentValue);
+    this.state.suppressAutoSave = false;
+
+    const input =
+      document.getElementById("circle-cover-input");
+
+    if (!input) {
+      this.setAutoSaveState(
+        "error",
+        "Photo library is unavailable right now."
+      );
+      return false;
+    }
+
+    this.setAutoSaveState(
+      "saved",
+      "Choose a background photo from your library"
+    );
+
+    input.click();
     return true;
   },
 
