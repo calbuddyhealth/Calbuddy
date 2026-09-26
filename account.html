@@ -213,11 +213,12 @@
       </label>
 
       <label class="ari-field">
-        <span>Why does your birthday need to be corrected?</span>
-        <textarea id="birthdayExplanationInput" rows="4" minlength="20" maxlength="2000" required placeholder="Explain what was entered incorrectly and why it needs to change."></textarea>
+        <span>Reason for correction <small>(optional)</small></span>
+        <textarea id="birthdayExplanationInput" rows="4" maxlength="2000" placeholder="Add context if you want."></textarea>
       </label>
 
       <p class="ari-field-note">Your password is sent only to Supabase Auth to verify your identity. ARI XP does not store it in the correction request.</p>
+      <div class="ari-status" id="birthdayCorrectionStatus" role="status" aria-live="polite"></div>
       <button class="ari-primary-action" id="submitBirthdayCorrectionButton" type="submit" value="default">Submit for owner review</button>
     </form>
   </dialog>
@@ -253,6 +254,6 @@
   <script src="supabase-config.js?v=1.1.0"></script>
   <script src="js/support-ari-config.js?v=3.1.0"></script>
   <script src="js/settings-shared.js?v=1.0.0"></script>
-  <script src="js/account.js?v=3.5.1"></script>
+  <script src="js/account.js?v=3.5.2"></script>
 </body>
 </html>
