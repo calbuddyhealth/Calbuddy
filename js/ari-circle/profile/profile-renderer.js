@@ -1,6 +1,6 @@
 // js/ari-circle/profile/profile-renderer.js
 // ARI Circle
-// V2.1.0
+// V2.1.1
 //
 // Purpose:
 // - Render ARI Circle profile data from CircleStore into ari-circle.html.
@@ -23,7 +23,7 @@
 
 import CircleStore from "../core/circle-store.js";
 
-const VERSION = "2.1.0";
+const VERSION = "2.1.1";
 const SOURCE = "ari-circle/profile/profile-renderer";
 
 function normalizeString(value) {
@@ -101,6 +101,57 @@ function formatBirthday(value) {
 
   if (!normalized) {
     return null;
+  }
+
+  /*
+   * HTML date inputs persist birthdays as YYYY-MM-DD calendar dates.
+   * Passing that string directly to new Date() interprets it as UTC
+   * midnight. In negative UTC offsets (for example Pacific Time),
+   * formatting in local time then shifts the birthday to the prior day.
+   *
+   * A birthday is a date-only value, not an instant in time, so keep
+   * date-only values anchored to UTC for display.
+   */
+  const calendarMatch =
+    /^(\d{4})-(\d{2})-(\d{2})$/.exec(
+      normalized
+    );
+
+  if (calendarMatch) {
+    const year =
+      Number(calendarMatch[1]);
+
+    const month =
+      Number(calendarMatch[2]);
+
+    const day =
+      Number(calendarMatch[3]);
+
+    const date =
+      new Date(
+        Date.UTC(
+          year,
+          month - 1,
+          day
+        )
+      );
+
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return normalized;
+    }
+
+    return new Intl.DateTimeFormat(
+      undefined,
+      {
+        month: "long",
+        day: "numeric",
+        timeZone: "UTC"
+      }
+    ).format(date);
   }
 
   const date =
