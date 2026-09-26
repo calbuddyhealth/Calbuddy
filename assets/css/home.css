@@ -1,7 +1,7 @@
 /* =====================================================
    ARI REBIRTH
    File: assets/css/home.css
-   Version: 2.6.0
+   Version: 2.7.0
    Purpose:
    Premium white futuristic space-lab homepage.
 
@@ -39,6 +39,10 @@
    V2.6.0:
    - Removes visible quick-action labels and keeps accessible icon-only orbs.
    - Reclaims vertical space so the Ari hero begins higher again.
+
+   V2.7.0:
+   - Adds a slow staggered glow pulse to the three homepage action orbs.
+   - Adds tactile press feedback while preserving reduced-motion behavior.
 ===================================================== */
 
 :root {
@@ -435,14 +439,17 @@ a {
 
 .ari-home-quick-action--meal {
   --quick-accent: var(--ari-lab-cyan);
+  --quick-pulse-delay: 0s;
 }
 
 .ari-home-quick-action--circle {
   --quick-accent: var(--ari-lab-violet);
+  --quick-pulse-delay: -1.8s;
 }
 
 .ari-home-quick-action--train {
   --quick-accent: #7668ff;
+  --quick-pulse-delay: -3.6s;
 }
 
 .ari-home-quick-orb {
@@ -486,6 +493,9 @@ a {
   box-shadow:
     inset 0 0 14px color-mix(in srgb, var(--quick-accent) 9%, transparent),
     0 0 8px color-mix(in srgb, var(--quick-accent) 10%, transparent);
+  transform-origin: center;
+  animation: ariQuickOrbPulse 5.4s ease-in-out infinite;
+  animation-delay: var(--quick-pulse-delay, 0s);
 }
 
 .ari-home-quick-orb::after {
@@ -496,6 +506,9 @@ a {
   opacity: 0.68;
   background: var(--quick-accent);
   box-shadow: 0 0 8px color-mix(in srgb, var(--quick-accent) 70%, transparent);
+  transform-origin: center;
+  animation: ariQuickOrbSpark 5.4s ease-in-out infinite;
+  animation-delay: var(--quick-pulse-delay, 0s);
 }
 
 .ari-home-quick-icon {
@@ -509,6 +522,23 @@ a {
   stroke-linecap: round;
   stroke-linejoin: round;
   filter: drop-shadow(0 0 5px color-mix(in srgb, var(--quick-accent) 40%, transparent));
+  transition:
+    transform 140ms ease,
+    filter 180ms ease;
+}
+
+.ari-home-quick-action:active .ari-home-quick-orb {
+  transform: scale(0.94);
+  border-color: color-mix(in srgb, var(--quick-accent) 58%, rgba(102, 125, 214, 0.24));
+  box-shadow:
+    0 7px 15px rgba(53, 68, 137, 0.11),
+    0 0 22px color-mix(in srgb, var(--quick-accent) 24%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.99);
+}
+
+.ari-home-quick-action:active .ari-home-quick-icon {
+  transform: scale(0.90);
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--quick-accent) 56%, transparent));
 }
 
 .conversation-mode .ari-home-quick-actions {
@@ -2013,6 +2043,40 @@ body.ari-menu-open {
 /* =====================================================
    ANIMATIONS
 ===================================================== */
+
+@keyframes ariQuickOrbPulse {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(0.965);
+    box-shadow:
+      inset 0 0 12px color-mix(in srgb, var(--quick-accent) 7%, transparent),
+      0 0 7px color-mix(in srgb, var(--quick-accent) 9%, transparent);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.035);
+    box-shadow:
+      inset 0 0 18px color-mix(in srgb, var(--quick-accent) 15%, transparent),
+      0 0 15px color-mix(in srgb, var(--quick-accent) 24%, transparent);
+  }
+}
+
+@keyframes ariQuickOrbSpark {
+  0%,
+  100% {
+    opacity: 0.48;
+    transform: scale(0.78);
+    box-shadow: 0 0 5px color-mix(in srgb, var(--quick-accent) 54%, transparent);
+  }
+
+  50% {
+    opacity: 0.92;
+    transform: scale(1.18);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--quick-accent) 82%, transparent);
+  }
+}
 
 @keyframes ariMessageArrival {
   from {
