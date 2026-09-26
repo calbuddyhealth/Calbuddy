@@ -6,7 +6,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.1.1";
+  const VERSION = "1.2.0";
   const ALLOWED_RADII = new Set([5, 10, 25, 50, 100]);
   const state = {
     client: null,
@@ -246,14 +246,25 @@
 
     if (surface === "meetup") {
       host.innerHTML = `
-        <section class="ari-circle-location-compact" aria-label="Circle search location">
-          <button class="ari-circle-location-pill" type="button" data-circle-edit-area aria-expanded="false">
-            <span aria-hidden="true">📍</span>
-            <strong>${escapeHtml(displayLabel(pref))}</strong>
-            <span>${pref ? `· ${radius} mi` : "· Set area"}</span>
-            <span aria-hidden="true">⌄</span>
+        <section class="ari-circle-location-compact ari-circle-location-orb" aria-label="Circle search location">
+          <button class="ari-circle-location-orb__current" type="button" data-circle-use-current ${state.busy ? "disabled" : ""} aria-label="Use current location">
+            <span class="ari-circle-location-orb__pin" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M12 21s7-6.1 7-12A7 7 0 1 0 5 9c0 5.9 7 12 7 12Z"></path>
+                <circle cx="12" cy="9" r="2.45"></circle>
+              </svg>
+            </span>
           </button>
-          <button class="ari-circle-location-current" type="button" data-circle-use-current ${state.busy ? "disabled" : ""} aria-label="Use current location">◎</button>
+
+          <button class="ari-circle-location-orb__copy" type="button" data-circle-edit-area aria-expanded="false" aria-label="Change Circle search area">
+            <strong>${escapeHtml(displayLabel(pref))}</strong>
+            <span class="ari-circle-location-orb__meta">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M4 11.4 20 4l-7.4 16-1.8-7.1L4 11.4Z"></path>
+              </svg>
+              <span>${pref ? `${radius} mi` : "Set area"}</span>
+            </span>
+          </button>
 
           <div class="ari-circle-location-panel" data-circle-location-editor hidden>
             <div class="ari-circle-location-panel__head">
