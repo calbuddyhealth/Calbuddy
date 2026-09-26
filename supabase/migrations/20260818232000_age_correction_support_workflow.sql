@@ -31,7 +31,7 @@ create table if not exists public.ari_age_correction_requests (
   current_age_at_request integer not null,
   requested_age_at_request integer not null,
   crosses_adult_boundary boolean not null default false,
-  explanation text not null,
+  explanation text not null default '',
   status text not null default 'pending',
   reauthenticated_at timestamptz not null,
   reauthentication_method text not null default 'password',
@@ -40,7 +40,7 @@ create table if not exists public.ari_age_correction_requests (
   reviewed_by uuid references auth.users(id) on delete set null,
   review_notes text,
   updated_at timestamptz not null default now(),
-  constraint ari_age_correction_explanation_length check (char_length(btrim(explanation)) between 20 and 2000),
+  constraint ari_age_correction_explanation_length check (char_length(explanation) <= 2000),
   constraint ari_age_correction_status_check check (status in ('pending','approved','denied','cancelled')),
   constraint ari_age_correction_dob_change check (requested_date_of_birth <> current_date_of_birth),
   constraint ari_age_correction_reauth_method_check check (reauthentication_method = 'password')
@@ -74,7 +74,7 @@ grant execute on function public.ari_recent_password_auth_at() to authenticated;
 
 create or replace function public.ari_request_my_age_correction(
   requested_date_of_birth date,
-  requested_explanation text
+  requested_explanation text default null
 )
 returns jsonb
 language plpgsql
@@ -123,10 +123,6 @@ begin
     raise exception 'The requested birthday matches the current account birthday.';
   end if;
 
-  if char_length(btrim(coalesce(requested_explanation, ''))) < 20 then
-    raise exception 'Explain why the birthday needs to be corrected.';
-  end if;
-
   password_auth_at := public.ari_recent_password_auth_at();
   if password_auth_at is null or password_auth_at < now() - interval '5 minutes' then
     raise exception 'Re-enter your current email and password before submitting this request.';
@@ -158,7 +154,7 @@ begin
     existing_age,
     requested_age,
     (existing_age < 18 and requested_age >= 18) or (existing_age >= 18 and requested_age < 18),
-    left(btrim(requested_explanation), 2000),
+    left(btrim(coalesce(requested_explanation, '')), 2000),
     password_auth_at,
     'password'
   ) returning id into new_id;
