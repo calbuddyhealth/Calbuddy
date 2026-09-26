@@ -39,9 +39,11 @@ test("profile background templates fill the entire identity card through the act
   assert.doesNotMatch(profileCss, /#fff 168px/);
 });
 
-test("main profile photo is rendered as a true circle", () => {
+test("main profile photo is larger, circular, and has no decorative outer ring", () => {
+  assert.match(profileCss, /circle-profile__avatar-wrap[\s\S]*width: 140px !important/);
+  assert.match(profileCss, /circle-profile__avatar-button,[\s\S]*width: 140px !important/);
   assert.match(profileCss, /circle-profile__avatar-button,[\s\S]*border-radius: 50% !important/);
-  assert.match(profileCss, /circle-profile__avatar-wrap[\s\S]*border-radius: 50% !important/);
+  assert.match(profileCss, /circle-profile__avatar-wrap::before,[\s\S]*circle-profile__avatar-wrap::after[\s\S]*display: none !important/);
   assert.doesNotMatch(profileCss, /circle-profile__avatar-fallback[\s\S]{0,220}border-radius: 28px !important/);
 });
 
@@ -90,6 +92,13 @@ test("showcase items use a compact three-dot Edit/Delete menu instead of bottom 
   assert.doesNotMatch(gallery, />Replace</);
   assert.match(galleryCss, /circle-profile-gallery__item-menu-popover/);
   assert.doesNotMatch(galleryCss, /circle-profile-gallery__photo-actions/);
+});
+
+test("showcase refresh never exposes raw Safari Load failed errors", () => {
+  assert.match(gallery, /transientNetworkError/);
+  assert.match(gallery, /load failed\|failed to fetch\|network request\|networkerror/i);
+  assert.match(gallery, /Profile showcase couldn’t refresh/);
+  assert.doesNotMatch(gallery, /status\(error\.message \|\| "Profile showcase is unavailable right now\."/);
 });
 
 test("Edit Profile autosaves changes and reports persisted state", () => {
