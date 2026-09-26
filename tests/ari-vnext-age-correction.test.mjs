@@ -30,6 +30,31 @@ test("current request contract keeps password reauthentication while explanation
   assert.doesNotMatch(sql, /password\s+text\s+not\s+null/i);
 });
 
+test("legacy accounts with no protected DOB can submit an owner-reviewed birthday request", () => {
+  const sql = source("supabase/migrations/20260926182000_legacy_missing_birthday_review.sql");
+  assert.match(sql, /alter column current_date_of_birth drop not null/i);
+  assert.match(sql, /alter column current_age_at_request drop not null/i);
+  assert.match(sql, /initial_birthday_setup := existing_dob is null/i);
+  assert.match(sql, /insert into public\.ari_account_state \(user_id, status\)[\s\S]*values \(caller_id, 'active'\)/i);
+  assert.match(sql, /password_auth_at := public\.ari_recent_password_auth_at\(\)/i);
+  assert.match(sql, /now\(\) - interval '5 minutes'/i);
+  assert.match(sql, /'initial_birthday_setup', initial_birthday_setup/i);
+  assert.doesNotMatch(sql, /A protected account birthday is required before requesting a correction/i);
+  assert.doesNotMatch(sql, /set\s+date_of_birth\s*=\s*requested_date_of_birth/i);
+});
+
+test("legacy missing-DOB requests remain pending rather than directly changing authorization", () => {
+  const baseSql = source("supabase/migrations/20260818232000_age_correction_support_workflow.sql");
+  const sql = source("supabase/migrations/20260926182000_legacy_missing_birthday_review.sql");
+  const insertStart = sql.indexOf("insert into public.ari_age_correction_requests");
+  const returnStart = sql.indexOf("return jsonb_build_object", insertStart);
+  assert.ok(insertStart > 0 && returnStart > insertStart);
+  const requestPath = sql.slice(insertStart, returnStart);
+  assert.match(baseSql, /status text not null default 'pending'/i);
+  assert.match(sql.slice(returnStart), /'status', 'pending'/i);
+  assert.doesNotMatch(requestPath, /update public\.ari_account_state[\s\S]*date_of_birth/i);
+});
+
 test("only the owner role can approve or deny a protected DOB correction", () => {
   const sql = source("supabase/migrations/20260818232000_age_correction_support_workflow.sql");
   assert.match(sql, /a\.role = 'owner'/i);
@@ -97,6 +122,11 @@ test("account correction UI reauthenticates with Supabase and never stores the p
   assert.match(html, /id="birthdayExplanationInput"[^>]*maxlength="2000"/i);
   assert.doesNotMatch(html, /id="birthdayExplanationInput"[^>]*(?:minlength|required)/i);
   assert.match(html, /id="birthdayCorrectionStatus"/i);
+  assert.match(html, /id="birthdayCorrectionTitle"/i);
+  assert.match(html, /id="requestedBirthdayLabel"/i);
+  assert.match(js, /Set your protected birthday/i);
+  assert.match(js, /This account does not have a protected birthday on file yet/i);
+  assert.match(js, /hasProtectedBirthday/i);
   assert.match(js, /auth\.signInWithPassword/i);
   assert.match(js, /ari_request_my_age_correction/i);
   assert.match(js, /birthdayPasswordInput"\)\.value = ""/i);
@@ -121,6 +151,9 @@ test("owner moderation exposes age corrections with explicit approve and deny ac
   assert.match(js, /data-age-action="denied"/i);
   assert.match(js, /ari_owner_review_age_correction/i);
   assert.match(js, /crosses_adult_boundary/i);
+  assert.match(js, /Set protected birthday/i);
+  assert.match(js, /MISSING DOB/i);
+  assert.match(js, /No reason provided\./i);
 });
 
 test("Circle authorization remains separate from editable adult Goals age", () => {

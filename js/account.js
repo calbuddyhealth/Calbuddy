@@ -1,4 +1,4 @@
-/* ARI XP — My Account v3.5.2 */
+/* ARI XP — My Account v3.5.3 */
 
 (() => {
   "use strict";
@@ -353,7 +353,16 @@
     }
 
     const dob = currentAgeCorrection?.date_of_birth || currentState?.date_of_birth || "";
+    const hasProtectedBirthday = /^\d{4}-\d{2}-\d{2}$/.test(String(dob || "").trim());
+
     $("currentBirthdayDisplay").textContent = formatBirthday(dob);
+    $("birthdayCorrectionTitle").textContent = hasProtectedBirthday
+      ? "Request a birthday correction"
+      : "Set your protected birthday";
+    $("birthdayCorrectionIntro").textContent = hasProtectedBirthday
+      ? "Your account birthday controls age-based safety and ARI Circle eligibility. A correction does not take effect until the ARI XP owner approves it."
+      : "This account does not have a protected birthday on file yet. Enter your birthday below; it will take effect only after owner approval.";
+    $("requestedBirthdayLabel").textContent = hasProtectedBirthday ? "Correct birthday" : "Birthday";
     $("requestedBirthdayInput").value = "";
     $("requestedBirthdayInput").max = new Date().toISOString().slice(0, 10);
     $("birthdayEmailInput").value = currentSession?.user?.email || "";
@@ -421,7 +430,12 @@
         }
       };
       await loadAgeCorrectionState();
-      setStatus("Birthday correction submitted. Your current age and safety settings stay unchanged until the owner approves or denies it.", "success");
+      setStatus(
+        data?.initial_birthday_setup === true
+          ? "Birthday submitted for owner review. Age-based access stays unchanged until the owner approves or denies it."
+          : "Birthday correction submitted. Your current age and safety settings stay unchanged until the owner approves or denies it.",
+        "success"
+      );
     } catch (error) {
       $("birthdayPasswordInput").value = "";
       setBirthdayStatus(error?.message || "Birthday correction could not be submitted.", "error");

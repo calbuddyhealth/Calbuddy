@@ -1,4 +1,4 @@
-/* ARI Rebirth — Owner Moderation v2.2.1 */
+/* ARI Rebirth — Owner Moderation v2.2.2 */
 
 (() => {
   "use strict";
@@ -460,21 +460,24 @@
 
     list.innerHTML = requests.map((request) => {
       const boundary = request.crosses_adult_boundary === true;
+      const initialSetup = !request.current_date_of_birth;
+      const currentAge = request.current_age_at_request ?? "Unknown";
+      const evidence = String(request.explanation || "").trim() || "No reason provided.";
       return `
         <article class="owner-safety-card" data-age-request-id="${escapeHtml(request.id)}" data-severity="${boundary ? "high" : "normal"}">
           <div class="owner-safety-card__top">
             <div>
-              <h3>Birthday correction</h3>
+              <h3>${initialSetup ? "Set protected birthday" : "Birthday correction"}</h3>
               <div class="owner-safety-card__identity">${escapeHtml(request.user_email || request.user_id)}</div>
             </div>
-            <span class="owner-safety-pill${boundary ? " owner-safety-pill--high" : ""}">${boundary ? "18+ ACCESS CHANGE" : escapeHtml(request.status.toUpperCase())}</span>
+            <span class="owner-safety-pill${boundary ? " owner-safety-pill--high" : ""}">${boundary ? "18+ ACCESS CHANGE" : initialSetup ? "MISSING DOB" : escapeHtml(request.status.toUpperCase())}</span>
           </div>
           <div class="owner-safety-pills">
-            <span class="owner-safety-pill">Current age ${escapeHtml(request.current_age_at_request)}</span>
+            <span class="owner-safety-pill">Current age ${escapeHtml(currentAge)}</span>
             <span class="owner-safety-pill">Requested age ${escapeHtml(request.requested_age_at_request)}</span>
             <span class="owner-safety-pill">${escapeHtml(request.status)}</span>
           </div>
-          <div class="owner-safety-evidence">${escapeHtml(request.explanation)}</div>
+          <div class="owner-safety-evidence">${escapeHtml(evidence)}</div>
           <div class="owner-safety-meta">
             Current birthday: ${escapeHtml(formatBirthday(request.current_date_of_birth))}<br />
             Requested birthday: ${escapeHtml(formatBirthday(request.requested_date_of_birth))}<br />
