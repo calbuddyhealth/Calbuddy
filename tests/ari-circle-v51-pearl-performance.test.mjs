@@ -38,7 +38,10 @@ test("Connect and retained legacy Feed assets avoid nested blur-heavy cards", ()
 });
 
 test("Connect has compact discovery identity", () => {
-  assert.match(meetup, /<h1 id="meetupTitle">Find something to do\.<\/h1>/);
+  assert.match(meetup, /class="circle-connect-actionbar"/);
+  assert.match(meetup, /id="hostMeetupButton"[^>]*>Host<\/button>/);
+  assert.match(meetup, /href="ari-circle-friends\.html">Find Friends/);
+  assert.doesNotMatch(meetup, /Find something to do\./);
   assert.match(meetup, /Pick a vibe/);
   assert.match(meetup, /HAPPENING NOW/);
   assert.doesNotMatch(meetup, /REAL WORLD XP/);
