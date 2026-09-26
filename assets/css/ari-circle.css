@@ -2131,6 +2131,31 @@ body.ari-circle-page img {
   text-transform: uppercase;
 }
 
+.circle-custom-background-picker {
+  display: grid;
+  gap: 10px;
+  margin-top: -4px;
+  padding: 14px;
+  border: 1px solid rgba(36,87,245,.10);
+  border-radius: 16px;
+  background: rgba(248,250,255,.88);
+}
+
+.circle-custom-background-picker[hidden] {
+  display: none !important;
+}
+
+.circle-custom-background-picker__note {
+  margin: 0;
+  color: var(--circle-ink-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+#circle-custom-background-button {
+  min-height: 46px;
+}
+
 .circle-request-person {
   display: flex;
   align-items: center;
