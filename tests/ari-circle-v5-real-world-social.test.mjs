@@ -40,7 +40,7 @@ test("legacy Feed route redirects to Connect instead of exposing an infinite pos
 });
 
 test("Circle primary shell is Connect and Profile only", () => {
-  assert.match(shell, /const VERSION = "5\.5\.0"/);
+  assert.match(shell, /const VERSION = "5\.5\.1"/);
   assert.match(shell, /NAV_MODEL = "connect-profile-v1"/);
   assert.match(shell, /navLink\("connect", "ari-circle-meetup\.html", "Connect"\)/);
   assert.match(shell, /navLink\("profile", "ari-circle\.html", "Profile"\)/);
