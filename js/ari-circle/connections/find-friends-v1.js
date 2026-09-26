@@ -5,7 +5,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.0.1";
   const $ = (id) => document.getElementById(id);
 
   const state = {
@@ -266,9 +266,17 @@
     }
   }
 
+  function settleVisualViewport() {
+    const active = document.activeElement;
+    if (active && typeof active.blur === "function" && active !== document.body) {
+      active.blur();
+    }
+  }
+
   function bind() {
     $("friendsSearchForm")?.addEventListener("submit", (event) => {
       event.preventDefault();
+      settleVisualViewport();
       void load($("friendsSearchInput")?.value || "");
     });
 
@@ -282,8 +290,17 @@
     });
 
     document.addEventListener("click", (event) => {
+      const profileLink = event.target.closest?.(
+        ".circle-friend-card__avatar, .circle-friend-card__identity, .circle-friend-card__actions a"
+      );
+      if (profileLink) {
+        settleVisualViewport();
+        return;
+      }
+
       const button = event.target.closest?.("[data-friend-add]");
       if (!button) return;
+      settleVisualViewport();
       void addFriend(button.dataset.friendAdd, button);
     });
 

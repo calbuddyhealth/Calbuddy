@@ -124,7 +124,7 @@ body.circle-friends-page {
   outline:0;
   background:#fff;
   box-shadow:0 5px 16px rgba(31,45,70,.045);
-  font:700 .79rem/1 Inter,sans-serif;
+  font:700 16px/1.2 Inter,sans-serif;
 }
 .circle-friends-search input:focus {
   border-color:rgba(66,104,243,.34);
@@ -377,5 +377,15 @@ body.circle-friends-page .circle-v5-bottom-nav a {
   }
   .circle-friends-hero span {
     grid-column:1/-1;
+  }
+}
+
+
+/* iOS Safari auto-zoom guard: keep all interactive text controls at 16px. */
+@media (max-width: 760px) {
+  .circle-friends-page input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  .circle-friends-page select,
+  .circle-friends-page textarea {
+    font-size: 16px !important;
   }
 }
