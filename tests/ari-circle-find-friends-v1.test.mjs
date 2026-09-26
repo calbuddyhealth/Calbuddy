@@ -10,6 +10,10 @@ const shell = fs.readFileSync("js/ari-circle/v5-real-world.js", "utf8");
 const menu = fs.readFileSync("js/ari-circle/circle-menu-v5.js", "utf8");
 const migration = fs.readFileSync("supabase/migrations/20260926004500_ari_circle_find_friends_local_v1.sql", "utf8");
 
+test("Find Friends client script parses cleanly", () => {
+  assert.doesNotThrow(() => new Function(friendsJs));
+});
+
 test("Connect top bar prioritizes Host and Find Friends without duplicate hero copy", () => {
   assert.match(meetupHtml, /id="hostMeetupButton"[^>]*>Host</);
   assert.match(meetupHtml, /href="ari-circle-friends\.html">Find Friends <span aria-hidden="true">\+<\/span>/);
