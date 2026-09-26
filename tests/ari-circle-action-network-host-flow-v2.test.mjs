@@ -11,8 +11,8 @@ const retirement = await readFile(new URL("../supabase/migrations/20260923160837
 
 test("simplified Connect controller remains valid browser JavaScript", () => {
   assert.doesNotThrow(() => new Function(connectController));
-  assert.match(connectController, /const VERSION = "1\.3\.0"/);
-  assert.match(meetupHtml, /connect-v1\.js\?v=1\.3\.0/);
+  assert.match(connectController, /const VERSION = "1\.4\.0"/);
+  assert.match(meetupHtml, /connect-v1\.js\?v=1\.4\.0/);
   assert.doesNotMatch(meetupHtml, /meetups-v5\.js/);
 });
 
@@ -64,7 +64,7 @@ test("Connect premium cards keep one Host CTA and hide empty-state UI correctly"
   assert.match(connectController, /Edit meetup/);
   assert.match(connectController, /circle-connect-facts/);
   assert.doesNotMatch(connectController, /circle-connect-timing/);
-  assert.match(meetupHtml, /ari-circle-connect-v1\.css\?v=1\.6\.0/);
+  assert.match(meetupHtml, /ari-circle-connect-v1\.css\?v=1\.7\.0/);
 });
 
 
