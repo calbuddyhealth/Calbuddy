@@ -15,8 +15,8 @@ test("Find Friends client script parses cleanly", () => {
 });
 
 test("Connect top bar prioritizes Host and Find Friends without duplicate hero copy", () => {
-  assert.match(meetupHtml, /id="hostMeetupButton"[^>]*>Host</);
-  assert.match(meetupHtml, /href="ari-circle-friends\.html">Find Friends <span aria-hidden="true">\+<\/span>/);
+  assert.match(meetupHtml, /id="hostMeetupButton"[\s\S]*circle-connect-action__label">Host<\/span>/);
+  assert.match(meetupHtml, /href="ari-circle-friends\.html"[\s\S]*circle-connect-action__label">Find Friends<\/span>/);
   assert.doesNotMatch(meetupHtml, /Find something to do\./);
 });
 

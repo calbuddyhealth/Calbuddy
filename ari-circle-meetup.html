@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
   <link rel="stylesheet" href="assets/css/ari-circle-search-location-v1.css?v=1.1.1" />
-  <link rel="stylesheet" href="assets/css/ari-circle-connect-v1.css?v=1.3.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-connect-v1.css?v=1.4.0" />
 </head>
 <body class="circle-v5-real-world circle-connect-next">
   <main class="circle-v5-page" id="meetupPage" hidden>
@@ -29,8 +29,14 @@
     <div class="circle-v5-page-main circle-connect-main">
       <section class="circle-connect-actionbar" aria-label="Connect actions">
         <h1 class="circle-connect-actionbar__title">Connect</h1>
-        <button class="circle-connect-action circle-connect-action--host" id="hostMeetupButton" type="button">Host</button>
-        <a class="circle-connect-action circle-connect-action--friends" href="ari-circle-friends.html">Find Friends <span aria-hidden="true">+</span></a>
+        <button class="circle-connect-action circle-connect-action--host" id="hostMeetupButton" type="button">
+          <span class="circle-connect-action__icon" aria-hidden="true">+</span>
+          <span class="circle-connect-action__label">Host</span>
+        </button>
+        <a class="circle-connect-action circle-connect-action--friends" href="ari-circle-friends.html">
+          <span class="circle-connect-action__icon" aria-hidden="true">+</span>
+          <span class="circle-connect-action__label">Find Friends</span>
+        </a>
       </section>
 
       <div data-ari-circle-search-location data-surface="meetup"></div>
@@ -40,14 +46,14 @@
           <div><p>WHAT ARE YOU UP FOR?</p><h2 id="activityTitle">Pick a vibe</h2></div>
         </div>
         <div class="circle-connect-chip-rail" id="meetupActivityFilters" aria-label="Meetup activity filters">
-          <button class="circle-connect-chip is-active" type="button" data-activity="">Anything</button>
-          <button class="circle-connect-chip" type="button" data-activity="gym">🏋️ Gym</button>
-          <button class="circle-connect-chip" type="button" data-activity="coffee">☕ Coffee</button>
-          <button class="circle-connect-chip" type="button" data-activity="walking">🚶 Walk</button>
-          <button class="circle-connect-chip" type="button" data-activity="hiking">🥾 Hike</button>
-          <button class="circle-connect-chip" type="button" data-activity="running">🏃 Run</button>
-          <button class="circle-connect-chip" type="button" data-activity="sports">🏀 Sports</button>
-          <button class="circle-connect-chip" type="button" data-activity="food">🍴 Food</button>
+          <button class="circle-connect-chip is-active" type="button" data-activity=""><span class="circle-connect-chip__icon" aria-hidden="true">✦</span><span>Anything</span></button>
+          <button class="circle-connect-chip" type="button" data-activity="gym"><span class="circle-connect-chip__icon" aria-hidden="true">🏋️</span><span>Gym</span></button>
+          <button class="circle-connect-chip" type="button" data-activity="coffee"><span class="circle-connect-chip__icon" aria-hidden="true">☕</span><span>Coffee</span></button>
+          <button class="circle-connect-chip" type="button" data-activity="walking"><span class="circle-connect-chip__icon" aria-hidden="true">🚶</span><span>Walk</span></button>
+          <button class="circle-connect-chip" type="button" data-activity="hiking"><span class="circle-connect-chip__icon" aria-hidden="true">🥾</span><span>Hike</span></button>
+          <button class="circle-connect-chip" type="button" data-activity="running"><span class="circle-connect-chip__icon" aria-hidden="true">🏃</span><span>Run</span></button>
+          <button class="circle-connect-chip" type="button" data-activity="sports"><span class="circle-connect-chip__icon" aria-hidden="true">🏀</span><span>Sports</span></button>
+          <button class="circle-connect-chip" type="button" data-activity="food"><span class="circle-connect-chip__icon" aria-hidden="true">🍴</span><span>Food</span></button>
         </div>
       </section>
 
