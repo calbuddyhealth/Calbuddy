@@ -55,9 +55,9 @@ test("the simplified ARI Next composer remains compact across desktop and mobile
 });
 
 test("Connect location editor prevents iOS focus zoom", () => {
-  assert.match(meetupHtml, /ari-circle-search-location-v1\.css\?v=1\.1\.1/);
-  assert.match(meetupHtml, /search-location-v1\.js\?v=1\.1\.1/);
-  assert.match(locationRuntime, /const VERSION = "1\.1\.1"/);
+  assert.match(meetupHtml, /ari-circle-search-location-v1\.css\?v=1\.2\.0/);
+  assert.match(meetupHtml, /search-location-v1\.js\?v=1\.2\.0/);
+  assert.match(locationRuntime, /const VERSION = "1\.2\.0"/);
   assert.match(locationRuntime, /input\?\.blur\?\.\(\);\s*state\.busy = true/);
   assert.match(locationCss, /@media \(max-width: 560px\)[\s\S]*\.ari-circle-location-panel__form input,[\s\S]*font-size:16px !important/);
 });
