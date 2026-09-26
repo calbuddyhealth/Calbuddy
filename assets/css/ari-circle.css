@@ -2156,6 +2156,18 @@ body.ari-circle-page img {
   min-height: 46px;
 }
 
+/* iOS Safari focus zoom guard for Edit Profile.
+   16px is the minimum that prevents Safari from zooming the visual viewport. */
+@media (max-width: 760px) {
+  #circle-profile-editor input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  #circle-profile-editor select,
+  #circle-profile-editor textarea,
+  #circle-profile-editor .circle-editor-field__input {
+    font-size: 16px !important;
+    line-height: 1.35 !important;
+  }
+}
+
 .circle-request-person {
   display: flex;
   align-items: center;
