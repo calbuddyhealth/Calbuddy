@@ -274,6 +274,10 @@ export async function runAriAutonomyCycle({ userId, now = new Date() } = {}) {
   const codeAuthorityEnabled = envTrue(process.env.ARI_AUTONOMOUS_DEV_ENABLED) && Boolean(repo && token) && isSafeAutonomyBranch(autonomousBranch, productionBranch);
   const dailyLimit = positiveInt(process.env.ARI_AUTONOMY_DAILY_COMMIT_LIMIT, DEFAULT_DAILY_COMMIT_LIMIT, 1, 12);
   const allowCodeCommit = codeAuthorityEnabled && priorState.commitsToday < dailyLimit;
+  const repairHandoffMode =
+    goal.source === "self_observer" &&
+    isChatGptRepairHandoffEnabled();
+  const allowPatchProposal = allowCodeCommit || repairHandoffMode;
 
   goal.convictionAttempt = await startAutonomyGoalAttempt({ userId: id, goal, projectGoals, now });
 
@@ -330,11 +334,11 @@ export async function runAriAutonomyCycle({ userId, now = new Date() } = {}) {
     goal,
     planning,
     files,
-    allowCodeCommit,
+    allowCodeCommit: allowPatchProposal,
     userId: id
   });
 
-  if (!proposal || proposal.action !== "patch" || !allowCodeCommit) {
+  if (!proposal || proposal.action !== "patch" || (!allowCodeCommit && !repairHandoffMode)) {
     return await finishResearchOnly({
       userId: id,
       worldModel,
@@ -343,7 +347,9 @@ export async function runAriAutonomyCycle({ userId, now = new Date() } = {}) {
       now,
       summary: proposal?.summary || planning.summary || "Ari completed an autonomous investigation and did not find a justified bounded code change.",
       evidence: proposal?.evidence || `Reviewed: ${files.map((item) => item.path).join(", ")}`,
-      reason: allowCodeCommit ? "research_only_by_judgment" : (codeAuthorityEnabled ? "daily_commit_limit_reached" : "branch_code_authority_not_enabled"),
+      reason: allowPatchProposal
+        ? "research_only_by_judgment"
+        : (codeAuthorityEnabled ? "daily_commit_limit_reached" : "branch_code_authority_not_enabled"),
       confidence: proposal?.confidence
     });
   }
@@ -383,7 +389,7 @@ export async function runAriAutonomyCycle({ userId, now = new Date() } = {}) {
     });
   }
 
-  if (goal.source === "self_observer" && isChatGptRepairHandoffEnabled()) {
+  if (repairHandoffMode) {
     const handoff = await createRepairHandoffIssue({
       repo,
       token,
