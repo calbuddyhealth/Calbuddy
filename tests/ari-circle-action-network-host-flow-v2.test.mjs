@@ -64,7 +64,7 @@ test("Connect premium cards keep one Host CTA and hide empty-state UI correctly"
   assert.match(connectController, /Cancel meetup/);
   assert.match(connectController, /circle-connect-facts/);
   assert.doesNotMatch(connectController, /circle-connect-timing/);
-  assert.match(meetupHtml, /ari-circle-connect-v1\.css\?v=1\.5\.0/);
+  assert.match(meetupHtml, /ari-circle-connect-v1\.css\?v=1\.6\.0/);
 });
 
 
