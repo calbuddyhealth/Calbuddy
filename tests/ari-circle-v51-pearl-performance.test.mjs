@@ -21,7 +21,7 @@ test("current Circle presentation remains light and consolidated", () => {
 });
 
 test("shared Circle header remains bounded and text-first", () => {
-  assert.match(shell, /const VERSION = "5\.5\.0"/);
+  assert.match(shell, /const VERSION = "5\.5\.1"/);
   assert.match(shell, /function normalizeSignatureHeader\(\)/);
   assert.match(shell, /circle-v51-wordmark/);
   assert.doesNotMatch(shell, /new MutationObserver/);
