@@ -702,10 +702,7 @@ body.circle-connect-next .circle-connect-heading h1 {
   overflow-wrap:anywhere;
 }
 
-body.circle-connect-next [data-ari-circle-search-location],
-body.circle-connect-next .ari-circle-location-compact,
-body.circle-connect-next .ari-circle-location-pill,
-body.circle-connect-next .ari-circle-location-panel {
+body.circle-connect-next [data-ari-circle-search-location]:not([data-surface="meetup"]) {
   width:100%;
   max-width:100%;
   min-width:0;
@@ -811,4 +808,49 @@ body.circle-connect-next .circle-connect-section {
     width:74px;
     height:74px;
   }
+}
+
+
+/* Connect V1.5 — three-circle action row with centered GPS */
+.circle-connect-actionbar{
+  justify-content:center;
+  gap:clamp(8px,2.8vw,14px);
+  padding-inline:0;
+}
+.circle-connect-actionbar > [data-ari-circle-search-location][data-surface="meetup"]{
+  position:relative;
+  z-index:5;
+  flex:0 0 104px;
+  width:104px;
+  height:104px;
+  max-width:104px;
+  min-width:104px;
+}
+@media(max-width:420px){
+  .circle-connect-actionbar{gap:8px;padding-inline:0}
+  .circle-connect-actionbar > [data-ari-circle-search-location][data-surface="meetup"]{
+    flex-basis:96px;
+    width:96px;
+    height:96px;
+    max-width:96px;
+    min-width:96px;
+  }
+}
+@media(max-width:360px){
+  .circle-connect-actionbar{gap:6px}
+  .circle-connect-action{
+    flex-basis:88px;
+    width:88px;
+    height:88px;
+    padding-inline:8px;
+  }
+  .circle-connect-actionbar > [data-ari-circle-search-location][data-surface="meetup"]{
+    flex-basis:88px;
+    width:88px;
+    height:88px;
+    max-width:88px;
+    min-width:88px;
+  }
+  .circle-connect-action__icon{width:27px;height:27px;font-size:1.2rem}
+  .circle-connect-action__label{font-size:.68rem}
 }
