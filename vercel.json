@@ -31,7 +31,7 @@
     },
     {
       "path": "/api/ari-chatgpt-dialogue-cycle",
-      "schedule": "6,26,46 5 * * *"
+      "schedule": "6 5,6,7 * * *"
     }
   ],
   "rewrites": [
