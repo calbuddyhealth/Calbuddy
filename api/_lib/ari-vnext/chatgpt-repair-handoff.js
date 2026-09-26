@@ -7,7 +7,7 @@
 
 import { createHash } from "node:crypto";
 
-export const ARI_CHATGPT_REPAIR_HANDOFF_VERSION = "1.0.0";
+export const ARI_CHATGPT_REPAIR_HANDOFF_VERSION = "1.1.0";
 
 const MAX_GOALS = 4;
 const MAX_TITLE = 120;
@@ -162,6 +162,7 @@ export function buildRepairHandoffIssue({ goal = {}, proposal = {}, planning = {
     "- Explicitly state what Ari got right, what was incomplete, and what the actual root cause appears to be.",
     "- If a code change is justified, implement the smallest safe fix on a separate branch and open a pull request.",
     "- Run or request the relevant tests/CI and report the result.",
+    "- Treat this as a dialogue, not a one-way verdict. Ari may challenge the review if the proposed fix appears symptom-level, causally unsupported, or unnecessarily restrictive. Respond to those challenges with observable evidence or a revised fix.",
     "- Do not merge to production. The owner remains the merge authority.",
     "- Do not weaken authentication, authorization, security boundaries, credential handling, billing controls, or provider/platform safeguards.",
     "",
