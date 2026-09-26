@@ -5,6 +5,7 @@ import test from "node:test";
 const meetupHtml = await readFile(new URL("../ari-circle-meetup.html", import.meta.url), "utf8");
 const connectController = await readFile(new URL("../js/ari-circle/connect/connect-v1.js", import.meta.url), "utf8");
 const connectCss = await readFile(new URL("../assets/css/ari-circle-connect-v1.css", import.meta.url), "utf8");
+const locationCss = await readFile(new URL("../assets/css/ari-circle-search-location-v1.css", import.meta.url), "utf8");
 const migration = await readFile(new URL("../supabase/migrations/20260826050000_ari_circle_host_flow_v2.sql", import.meta.url), "utf8");
 const retirement = await readFile(new URL("../supabase/migrations/20260923160837_ari_circle_retire_xp_completion.sql", import.meta.url), "utf8");
 
@@ -63,7 +64,7 @@ test("Connect premium cards keep one Host CTA and hide empty-state UI correctly"
   assert.match(connectController, /Cancel meetup/);
   assert.match(connectController, /circle-connect-facts/);
   assert.doesNotMatch(connectController, /circle-connect-timing/);
-  assert.match(meetupHtml, /ari-circle-connect-v1\.css\?v=1\.4\.0/);
+  assert.match(meetupHtml, /ari-circle-connect-v1\.css\?v=1\.5\.0/);
 });
 
 
@@ -74,11 +75,21 @@ test("Connect primary actions and vibe filters are true circles", () => {
   assert.match(meetupHtml, /circle-connect-action__icon/);
 });
 
+test("Connect places the circular GPS action between Host and Find Friends", () => {
+  assert.match(
+    meetupHtml,
+    /id="hostMeetupButton"[\s\S]*data-ari-circle-search-location data-surface="meetup"[\s\S]*href="ari-circle-friends\.html"/
+  );
+  assert.match(locationCss, /\.ari-circle-location-orb\s*\{[\s\S]*width:104px[\s\S]*height:104px[\s\S]*border-radius:50%/);
+  assert.match(locationCss, /\.ari-circle-location-orb__current/);
+  assert.match(locationCss, /\.ari-circle-location-orb__meta/);
+});
+
 test("Connect mobile shell cannot exceed the viewport width", () => {
   assert.match(connectCss, /body\.circle-connect-next,\s*body\.circle-connect-next \*,[\s\S]*box-sizing:border-box/);
   assert.match(connectCss, /body\.circle-connect-next\s*\{[\s\S]*overflow-x:hidden/);
   assert.match(connectCss, /body\.circle-connect-next \.circle-v5-page\s*\{[\s\S]*width:100%\s*!important;[\s\S]*max-width:760px\s*!important/);
   assert.match(connectCss, /body\.circle-connect-next \.circle-v5-page-main\.circle-connect-main\s*\{[\s\S]*width:100%\s*!important;[\s\S]*min-width:0/);
-  assert.match(connectCss, /\.circle-connect-actionbar\s*\{[\s\S]*display:flex[\s\S]*justify-content:space-between/);
-  assert.match(connectCss, /\.ari-circle-location-pill,[\s\S]*max-width:100%/);
+  assert.match(connectCss, /\.circle-connect-actionbar\s*\{[\s\S]*display:flex[\s\S]*justify-content:center/);
+  assert.match(connectCss, /data-surface="meetup"[\s\S]*width:104px[\s\S]*height:104px/);
 });
