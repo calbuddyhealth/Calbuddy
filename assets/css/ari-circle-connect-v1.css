@@ -1161,6 +1161,9 @@ body.circle-connect-next .circle-connect-section {
 .circle-connect-card-menu[open] {
   z-index:120;
 }
+.circle-connect-card:has(.circle-connect-card-menu[open]) {
+  z-index:80;
+}
 .circle-connect-card-menu__panel {
   top:auto;
   bottom:calc(100% + 8px);
