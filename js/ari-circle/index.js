@@ -1,6 +1,6 @@
 // js/ari-circle/index.js
 // ARI Circle
-// V1.3.4
+// V1.3.5
 //
 // Single executable entry point for ari-circle.html.
 //
@@ -8,7 +8,7 @@
 //
 //   <script
 //     type="module"
-//     src="js/ari-circle/index.js?v=1.3.4">
+//     src="js/ari-circle/index.js?v=1.3.5">
 //   </script>
 //
 // All ARI Circle feature modules are imported here.
@@ -61,7 +61,7 @@ import CircleEvents, {
 
 import ProfileController from "./profile/profile-controller.js";
 import ProfileRenderer from "./profile/profile-renderer.js?v=2.1.1";
-import ProfileEditor from "./profile/profile-editor.js";
+import ProfileEditor from "./profile/profile-editor.js?v=2.5.1";
 
 import ConnectionsController from "./connections/connections-controller.js?v=1.0.1";
 import ConnectionRequests from "./connections/connection-requests.js?v=1.1.0";
@@ -85,7 +85,7 @@ import CircleRealtime, {
   REALTIME_EVENTS
 } from "./data/circle-realtime.js";
 
-const VERSION = "1.3.4";
+const VERSION = "1.3.5";
 const SOURCE = "ari-circle/index";
 
 function normalizeString(value) {
