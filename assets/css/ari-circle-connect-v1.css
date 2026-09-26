@@ -702,3 +702,52 @@ body.circle-connect-next .circle-connect-section {
   min-width:0;
   max-width:100%;
 }
+
+
+/* Connect V1.3 — primary actions without duplicate Connect headline */
+.circle-connect-actionbar {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin:8px 0 12px;
+}
+
+.circle-connect-actionbar__title {
+  position:absolute;
+  width:1px;
+  height:1px;
+  overflow:hidden;
+  clip:rect(0 0 0 0);
+  clip-path:inset(50%);
+  white-space:nowrap;
+}
+
+.circle-connect-action {
+  min-height:48px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  border-radius:16px;
+  font:900 .78rem/1 Inter,sans-serif;
+  text-decoration:none;
+}
+
+.circle-connect-action--host {
+  color:#17273d;
+  border:1px solid #dce5ef;
+  background:#fff;
+  box-shadow:0 6px 18px rgba(31,45,70,.055);
+}
+
+.circle-connect-action--friends {
+  color:#fff;
+  border:1px solid transparent;
+  background:linear-gradient(115deg,#43cbe9,#4f76f5 58%,#966cf5);
+  box-shadow:0 9px 22px rgba(66,104,243,.17);
+}
+
+.circle-connect-action--friends span {
+  font-size:1.05rem;
+  line-height:1;
+}
