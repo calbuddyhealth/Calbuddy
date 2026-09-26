@@ -15,7 +15,10 @@
     "ios:push-capability": "node scripts/ensure-ios-push-capability.mjs",
     "ios:verify-parity": "node scripts/verify-ios-public-parity.mjs",
     "ios:sync": "npm run mobile:build && npm run ios:set-build && cap sync ios && npm run ios:push-capability && npm run ios:verify-parity",
-    "ios:open": "cap open ios"
+    "ios:open": "cap open ios",
+    "chatgpt:browser:install": "npm install --no-save playwright@1.55.0 && npx playwright install chromium",
+    "chatgpt:browser:login": "node scripts/ari-chatgpt-browser-worker.mjs login",
+    "chatgpt:browser:worker": "node scripts/ari-chatgpt-browser-worker.mjs worker"
   },
   "dependencies": {
     "@capacitor/core": "8.4.2",
