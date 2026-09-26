@@ -14,8 +14,13 @@ import { recordInitiativeSurface } from "./initiative-events.js";
 import { loadUserWorldModel, persistUserWorldModel } from "./user-world-model.js";
 import { loadGoals, saveGoalEvent } from "./goal-store.js";
 import { summarizeGoals } from "./conviction-learning.js";
+import {
+  createRepairHandoffIssue,
+  deriveSelfRepairGoals,
+  isChatGptRepairHandoffEnabled
+} from "./chatgpt-repair-handoff.js";
 
-export const ARI_AUTONOMY_RUNTIME_VERSION = "1.1.0";
+export const ARI_AUTONOMY_RUNTIME_VERSION = "1.2.0";
 
 const RESPONSES_URL = process.env.ARI_RESPONSES_URL || process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 const MAX_FIND_CHARS = 12000;
@@ -246,7 +251,15 @@ export async function runAriAutonomyCycle({ userId, now = new Date() } = {}) {
   }
 
   const projectGoals = await loadGoals({ userId: id, limit: 60 });
-  const goals = [...derivePersistentAutonomyGoals(projectGoals), ...deriveAriOwnedAutonomyGoals(worldModel)];
+  const selfRepairGoals = deriveSelfRepairGoals({
+    state: priorState,
+    ciUpdate: ciResolution.update
+  });
+  const goals = [
+    ...selfRepairGoals,
+    ...derivePersistentAutonomyGoals(projectGoals),
+    ...deriveAriOwnedAutonomyGoals(worldModel)
+  ];
   const goal = selectAutonomyGoal(goals, priorState, now);
   if (!goal) {
     const nextState = finalizeState(priorState, { now, action: null });
@@ -368,6 +381,86 @@ export async function runAriAutonomyCycle({ userId, now = new Date() } = {}) {
       reason: `patch_validation_${validation.reason}`,
       confidence: proposal.confidence
     });
+  }
+
+  if (goal.source === "self_observer" && isChatGptRepairHandoffEnabled()) {
+    const handoff = await createRepairHandoffIssue({
+      repo,
+      token,
+      goal,
+      proposal,
+      planning,
+      files,
+      now
+    });
+
+    if (!handoff?.success) {
+      return await finishResearchOnly({
+        userId: id,
+        worldModel,
+        priorState,
+        goal,
+        now,
+        summary: proposal.summary || "Ari diagnosed a repair candidate, but the ChatGPT review handoff could not be created.",
+        evidence: `${proposal.evidence || ""} Handoff result: ${handoff?.reason || "unknown failure"}.`.trim(),
+        reason: `chatgpt_handoff_${handoff?.reason || "failed"}`,
+        confidence: proposal.confidence
+      });
+    }
+
+    const action = {
+      at: now.toISOString(),
+      goalId: goal.id,
+      goalLabel: goal.label,
+      action: "chatgpt_handoff",
+      status: "awaiting_chatgpt_review",
+      summary: clean(proposal.summary, 700),
+      evidence: clean(proposal.evidence, 900),
+      filePath: proposal.filePath,
+      branch: autonomousBranch || productionBranch,
+      handoffKey: handoff.handoffKey,
+      issueNumber: handoff.issueNumber,
+      issueUrl: handoff.issueUrl,
+      confidence: round(clamp(finite(proposal.confidence, 0.5)))
+    };
+
+    const conviction = await recordAutonomyGoalOutcome({
+      userId: id,
+      autonomyGoal: goal,
+      status: "partial",
+      evidence: `Ari produced a bounded repair proposal and handed it to ChatGPT for independent review in GitHub issue #${handoff.issueNumber}.`,
+      learning: "The proposal is not yet validated. The next evidence is ChatGPT's independent critique, implementation decision, and repository CI result.",
+      receipt: handoff.issueNumber
+        ? { id: `github_issue:${handoff.issueNumber}`, attemptId: null, verified: true }
+        : null
+    });
+
+    if (conviction?.stored) {
+      action.convictionLearning = {
+        goalId: conviction.goalId,
+        attemptId: conviction.attemptId,
+        outcomeEventId: conviction.outcomeEventId,
+        verified: true
+      };
+      action.convictionGoalId = conviction.goalId;
+    }
+
+    const nextState = finalizeState(priorState, { now, action });
+    await persistAutonomyState({ userId: id, worldModel, state: nextState });
+    const surfaced = await surfaceDevelopmentUpdate({ userId: id, goal, action });
+
+    return {
+      success: true,
+      acted: true,
+      action: "chatgpt_handoff",
+      goal: { id: goal.id, label: goal.label, priority: goal.priority },
+      filePath: proposal.filePath,
+      issueNumber: handoff.issueNumber,
+      issueUrl: handoff.issueUrl,
+      handoffKey: handoff.handoffKey,
+      productionChanged: false,
+      ownerSignalCreated: Boolean(surfaced?.stored)
+    };
   }
 
   const commit = await commitExactReplacement({
@@ -603,6 +696,33 @@ async function persistAutonomyState({ userId, worldModel, state }) {
 }
 
 async function surfaceDevelopmentUpdate({ userId, goal, action }) {
+  const handedOff = action.action === "chatgpt_handoff";
+  if (handedOff) {
+    const candidate = {
+      initiativeKey: `ari_chatgpt_handoff:${clean(action.handoffKey || goal.id, 180)}`,
+      reasonId: "ari_chatgpt_repair_handoff",
+      source: "ari_autonomy_runtime",
+      domain: "developer",
+      priority: "high",
+      confidence: action.confidence,
+      opener: "I found a failure, investigated it, and sent my proposed repair to ChatGPT for an independent review.",
+      context: `${clean(action.summary, 620)} I did not change production code.`,
+      followUpPrompt: `Goal: ${clean(goal.label, 360)}. Evidence: ${clean(action.evidence, 650)}. Handoff: ${clean(action.issueUrl, 1000)}.`,
+      action: "review_chatgpt_repair_handoff",
+      artifact: {
+        type: "github_issue",
+        issueNumber: action.issueNumber || null,
+        issueUrl: clean(action.issueUrl, 1000),
+        handoffKey: clean(action.handoffKey, 120),
+        filePath: clean(action.filePath, 500),
+        status: clean(action.status, 80) || "awaiting_chatgpt_review",
+        productionChanged: false
+      },
+      cooldownHours: 12
+    };
+    return recordInitiativeSurface({ userId, candidate }).catch(() => ({ stored: false }));
+  }
+
   const committed = action.action === "branch_commit";
   const candidate = {
     initiativeKey: `ari_autonomy:${clean(goal.id, 180)}:${String(action.at || "").slice(0, 13)}`,
@@ -888,6 +1008,9 @@ function normalizeRecentAction(value = null) {
     branch: clean(value.branch, 240) || null,
     commitSha: clean(value.commitSha, 120) || null,
     commitUrl: clean(value.commitUrl, 1000) || null,
+    handoffKey: clean(value.handoffKey, 120) || null,
+    issueNumber: Number.isFinite(Number(value.issueNumber)) ? Number(value.issueNumber) : null,
+    issueUrl: clean(value.issueUrl, 1000) || null,
     convictionGoalId: clean(value.convictionGoalId, 200) || null,
     ciStatus: clean(value.ciStatus, 40) || null,
     ciObservedAt: clean(value.ciObservedAt, 80) || null,
