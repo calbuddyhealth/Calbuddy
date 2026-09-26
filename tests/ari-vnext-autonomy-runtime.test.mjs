@@ -6,6 +6,8 @@ import {
   classifyAutonomyCiState,
   derivePersistentAutonomyGoals,
   resolvePendingCi,
+  createInvestigationPlan,
+  normalizeInvestigationPlan,
   evaluateAutonomyCycleEligibility,
   isAutonomyProtectedPath,
   isSafeAutonomyBranch,
@@ -48,6 +50,56 @@ test("autonomy runtime derives high-value Ari-owned goals from persistent curios
   assert.equal(goals.length, 1);
   assert.equal(goals[0].id, "ari_goal:q_reasoning");
   assert.match(goals[0].label, /reasoning validation/i);
+});
+
+test("investigation planner normalizes evidence queries and rejects incomplete plans", () => {
+  assert.deepEqual(normalizeInvestigationPlan({
+    summary: " Inspect the planner and validator path. ",
+    searchQueries: [" investigation_plan_unavailable ", "investigation_plan_unavailable", "  "]
+  }), {
+    summary: "Inspect the planner and validator path.",
+    searchQueries: ["investigation_plan_unavailable"]
+  });
+  assert.equal(normalizeInvestigationPlan({ summary: "Missing searches", searchQueries: [] }), null);
+  assert.equal(normalizeInvestigationPlan({ summary: "", searchQueries: ["planner"] }), null);
+});
+
+test("investigation planner retries malformed or partial structured output before blocking the cycle", async () => {
+  let calls = 0;
+  const result = await createInvestigationPlan({
+    goal: { id: "ari_repair:test", label: "Diagnose the planner failure." },
+    userId: "owner",
+    callModel: async () => {
+      calls += 1;
+      if (calls === 1) return null;
+      if (calls === 2) return { summary: "Partial response", searchQueries: [] };
+      return {
+        summary: "Gather repository evidence before proposing a repair.",
+        searchQueries: ["investigation_plan_unavailable", "ari_autonomy_investigation_plan"]
+      };
+    }
+  });
+
+  assert.equal(calls, 3);
+  assert.deepEqual(result, {
+    summary: "Gather repository evidence before proposing a repair.",
+    searchQueries: ["investigation_plan_unavailable", "ari_autonomy_investigation_plan"]
+  });
+});
+
+test("investigation planner gives up cleanly after the bounded retry budget", async () => {
+  let calls = 0;
+  const result = await createInvestigationPlan({
+    goal: { id: "ari_repair:test", label: "Diagnose the planner failure." },
+    userId: "owner",
+    maxAttempts: 2,
+    callModel: async () => {
+      calls += 1;
+      return { summary: "Still incomplete", searchQueries: [] };
+    }
+  });
+  assert.equal(calls, 2);
+  assert.equal(result, null);
 });
 
 test("autonomy runtime respects scheduled cooldown without erasing goals", () => {
