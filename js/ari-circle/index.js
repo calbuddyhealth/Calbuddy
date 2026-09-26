@@ -60,7 +60,7 @@ import CircleEvents, {
 } from "./core/circle-events.js";
 
 import ProfileController from "./profile/profile-controller.js";
-import ProfileRenderer from "./profile/profile-renderer.js";
+import ProfileRenderer from "./profile/profile-renderer.js?v=2.1.1";
 import ProfileEditor from "./profile/profile-editor.js";
 
 import ConnectionsController from "./connections/connections-controller.js?v=1.0.1";
