@@ -20,7 +20,7 @@ test("Edit Profile exposes Midnight plus violet fire pink spectrum themes and Cu
     assert.match(editor, new RegExp(`template:${theme}`));
     assert.match(profileCss, new RegExp(`data-profile-template="${theme}"`));
   }
-  for (const retired of ["arctic-glass","electric-dusk","champagne","aurora","coastal","sunset","violet"]) {
+  for (const retired of ["arctic-glass","electric-dusk","champagne","aurora","coastal","sunset"]) {
     assert.doesNotMatch(editor, new RegExp(`template:${retired}`));
     assert.doesNotMatch(profileCss, new RegExp(`data-profile-template="${retired}"`));
   }
