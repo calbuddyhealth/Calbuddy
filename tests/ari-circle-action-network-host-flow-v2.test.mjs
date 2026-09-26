@@ -63,7 +63,7 @@ test("Connect premium cards keep one Host CTA and hide empty-state UI correctly"
   assert.match(connectController, /Cancel meetup/);
   assert.match(connectController, /circle-connect-facts/);
   assert.doesNotMatch(connectController, /circle-connect-timing/);
-  assert.match(meetupHtml, /ari-circle-connect-v1\.css\?v=1\.2\.1/);
+  assert.match(meetupHtml, /ari-circle-connect-v1\.css\?v=1\.3\.0/);
 });
 
 
@@ -72,6 +72,6 @@ test("Connect mobile shell cannot exceed the viewport width", () => {
   assert.match(connectCss, /body\.circle-connect-next\s*\{[\s\S]*overflow-x:hidden/);
   assert.match(connectCss, /body\.circle-connect-next \.circle-v5-page\s*\{[\s\S]*width:100%\s*!important;[\s\S]*max-width:760px\s*!important/);
   assert.match(connectCss, /body\.circle-connect-next \.circle-v5-page-main\.circle-connect-main\s*\{[\s\S]*width:100%\s*!important;[\s\S]*min-width:0/);
-  assert.match(connectCss, /\.circle-connect-heading > div:first-child\s*\{\s*min-width:0/);
+  assert.match(connectCss, /\.circle-connect-actionbar\s*\{[\s\S]*grid-template-columns:1fr 1fr/);
   assert.match(connectCss, /\.ari-circle-location-pill,[\s\S]*max-width:100%/);
 });
