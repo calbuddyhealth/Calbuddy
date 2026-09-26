@@ -29,6 +29,9 @@ export default async function handler(req, res) {
   if (!process.env.ARI_AUTONOMOUS_DEV_BRANCH) {
     process.env.ARI_AUTONOMOUS_DEV_BRANCH = "agent/ari-autonomous-development";
   }
+  if (!process.env.ARI_CHATGPT_REPAIR_HANDOFF_ENABLED) {
+    process.env.ARI_CHATGPT_REPAIR_HANDOFF_ENABLED = "true";
+  }
 
   const userId = clean(process.env.ARI_OWNER_USER_ID, 200);
   if (!userId) {
