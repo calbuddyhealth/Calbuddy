@@ -485,18 +485,24 @@ body {
 }
 
 .ari-circle-page .circle-profile__avatar-wrap {
-  width: 112px !important;
-  height: 112px !important;
+  width: 140px !important;
+  height: 140px !important;
   aspect-ratio: 1 / 1 !important;
-  margin: 0 auto 13px !important;
+  margin: 0 auto 16px !important;
   border-radius: 50% !important;
+}
+
+.ari-circle-page .circle-profile__avatar-wrap::before,
+.ari-circle-page .circle-profile__avatar-wrap::after {
+  display: none !important;
+  content: none !important;
 }
 
 .ari-circle-page .circle-profile__avatar-button,
 .ari-circle-page .circle-profile__avatar,
 .ari-circle-page .circle-profile__avatar-fallback {
-  width: 112px !important;
-  height: 112px !important;
+  width: 140px !important;
+  height: 140px !important;
   aspect-ratio: 1 / 1 !important;
   border-radius: 50% !important;
 }
@@ -814,7 +820,7 @@ body {
 }
 
 .ari-circle-page .circle-profile__avatar-wrap {
-  margin-top: -58px !important;
+  margin-top: -70px !important;
 }
 
 @media (max-width: 520px) {
@@ -822,6 +828,6 @@ body {
     height: 132px !important;
   }
   .ari-circle-page .circle-profile__avatar-wrap {
-    margin-top: -52px !important;
+    margin-top: -66px !important;
   }
 }
