@@ -147,7 +147,7 @@
 
   function activeKey() {
     const path = pathName();
-    if (path.includes("ari-circle-meetup") || path.includes("ari-circle-quest") || path.endsWith("/ari-circle-feed.html")) return "connect";
+    if (path.includes("ari-circle-meetup") || path.includes("ari-circle-friends") || path.includes("ari-circle-quest") || path.endsWith("/ari-circle-feed.html")) return "connect";
     if (path.endsWith("/ari-circle.html")) return "profile";
     return "";
   }
