@@ -12,15 +12,16 @@ const galleryMigration = fs.readFileSync("supabase/migrations/20260923160828_ari
 const showcaseMigration = fs.readFileSync("supabase/migrations/20260925161000_ari_circle_profile_showcase_v2.sql", "utf8");
 const connections = fs.readFileSync("js/ari-circle/connections/connections-controller.js", "utf8");
 
-test("Connect prioritizes people doing things over configuration", () => {
-  assert.match(meetupHtml, /Find something to do\./);
+test("Connect prioritizes people doing things and the two primary actions", () => {
+  assert.match(meetupHtml, /id="hostMeetupButton"[^>]*>Host<\/button>/);
+  assert.match(meetupHtml, /href="ari-circle-friends\.html">Find Friends/);
+  assert.doesNotMatch(meetupHtml, /Find something to do\./);
   assert.match(meetupHtml, /HAPPENING NOW/);
   assert.match(meetupHtml, /TODAY/);
   assert.match(meetupHtml, /TOMORROW/);
   assert.match(meetupHtml, /THIS WEEKEND/);
   assert.match(meetupHtml, /COMING UP/);
   assert.match(meetupHtml, /Anything/);
-  assert.match(meetupHtml, /\+ Host/);
 });
 
 test("Connect reuses canonical meetup joins, requests, waitlists, rooms, and hosting", () => {
