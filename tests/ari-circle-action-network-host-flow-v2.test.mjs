@@ -11,8 +11,8 @@ const retirement = await readFile(new URL("../supabase/migrations/20260923160837
 
 test("simplified Connect controller remains valid browser JavaScript", () => {
   assert.doesNotThrow(() => new Function(connectController));
-  assert.match(connectController, /const VERSION = "1\.2\.0"/);
-  assert.match(meetupHtml, /connect-v1\.js\?v=1\.2\.0/);
+  assert.match(connectController, /const VERSION = "1\.3\.0"/);
+  assert.match(meetupHtml, /connect-v1\.js\?v=1\.3\.0/);
   assert.doesNotMatch(meetupHtml, /meetups-v5\.js/);
 });
 
