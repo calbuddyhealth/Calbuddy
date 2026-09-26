@@ -44,12 +44,14 @@ test("legacy accounts with no protected DOB can submit an owner-reviewed birthda
 });
 
 test("legacy missing-DOB requests remain pending rather than directly changing authorization", () => {
+  const baseSql = source("supabase/migrations/20260818232000_age_correction_support_workflow.sql");
   const sql = source("supabase/migrations/20260926182000_legacy_missing_birthday_review.sql");
   const insertStart = sql.indexOf("insert into public.ari_age_correction_requests");
   const returnStart = sql.indexOf("return jsonb_build_object", insertStart);
   assert.ok(insertStart > 0 && returnStart > insertStart);
   const requestPath = sql.slice(insertStart, returnStart);
-  assert.match(requestPath, /status[\s\S]*pending/i);
+  assert.match(baseSql, /status text not null default 'pending'/i);
+  assert.match(sql.slice(returnStart), /'status', 'pending'/i);
   assert.doesNotMatch(requestPath, /update public\.ari_account_state[\s\S]*date_of_birth/i);
 });
 
