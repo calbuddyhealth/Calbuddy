@@ -28,6 +28,10 @@
     {
       "path": "/api/ari-community-cycle",
       "schedule": "23 2,10,18 * * *"
+    },
+    {
+      "path": "/api/ari-chatgpt-dialogue-cycle",
+      "schedule": "6,26,46 5 * * *"
     }
   ],
   "rewrites": [
