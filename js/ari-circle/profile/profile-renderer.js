@@ -530,9 +530,9 @@ const ProfileRenderer = {
     const profileCard = document.getElementById("circle-profile");
     const allowedTemplates = new Set([
       "midnight",
-      "arctic-glass",
-      "electric-dusk",
-      "champagne"
+      "violet-spectrum",
+      "fire-spectrum",
+      "pink-spectrum"
     ]);
     const requestedTemplate = coverUrl?.startsWith("template:")
       ? coverUrl.slice("template:".length)
