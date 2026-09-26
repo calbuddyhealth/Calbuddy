@@ -573,7 +573,7 @@ async function finishResearchOnly({
     goalId: goal.id,
     goalLabel: goal.label,
     action: "research_only",
-    status: "completed",
+    status,
     reason: clean(reason, 120),
     summary: clean(summary, 700),
     evidence: clean(evidence, 900),
@@ -763,7 +763,23 @@ async function surfaceDevelopmentUpdate({ userId, goal, action }) {
   return recordInitiativeSurface({ userId, candidate }).catch(() => ({ stored: false }));
 }
 
-async function createInvestigationPlan({ goal, userId }) {
+export function normalizeInvestigationPlan(value = null) {
+  const summary = clean(value?.summary, 700);
+  const searchQueries = unique(
+    (Array.isArray(value?.searchQueries) ? value.searchQueries : [])
+      .map((item) => sanitizeSearchQuery(item))
+      .filter((item) => item.length >= 2)
+  ).slice(0, 3);
+  if (!summary || !searchQueries.length) return null;
+  return { searchQueries, summary };
+}
+
+export async function createInvestigationPlan({
+  goal,
+  userId,
+  callModel = callStructuredModel,
+  maxAttempts = 3
+}) {
   const schema = {
     type: "object",
     additionalProperties: false,
@@ -778,20 +794,26 @@ async function createInvestigationPlan({ goal, userId }) {
       summary: { type: "string", minLength: 1, maxLength: 700 }
     }
   };
-  return callStructuredModel({
-    userId,
-    schemaName: "ari_autonomy_investigation_plan",
-    schema,
-    maxOutputTokens: 650,
-    instructions: [
-      "You are Ari's autonomous software-development investigation planner.",
-      "The goal was generated from Ari's persisted curiosity state, not from a current user prompt.",
-      "Return repository search terms that would gather concrete evidence about the goal before any code change.",
-      "Do not propose permission escalation, credential access, production deployment, authentication weakening, destructive data changes, billing/spending, or bypassing provider/platform rules.",
-      "Do not request hidden chain-of-thought. Return only compact search terms and an evidence-oriented summary."
-    ].join("\n"),
-    input: { goal }
-  });
+  const attempts = Math.max(1, Math.min(3, Number(maxAttempts) || 3));
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const planning = await callModel({
+      userId,
+      schemaName: "ari_autonomy_investigation_plan",
+      schema,
+      maxOutputTokens: 650,
+      instructions: [
+        "You are Ari's autonomous software-development investigation planner.",
+        "The goal was generated from Ari's persisted curiosity state, not from a current user prompt.",
+        "Return repository search terms that would gather concrete evidence about the goal before any code change.",
+        "Do not propose permission escalation, credential access, production deployment, authentication weakening, destructive data changes, billing/spending, or bypassing provider/platform rules.",
+        "Do not request hidden chain-of-thought. Return only compact search terms and an evidence-oriented summary."
+      ].join("\n"),
+      input: { goal }
+    });
+    const normalized = normalizeInvestigationPlan(planning);
+    if (normalized) return normalized;
+  }
+  return null;
 }
 
 async function createPatchProposal({ goal, planning, files, allowCodeCommit, userId }) {
