@@ -66,7 +66,7 @@ test("Profile compatibility stays Profile-only and showcase-aware", () => {
   assert.match(profileCompat, /const REAL_WORLD_VERSION = "5\.5\.0"/);
   assert.match(profileCompat, /brand\.href = "ari-circle-meetup\.html"/);
   assert.match(profileCompat, /circleV3PostsPanel/);
-  assert.match(profileLoader, /profile-gallery-v1\.js\?v=2\.1\.0/);
+  assert.match(profileLoader, /profile-gallery-v1\.js\?v=2\.2\.0/);
   assert.doesNotMatch(profileLoader, /ari-circle-xp\.css/);
   assert.match(visitorControls, /PROFILE VISITOR CONTROLS/);
 });

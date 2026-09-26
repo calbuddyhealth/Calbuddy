@@ -1,5 +1,5 @@
 /* =============================================================
-   ARI CIRCLE — PROFILE SHOWCASE V2.1
+   ARI CIRCLE — PROFILE SHOWCASE V2.2
    Four fixed slots. Each slot can be an image, a text card, or a video
    up to 30 seconds. Avatar remains separate from these four slots.
 
@@ -9,7 +9,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "2.1.0";
+  const VERSION = "2.2.0";
   const BUCKET = "ari-circle-post-media";
   const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
   const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
@@ -87,7 +87,7 @@
     const link = document.createElement("link");
     link.id = "ariCircleProfileGalleryStyle";
     link.rel = "stylesheet";
-    link.href = "assets/css/ari-circle-profile-gallery-v1.css?v=2.1.0";
+    link.href = "assets/css/ari-circle-profile-gallery-v1.css?v=2.2.0";
     document.head.append(link);
   }
 
@@ -457,8 +457,28 @@
         }
       }
     } catch (error) {
-      console.warn("Circle profile showcase unavailable:", error?.message || error);
-      if (state.owner) status(error.message || "Profile showcase is unavailable right now.", { tone: "error" });
+      const message = clean(error?.message);
+      const transientNetworkError =
+        error instanceof TypeError ||
+        /load failed|failed to fetch|network request|networkerror/i.test(message);
+
+      console.warn("Circle profile showcase refresh failed:", message || error);
+
+      if (state.owner) {
+        if (priorPending || hasPendingRows()) {
+          status("Image uploaded. Checking before it becomes visible to other people.", {
+            tone: "progress"
+          });
+        } else if (transientNetworkError) {
+          status("Profile showcase couldn’t refresh. It will retry automatically.", {
+            tone: "progress"
+          });
+        } else {
+          status("Profile showcase is temporarily unavailable.", {
+            tone: "error"
+          });
+        }
+      }
     }
   }
 
