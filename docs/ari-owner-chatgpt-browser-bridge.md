@@ -2,7 +2,7 @@
 
 This bridge gives verified ARI XP Owner Mode a bounded text discussion channel to the owner's already-authenticated ChatGPT browser session.
 
-It does **not** give Ari the owner's ChatGPT password. The owner signs in directly inside a local Playwright browser profile once. The profile cookies/session remain on the owner's computer under `.ari-private/` and are never uploaded to ARI XP, Supabase, GitHub, or Vercel.
+It does **not** give Ari the owner's ChatGPT password. The owner signs in directly inside a local Playwright browser profile. The same local profile also holds a normal ARI XP owner session, which is used only to authenticate the narrow worker endpoint. Browser cookies and session tokens stay on the owner's computer and are never copied into ARI memory, GitHub, or Vercel environment variables.
 
 ## Architecture
 
@@ -10,15 +10,16 @@ It does **not** give Ari the owner's ChatGPT password. The owner signs in direct
 Ari Owner Mode
   -> owner_chatgpt_discussion_* tool
   -> server-only Supabase job queue
-  -> authenticated local owner browser worker
-  -> chatgpt.com discussion
-  -> bounded reply stored with the job
+  -> local browser worker
+       -> verified ARI XP owner session
+       -> separately authenticated chatgpt.com session
+  -> bounded ChatGPT reply
   -> Ari evaluates the reply as external peer evidence
 ```
 
 The local worker is required because a Vercel serverless function should not hold a persistent consumer-browser login profile.
 
-## Initial capability boundary
+## Capability boundary
 
 Allowed:
 
@@ -36,32 +37,38 @@ Not implemented:
 - plugins/actions
 - arbitrary link following
 - deleting or renaming ChatGPT conversations
-- changing Memory or personalization
+- changing ChatGPT Memory or personalization
 - sharing the owner's browser profile with other users
 
 Each thread is capped at 12 Ari -> ChatGPT turns.
 
 ## Server configuration
 
-Set these only in trusted server environments:
+The bridge is enabled by default and can be disabled explicitly with:
 
 ```text
-ARI_CHATGPT_BROWSER_BRIDGE_ENABLED=true
-ARI_CHATGPT_BROWSER_WORKER_SECRET=<high-entropy random secret>
-ARI_OWNER_USER_ID=<existing verified owner UUID>
-SUPABASE_URL=<existing project URL>
-SUPABASE_SECRET_KEY=<preferred> or SUPABASE_SERVICE_ROLE_KEY=<legacy>
+ARI_CHATGPT_BROWSER_BRIDGE_ENABLED=false
 ```
 
-The worker secret authenticates only the narrow claim/complete queue endpoint. It is not a ChatGPT credential.
+It reuses the existing owner-auth configuration:
 
-Apply:
+```text
+ARI_OWNER_USER_ID=<existing verified owner UUID>
+SUPABASE_URL=<existing project URL>
+SUPABASE_ANON_KEY=<existing public key>
+```
+
+`SUPABASE_PUBLISHABLE_KEY` or the server-only service role key can satisfy the existing owner-auth helper when the anon key is not configured.
+
+No dedicated ChatGPT worker secret is required.
+
+The database tables are created by:
 
 ```text
 supabase/migrations/20260926071000_ari_chatgpt_browser_bridge.sql
 ```
 
-The three bridge tables have RLS enabled, revoke all access from `public`, `anon`, and `authenticated`, and grant server-only CRUD to `service_role`.
+All three bridge tables have RLS enabled, revoke direct access from `public`, `anon`, and `authenticated`, and grant server-only CRUD to `service_role`.
 
 ## Local owner computer setup
 
@@ -71,22 +78,23 @@ Install the browser runtime once:
 npm run chatgpt:browser:install
 ```
 
-Set local environment variables:
+Optional local overrides:
 
 ```bash
-export ARI_CHATGPT_BROWSER_WORKER_SECRET='<same server worker secret>'
+export ARI_OWNER_APP_URL='https://www.calbuddyhealth.com/'
 export ARI_CHATGPT_BROWSER_BRIDGE_URL='https://www.calbuddyhealth.com/api/ari-chatgpt-browser-worker'
-# Optional:
-export ARI_CHATGPT_BROWSER_WORKER_ID='jose-owner-desktop'
+export ARI_CHATGPT_BROWSER_WORKER_ID='owner-desktop'
 ```
 
-Authenticate ChatGPT:
+Run the one-time interactive setup:
 
 ```bash
 npm run chatgpt:browser:login
 ```
 
-A real browser window opens. The owner completes ChatGPT sign-in directly in that window, including MFA when required. The script waits for the ChatGPT message composer and closes. Ari never sees the entered credential.
+The browser opens ARI XP first. Sign in normally. Once the script detects a valid owner session, it opens ChatGPT in a second tab/window. Sign in to ChatGPT there, including MFA if required.
+
+The script does not ask for, receive, or persist either password. It only reuses the browser sessions created by the sites themselves.
 
 Then run the worker:
 
@@ -100,13 +108,28 @@ For a single queued turn during testing:
 node scripts/ari-chatgpt-browser-worker.mjs worker --once
 ```
 
+## Authentication model
+
+Every worker claim/complete request carries the local ARI XP Supabase access token.
+
+The Vercel endpoint passes that token through the existing `verifyOwnerRequest` helper, which:
+
+1. verifies the token against Supabase Auth;
+2. compares the authenticated user ID to `ARI_OWNER_USER_ID`;
+3. optionally enforces the configured owner email;
+4. rejects non-owner, expired, missing, or invalid sessions.
+
+A body flag or worker ID is never authorization.
+
 ## Browser confinement
 
-Worker mode only permits top-level navigation to `https://chatgpt.com/` and normal `https://chatgpt.com/c/<conversation-id>` discussion URLs.
+Worker mode permits ChatGPT top-level navigation only to `https://chatgpt.com/` and normal `https://chatgpt.com/c/<conversation-id>` discussion URLs.
 
-Login mode additionally allows the OpenAI authentication hosts needed for the owner to sign in interactively.
+Interactive setup additionally allows OpenAI authentication hosts while the owner is personally completing sign-in.
 
-The worker does not expose a generic browser command API to Ari. Ari supplies only a bounded discussion message. The worker owns all selectors and navigation.
+The ARI XP page exists only to maintain and refresh the owner's normal authenticated app session. Ari cannot issue arbitrary browser commands against it.
+
+The worker does not expose a generic browser command API. Ari supplies only a bounded discussion message; the worker owns all ChatGPT selectors and navigation.
 
 ## Owner Mode tools
 
@@ -121,10 +144,10 @@ ChatGPT replies are returned to Ari as untrusted peer evidence. They do not inhe
 
 The ChatGPT web UI is not a stable automation API. Selectors may require maintenance after interface changes. A failed selector or expired login fails the queued job rather than broadening browser access.
 
-If the worker reports `CHATGPT_LOGIN_REQUIRED`, rerun:
+If either local session expires, rerun:
 
 ```bash
 npm run chatgpt:browser:login
 ```
 
-No ChatGPT password should ever be added to Vercel, Supabase, GitHub, `.env` files, or the ARI memory system.
+No ChatGPT password or extra worker bearer secret should be added to Vercel, Supabase, GitHub, `.env` files, or ARI memory.
