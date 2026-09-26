@@ -1,7 +1,7 @@
 /* =====================================================
    ARI REBIRTH
    File: assets/css/home.css
-   Version: 2.7.0
+   Version: 2.8.0
    Purpose:
    Premium white futuristic space-lab homepage.
 
@@ -43,6 +43,10 @@
    V2.7.0:
    - Adds a slow staggered glow pulse to the three homepage action orbs.
    - Adds tactile press feedback while preserving reduced-motion behavior.
+
+   V2.8.0:
+   - Makes the orb animation clearly visible by animating each full control.
+   - Adds staggered float, stronger outer glow, scale breathing, and icon pulsing.
 ===================================================== */
 
 :root {
@@ -444,12 +448,12 @@ a {
 
 .ari-home-quick-action--circle {
   --quick-accent: var(--ari-lab-violet);
-  --quick-pulse-delay: -1.8s;
+  --quick-pulse-delay: -1.5s;
 }
 
 .ari-home-quick-action--train {
   --quick-accent: #7668ff;
-  --quick-pulse-delay: -3.6s;
+  --quick-pulse-delay: -3s;
 }
 
 .ari-home-quick-orb {
@@ -473,6 +477,9 @@ a {
     inset 0 -1px 0 rgba(100, 119, 202, 0.12);
   -webkit-backdrop-filter: blur(20px) saturate(150%);
   backdrop-filter: blur(20px) saturate(150%);
+  transform-origin: center;
+  animation: ariQuickOrbFloatGlow 4.5s ease-in-out infinite;
+  animation-delay: var(--quick-pulse-delay, 0s);
   transition:
     transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
     border-color 180ms ease,
@@ -494,7 +501,7 @@ a {
     inset 0 0 14px color-mix(in srgb, var(--quick-accent) 9%, transparent),
     0 0 8px color-mix(in srgb, var(--quick-accent) 10%, transparent);
   transform-origin: center;
-  animation: ariQuickOrbPulse 5.4s ease-in-out infinite;
+  animation: ariQuickOrbPulse 4.5s ease-in-out infinite;
   animation-delay: var(--quick-pulse-delay, 0s);
 }
 
@@ -507,7 +514,7 @@ a {
   background: var(--quick-accent);
   box-shadow: 0 0 8px color-mix(in srgb, var(--quick-accent) 70%, transparent);
   transform-origin: center;
-  animation: ariQuickOrbSpark 5.4s ease-in-out infinite;
+  animation: ariQuickOrbSpark 4.5s ease-in-out infinite;
   animation-delay: var(--quick-pulse-delay, 0s);
 }
 
@@ -522,13 +529,16 @@ a {
   stroke-linecap: round;
   stroke-linejoin: round;
   filter: drop-shadow(0 0 5px color-mix(in srgb, var(--quick-accent) 40%, transparent));
+  animation: ariQuickIconPulse 4.5s ease-in-out infinite;
+  animation-delay: var(--quick-pulse-delay, 0s);
   transition:
     transform 140ms ease,
     filter 180ms ease;
 }
 
 .ari-home-quick-action:active .ari-home-quick-orb {
-  transform: scale(0.94);
+  animation: none;
+  transform: translateY(1px) scale(0.92);
   border-color: color-mix(in srgb, var(--quick-accent) 58%, rgba(102, 125, 214, 0.24));
   box-shadow:
     0 7px 15px rgba(53, 68, 137, 0.11),
@@ -537,6 +547,7 @@ a {
 }
 
 .ari-home-quick-action:active .ari-home-quick-icon {
+  animation: none;
   transform: scale(0.90);
   filter: drop-shadow(0 0 8px color-mix(in srgb, var(--quick-accent) 56%, transparent));
 }
@@ -1667,8 +1678,15 @@ body.ari-menu-open {
     transform: translateY(-2px);
   }
 
+  .ari-home-quick-action:hover .ari-home-quick-icon {
+    animation: none;
+    transform: scale(1.04);
+    filter: drop-shadow(0 0 9px color-mix(in srgb, var(--quick-accent) 58%, transparent));
+  }
+
   .ari-home-quick-action:hover .ari-home-quick-orb {
-    transform: translateY(-2px) scale(1.035);
+    animation: none;
+    transform: translateY(-2px) scale(1.045);
     border-color: color-mix(in srgb, var(--quick-accent) 60%, rgba(102, 125, 214, 0.24));
     box-shadow:
       0 16px 30px rgba(53, 68, 137, 0.14),
@@ -2044,22 +2062,61 @@ body.ari-menu-open {
    ANIMATIONS
 ===================================================== */
 
+@keyframes ariQuickOrbFloatGlow {
+  0%,
+  100% {
+    transform: translateY(2px) scale(0.98);
+    border-color: color-mix(in srgb, var(--quick-accent) 34%, rgba(112, 127, 207, 0.24));
+    box-shadow:
+      0 10px 20px rgba(53, 68, 137, 0.10),
+      0 0 14px color-mix(in srgb, var(--quick-accent) 15%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.99),
+      inset 0 -1px 0 rgba(100, 119, 202, 0.12);
+  }
+
+  50% {
+    transform: translateY(-3px) scale(1.04);
+    border-color: color-mix(in srgb, var(--quick-accent) 72%, rgba(112, 127, 207, 0.24));
+    box-shadow:
+      0 17px 30px rgba(53, 68, 137, 0.16),
+      0 0 36px color-mix(in srgb, var(--quick-accent) 38%, transparent),
+      0 0 12px color-mix(in srgb, var(--quick-accent) 28%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.99),
+      inset 0 -1px 0 rgba(100, 119, 202, 0.12);
+  }
+}
+
+@keyframes ariQuickIconPulse {
+  0%,
+  100% {
+    transform: scale(0.97);
+    filter: drop-shadow(0 0 4px color-mix(in srgb, var(--quick-accent) 34%, transparent));
+  }
+
+  50% {
+    transform: scale(1.08);
+    filter:
+      drop-shadow(0 0 8px color-mix(in srgb, var(--quick-accent) 70%, transparent))
+      drop-shadow(0 0 14px color-mix(in srgb, var(--quick-accent) 30%, transparent));
+  }
+}
+
 @keyframes ariQuickOrbPulse {
   0%,
   100% {
-    opacity: 0.72;
-    transform: scale(0.965);
+    opacity: 0.62;
+    transform: scale(0.94);
     box-shadow:
       inset 0 0 12px color-mix(in srgb, var(--quick-accent) 7%, transparent),
-      0 0 7px color-mix(in srgb, var(--quick-accent) 9%, transparent);
+      0 0 8px color-mix(in srgb, var(--quick-accent) 12%, transparent);
   }
 
   50% {
     opacity: 1;
-    transform: scale(1.035);
+    transform: scale(1.06);
     box-shadow:
       inset 0 0 18px color-mix(in srgb, var(--quick-accent) 15%, transparent),
-      0 0 15px color-mix(in srgb, var(--quick-accent) 24%, transparent);
+      0 0 20px color-mix(in srgb, var(--quick-accent) 34%, transparent);
   }
 }
 

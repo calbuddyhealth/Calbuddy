@@ -25,15 +25,20 @@ test("home quick actions are horizontal icon-only orbs ordered meal, Circle, Tra
   assert.doesNotMatch(quick, />\s*(?:Log Meal|Circle|Train)\s*</i);
 });
 
-test("home quick action orbs have staggered idle and tap animations", () => {
+test("home quick action orbs visibly float, glow, pulse, and respond to taps", () => {
+  assert.match(css, /@keyframes\s+ariQuickOrbFloatGlow/i);
+  assert.match(css, /@keyframes\s+ariQuickIconPulse/i);
   assert.match(css, /@keyframes\s+ariQuickOrbPulse/i);
   assert.match(css, /@keyframes\s+ariQuickOrbSpark/i);
-  assert.match(css, /\.ari-home-quick-orb::before\s*\{[\s\S]*animation:\s*ariQuickOrbPulse\s+5\.4s/i);
-  assert.match(css, /\.ari-home-quick-orb::after\s*\{[\s\S]*animation:\s*ariQuickOrbSpark\s+5\.4s/i);
+  assert.match(css, /\.ari-home-quick-orb\s*\{[\s\S]*animation:\s*ariQuickOrbFloatGlow\s+4\.5s/i);
+  assert.match(css, /\.ari-home-quick-icon\s*\{[\s\S]*animation:\s*ariQuickIconPulse\s+4\.5s/i);
+  assert.match(css, /\.ari-home-quick-orb::before\s*\{[\s\S]*animation:\s*ariQuickOrbPulse\s+4\.5s/i);
+  assert.match(css, /\.ari-home-quick-orb::after\s*\{[\s\S]*animation:\s*ariQuickOrbSpark\s+4\.5s/i);
   assert.match(css, /\.ari-home-quick-action--meal\s*\{[\s\S]*--quick-pulse-delay:\s*0s/i);
-  assert.match(css, /\.ari-home-quick-action--circle\s*\{[\s\S]*--quick-pulse-delay:\s*-1\.8s/i);
-  assert.match(css, /\.ari-home-quick-action--train\s*\{[\s\S]*--quick-pulse-delay:\s*-3\.6s/i);
-  assert.match(css, /\.ari-home-quick-action:active \.ari-home-quick-orb\s*\{[\s\S]*transform:\s*scale\(0\.94\)/i);
+  assert.match(css, /\.ari-home-quick-action--circle\s*\{[\s\S]*--quick-pulse-delay:\s*-1\.5s/i);
+  assert.match(css, /\.ari-home-quick-action--train\s*\{[\s\S]*--quick-pulse-delay:\s*-3s/i);
+  assert.match(css, /@keyframes\s+ariQuickOrbFloatGlow\s*\{[\s\S]*translateY\(2px\) scale\(0\.98\)[\s\S]*translateY\(-3px\) scale\(1\.04\)/i);
+  assert.match(css, /\.ari-home-quick-action:active \.ari-home-quick-orb\s*\{[\s\S]*animation:\s*none[\s\S]*scale\(0\.92\)/i);
   assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)/i);
 });
 
