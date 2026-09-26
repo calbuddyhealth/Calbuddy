@@ -38,8 +38,17 @@ test("Find Friends prevents iOS focus auto-zoom and releases focus before naviga
   assert.match(friendsCss, /circle-friends-page select/);
   assert.match(friendsJs, /function settleVisualViewport\(\)/);
   assert.match(friendsJs, /settleVisualViewport\(\);[\s\S]*void load/);
-  assert.match(friendsHtml, /ari-circle-find-friends-v1\.css\?v=1\.0\.1/);
+  assert.match(friendsHtml, /ari-circle-find-friends-v1\.css\?v=1\.0\.2/);
   assert.match(friendsHtml, /find-friends-v1\.js\?v=1\.0\.1/);
+});
+
+test("Find Friends fits the mobile viewport without horizontal overflow", () => {
+  assert.match(friendsHtml, /ari-circle-find-friends-v1\.css\?v=1\.0\.2/);
+  assert.match(friendsCss, /body\.circle-friends-page \*[\s\S]*box-sizing:border-box/);
+  assert.match(friendsCss, /body\.circle-friends-page \.circle-v5-page[\s\S]*width:100% !important[\s\S]*max-width:760px !important/);
+  assert.match(friendsCss, /body\.circle-friends-page \.circle-friends-main[\s\S]*padding:10px 0 calc\(126px \+ env\(safe-area-inset-bottom\)\) !important/);
+  assert.match(friendsCss, /@media \(max-width:620px\)[\s\S]*circle-friends-hero[\s\S]*grid-template-columns:minmax\(0,1fr\) !important/);
+  assert.match(friendsCss, /ari-circle-location-card__actions[\s\S]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
 });
 
 test("friend discovery backend uses private coarse location and mutual accepted connections without returning coordinates", () => {
