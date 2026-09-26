@@ -5,7 +5,12 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.2.0";
+  const VERSION = "1.3.0";
+  const MEDIA_BUCKET = "ari-circle-media";
+  const CONTENT_MODERATION_SRC = "js/ari-circle/content-moderation.js?v=1.5.2";
+  const MAX_COVER_SOURCE_BYTES = 12 * 1024 * 1024;
+  const MAX_COVER_EDGE = 1600;
+  const COVER_JPEG_QUALITY = 0.84;
   const $ = (id) => document.getElementById(id);
   const ACTIVITY = Object.freeze({
     walking: ["Walking", "🚶"],
@@ -29,8 +34,12 @@
     activity: "",
     requestMeetup: null,
     busy: false,
-    toastTimer: 0
+    toastTimer: 0,
+    coverFile: null,
+    coverPreviewUrl: ""
   };
+
+  let moderationLoader = null;
 
   const clean = (value) => String(value ?? "").trim();
   const escapeHtml = (value) => String(value ?? "")
@@ -82,7 +91,7 @@
 
   function setBusy(value) {
     state.busy = Boolean(value);
-    document.querySelectorAll("button[data-meetup-action], button[data-request-decision], #createMeetupSubmit")
+    document.querySelectorAll("button[data-meetup-action], button[data-request-decision], #createMeetupSubmit, #meetupCoverChoose, #meetupCoverRemove")
       .forEach((button) => {
         button.disabled = state.busy || button.dataset.permanentDisabled === "true";
       });
@@ -140,6 +149,233 @@
     if (/\b(basketball|volleyball|soccer|football|pickleball|tennis|sport|sports)\b/.test(text)) return "sports";
     if (/\b(community|charity|awareness|civic)\b/.test(text)) return "community";
     return "other";
+  }
+
+  function visualMeta(row = {}) {
+    const title = clean(row.title).toLowerCase();
+    if (/\b(movie|movies|film|cinema|theater|theatre)\b/.test(title)) return ["Movies", "🍿", "movies"];
+    if (/\b(concert|music|karaoke|band|dj)\b/.test(title)) return ["Music", "♫", "music"];
+    if (/\b(beach|ocean|surf|surfing)\b/.test(title)) return ["Beach", "☀", "beach"];
+    if (/\b(bar|cocktail|drinks|happy hour)\b/.test(title)) return ["Drinks", "◒", "drinks"];
+
+    const [label, icon] = activityMeta(row.activity);
+    return [label, icon, clean(row.activity).toLowerCase() || "other"];
+  }
+
+  function publicCoverUrl(path) {
+    const cleanPath = clean(path).replace(/^\/+/, "");
+    if (!cleanPath || !state.client?.storage?.from) return "";
+    const { data } = state.client.storage.from(MEDIA_BUCKET).getPublicUrl(cleanPath);
+    return clean(data?.publicUrl);
+  }
+
+  function meetupMedia(row = {}) {
+    const [label, icon, theme] = visualMeta(row);
+    const url = publicCoverUrl(row.cover_image_path);
+    const image = url
+      ? `<img src="${escapeHtml(url)}" alt="" loading="lazy" decoding="async" />`
+      : "";
+
+    return `
+      <div class="circle-connect-card__media circle-connect-media--${escapeHtml(theme)}" data-cover-source="${url ? "user" : "fallback"}">
+        <span class="circle-connect-card__media-fallback" aria-hidden="true">${escapeHtml(icon)}</span>
+        <small>${escapeHtml(label)}</small>
+        ${image}
+      </div>
+    `;
+  }
+
+  function revokeCoverPreview() {
+    if (state.coverPreviewUrl) URL.revokeObjectURL(state.coverPreviewUrl);
+    state.coverPreviewUrl = "";
+  }
+
+  function clearCoverSelection({ resetInput = true } = {}) {
+    revokeCoverPreview();
+    state.coverFile = null;
+    if (resetInput && $("meetupFormCover")) $("meetupFormCover").value = "";
+    const preview = $("meetupCoverPreview");
+    const image = $("meetupCoverPreviewImage");
+    if (image) image.removeAttribute("src");
+    if (preview) preview.hidden = true;
+    if ($("meetupCoverChoose")) $("meetupCoverChoose").hidden = false;
+  }
+
+  function selectCoverFile(file) {
+    if (!(file instanceof Blob) || !String(file.type || "").startsWith("image/")) {
+      clearCoverSelection();
+      showToast("Choose an image for the meetup photo.");
+      return;
+    }
+    if (Number(file.size || 0) > MAX_COVER_SOURCE_BYTES) {
+      clearCoverSelection();
+      showToast("Choose a photo smaller than 12 MB.");
+      return;
+    }
+
+    revokeCoverPreview();
+    state.coverFile = file;
+    state.coverPreviewUrl = URL.createObjectURL(file);
+    const image = $("meetupCoverPreviewImage");
+    if (image) image.src = state.coverPreviewUrl;
+    if ($("meetupCoverPreview")) $("meetupCoverPreview").hidden = false;
+    if ($("meetupCoverChoose")) $("meetupCoverChoose").hidden = true;
+  }
+
+  function waitForImage(image, timeoutMs = 8000) {
+    return new Promise((resolve, reject) => {
+      let timer = null;
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        image.removeEventListener("load", onLoad);
+        image.removeEventListener("error", onError);
+      };
+      const onLoad = () => { cleanup(); resolve(); };
+      const onError = () => { cleanup(); reject(new Error("That image could not be read.")); };
+      timer = setTimeout(() => {
+        cleanup();
+        reject(new Error("That image took too long to process."));
+      }, timeoutMs);
+      image.addEventListener("load", onLoad, { once: true });
+      image.addEventListener("error", onError, { once: true });
+    });
+  }
+
+  function canvasBlob(canvas) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => blob ? resolve(blob) : reject(new Error("Could not prepare that image.")),
+        "image/jpeg",
+        COVER_JPEG_QUALITY
+      );
+    });
+  }
+
+  async function prepareCoverImage(file) {
+    if (!(file instanceof Blob)) return null;
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.decoding = "async";
+
+    try {
+      image.src = objectUrl;
+      if (typeof image.decode === "function") {
+        try {
+          await image.decode();
+        } catch {
+          await waitForImage(image);
+        }
+      } else {
+        await waitForImage(image);
+      }
+
+      const width = Number(image.naturalWidth || image.width || 0);
+      const height = Number(image.naturalHeight || image.height || 0);
+      if (!width || !height) throw new Error("That image has invalid dimensions.");
+
+      const scale = Math.min(1, MAX_COVER_EDGE / Math.max(width, height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+      const context = canvas.getContext("2d", { alpha: false });
+      if (!context) throw new Error("Could not prepare that image.");
+
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      return await canvasBlob(canvas);
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+      image.src = "";
+    }
+  }
+
+  function blobDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Could not inspect that image."));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function ensureContentModeration() {
+    if (window.AriCircleContentModeration?.moderate) {
+      return Promise.resolve(window.AriCircleContentModeration);
+    }
+    if (moderationLoader) return moderationLoader;
+
+    moderationLoader = new Promise((resolve, reject) => {
+      const finish = () => {
+        const api = window.AriCircleContentModeration;
+        if (api?.moderate) resolve(api);
+        else reject(new Error("ARI Circle safety screening is unavailable."));
+      };
+
+      const existing = [...document.scripts].find((script) => script.src.includes("js/ari-circle/content-moderation.js"));
+      if (existing) {
+        existing.addEventListener("load", finish, { once: true });
+        existing.addEventListener("error", () => reject(new Error("ARI Circle safety screening could not load.")), { once: true });
+        setTimeout(finish, 1200);
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = CONTENT_MODERATION_SRC;
+      script.async = false;
+      script.addEventListener("load", finish, { once: true });
+      script.addEventListener("error", () => reject(new Error("ARI Circle safety screening could not load.")), { once: true });
+      document.head.appendChild(script);
+    });
+
+    return moderationLoader;
+  }
+
+  async function moderateMeetupCover(blob, { title = "", description = "" } = {}) {
+    const service = await ensureContentModeration();
+    const imageUrl = await blobDataUrl(blob);
+    const result = await service.moderate({
+      scope: "meetup_cover_photo",
+      text: [clean(title), clean(description)].filter(Boolean).join("\n").slice(0, 1200),
+      imageUrls: [imageUrl]
+    });
+    if (result?.allowed !== true) {
+      const error = new Error("That photo can’t be shared in ARI Circle. Choose another image and try again.");
+      error.code = "ARI_CONTENT_BLOCKED";
+      throw error;
+    }
+  }
+
+  async function uploadMeetupCover(meetupId, blob) {
+    const userId = clean(state.user?.id);
+    const id = clean(meetupId);
+    if (!userId || !id || !blob) return "";
+
+    const token = typeof globalThis.crypto?.randomUUID === "function"
+      ? globalThis.crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const path = `${userId}/cover/meetups/${id}/${token}.jpg`;
+    const bucket = state.client?.storage?.from?.(MEDIA_BUCKET);
+    if (!bucket) throw new Error("Meetup photos are unavailable right now.");
+
+    const { error: uploadError } = await bucket.upload(path, blob, {
+      cacheControl: "86400",
+      upsert: false,
+      contentType: "image/jpeg"
+    });
+    if (uploadError) throw uploadError;
+
+    try {
+      await rpc("ari_circle_set_meetup_cover", {
+        requested_meetup_id: id,
+        requested_cover_image_path: path
+      });
+    } catch (error) {
+      await bucket.remove([path]).catch(() => {});
+      throw error;
+    }
+
+    return path;
   }
 
   function avatar(row) {
@@ -335,16 +571,19 @@
         <span class="circle-connect-activity-badge">${escapeHtml(activityIcon)} ${escapeHtml(activityLabel)}</span>
       </div>
 
-      <div class="circle-connect-card__body">
-        <h3>${escapeHtml(row.title || "Meetup")}</h3>
-        ${clean(row.description) ? `<p>${escapeHtml(row.description)}</p>` : ""}
-        <div class="circle-connect-facts">
-          <span>📍 ${escapeHtml(row.area || "General area")}${distanceLabel ? ` · ${escapeHtml(distanceLabel)}` : ""}</span>
-          <span class="circle-connect-facts__sep" aria-hidden="true">·</span>
-          <span>◷ ${escapeHtml(dateTime(row.starts_at))}</span>
-          <span class="circle-connect-facts__sep" aria-hidden="true">·</span>
-          <span>👥 ${count} going${openSpots ? ` · ${openSpots} spot${openSpots === 1 ? "" : "s"} left` : ""}</span>
+      <div class="circle-connect-card__content">
+        <div class="circle-connect-card__body">
+          <h3>${escapeHtml(row.title || "Meetup")}</h3>
+          ${clean(row.description) ? `<p>${escapeHtml(row.description)}</p>` : ""}
+          <div class="circle-connect-facts">
+            <span>📍 ${escapeHtml(row.area || "General area")}${distanceLabel ? ` · ${escapeHtml(distanceLabel)}` : ""}</span>
+            <span class="circle-connect-facts__sep" aria-hidden="true">·</span>
+            <span>◷ ${escapeHtml(dateTime(row.starts_at))}</span>
+            <span class="circle-connect-facts__sep" aria-hidden="true">·</span>
+            <span>👥 ${count} going${openSpots ? ` · ${openSpots} spot${openSpots === 1 ? "" : "s"} left` : ""}</span>
+          </div>
         </div>
+        ${meetupMedia(row)}
       </div>
 
       <div class="circle-connect-card__actions">
@@ -356,6 +595,9 @@
     article.querySelectorAll("[data-meetup-action]").forEach((button) => {
       if (button.dataset.permanentDisabled === "true") return;
       button.addEventListener("click", () => handleAction(row, button.dataset.meetupAction));
+    });
+    article.querySelector(".circle-connect-card__media img")?.addEventListener("error", (event) => {
+      event.currentTarget.remove();
     });
 
     return article;
@@ -409,7 +651,7 @@
     const status = $("meetupStatus");
     if (status) status.textContent = "Finding things happening nearby…";
     try {
-      const rows = await rpc("ari_circle_list_meetups", {
+      const rows = await rpc("ari_circle_list_meetups_with_media", {
         requested_activity: state.activity || null,
         requested_window: "upcoming",
         result_limit: 60
@@ -586,6 +828,7 @@
 
   function resetHostForm() {
     $("hostMeetupForm")?.reset();
+    clearCoverSelection({ resetInput: false });
     const activity = $("meetupFormActivity");
     if (activity) {
       activity.dataset.manual = "false";
@@ -617,10 +860,17 @@
     );
     const activitySelect = $("meetupFormActivity");
     const title = clean($("meetupFormTitle")?.value);
+    const description = clean($("meetupFormDescription")?.value);
     const activity = clean(activitySelect?.value) || inferActivity(title);
 
     setBusy(true);
     try {
+      let preparedCover = null;
+      if (state.coverFile) {
+        preparedCover = await prepareCoverImage(state.coverFile);
+        await moderateMeetupCover(preparedCover, { title, description });
+      }
+
       const id = await rpc("ari_circle_create_meetup", {
         requested_title: title,
         requested_activity: activity,
@@ -628,15 +878,32 @@
         requested_starts_at: starts.toISOString(),
         requested_duration_minutes: Number($("meetupFormDuration")?.value) || 60,
         requested_max_participants: guestSpots + 1,
-        requested_description: clean($("meetupFormDescription")?.value) || null,
+        requested_description: description || null,
         requested_join_mode: clean($("meetupFormJoinMode")?.value) || "instant"
       });
+
+      let coverAttached = true;
+      if (id && preparedCover) {
+        try {
+          await uploadMeetupCover(id, preparedCover);
+        } catch (coverError) {
+          coverAttached = false;
+          console.warn("Meetup cover upload failed:", coverError?.message || coverError);
+        }
+      }
 
       $("hostMeetupDialog")?.close();
       resetHostForm();
 
-      if (id) {
+      if (id && coverAttached) {
         location.href = roomUrl(id);
+        return;
+      }
+      if (id && !coverAttached) {
+        showToast("Meetup published without the photo. Ari Circle is using the category visual instead.", 5200);
+        state.activity = "";
+        syncFilters();
+        await loadMeetups();
         return;
       }
 
@@ -676,6 +943,12 @@
     $("meetupFormActivity")?.addEventListener("change", (event) => {
       event.target.dataset.manual = "true";
     });
+
+    $("meetupCoverChoose")?.addEventListener("click", () => $("meetupFormCover")?.click());
+    $("meetupFormCover")?.addEventListener("change", (event) => {
+      selectCoverFile(event.target.files?.[0] || null);
+    });
+    $("meetupCoverRemove")?.addEventListener("click", () => clearCoverSelection());
 
     $("meetupActivityFilters")?.addEventListener("click", (event) => {
       const button = event.target.closest("[data-activity]");
