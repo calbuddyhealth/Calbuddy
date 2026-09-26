@@ -406,6 +406,9 @@ const ProfileEditor = {
     const currentValue =
       getNestedProfileValue(profile, "cover_url");
 
+    window.clearTimeout(this.state.saveTimer);
+    this.state.saveTimer = 0;
+
     this.state.suppressAutoSave = true;
     this.syncBackgroundControl(currentValue);
     this.state.suppressAutoSave = false;
