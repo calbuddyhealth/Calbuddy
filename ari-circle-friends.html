@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f8faff" />
+  <title>Find Friends | ARI Circle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800;900&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v5-real-world.css?v=5.0.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v5-pearl.css?v=5.1.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
+  <link rel="stylesheet" href="assets/css/ari-circle-search-location-v1.css?v=1.1.1" />
+  <link rel="stylesheet" href="assets/css/ari-circle-find-friends-v1.css?v=1.0.0" />
+</head>
+<body class="circle-v5-real-world circle-friends-page">
+  <main class="circle-v5-page" id="friendsPage" hidden>
+    <header class="circle-v5-header feed-header">
+      <details class="circle-v4-menu">
+        <summary class="feed-icon-button" aria-label="Open Circle menu">☰</summary>
+        <nav class="circle-v4-menu__panel" aria-label="Circle menu"></nav>
+      </details>
+      <a class="feed-brand circle-v5-brand" href="ari-circle-meetup.html" aria-label="ARI Circle Connect"><span>ARI CIRCLE</span></a>
+      <a class="circle-v4-message" href="ari-circle-messages.html" aria-label="Messages">💬</a>
+    </header>
+
+    <div class="circle-v5-page-main circle-friends-main">
+      <section class="circle-friends-hero" aria-labelledby="friendsTitle">
+        <div>
+          <p>FIND FRIENDS</p>
+          <h1 id="friendsTitle">People around you.</h1>
+          <span>Discover nearby people and friends-of-friends without sharing an exact address.</span>
+        </div>
+        <a class="circle-friends-back" href="ari-circle-meetup.html">Back to Connect</a>
+      </section>
+
+      <section class="circle-friends-radar" aria-labelledby="friendsRadarTitle">
+        <div class="circle-friends-section-head">
+          <div>
+            <p>LOCATION RADAR</p>
+            <h2 id="friendsRadarTitle">Choose where to look</h2>
+          </div>
+        </div>
+        <div data-ari-circle-search-location data-surface="friends"></div>
+      </section>
+
+      <form class="circle-friends-search" id="friendsSearchForm" role="search">
+        <label for="friendsSearchInput">Search people</label>
+        <div>
+          <input id="friendsSearchInput" maxlength="80" autocomplete="off" placeholder="Name or @handle" />
+          <button type="submit">Search</button>
+        </div>
+      </form>
+
+      <p class="circle-friends-status" id="friendsStatus" role="status" aria-live="polite">Finding people…</p>
+      <button id="friendsRefresh" type="button" hidden aria-hidden="true" tabindex="-1">Refresh</button>
+
+      <section class="circle-friends-section" id="friendsSearchSection" hidden aria-labelledby="friendsSearchTitle">
+        <div class="circle-friends-section-head">
+          <div>
+            <p>SEARCH</p>
+            <h2 id="friendsSearchTitle">Search results <span id="friendsSearchCount">0</span></h2>
+          </div>
+          <button class="circle-friends-clear-search" id="friendsClearSearch" type="button">Clear</button>
+        </div>
+        <div class="circle-friends-grid" id="friendsSearchList"></div>
+      </section>
+
+      <section class="circle-friends-section" id="friendsSuggestedSection" hidden aria-labelledby="friendsSuggestedTitle">
+        <div class="circle-friends-section-head">
+          <div>
+            <p>PEOPLE YOU MAY KNOW</p>
+            <h2 id="friendsSuggestedTitle">Suggested for you <span id="friendsSuggestedCount">0</span></h2>
+          </div>
+        </div>
+        <div class="circle-friends-grid circle-friends-grid--suggested" id="friendsSuggestedList"></div>
+      </section>
+
+      <section class="circle-friends-section" id="friendsNearbySection" hidden aria-labelledby="friendsNearbyTitle">
+        <div class="circle-friends-section-head">
+          <div>
+            <p>AROUND YOUR RADAR</p>
+            <h2 id="friendsNearbyTitle">People nearby <span id="friendsNearbyCount">0</span></h2>
+          </div>
+        </div>
+        <div class="circle-friends-grid" id="friendsNearbyList"></div>
+      </section>
+
+      <div class="circle-friends-empty" id="friendsEmpty" hidden>
+        <strong>No people matched this radar yet.</strong>
+        <span>Try widening the distance, changing the area, or using current location.</span>
+      </div>
+    </div>
+  </main>
+
+  <div id="friendsToast" class="circle-friends-toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script id="ariCircleMenuV5Script" src="js/ari-circle/circle-menu-v5.js?v=2.6.0" defer></script>
+  <script id="ariCircleSocialBadgesScript" src="js/ari-circle/social-badges.js?v=1.2.0" defer></script>
+  <script src="supabase-config.js?v=1.1.8"></script>
+  <script src="js/ari-circle/location/search-location-v1.js?v=1.1.1" defer></script>
+  <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.0" defer></script>
+  <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.5.1" defer></script>
+  <script src="js/ari-circle/connections/find-friends-v1.js?v=1.0.0" defer></script>
+</body>
+</html>
