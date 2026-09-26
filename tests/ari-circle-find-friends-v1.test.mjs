@@ -38,7 +38,7 @@ test("Find Friends prevents iOS focus auto-zoom and releases focus before naviga
   assert.match(friendsCss, /circle-friends-page select/);
   assert.match(friendsJs, /function settleVisualViewport\(\)/);
   assert.match(friendsJs, /settleVisualViewport\(\);[\s\S]*void load/);
-  assert.match(friendsHtml, /ari-circle-find-friends-v1\.css\?v=1\.0\.1/);
+  assert.match(friendsHtml, /ari-circle-find-friends-v1\.css\?v=1\.0\.2/);
   assert.match(friendsHtml, /find-friends-v1\.js\?v=1\.0\.1/);
 });
 
