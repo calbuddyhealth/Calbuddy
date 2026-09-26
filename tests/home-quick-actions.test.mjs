@@ -25,6 +25,18 @@ test("home quick actions are horizontal icon-only orbs ordered meal, Circle, Tra
   assert.doesNotMatch(quick, />\s*(?:Log Meal|Circle|Train)\s*</i);
 });
 
+test("home quick action orbs have staggered idle and tap animations", () => {
+  assert.match(css, /@keyframes\s+ariQuickOrbPulse/i);
+  assert.match(css, /@keyframes\s+ariQuickOrbSpark/i);
+  assert.match(css, /\.ari-home-quick-orb::before\s*\{[\s\S]*animation:\s*ariQuickOrbPulse\s+5\.4s/i);
+  assert.match(css, /\.ari-home-quick-orb::after\s*\{[\s\S]*animation:\s*ariQuickOrbSpark\s+5\.4s/i);
+  assert.match(css, /\.ari-home-quick-action--meal\s*\{[\s\S]*--quick-pulse-delay:\s*0s/i);
+  assert.match(css, /\.ari-home-quick-action--circle\s*\{[\s\S]*--quick-pulse-delay:\s*-1\.8s/i);
+  assert.match(css, /\.ari-home-quick-action--train\s*\{[\s\S]*--quick-pulse-delay:\s*-3\.6s/i);
+  assert.match(css, /\.ari-home-quick-action:active \.ari-home-quick-orb\s*\{[\s\S]*transform:\s*scale\(0\.94\)/i);
+  assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)/i);
+});
+
 test("home quick actions route to the intended primary destinations", () => {
   assert.match(home, /href="nutrition\.html#manualEntrySection"[^>]*aria-label="Log Meal"/i);
   assert.match(home, /href="ari-circle-meetup\.html"[^>]*aria-label="Open Circle"/i);
