@@ -34,3 +34,118 @@
     font-size:16px !important;
   }
 }
+
+
+/* Meetup circular GPS action */
+.ari-circle-location-orb{
+  position:relative;
+  isolation:isolate;
+  display:grid;
+  width:104px;
+  height:104px;
+  margin:0;
+  place-items:center;
+  align-content:center;
+  gap:2px;
+  overflow:visible;
+  border:1px solid rgba(115,139,214,.26);
+  border-radius:50%;
+  background:
+    radial-gradient(circle at 50% 28%,rgba(255,255,255,.98) 0 18%,rgba(255,255,255,.34) 19% 31%,transparent 32%),
+    radial-gradient(circle at 50% 50%,rgba(75,205,235,.10),transparent 58%),
+    linear-gradient(145deg,rgba(255,255,255,.98),rgba(240,246,255,.93) 58%,rgba(244,238,255,.92));
+  box-shadow:0 12px 28px rgba(66,104,243,.13),0 0 0 4px rgba(105,205,240,.05),inset 0 1px 0 rgba(255,255,255,.98);
+  font-family:Inter,sans-serif;
+}
+.ari-circle-location-orb::before{
+  content:"";
+  position:absolute;
+  inset:13px;
+  z-index:-1;
+  border-radius:50%;
+  background:radial-gradient(circle,transparent 0 37%,rgba(88,133,229,.09) 38% 39%,transparent 40% 58%,rgba(139,108,244,.08) 59% 60%,transparent 61%);
+  pointer-events:none;
+}
+.ari-circle-location-orb__current{
+  position:relative;
+  z-index:2;
+  display:grid;
+  width:37px;
+  height:37px;
+  padding:0;
+  place-items:center;
+  border:1px solid rgba(240,90,106,.16);
+  border-radius:50%;
+  color:#f04e61;
+  background:rgba(255,255,255,.82);
+  box-shadow:0 6px 16px rgba(235,75,98,.10);
+  cursor:pointer;
+  touch-action:manipulation;
+}
+.ari-circle-location-orb__current:disabled{opacity:.52;cursor:default}
+.ari-circle-location-orb__pin{display:grid;width:24px;height:24px;place-items:center}
+.ari-circle-location-orb__pin svg{width:23px;height:23px;overflow:visible;fill:#f04e61}
+.ari-circle-location-orb__pin circle{fill:#fff}
+.ari-circle-location-orb__copy{
+  position:relative;
+  z-index:2;
+  display:grid;
+  width:90%;
+  min-width:0;
+  justify-items:center;
+  gap:4px;
+  padding:0 5px;
+  border:0;
+  color:#17273d;
+  background:transparent;
+  font-family:Inter,sans-serif;
+  text-align:center;
+  cursor:pointer;
+  touch-action:manipulation;
+}
+.ari-circle-location-orb__copy strong{
+  display:block;
+  width:100%;
+  overflow:hidden;
+  color:#17273d;
+  font:900 .72rem/1.05 Inter,sans-serif;
+  letter-spacing:-.02em;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.ari-circle-location-orb__meta{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  color:#6d7d98;
+  font:800 .61rem/1 Inter,sans-serif;
+  white-space:nowrap;
+}
+.ari-circle-location-orb__meta svg{width:12px;height:12px;fill:#6f82b1}
+.ari-circle-location-orb .ari-circle-location-panel{
+  position:absolute;
+  z-index:80;
+  top:calc(100% + 10px);
+  left:50%;
+  width:min(360px,calc(100vw - 32px));
+  max-width:min(360px,calc(100vw - 32px));
+  min-width:min(300px,calc(100vw - 32px));
+  margin:0;
+  transform:translateX(-50%);
+  text-align:left;
+}
+@media(max-width:420px){
+  .ari-circle-location-orb{width:96px;height:96px}
+  .ari-circle-location-orb__current{width:34px;height:34px}
+  .ari-circle-location-orb__pin svg{width:21px;height:21px}
+  .ari-circle-location-orb__copy strong{font-size:.69rem}
+  .ari-circle-location-orb__meta{font-size:.58rem}
+}
+@media(max-width:360px){
+  .ari-circle-location-orb{width:88px;height:88px}
+  .ari-circle-location-orb__current{width:31px;height:31px}
+  .ari-circle-location-orb__copy{gap:3px}
+  .ari-circle-location-orb__copy strong{font-size:.64rem}
+  .ari-circle-location-orb__meta{font-size:.54rem}
+}
