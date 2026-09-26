@@ -1,13 +1,14 @@
 // js/ari-circle/profile/profile-editor.js
-// ARI Circle — Profile Editor V2.4.0
+// ARI Circle — Profile Editor V2.5.0
 //
 // The profile is intentionally compact: identity, about, interests,
 // and four showcase slots managed separately by profile-gallery-v1.
 
 import CircleStore from "../core/circle-store.js";
 import CircleEvents, { EVENT_NAMES } from "../core/circle-events.js";
+import ProfileMedia, { MEDIA_TYPES } from "../media/profile-media.js";
 
-const VERSION = "2.4.0";
+const VERSION = "2.5.0";
 const SOURCE = "ari-circle/profile/profile-editor";
 const AUTOSAVE_DELAY_MS = 650;
 const PROFILE_SAVED_EVENT = "circle:profile-saved";
@@ -183,7 +184,10 @@ const ProfileEditor = {
     dialog: null,
     form: null,
     fields: null,
-    saveStatus: null
+    saveStatus: null,
+    customBackgroundPicker: null,
+    customBackgroundButton: null,
+    customBackgroundInput: null
   },
 
   init() {
@@ -201,6 +205,12 @@ const ProfileEditor = {
     this.dom.form = document.getElementById("circle-profile-editor-form");
     this.dom.fields = document.getElementById("circle-profile-editor-fields");
     this.dom.saveStatus = document.getElementById("circle-profile-save-status");
+    this.dom.customBackgroundPicker =
+      document.getElementById("circle-custom-background-picker");
+    this.dom.customBackgroundButton =
+      document.getElementById("circle-custom-background-button");
+    this.dom.customBackgroundInput =
+      document.getElementById("circle-editor-custom-cover-input");
   },
 
   bindEvents() {
@@ -240,8 +250,12 @@ const ProfileEditor = {
         control?.name === "cover_url" &&
         control?.value === "__custom_photo__"
       ) {
-        this.chooseCustomBackground();
+        this.showCustomBackgroundPicker();
         return;
+      }
+
+      if (control?.name === "cover_url") {
+        this.hideCustomBackgroundPicker();
       }
 
       const immediate =
@@ -250,7 +264,16 @@ const ProfileEditor = {
       this.scheduleAutoSave({ immediate });
     });
 
+    this.dom.customBackgroundButton?.addEventListener("click", () => {
+      this.chooseCustomBackground();
+    });
+
+    this.dom.customBackgroundInput?.addEventListener("change", event => {
+      this.handleCustomBackgroundFile(event);
+    });
+
     this.dom.dialog?.addEventListener("close", () => {
+      this.hideCustomBackgroundPicker();
       this.flushAutoSave();
     });
   },
@@ -268,6 +291,7 @@ const ProfileEditor = {
       this.dom.fields.append(this.createField(field));
     }
 
+    this.installCustomBackgroundPicker();
     this.state.fieldsBuilt = true;
   },
 
@@ -276,6 +300,47 @@ const ProfileEditor = {
     heading.className = "circle-editor-section-title";
     heading.textContent = title;
     return heading;
+  },
+
+  installCustomBackgroundPicker() {
+    if (!this.dom.fields || document.getElementById("circle-custom-background-picker")) {
+      this.cacheDom();
+      return;
+    }
+
+    const backgroundField =
+      this.dom.fields.querySelector('[data-field="cover_url"]');
+
+    if (!backgroundField) return;
+
+    const picker =
+      document.createElement("div");
+    picker.id = "circle-custom-background-picker";
+    picker.className = "circle-custom-background-picker";
+    picker.hidden = true;
+
+    const note =
+      document.createElement("p");
+    note.className = "circle-custom-background-picker__note";
+    note.textContent = "Use a photo from your library as the full profile background.";
+
+    const button =
+      document.createElement("button");
+    button.id = "circle-custom-background-button";
+    button.className = "circle-button circle-button--secondary circle-button--full";
+    button.type = "button";
+    button.textContent = "Choose photo from library";
+
+    const input =
+      document.createElement("input");
+    input.id = "circle-editor-custom-cover-input";
+    input.type = "file";
+    input.accept = "image/*";
+    input.hidden = true;
+
+    picker.append(note, button, input);
+    backgroundField.insertAdjacentElement("afterend", picker);
+    this.cacheDom();
   },
 
   createField(field) {
@@ -399,24 +464,30 @@ const ProfileEditor = {
     return true;
   },
 
-  chooseCustomBackground() {
-    const profile =
-      CircleStore.get("profile") || {};
-
-    const currentValue =
-      getNestedProfileValue(profile, "cover_url");
-
+  showCustomBackgroundPicker() {
     window.clearTimeout(this.state.saveTimer);
     this.state.saveTimer = 0;
 
-    this.state.suppressAutoSave = true;
-    this.syncBackgroundControl(currentValue);
-    this.state.suppressAutoSave = false;
+    if (this.dom.customBackgroundPicker) {
+      this.dom.customBackgroundPicker.hidden = false;
+    }
 
-    const input =
-      document.getElementById("circle-cover-input");
+    this.setAutoSaveState(
+      "saved",
+      "Tap Choose photo from library"
+    );
 
-    if (!input) {
+    return true;
+  },
+
+  hideCustomBackgroundPicker() {
+    if (this.dom.customBackgroundPicker) {
+      this.dom.customBackgroundPicker.hidden = true;
+    }
+  },
+
+  chooseCustomBackground() {
+    if (!this.dom.customBackgroundInput) {
       this.setAutoSaveState(
         "error",
         "Photo library is unavailable right now."
@@ -424,12 +495,49 @@ const ProfileEditor = {
       return false;
     }
 
+    this.dom.customBackgroundInput.value = "";
+
+    try {
+      if (typeof this.dom.customBackgroundInput.showPicker === "function") {
+        this.dom.customBackgroundInput.showPicker();
+      } else {
+        this.dom.customBackgroundInput.click();
+      }
+    } catch {
+      this.dom.customBackgroundInput.click();
+    }
+
+    return true;
+  },
+
+  async handleCustomBackgroundFile(event) {
+    const input = event?.target;
+    const file = input?.files?.[0] || null;
+
+    if (input) input.value = "";
+    if (!file) return false;
+
+    this.setAutoSaveState("saving", "Uploading background…");
+
+    const result =
+      await ProfileMedia.processFile(
+        MEDIA_TYPES.COVER,
+        file
+      );
+
+    if (!result) {
+      this.setAutoSaveState(
+        "error",
+        "Couldn’t use that background photo."
+      );
+      return false;
+    }
+
     this.setAutoSaveState(
-      "saved",
-      "Choose a background photo from your library"
+      "saving",
+      "Uploading background…"
     );
 
-    input.click();
     return true;
   },
 
@@ -548,7 +656,10 @@ const ProfileEditor = {
       display_name: getValue("display_name"),
       handle,
       bio: getValue("bio"),
-      cover_url: getValue("cover_url"),
+      cover_url:
+        getValue("cover_url") === "__custom_photo__"
+          ? getNestedProfileValue(CircleStore.get("profile") || {}, "cover_url")
+          : getValue("cover_url"),
       location: getValue("location"),
       birthday: getValue("birthday"),
       goal: getValue("goal"),
