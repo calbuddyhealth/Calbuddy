@@ -32,6 +32,16 @@ test("Find Friends page has local radar, mutual suggestions, search, and profile
   assert.match(friendsCss, /circle-friend-card__avatar/);
 });
 
+test("Find Friends prevents iOS focus auto-zoom and releases focus before navigation", () => {
+  assert.match(friendsCss, /circle-friends-search input[\s\S]*font:700 16px\/1\.2/);
+  assert.match(friendsCss, /circle-friends-page input[\s\S]*font-size: 16px !important/);
+  assert.match(friendsCss, /circle-friends-page select/);
+  assert.match(friendsJs, /function settleVisualViewport\(\)/);
+  assert.match(friendsJs, /settleVisualViewport\(\);[\s\S]*void load/);
+  assert.match(friendsHtml, /ari-circle-find-friends-v1\.css\?v=1\.0\.1/);
+  assert.match(friendsHtml, /find-friends-v1\.js\?v=1\.0\.1/);
+});
+
 test("friend discovery backend uses private coarse location and mutual accepted connections without returning coordinates", () => {
   assert.match(migration, /private\.ari_circle_search_locations/);
   assert.match(migration, /viewer_friends/);
