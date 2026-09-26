@@ -1,7 +1,7 @@
 /* =====================================================
    ARI REBIRTH
    File: assets/css/home.css
-   Version: 2.4.0
+   Version: 2.5.0
    Purpose:
    Premium white futuristic space-lab homepage.
 
@@ -31,6 +31,10 @@
    - Adds the action-first Log Meal / Circle / Train shortcut row.
    - Preserves Circle's adult entitlement gate.
    - Rebalances the welcome hero around the new quick-action row.
+
+   V2.5.0:
+   - Converts homepage shortcuts from pill tabs to circular glass action orbs.
+   - Places compact labels beneath each orb while preserving horizontal order.
 ===================================================== */
 
 :root {
@@ -55,7 +59,7 @@
     inset 0 -1px 0 rgba(122, 139, 214, 0.10);
   --ari-header-top: calc(env(safe-area-inset-top, 0px) + 16px);
   --ari-header-height: clamp(96px, 13.5vw, 124px);
-  --ari-quick-actions-height: clamp(44px, 9.6vw, 54px);
+  --ari-quick-actions-height: clamp(82px, 14vw, 104px);
   --ari-quick-actions-gap: clamp(9px, 1.5vh, 14px);
   --ari-composer-height: clamp(148px, 18svh, 184px);
   --ari-hero-rise: clamp(38px, 5.7svh, 56px);
@@ -396,9 +400,10 @@ a {
   left: 50%;
   z-index: 29;
   display: flex;
-  align-items: stretch;
-  gap: clamp(8px, 2.2vw, 14px);
-  width: min(calc(100% - 30px), 720px);
+  align-items: flex-start;
+  justify-content: space-around;
+  gap: clamp(12px, 4vw, 34px);
+  width: min(calc(100% - 46px), 610px);
   height: var(--ari-quick-actions-height);
   transform: translateX(-50%);
   transition:
@@ -410,49 +415,20 @@ a {
 .ari-home-quick-action {
   position: relative;
   display: inline-flex;
-  flex: 1 1 0;
+  flex: 0 1 132px;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: clamp(7px, 1.9vw, 12px);
+  justify-content: flex-start;
+  gap: clamp(6px, 1.2vw, 9px);
   min-width: 0;
-  padding: 0 clamp(9px, 2.6vw, 18px);
-  overflow: hidden;
+  height: 100%;
   color: var(--ari-lab-navy);
-  border: 1px solid rgba(102, 125, 214, 0.24);
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 16% 0%, rgba(255, 255, 255, 0.99), transparent 45%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(241, 245, 255, 0.90));
-  box-shadow:
-    0 10px 24px rgba(53, 68, 137, 0.11),
-    0 0 16px rgba(32, 228, 241, 0.07),
-    inset 0 1px 0 rgba(255, 255, 255, 0.98),
-    inset 0 -1px 0 rgba(100, 119, 202, 0.10);
-  -webkit-backdrop-filter: blur(20px) saturate(145%);
-  backdrop-filter: blur(20px) saturate(145%);
   font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: clamp(12px, 3.25vw, 16px);
-  font-weight: 650;
   line-height: 1;
   white-space: nowrap;
   transition:
     transform 160ms ease,
-    border-color 180ms ease,
-    box-shadow 180ms ease;
-}
-
-.ari-home-quick-action::after {
-  position: absolute;
-  right: 12%;
-  bottom: 0;
-  left: 12%;
-  height: 1px;
-  content: "";
-  pointer-events: none;
-  opacity: 0.58;
-  border-radius: 999px;
-  background: linear-gradient(90deg, transparent, var(--quick-accent, var(--ari-lab-cyan)), transparent);
-  box-shadow: 0 0 9px color-mix(in srgb, var(--quick-accent, var(--ari-lab-cyan)) 58%, transparent);
+    filter 180ms ease;
 }
 
 .ari-home-quick-action--meal {
@@ -467,16 +443,83 @@ a {
   --quick-accent: #7668ff;
 }
 
-.ari-home-quick-icon {
+.ari-home-quick-orb {
+  position: relative;
+  display: grid;
   flex: 0 0 auto;
-  width: clamp(19px, 4.8vw, 25px);
-  height: clamp(19px, 4.8vw, 25px);
+  place-items: center;
+  width: clamp(58px, 11.5vw, 76px);
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--quick-accent) 38%, rgba(112, 127, 207, 0.28));
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.99), transparent 34%),
+    radial-gradient(circle at 50% 92%, color-mix(in srgb, var(--quick-accent) 10%, transparent), transparent 50%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.97), rgba(239, 244, 255, 0.88));
+  box-shadow:
+    0 12px 24px rgba(53, 68, 137, 0.12),
+    0 0 18px color-mix(in srgb, var(--quick-accent) 17%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.99),
+    inset 0 -1px 0 rgba(100, 119, 202, 0.12);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.ari-home-quick-orb::before,
+.ari-home-quick-orb::after {
+  position: absolute;
+  content: "";
+  pointer-events: none;
+  border-radius: 50%;
+}
+
+.ari-home-quick-orb::before {
+  inset: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  box-shadow:
+    inset 0 0 14px color-mix(in srgb, var(--quick-accent) 9%, transparent),
+    0 0 8px color-mix(in srgb, var(--quick-accent) 10%, transparent);
+}
+
+.ari-home-quick-orb::after {
+  right: 16%;
+  bottom: 10%;
+  width: 7px;
+  aspect-ratio: 1;
+  opacity: 0.68;
+  background: var(--quick-accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--quick-accent) 70%, transparent);
+}
+
+.ari-home-quick-icon {
+  position: relative;
+  z-index: 1;
+  width: clamp(25px, 5.3vw, 33px);
+  height: clamp(25px, 5.3vw, 33px);
   fill: none;
   stroke: var(--quick-accent);
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
-  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--quick-accent) 38%, transparent));
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--quick-accent) 40%, transparent));
+}
+
+.ari-home-quick-label {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--ari-lab-navy);
+  font-size: clamp(11px, 2.7vw, 14px);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
+  text-align: center;
+  text-overflow: ellipsis;
 }
 
 .conversation-mode .ari-home-quick-actions {
@@ -1603,11 +1646,15 @@ body.ari-menu-open {
 
   .ari-home-quick-action:hover {
     transform: translateY(-2px);
-    border-color: color-mix(in srgb, var(--quick-accent) 52%, rgba(102, 125, 214, 0.24));
+  }
+
+  .ari-home-quick-action:hover .ari-home-quick-orb {
+    transform: translateY(-2px) scale(1.035);
+    border-color: color-mix(in srgb, var(--quick-accent) 60%, rgba(102, 125, 214, 0.24));
     box-shadow:
-      0 14px 28px rgba(53, 68, 137, 0.13),
-      0 0 20px color-mix(in srgb, var(--quick-accent) 16%, transparent),
-      inset 0 1px 0 rgba(255, 255, 255, 0.98);
+      0 16px 30px rgba(53, 68, 137, 0.14),
+      0 0 24px color-mix(in srgb, var(--quick-accent) 22%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.99);
   }
 
   .ari-send-btn:hover,
@@ -1682,19 +1729,26 @@ body.ari-menu-open {
   }
 
   .ari-home-quick-actions {
-    width: calc(100% - 24px);
-    gap: 7px;
+    width: calc(100% - 34px);
+    gap: clamp(8px, 3vw, 16px);
   }
 
   .ari-home-quick-action {
+    flex-basis: 104px;
     gap: 6px;
-    padding: 0 8px;
-    font-size: clamp(11px, 3.25vw, 14px);
+  }
+
+  .ari-home-quick-orb {
+    width: clamp(56px, 17vw, 70px);
   }
 
   .ari-home-quick-icon {
-    width: clamp(18px, 5vw, 22px);
-    height: clamp(18px, 5vw, 22px);
+    width: clamp(24px, 7vw, 30px);
+    height: clamp(24px, 7vw, 30px);
+  }
+
+  .ari-home-quick-label {
+    font-size: clamp(11px, 3.25vw, 13px);
   }
 
   .ari-hero-img {
@@ -1792,18 +1846,26 @@ body.ari-menu-open {
   }
 
   .ari-home-quick-actions {
+    width: calc(100% - 24px);
     gap: 5px;
   }
 
   .ari-home-quick-action {
-    gap: 4px;
-    padding: 0 6px;
-    font-size: 10.5px;
+    flex-basis: 92px;
+    gap: 5px;
+  }
+
+  .ari-home-quick-orb {
+    width: 54px;
   }
 
   .ari-home-quick-icon {
-    width: 17px;
-    height: 17px;
+    width: 23px;
+    height: 23px;
+  }
+
+  .ari-home-quick-label {
+    font-size: 10.5px;
   }
 
   .ari-input-shell {
@@ -1822,7 +1884,7 @@ body.ari-menu-open {
   :root {
     --ari-header-top: calc(env(safe-area-inset-top, 0px) + 9px);
     --ari-header-height: 90px;
-    --ari-quick-actions-height: 40px;
+    --ari-quick-actions-height: 70px;
     --ari-quick-actions-gap: 7px;
     --ari-composer-height: 136px;
     --ari-hero-rise: 30px;
@@ -1836,6 +1898,19 @@ body.ari-menu-open {
       var(--ari-quick-actions-height) +
       7px
     );
+  }
+
+  .ari-home-quick-orb {
+    width: 50px;
+  }
+
+  .ari-home-quick-icon {
+    width: 21px;
+    height: 21px;
+  }
+
+  .ari-home-quick-label {
+    font-size: 10px;
   }
 
   .ari-bottom-input {
@@ -1882,7 +1957,7 @@ body.ari-menu-open {
   :root {
     --ari-header-top: calc(env(safe-area-inset-top, 0px) + 8px);
     --ari-header-height: 82px;
-    --ari-quick-actions-height: 38px;
+    --ari-quick-actions-height: 54px;
     --ari-quick-actions-gap: 6px;
     --ari-composer-height: 118px;
     --ari-hero-rise: 18px;
@@ -1901,6 +1976,19 @@ body.ari-menu-open {
       var(--ari-quick-actions-height) +
       4px
     );
+  }
+
+  .ari-home-quick-orb {
+    width: 38px;
+  }
+
+  .ari-home-quick-icon {
+    width: 17px;
+    height: 17px;
+  }
+
+  .ari-home-quick-label {
+    font-size: 8.5px;
   }
 
   .ari-hero-img {

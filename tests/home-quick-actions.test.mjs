@@ -19,7 +19,12 @@ test("home quick actions are horizontal and ordered Log Meal, Circle, Train", ()
   assert.ok(circle > meal, "Circle should be in the middle");
   assert.ok(train > circle, "Train should be last");
   assert.match(css, /\.ari-home-quick-actions\s*\{[\s\S]*display:\s*flex/i);
-  assert.match(css, /\.ari-home-quick-action\s*\{[\s\S]*flex:\s*1\s+1\s+0/i);
+  assert.match(css, /\.ari-home-quick-action\s*\{[\s\S]*flex-direction:\s*column/i);
+  assert.match(css, /\.ari-home-quick-orb\s*\{[\s\S]*aspect-ratio:\s*1[\s\S]*border-radius:\s*50%/i);
+  assert.match(quick, /class="ari-home-quick-orb"/i);
+  assert.match(quick, /class="ari-home-quick-label">Log Meal</i);
+  assert.match(quick, /class="ari-home-quick-label">Circle</i);
+  assert.match(quick, /class="ari-home-quick-label">Train</i);
 });
 
 test("home quick actions route to the intended primary destinations", () => {
