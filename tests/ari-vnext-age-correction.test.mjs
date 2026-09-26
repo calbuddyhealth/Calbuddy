@@ -16,26 +16,18 @@ test("birthday correction is a pending owner-review workflow, never a direct DOB
   assert.doesNotMatch(sql, /update public\.ari_account_state[\s\S]{0,500}requested_date_of_birth[\s\S]{0,500}insert into public\.ari_age_correction_requests/i);
 });
 
-test("request requires password authentication evidence while explanation remains optional", () => {
-  const sql = source("supabase/migrations/20260818232000_age_correction_support_workflow.sql");
-  assert.match(sql, /auth\.jwt\(\)->'amr'/i);
-  assert.match(sql, /item->>'method' = 'password'/i);
-  assert.match(sql, /now\(\) - interval '5 minutes'/i);
-  assert.match(sql, /requested_explanation text default null/i);
-  assert.match(sql, /left\(btrim\(coalesce\(requested_explanation, ''\)\), 2000\)/i);
-  assert.doesNotMatch(sql, /between 20 and 2000/i);
-  assert.doesNotMatch(sql, /explain why the birthday needs to be corrected/i);
-  assert.doesNotMatch(sql, /current_password\s+text/i);
-  assert.doesNotMatch(sql, /password\s+text\s+not\s+null/i);
-});
-
-test("forward migration removes the legacy explanation minimum without weakening reauthentication", () => {
+test("current request contract keeps password reauthentication while explanation is optional", () => {
   const sql = source("supabase/migrations/20260926175500_optional_age_correction_explanation.sql");
   assert.match(sql, /drop constraint if exists ari_age_correction_explanation_length/i);
   assert.match(sql, /check \(char_length\(explanation\) <= 2000\)/i);
   assert.match(sql, /requested_explanation text default null/i);
+  assert.match(sql, /left\(btrim\(coalesce\(requested_explanation, ''\)\), 2000\)/i);
+  assert.match(sql, /password_auth_at := public\.ari_recent_password_auth_at\(\)/i);
   assert.match(sql, /now\(\) - interval '5 minutes'/i);
   assert.doesNotMatch(sql, /between 20 and 2000/i);
+  assert.doesNotMatch(sql, /explain why the birthday needs to be corrected/i);
+  assert.doesNotMatch(sql, /current_password\s+text/i);
+  assert.doesNotMatch(sql, /password\s+text\s+not\s+null/i);
 });
 
 test("only the owner role can approve or deny a protected DOB correction", () => {
