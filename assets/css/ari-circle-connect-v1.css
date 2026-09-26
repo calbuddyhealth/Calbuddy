@@ -854,3 +854,294 @@ body.circle-connect-next .circle-connect-section {
   .circle-connect-action__icon{width:27px;height:27px;font-size:1.2rem}
   .circle-connect-action__label{font-size:.68rem}
 }
+
+
+/* Connect V1.6 — fluid meetup bubbles + invitation cover media */
+.circle-connect-card {
+  isolation:isolate;
+  overflow:hidden;
+  padding:14px 15px 15px;
+  border:1px solid rgba(216,226,239,.96);
+  border-radius:34px 34px 30px 42px / 32px 34px 40px 36px;
+  background:rgba(255,255,255,.92);
+  box-shadow:
+    0 16px 34px rgba(42,61,96,.075),
+    inset 0 1px 0 rgba(255,255,255,.98);
+  backdrop-filter:blur(18px) saturate(1.08);
+  -webkit-backdrop-filter:blur(18px) saturate(1.08);
+}
+.circle-connect-card::before {
+  inset:-42% 46% 34% -12%;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(70,202,235,.14),rgba(92,122,246,.055) 48%,transparent 72%);
+  filter:blur(2px);
+}
+.circle-connect-card::after {
+  content:"";
+  position:absolute;
+  z-index:0;
+  right:-42px;
+  bottom:-58px;
+  width:180px;
+  height:150px;
+  pointer-events:none;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(145,105,246,.12),rgba(76,190,241,.045) 52%,transparent 73%);
+}
+.circle-connect-card > * {
+  position:relative;
+  z-index:1;
+}
+.circle-connect-card__top {
+  grid-template-columns:42px minmax(0,1fr) auto;
+  gap:10px;
+}
+.circle-connect-avatar {
+  width:42px;
+  height:42px;
+  border-radius:50%;
+  border:2px solid rgba(255,255,255,.96);
+  box-shadow:0 4px 14px rgba(36,53,86,.12),0 0 0 1px #dfe7f1;
+}
+.circle-connect-activity-badge {
+  padding:7px 10px;
+  border-color:rgba(208,223,244,.9);
+  background:linear-gradient(145deg,rgba(244,250,255,.96),rgba(243,240,255,.94));
+  box-shadow:0 5px 13px rgba(47,70,112,.05);
+}
+.circle-connect-card__content {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 122px;
+  gap:13px;
+  align-items:center;
+  margin-top:10px;
+}
+.circle-connect-card__body {
+  min-width:0;
+}
+.circle-connect-card__body h3 {
+  margin:0 0 7px;
+  font-size:1.32rem;
+  line-height:1;
+  letter-spacing:-.045em;
+}
+.circle-connect-card__body > p {
+  margin:0 0 8px;
+}
+.circle-connect-card__media {
+  position:relative;
+  width:122px;
+  aspect-ratio:4 / 3;
+  overflow:hidden;
+  display:grid;
+  place-items:center;
+  justify-self:end;
+  border:1px solid rgba(255,255,255,.92);
+  border-radius:25px 25px 18px 28px / 23px 27px 22px 27px;
+  background:linear-gradient(145deg,#eef8ff,#e6edff 50%,#f0e9ff);
+  box-shadow:
+    0 9px 22px rgba(41,61,96,.12),
+    inset 0 0 0 1px rgba(191,210,235,.38);
+}
+.circle-connect-card__media::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:linear-gradient(145deg,rgba(255,255,255,.42),transparent 40%,rgba(80,105,245,.07));
+}
+.circle-connect-card__media img {
+  position:absolute;
+  z-index:2;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+.circle-connect-card__media-fallback {
+  position:relative;
+  z-index:1;
+  display:grid;
+  width:48px;
+  height:48px;
+  place-items:center;
+  border:1px solid rgba(255,255,255,.72);
+  border-radius:50%;
+  background:rgba(255,255,255,.58);
+  box-shadow:0 7px 18px rgba(36,54,88,.08);
+  font-size:1.4rem;
+}
+.circle-connect-card__media small {
+  position:absolute;
+  z-index:3;
+  right:8px;
+  bottom:7px;
+  max-width:calc(100% - 16px);
+  overflow:hidden;
+  padding:5px 7px;
+  color:#415573;
+  border:1px solid rgba(255,255,255,.72);
+  border-radius:999px;
+  background:rgba(255,255,255,.82);
+  backdrop-filter:blur(8px);
+  font:850 .52rem/1 Inter,sans-serif;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.circle-connect-media--gym { background:linear-gradient(145deg,#eef7ff,#e4ebff 54%,#ece7ff); }
+.circle-connect-media--hiking,
+.circle-connect-media--walking { background:linear-gradient(145deg,#ecfff7,#e5f6ee 50%,#edf2ff); }
+.circle-connect-media--running,
+.circle-connect-media--sports { background:linear-gradient(145deg,#f1f7ff,#e7edff 52%,#f1e8ff); }
+.circle-connect-media--cycling { background:linear-gradient(145deg,#e9fbff,#e8f4ff 48%,#ece9ff); }
+.circle-connect-media--yoga { background:linear-gradient(145deg,#f7f1ff,#eeeaff 50%,#e8f8ff); }
+.circle-connect-media--coffee,
+.circle-connect-media--food { background:linear-gradient(145deg,#fff7ee,#fff0e5 48%,#f3edff); }
+.circle-connect-media--community,
+.circle-connect-media--volunteer { background:linear-gradient(145deg,#effaff,#eaf2ff 48%,#efeaff); }
+.circle-connect-media--movies { background:linear-gradient(145deg,#eff5ff,#e7ecff 48%,#efe8ff); }
+.circle-connect-media--music { background:linear-gradient(145deg,#f5efff,#eaeaff 52%,#e6f8ff); }
+.circle-connect-media--beach { background:linear-gradient(145deg,#e7fbff,#e8f7f1 50%,#eef0ff); }
+.circle-connect-media--drinks { background:linear-gradient(145deg,#fff2f7,#f3eaff 52%,#e7f7ff); }
+
+.circle-connect-facts {
+  gap:4px 5px;
+  font-size:.62rem;
+}
+.circle-connect-card__actions {
+  margin-top:12px;
+}
+.circle-connect-card__actions .circle-v5-button-primary {
+  min-height:44px !important;
+  border-radius:999px !important;
+  box-shadow:0 9px 20px rgba(79,111,245,.18);
+}
+.circle-connect-card-menu > summary {
+  width:44px;
+  height:44px;
+  border-radius:50%;
+}
+.circle-connect-card.is-live {
+  border-radius:38px 32px 34px 42px / 34px 38px 38px 34px;
+  background:linear-gradient(145deg,rgba(242,255,250,.94),rgba(255,255,255,.94) 54%,rgba(246,246,255,.95));
+}
+
+.circle-connect-cover-field__label {
+  display:flex;
+  align-items:baseline;
+  gap:7px;
+  margin-bottom:8px;
+}
+.circle-connect-cover-field__label > span {
+  color:#3b4d68;
+  font:800 .7rem/1.2 Inter,sans-serif;
+}
+.circle-connect-cover-field__label small {
+  color:#8190a5;
+  font:700 .62rem/1 Inter,sans-serif;
+}
+.circle-connect-cover-picker {
+  position:relative;
+}
+.circle-connect-cover-add {
+  width:100%;
+  min-height:92px;
+  display:grid;
+  grid-template-columns:42px minmax(0,1fr);
+  grid-template-rows:auto auto;
+  align-items:center;
+  column-gap:11px;
+  padding:14px;
+  color:#50617a;
+  border:1px dashed #cfdbea;
+  border-radius:22px;
+  background:linear-gradient(145deg,#fbfdff,#f5f8ff 54%,#faf7ff);
+  text-align:left;
+  cursor:pointer;
+}
+.circle-connect-cover-add > span {
+  grid-row:1 / 3;
+  display:grid;
+  width:42px;
+  height:42px;
+  place-items:center;
+  color:#4d70ef;
+  border:1px solid #d7e4fb;
+  border-radius:50%;
+  background:#fff;
+  font:700 1.25rem/1 Inter,sans-serif;
+}
+.circle-connect-cover-add strong {
+  align-self:end;
+  color:#233550;
+  font:850 .76rem/1.15 Inter,sans-serif;
+}
+.circle-connect-cover-add small {
+  align-self:start;
+  margin-top:3px;
+  color:#8290a3;
+  font:650 .62rem/1.25 Inter,sans-serif;
+}
+.circle-connect-cover-preview {
+  position:relative;
+  overflow:hidden;
+  min-height:150px;
+  border:1px solid #dbe4ef;
+  border-radius:24px;
+  background:#edf3fb;
+  box-shadow:0 8px 22px rgba(31,45,70,.07);
+}
+.circle-connect-cover-preview[hidden],
+.circle-connect-cover-add[hidden] {
+  display:none !important;
+}
+.circle-connect-cover-preview img {
+  display:block;
+  width:100%;
+  height:170px;
+  object-fit:cover;
+}
+.circle-connect-cover-preview button {
+  position:absolute;
+  right:10px;
+  bottom:10px;
+  min-height:34px;
+  padding:0 12px;
+  color:#263955;
+  border:1px solid rgba(255,255,255,.78);
+  border-radius:999px;
+  background:rgba(255,255,255,.9);
+  box-shadow:0 5px 15px rgba(25,39,63,.14);
+  font:800 .62rem/1 Inter,sans-serif;
+}
+
+@media (max-width:560px) {
+  .circle-connect-card {
+    padding:13px;
+    border-radius:31px 31px 28px 38px / 29px 32px 37px 32px;
+  }
+  .circle-connect-card__content {
+    grid-template-columns:minmax(0,1fr) 108px;
+    gap:10px;
+  }
+  .circle-connect-card__media {
+    width:108px;
+    border-radius:22px 22px 16px 24px;
+  }
+  .circle-connect-card__media-fallback {
+    width:44px;
+    height:44px;
+    font-size:1.25rem;
+  }
+}
+@media (max-width:370px) {
+  .circle-connect-card__content {
+    grid-template-columns:minmax(0,1fr) 92px;
+  }
+  .circle-connect-card__media {
+    width:92px;
+  }
+  .circle-connect-card__media small {
+    display:none;
+  }
+}
