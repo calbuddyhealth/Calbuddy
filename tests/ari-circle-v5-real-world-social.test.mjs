@@ -13,8 +13,8 @@ const showcaseMigration = fs.readFileSync("supabase/migrations/20260925161000_ar
 const connections = fs.readFileSync("js/ari-circle/connections/connections-controller.js", "utf8");
 
 test("Connect prioritizes people doing things and the two primary actions", () => {
-  assert.match(meetupHtml, /id="hostMeetupButton"[^>]*>Host<\/button>/);
-  assert.match(meetupHtml, /href="ari-circle-friends\.html">Find Friends/);
+  assert.match(meetupHtml, /id="hostMeetupButton"[\s\S]*circle-connect-action__label">Host<\/span>/);
+  assert.match(meetupHtml, /href="ari-circle-friends\.html"[\s\S]*circle-connect-action__label">Find Friends<\/span>/);
   assert.doesNotMatch(meetupHtml, /Find something to do\./);
   assert.match(meetupHtml, /HAPPENING NOW/);
   assert.match(meetupHtml, /TODAY/);
