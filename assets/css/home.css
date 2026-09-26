@@ -1,7 +1,7 @@
 /* =====================================================
    ARI REBIRTH
    File: assets/css/home.css
-   Version: 2.5.0
+   Version: 2.6.0
    Purpose:
    Premium white futuristic space-lab homepage.
 
@@ -35,6 +35,10 @@
    V2.5.0:
    - Converts homepage shortcuts from pill tabs to circular glass action orbs.
    - Places compact labels beneath each orb while preserving horizontal order.
+
+   V2.6.0:
+   - Removes visible quick-action labels and keeps accessible icon-only orbs.
+   - Reclaims vertical space so the Ari hero begins higher again.
 ===================================================== */
 
 :root {
@@ -59,7 +63,7 @@
     inset 0 -1px 0 rgba(122, 139, 214, 0.10);
   --ari-header-top: calc(env(safe-area-inset-top, 0px) + 16px);
   --ari-header-height: clamp(96px, 13.5vw, 124px);
-  --ari-quick-actions-height: clamp(82px, 14vw, 104px);
+  --ari-quick-actions-height: clamp(62px, 12vw, 82px);
   --ari-quick-actions-gap: clamp(9px, 1.5vh, 14px);
   --ari-composer-height: clamp(148px, 18svh, 184px);
   --ari-hero-rise: clamp(38px, 5.7svh, 56px);
@@ -400,7 +404,7 @@ a {
   left: 50%;
   z-index: 29;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-around;
   gap: clamp(12px, 4vw, 34px);
   width: min(calc(100% - 46px), 610px);
@@ -416,10 +420,8 @@ a {
   position: relative;
   display: inline-flex;
   flex: 0 1 132px;
-  flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  gap: clamp(6px, 1.2vw, 9px);
+  justify-content: center;
   min-width: 0;
   height: 100%;
   color: var(--ari-lab-navy);
@@ -507,19 +509,6 @@ a {
   stroke-linecap: round;
   stroke-linejoin: round;
   filter: drop-shadow(0 0 5px color-mix(in srgb, var(--quick-accent) 40%, transparent));
-}
-
-.ari-home-quick-label {
-  display: block;
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--ari-lab-navy);
-  font-size: clamp(11px, 2.7vw, 14px);
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  line-height: 1.05;
-  text-align: center;
-  text-overflow: ellipsis;
 }
 
 .conversation-mode .ari-home-quick-actions {
@@ -1735,7 +1724,6 @@ body.ari-menu-open {
 
   .ari-home-quick-action {
     flex-basis: 104px;
-    gap: 6px;
   }
 
   .ari-home-quick-orb {
@@ -1747,9 +1735,6 @@ body.ari-menu-open {
     height: clamp(24px, 7vw, 30px);
   }
 
-  .ari-home-quick-label {
-    font-size: clamp(11px, 3.25vw, 13px);
-  }
 
   .ari-hero-img {
     max-width: 96vw;
@@ -1852,7 +1837,6 @@ body.ari-menu-open {
 
   .ari-home-quick-action {
     flex-basis: 92px;
-    gap: 5px;
   }
 
   .ari-home-quick-orb {
@@ -1864,9 +1848,6 @@ body.ari-menu-open {
     height: 23px;
   }
 
-  .ari-home-quick-label {
-    font-size: 10.5px;
-  }
 
   .ari-input-shell {
     padding-right: 16px;
@@ -1884,7 +1865,7 @@ body.ari-menu-open {
   :root {
     --ari-header-top: calc(env(safe-area-inset-top, 0px) + 9px);
     --ari-header-height: 90px;
-    --ari-quick-actions-height: 70px;
+    --ari-quick-actions-height: 56px;
     --ari-quick-actions-gap: 7px;
     --ari-composer-height: 136px;
     --ari-hero-rise: 30px;
@@ -1909,9 +1890,6 @@ body.ari-menu-open {
     height: 21px;
   }
 
-  .ari-home-quick-label {
-    font-size: 10px;
-  }
 
   .ari-bottom-input {
     bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
@@ -1957,7 +1935,7 @@ body.ari-menu-open {
   :root {
     --ari-header-top: calc(env(safe-area-inset-top, 0px) + 8px);
     --ari-header-height: 82px;
-    --ari-quick-actions-height: 54px;
+    --ari-quick-actions-height: 44px;
     --ari-quick-actions-gap: 6px;
     --ari-composer-height: 118px;
     --ari-hero-rise: 18px;
@@ -1987,9 +1965,6 @@ body.ari-menu-open {
     height: 17px;
   }
 
-  .ari-home-quick-label {
-    font-size: 8.5px;
-  }
 
   .ari-hero-img {
     max-width: min(52vw, 450px);

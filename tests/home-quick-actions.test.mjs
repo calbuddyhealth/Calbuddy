@@ -5,26 +5,24 @@ import fs from "node:fs";
 const home = fs.readFileSync("home.html", "utf8");
 const css = fs.readFileSync("assets/css/home.css", "utf8");
 
-test("home quick actions are horizontal and ordered Log Meal, Circle, Train", () => {
+test("home quick actions are horizontal icon-only orbs ordered meal, Circle, Train", () => {
   const start = home.indexOf('class="ari-home-quick-actions"');
   const end = home.indexOf("</nav>", start);
   assert.ok(start > 0 && end > start, "quick action nav should exist");
 
   const quick = home.slice(start, end);
-  const meal = quick.indexOf(">Log Meal<");
-  const circle = quick.indexOf(">Circle<");
-  const train = quick.indexOf(">Train<");
+  const meal = quick.indexOf('aria-label="Log Meal"');
+  const circle = quick.indexOf('aria-label="Open Circle"');
+  const train = quick.indexOf('aria-label="Open Training"');
 
-  assert.ok(meal >= 0, "Log Meal should be present");
+  assert.ok(meal >= 0, "Log Meal action should be present");
   assert.ok(circle > meal, "Circle should be in the middle");
   assert.ok(train > circle, "Train should be last");
   assert.match(css, /\.ari-home-quick-actions\s*\{[\s\S]*display:\s*flex/i);
-  assert.match(css, /\.ari-home-quick-action\s*\{[\s\S]*flex-direction:\s*column/i);
   assert.match(css, /\.ari-home-quick-orb\s*\{[\s\S]*aspect-ratio:\s*1[\s\S]*border-radius:\s*50%/i);
-  assert.match(quick, /class="ari-home-quick-orb"/i);
-  assert.match(quick, /class="ari-home-quick-label">Log Meal</i);
-  assert.match(quick, /class="ari-home-quick-label">Circle</i);
-  assert.match(quick, /class="ari-home-quick-label">Train</i);
+  assert.equal((quick.match(/class="ari-home-quick-orb"/g) || []).length, 3);
+  assert.doesNotMatch(quick, /ari-home-quick-label/i);
+  assert.doesNotMatch(quick, />\s*(?:Log Meal|Circle|Train)\s*</i);
 });
 
 test("home quick actions route to the intended primary destinations", () => {
