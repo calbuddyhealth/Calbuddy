@@ -695,10 +695,12 @@ body {
 
 /* =============================================================
    PROFILE V2 — THEMED IDENTITY HERO
-   Four deliberate choices: Midnight, Arctic Glass, Electric Dusk,
-   and Champagne. Built-in templates fill the full identity card.
+   Midnight plus three high-saturation spectrum themes. Built-in
+   templates fill the full identity card; custom photos can do the same.
 ============================================================= */
 .ari-circle-page .circle-profile {
+  position: relative !important;
+  isolation: isolate !important;
   overflow: hidden !important;
   --circle-profile-theme:
     radial-gradient(circle at 16% 10%, rgba(191,232,255,.26), transparent 38%),
@@ -712,52 +714,69 @@ body {
 
 .ari-circle-page .circle-profile[data-profile-template="midnight"] {
   --circle-profile-theme:
-    radial-gradient(circle at 15% 10%, rgba(44,205,255,.32), transparent 34%),
-    radial-gradient(circle at 82% 28%, rgba(111,82,255,.42), transparent 42%),
-    linear-gradient(145deg,#101a31,#18233f 55%,#221c43);
+    radial-gradient(circle at 15% 8%, rgba(42,214,255,.34), transparent 34%),
+    radial-gradient(circle at 86% 22%, rgba(120,82,255,.46), transparent 42%),
+    radial-gradient(circle at 50% 112%, rgba(69,35,143,.28), transparent 48%),
+    linear-gradient(145deg,#0d1830 0%,#172746 52%,#21183f 100%);
 }
 
-.ari-circle-page .circle-profile[data-profile-template="arctic-glass"] {
+.ari-circle-page .circle-profile[data-profile-template="violet-spectrum"] {
   --circle-profile-theme:
-    radial-gradient(circle at 8% 4%, rgba(170,241,255,.52), transparent 34%),
-    radial-gradient(circle at 92% 18%, rgba(181,194,255,.32), transparent 39%),
-    radial-gradient(circle at 52% 110%, rgba(255,255,255,.76), transparent 46%),
-    linear-gradient(145deg,#f5fcff 0%,#edf5ff 52%,#f7f4ff 100%);
+    radial-gradient(circle at 8% 4%, rgba(233,167,255,.78), transparent 31%),
+    radial-gradient(circle at 92% 14%, rgba(112,54,255,.78), transparent 37%),
+    radial-gradient(circle at 18% 92%, rgba(168,48,255,.62), transparent 39%),
+    radial-gradient(circle at 86% 104%, rgba(76,27,174,.72), transparent 45%),
+    linear-gradient(145deg,#2a084f 0%,#5715a2 28%,#8d37dc 51%,#5f1ab6 72%,#21063f 100%);
 }
 
-.ari-circle-page .circle-profile[data-profile-template="electric-dusk"] {
+.ari-circle-page .circle-profile[data-profile-template="fire-spectrum"] {
   --circle-profile-theme:
-    radial-gradient(circle at 8% 4%, rgba(42,219,255,.25), transparent 34%),
-    radial-gradient(circle at 92% 16%, rgba(132,82,255,.42), transparent 43%),
-    radial-gradient(circle at 48% 108%, rgba(48,78,194,.24), transparent 50%),
-    linear-gradient(145deg,#10285f 0%,#17357b 48%,#26194f 100%);
+    radial-gradient(circle at 10% 3%, rgba(255,210,84,.86), transparent 29%),
+    radial-gradient(circle at 88% 14%, rgba(255,101,33,.78), transparent 34%),
+    radial-gradient(circle at 28% 88%, rgba(229,19,48,.72), transparent 38%),
+    radial-gradient(circle at 92% 102%, rgba(121,6,26,.78), transparent 44%),
+    linear-gradient(145deg,#4a0710 0%,#9f0f1e 26%,#e33118 49%,#ff7928 67%,#65101a 100%);
 }
 
-.ari-circle-page .circle-profile[data-profile-template="champagne"] {
+.ari-circle-page .circle-profile[data-profile-template="pink-spectrum"] {
   --circle-profile-theme:
-    radial-gradient(circle at 10% 8%, rgba(255,237,197,.62), transparent 36%),
-    radial-gradient(circle at 92% 20%, rgba(246,203,185,.34), transparent 40%),
-    radial-gradient(circle at 52% 108%, rgba(255,255,255,.62), transparent 48%),
-    linear-gradient(145deg,#fffaf0 0%,#f8eee2 54%,#fff7f2 100%);
+    radial-gradient(circle at 7% 3%, rgba(255,210,239,.92), transparent 30%),
+    radial-gradient(circle at 91% 13%, rgba(255,87,191,.70), transparent 36%),
+    radial-gradient(circle at 20% 92%, rgba(230,64,166,.62), transparent 40%),
+    radial-gradient(circle at 88% 105%, rgba(124,39,126,.58), transparent 44%),
+    linear-gradient(145deg,#711057 0%,#b72486 27%,#ef5fb4 52%,#d33496 72%,#6b124f 100%);
 }
 
 .ari-circle-page .circle-profile[data-profile-template="midnight"] .circle-profile__name,
 .ari-circle-page .circle-profile[data-profile-template="midnight"] .circle-profile__handle,
 .ari-circle-page .circle-profile[data-profile-template="midnight"] .circle-profile__bio,
-.ari-circle-page .circle-profile[data-profile-template="electric-dusk"] .circle-profile__name,
-.ari-circle-page .circle-profile[data-profile-template="electric-dusk"] .circle-profile__handle,
-.ari-circle-page .circle-profile[data-profile-template="electric-dusk"] .circle-profile__bio {
+.ari-circle-page .circle-profile[data-profile-template="violet-spectrum"] .circle-profile__name,
+.ari-circle-page .circle-profile[data-profile-template="violet-spectrum"] .circle-profile__handle,
+.ari-circle-page .circle-profile[data-profile-template="violet-spectrum"] .circle-profile__bio,
+.ari-circle-page .circle-profile[data-profile-template="fire-spectrum"] .circle-profile__name,
+.ari-circle-page .circle-profile[data-profile-template="fire-spectrum"] .circle-profile__handle,
+.ari-circle-page .circle-profile[data-profile-template="fire-spectrum"] .circle-profile__bio,
+.ari-circle-page .circle-profile[data-profile-template="pink-spectrum"] .circle-profile__name,
+.ari-circle-page .circle-profile[data-profile-template="pink-spectrum"] .circle-profile__handle,
+.ari-circle-page .circle-profile[data-profile-template="pink-spectrum"] .circle-profile__bio,
+.ari-circle-page .circle-profile[data-profile-template="custom"] .circle-profile__name,
+.ari-circle-page .circle-profile[data-profile-template="custom"] .circle-profile__handle,
+.ari-circle-page .circle-profile[data-profile-template="custom"] .circle-profile__bio {
   color: #fff !important;
+  text-shadow: 0 2px 14px rgba(20,8,42,.30) !important;
 }
 
 .ari-circle-page .circle-profile[data-profile-template="midnight"] .circle-profile__handle,
-.ari-circle-page .circle-profile[data-profile-template="electric-dusk"] .circle-profile__handle {
-  opacity: .80;
+.ari-circle-page .circle-profile[data-profile-template="violet-spectrum"] .circle-profile__handle,
+.ari-circle-page .circle-profile[data-profile-template="fire-spectrum"] .circle-profile__handle,
+.ari-circle-page .circle-profile[data-profile-template="pink-spectrum"] .circle-profile__handle,
+.ari-circle-page .circle-profile[data-profile-template="custom"] .circle-profile__handle {
+  opacity: .86;
 }
 
 .ari-circle-page .circle-profile[data-profile-template="custom"] {
-  background: #fff !important;
-  background-size: auto !important;
+  background: #111827 !important;
+  background-size: 100% 100% !important;
 }
 
 .ari-circle-page .circle-profile__cover {
@@ -815,8 +834,48 @@ body {
   background: transparent !important;
 }
 
+.ari-circle-page .circle-profile[data-profile-template="custom"] .circle-profile__cover {
+  position: absolute !important;
+  z-index: 0 !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+}
+
+.ari-circle-page .circle-profile[data-profile-template="custom"] .circle-profile__cover-image {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  filter: saturate(1.06) contrast(1.04) brightness(.88) !important;
+}
+
+.ari-circle-page .circle-profile[data-profile-template="custom"] .circle-profile__cover::after {
+  position: absolute !important;
+  z-index: 1 !important;
+  inset: 0 !important;
+  display: block !important;
+  content: "" !important;
+  pointer-events: none !important;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(5,9,20,.02) 0%,
+      rgba(7,12,28,.16) 38%,
+      rgba(7,12,28,.46) 68%,
+      rgba(7,12,28,.72) 100%
+    ) !important;
+}
+
 .ari-circle-page .circle-profile[data-profile-template="custom"] .circle-profile__body {
-  background: #fff !important;
+  position: relative !important;
+  z-index: 2 !important;
+  padding-top: 148px !important;
+  background: transparent !important;
 }
 
 .ari-circle-page .circle-profile__avatar-wrap {
@@ -826,6 +885,12 @@ body {
 @media (max-width: 520px) {
   .ari-circle-page .circle-profile__cover {
     height: 132px !important;
+  }
+  .ari-circle-page .circle-profile[data-profile-template="custom"] .circle-profile__cover {
+    height: 100% !important;
+  }
+  .ari-circle-page .circle-profile[data-profile-template="custom"] .circle-profile__body {
+    padding-top: 132px !important;
   }
   .ari-circle-page .circle-profile__avatar-wrap {
     margin-top: -66px !important;
