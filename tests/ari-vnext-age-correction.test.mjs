@@ -83,6 +83,14 @@ test("approved under-13 correction fails safe by suspending the account", () => 
   assert.match(sql, /case when requested_age < 13 then 'suspended_by_admin' else status end/i);
 });
 
+test("owner accounts cannot submit or approve a birthday that would remove adult owner eligibility", () => {
+  const sql = source("supabase/migrations/20260926194700_owner_age_self_suspend_guard.sql");
+  assert.match(sql, /requested_age < 18[\s\S]*ari_app_admins[\s\S]*a\.user_id = caller_id[\s\S]*a\.role = 'owner'/i);
+  assert.match(sql, /Owner accounts must remain 18\+/i);
+  assert.match(sql, /requested_decision = 'approved'[\s\S]*requested_age < 18[\s\S]*a\.user_id = request_row\.user_id[\s\S]*a\.role = 'owner'/i);
+  assert.match(sql, /case when requested_age < 13 then 'suspended_by_admin' else status end/i);
+});
+
 test("database forces teen profile age to protected account DOB but leaves adults editable", () => {
   const sql = source("supabase/migrations/20260818232100_lock_minor_profile_age_to_account_dob.sql");
   assert.match(sql, /before insert or update of age on public\.profiles/i);
