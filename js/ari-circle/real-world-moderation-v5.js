@@ -5,13 +5,17 @@
 (() => {
   "use strict";
 
-  const VERSION = "5.1.0";
+  const VERSION = "5.1.1";
   if (window.AriCircleRealWorldModerationV5?.version === VERSION) return;
 
   const CONTENT_MODERATION_SRC = "js/ari-circle/content-moderation.js?v=1.5.0";
   const RULES = Object.freeze({
     ari_circle_create_meetup: Object.freeze({
       scope: "meetup_create",
+      textKeys: ["requested_title", "requested_area", "requested_description"]
+    }),
+    ari_circle_update_meetup: Object.freeze({
+      scope: "meetup_update",
       textKeys: ["requested_title", "requested_area", "requested_description"]
     }),
     ari_circle_set_meetup_point: Object.freeze({
