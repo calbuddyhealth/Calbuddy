@@ -351,8 +351,8 @@
     const id = clean(meetupId);
     if (!userId || !id || !blob) return "";
 
-    const token = typeof crypto?.randomUUID === "function"
-      ? crypto.randomUUID()
+    const token = typeof globalThis.crypto?.randomUUID === "function"
+      ? globalThis.crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const path = `${userId}/cover/meetups/${id}/${token}.jpg`;
     const bucket = state.client?.storage?.from?.(MEDIA_BUCKET);
