@@ -5,7 +5,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.3.0";
+  const VERSION = "1.4.0";
   const MEDIA_BUCKET = "ari-circle-media";
   const CONTENT_MODERATION_SRC = "js/ari-circle/content-moderation.js?v=1.5.2";
   const MAX_COVER_SOURCE_BYTES = 12 * 1024 * 1024;
@@ -36,7 +36,8 @@
     busy: false,
     toastTimer: 0,
     coverFile: null,
-    coverPreviewUrl: ""
+    coverPreviewUrl: "",
+    editMeetup: null
   };
 
   let moderationLoader = null;
@@ -480,7 +481,8 @@
           `<details class="circle-connect-card-menu">
             <summary aria-label="Meetup options">•••</summary>
             <div class="circle-connect-card-menu__panel">
-              <button data-meetup-action="cancel" type="button">Cancel meetup</button>
+              <button data-meetup-action="edit" type="button">Edit meetup</button>
+              <button class="is-danger" data-meetup-action="delete" type="button">Delete meetup</button>
             </div>
           </details>`
         ].join(""),
@@ -492,7 +494,12 @@
       return {
         primaryLabel: "Open Room",
         primaryAction: "room",
-        secondary: `<button class="circle-v5-button" data-meetup-action="leave" type="button">Leave</button>`,
+        secondary: `<details class="circle-connect-card-menu">
+          <summary aria-label="Meetup options">•••</summary>
+          <div class="circle-connect-card-menu__panel">
+            <button class="is-danger" data-meetup-action="leave" type="button">Leave meetup</button>
+          </div>
+        </details>`,
         disabled: false
       };
     }
@@ -772,6 +779,10 @@
       await openRequests(row);
       return;
     }
+    if (action === "edit") {
+      openEditDialog(row);
+      return;
+    }
     if (state.busy) return;
 
     setBusy(true);
@@ -798,12 +809,12 @@
           requested_meetup_id: row.meetup_id
         });
         showToast("You left the meetup.");
-      } else if (action === "cancel") {
-        if (!confirm("Cancel this meetup for everyone?")) return;
+      } else if (action === "delete") {
+        if (!confirm("Delete this meetup for everyone? People who joined will no longer see it in Connect.")) return;
         await rpc("ari_circle_cancel_meetup", {
           requested_meetup_id: row.meetup_id
         });
-        showToast("Meetup cancelled.");
+        showToast("Meetup deleted.");
       }
 
       await loadMeetups();
@@ -828,7 +839,11 @@
 
   function resetHostForm() {
     $("hostMeetupForm")?.reset();
+    state.editMeetup = null;
     clearCoverSelection({ resetInput: false });
+    if ($("hostMeetupKicker")) $("hostMeetupKicker").textContent = "HOST";
+    if ($("hostMeetupTitle")) $("hostMeetupTitle").textContent = "Make something happen.";
+    if ($("createMeetupSubmit")) $("createMeetupSubmit").textContent = "Publish Meetup";
     const activity = $("meetupFormActivity");
     if (activity) {
       activity.dataset.manual = "false";
@@ -837,7 +852,53 @@
     setMinimumStartTime();
   }
 
+  function localDateTimeValue(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  }
+
+  function ensureSelectValue(select, value, label) {
+    if (!select) return;
+    const text = String(value ?? "");
+    if (![...select.options].some((option) => option.value === text)) {
+      const option = document.createElement("option");
+      option.value = text;
+      option.textContent = label || text;
+      select.append(option);
+    }
+    select.value = text;
+  }
+
   function openHostDialog() {
+    resetHostForm();
+    setMinimumStartTime();
+    const dialog = $("hostMeetupDialog");
+    if (typeof dialog?.showModal === "function" && !dialog.open) dialog.showModal();
+  }
+
+  function openEditDialog(row) {
+    if (!row?.viewer_is_host) return;
+    resetHostForm();
+    state.editMeetup = row;
+    if ($("hostMeetupKicker")) $("hostMeetupKicker").textContent = "EDIT";
+    if ($("hostMeetupTitle")) $("hostMeetupTitle").textContent = "Update your meetup.";
+    if ($("createMeetupSubmit")) $("createMeetupSubmit").textContent = "Save Changes";
+
+    $("meetupFormTitle").value = clean(row.title);
+    $("meetupFormStarts").value = localDateTimeValue(row.starts_at);
+    $("meetupFormArea").value = clean(row.area);
+    $("meetupFormDescription").value = clean(row.description);
+
+    const guestSpots = Math.max(1, (Number(row.max_participants) || 2) - 1);
+    ensureSelectValue($("meetupFormGuestSpots"), guestSpots, `${guestSpots} spots`);
+    ensureSelectValue($("meetupFormActivity"), clean(row.activity) || "other");
+    $("meetupFormActivity").dataset.manual = "true";
+    ensureSelectValue($("meetupFormJoinMode"), clean(row.join_mode) || "instant");
+
+    const duration = Math.max(30, Math.round((new Date(row.ends_at) - new Date(row.starts_at)) / 60000) || 60);
+    ensureSelectValue($("meetupFormDuration"), duration, `${duration} min`);
+
     setMinimumStartTime();
     const dialog = $("hostMeetupDialog");
     if (typeof dialog?.showModal === "function" && !dialog.open) dialog.showModal();
@@ -871,7 +932,8 @@
         await moderateMeetupCover(preparedCover, { title, description });
       }
 
-      const id = await rpc("ari_circle_create_meetup", {
+      const editing = state.editMeetup;
+      const params = {
         requested_title: title,
         requested_activity: activity,
         requested_area: clean($("meetupFormArea")?.value),
@@ -880,7 +942,17 @@
         requested_max_participants: guestSpots + 1,
         requested_description: description || null,
         requested_join_mode: clean($("meetupFormJoinMode")?.value) || "instant"
-      });
+      };
+      const id = editing
+        ? editing.meetup_id
+        : await rpc("ari_circle_create_meetup", params);
+
+      if (editing) {
+        await rpc("ari_circle_update_meetup", {
+          requested_meetup_id: editing.meetup_id,
+          ...params
+        });
+      }
 
       let coverAttached = true;
       if (id && preparedCover) {
@@ -892,8 +964,15 @@
         }
       }
 
+      const wasEditing = Boolean(editing);
       $("hostMeetupDialog")?.close();
       resetHostForm();
+
+      if (wasEditing) {
+        showToast(coverAttached ? "Meetup updated." : "Meetup updated, but the new photo could not be attached.", 4800);
+        await loadMeetups();
+        return;
+      }
 
       if (id && coverAttached) {
         location.href = roomUrl(id);

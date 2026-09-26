@@ -24,7 +24,7 @@ test("member Connect does not load the Ari matched-draft suggestion handoff", ()
 test("Connect owns meetup creation directly", () => {
   assert.match(connect, /rpc\("ari_circle_create_meetup"/);
   assert.match(connect, /requested_join_mode/);
-  assert.match(meetupHtml, /connect-v1\.js\?v=1\.3\.0/);
+  assert.match(meetupHtml, /connect-v1\.js\?v=1\.4\.0/);
 });
 
 test("V6 remains an owner-only experimental artifact but is not wired into Connect", () => {
