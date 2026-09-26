@@ -51,7 +51,7 @@ test("Connect uses the current shared header and Connect + Profile shell", () =>
   assert.match(meetupHtml, /social-badges\.js\?v=1\.2\.0/);
   assert.match(meetupHtml, /supabase-config\.js\?v=1\.1\.8/);
   assert.match(meetupHtml, /ari-circle-v5-visual-authority\.css\?v=5\.2\.5/);
-  assert.match(meetupHtml, /v5-real-world\.js\?v=5\.5\.0/);
+  assert.match(meetupHtml, /v5-real-world\.js\?v=5\.5\.1/);
   assert.match(shell, /navLink\("connect", "ari-circle-meetup\.html", "Connect"\)/);
   assert.match(shell, /navLink\("profile", "ari-circle\.html", "Profile"\)/);
   assert.doesNotMatch(shell, /navLink\("feed"/);
@@ -63,7 +63,7 @@ test("legacy Feed is no longer a member posting destination", () => {
 });
 test("Profile compatibility stays Profile-only and showcase-aware", () => {
   assert.match(profileCompat, /const VERSION = "5\.6\.0"/);
-  assert.match(profileCompat, /const REAL_WORLD_VERSION = "5\.5\.0"/);
+  assert.match(profileCompat, /const REAL_WORLD_VERSION = "5\.5\.1"/);
   assert.match(profileCompat, /brand\.href = "ari-circle-meetup\.html"/);
   assert.match(profileCompat, /circleV3PostsPanel/);
   assert.match(profileLoader, /profile-gallery-v1\.js\?v=2\.2\.0/);

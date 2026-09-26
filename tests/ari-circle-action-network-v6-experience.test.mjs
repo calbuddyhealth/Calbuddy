@@ -129,7 +129,7 @@ test("ARI Next remains owner-only while Connect and Profile are the member model
   assert.match(html, /action-network-v6\.js\?v=0\.3\.0/);
   assert.match(html, /intent-bundles-v1\.js\?v=1\.2\.0/);
   assert.match(html, /circle-menu-v5\.js\?v=2\.6\.0/);
-  assert.match(html, /v5-real-world\.js\?v=5\.5\.0/);
+  assert.match(html, /v5-real-world\.js\?v=5\.5\.1/);
   assert.match(homeHtml, /href="ari-circle-meetup\.html"[^>]*class="ari-nav-link nav-circle"/i);
   assert.match(legacyProfileHtml, /id="circle-profile"/i);
   assert.match(shell, /navLink\("connect", "ari-circle-meetup\.html", "Connect"\)/);

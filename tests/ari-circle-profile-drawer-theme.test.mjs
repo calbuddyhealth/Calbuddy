@@ -7,7 +7,7 @@ const authority = fs.readFileSync("assets/css/ari-circle-menu-v5-authority.css",
 
 test("Profile primes the same light Circle shell used by member routes", () => {
   assert.match(menu, /const VERSION = "2\.6\.1"/);
-  assert.match(menu, /REAL_WORLD_SCRIPT_SRC = "js\/ari-circle\/v5-real-world\.js\?v=5\.5\.0"/);
+  assert.match(menu, /REAL_WORLD_SCRIPT_SRC = "js\/ari-circle\/v5-real-world\.js\?v=5\.5\.1"/);
   assert.match(menu, /function primeProfileV5Theme\(\)/);
   assert.match(menu, /document\.documentElement\.classList\.add\("circle-v5-real-world-root"\)/);
   assert.match(menu, /document\.body\?\.classList\.add\("circle-v5-real-world"\)/);

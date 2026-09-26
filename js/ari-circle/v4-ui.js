@@ -9,7 +9,7 @@
   "use strict";
 
   const VERSION = "5.6.0";
-  const REAL_WORLD_VERSION = "5.5.0";
+  const REAL_WORLD_VERSION = "5.5.1";
   const POLISH_STYLE_ID = "ari-circle-v4-polish-style";
   const UX_STYLE_ID = "ari-circle-v4-ux-fixes-style";
   const VISUAL_AUTHORITY_MATCH = "ari-circle-v5-visual-authority.css";

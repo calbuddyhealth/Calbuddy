@@ -21,7 +21,7 @@ test("current Circle presentation remains light and consolidated", () => {
 });
 
 test("shared Circle header remains bounded and text-first", () => {
-  assert.match(shell, /const VERSION = "5\.5\.0"/);
+  assert.match(shell, /const VERSION = "5\.5\.1"/);
   assert.match(shell, /function normalizeSignatureHeader\(\)/);
   assert.match(shell, /circle-v51-wordmark/);
   assert.doesNotMatch(shell, /new MutationObserver/);
@@ -38,7 +38,10 @@ test("Connect and retained legacy Feed assets avoid nested blur-heavy cards", ()
 });
 
 test("Connect has compact discovery identity", () => {
-  assert.match(meetup, /<h1 id="meetupTitle">Find something to do\.<\/h1>/);
+  assert.match(meetup, /class="circle-connect-actionbar"/);
+  assert.match(meetup, /id="hostMeetupButton"[^>]*>Host<\/button>/);
+  assert.match(meetup, /href="ari-circle-friends\.html">Find Friends/);
+  assert.doesNotMatch(meetup, /Find something to do\./);
   assert.match(meetup, /Pick a vibe/);
   assert.match(meetup, /HAPPENING NOW/);
   assert.doesNotMatch(meetup, /REAL WORLD XP/);

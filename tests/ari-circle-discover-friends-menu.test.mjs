@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const menu = fs.readFileSync("js/ari-circle/circle-menu-v5.js", "utf8");
-const profile = fs.readFileSync("ari-circle.html", "utf8");
+const friends = fs.readFileSync("ari-circle-friends.html", "utf8");
 
 const notificationsIndex = menu.indexOf('label: "Notifications"');
 const profileIndex = menu.indexOf('label: "Profile"');
@@ -16,28 +16,23 @@ assert.equal(meetupIndex, -1, "Connect/Meet Up is primary navigation and is not 
 
 assert.match(
   menu,
-  /ari-circle\.html\?panel=discover-friends/,
-  "Discover Friends routes into the existing profile discovery surface"
+  /href: "ari-circle-friends\.html", label: "Discover Friends"/,
+  "Discover Friends routes to the dedicated local discovery page"
 );
 assert.match(
-  menu,
-  /document\.getElementById\("circle-find-friends-button"\)/,
-  "The shared drawer reuses the existing Find Friends action instead of creating a second connection system"
+  friends,
+  /data-ari-circle-search-location data-surface="friends"/,
+  "Find Friends owns a customizable shared location radar"
 );
 assert.match(
-  menu,
-  /document\.getElementById\("circle-people-discovery"\)/,
-  "The route verifies that the existing people-discovery dialog opened"
+  friends,
+  /id="friendsSuggestedSection"/,
+  "Find Friends includes mutual-connection suggestions"
 );
 assert.match(
-  profile,
-  /id="circle-find-friends-button"[\s\S]*?data-circle-action="find-friends"/,
-  "The profile still owns the authoritative Find Friends action"
-);
-assert.match(
-  profile,
-  /id="circle-people-discovery"/,
-  "The existing people-discovery dialog remains the destination"
+  friends,
+  /id="friendsNearbySection"/,
+  "Find Friends includes nearby people discovery"
 );
 
 console.log("ARI Circle Discover Friends menu contract passed.");

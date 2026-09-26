@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-premium.css?v=5.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
   <link rel="stylesheet" href="assets/css/ari-circle-search-location-v1.css?v=1.1.1" />
-  <link rel="stylesheet" href="assets/css/ari-circle-connect-v1.css?v=1.2.1" />
+  <link rel="stylesheet" href="assets/css/ari-circle-connect-v1.css?v=1.3.0" />
 </head>
 <body class="circle-v5-real-world circle-connect-next">
   <main class="circle-v5-page" id="meetupPage" hidden>
@@ -27,12 +27,10 @@
     </header>
 
     <div class="circle-v5-page-main circle-connect-main">
-      <section class="circle-connect-heading" aria-labelledby="meetupTitle">
-        <div>
-          <p class="circle-connect-eyebrow">CONNECT</p>
-          <h1 id="meetupTitle">Find something to do.</h1>
-        </div>
-        <button class="circle-v5-button-primary circle-connect-host" id="hostMeetupButton" type="button">+ Host</button>
+      <section class="circle-connect-actionbar" aria-label="Connect actions">
+        <h1 class="circle-connect-actionbar__title">Connect</h1>
+        <button class="circle-connect-action circle-connect-action--host" id="hostMeetupButton" type="button">Host</button>
+        <a class="circle-connect-action circle-connect-action--friends" href="ari-circle-friends.html">Find Friends <span aria-hidden="true">+</span></a>
       </section>
 
       <div data-ari-circle-search-location data-surface="meetup"></div>
@@ -201,7 +199,7 @@
   <script src="supabase-config.js?v=1.1.8"></script>
   <script src="js/ari-circle/location/search-location-v1.js?v=1.1.1" defer></script>
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.0" defer></script>
-  <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.5.0" defer></script>
+  <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.5.1" defer></script>
   <script src="js/ari-circle/connect/connect-v1.js?v=1.2.0" defer></script>
 </body>
 </html>

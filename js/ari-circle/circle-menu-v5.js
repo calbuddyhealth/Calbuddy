@@ -23,7 +23,7 @@
   const PROFILE_SAFETY_SCRIPT_ID = "ariCircleProfileSafetyScript";
   const PROFILE_SAFETY_SCRIPT_SRC = "js/ari-circle/profile/profile-safety.js?v=1.1.0";
   const REAL_WORLD_SCRIPT_ID = "ariCircleV5RealWorldScript";
-  const REAL_WORLD_SCRIPT_SRC = "js/ari-circle/v5-real-world.js?v=5.5.0";
+  const REAL_WORLD_SCRIPT_SRC = "js/ari-circle/v5-real-world.js?v=5.5.1";
   let outsideBound = false;
   let panelSequence = 0;
 
@@ -79,7 +79,7 @@
 
   function loadRealWorldShell() {
     if (!adultAccessReady()) return;
-    if (window.AriCircleV5RealWorld?.version === "5.5.0") {
+    if (window.AriCircleV5RealWorld?.version === "5.5.1") {
       window.AriCircleV5RealWorld.refresh?.();
       return;
     }
@@ -159,7 +159,7 @@
     const mainRows = [
       item({ href: "ari-circle.html?panel=notifications", label: "Notifications", iconMarkup: icon.bell }),
       item({ href: "ari-circle.html", label: "Profile", iconMarkup: icon.user }),
-      item({ href: "ari-circle.html?panel=discover-friends", label: "Discover Friends", iconMarkup: icon.discover })
+      item({ href: "ari-circle-friends.html", label: "Discover Friends", iconMarkup: icon.discover })
     ].join("");
     const accountRows = [
       includeProfileOptions ? item({ label: "Profile Options", iconMarkup: icon.user, button: true, profileOptions: true }) : item({ href: "ari-circle.html#about", label: "Profile Options", iconMarkup: icon.user }),

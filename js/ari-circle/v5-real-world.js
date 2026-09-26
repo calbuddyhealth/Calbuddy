@@ -1,5 +1,5 @@
 /* =============================================================
-   ARI CIRCLE V5.5.0 — CONNECT + PROFILE SHELL
+   ARI CIRCLE V5.5.1 — CONNECT + PROFILE SHELL
    Connect · Profile are the member-facing Circle experience.
    One current navigation owner, bounded lifecycle refreshes, and no retired
    Buddies/Challenges route shims.
@@ -7,7 +7,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "5.5.0";
+  const VERSION = "5.5.1";
   if (window.AriCircleV5RealWorld?.version === VERSION) return;
 
   const STYLE_ID = "ariCircleV5RealWorldStyle";
@@ -147,7 +147,7 @@
 
   function activeKey() {
     const path = pathName();
-    if (path.includes("ari-circle-meetup") || path.includes("ari-circle-quest") || path.endsWith("/ari-circle-feed.html")) return "connect";
+    if (path.includes("ari-circle-meetup") || path.includes("ari-circle-friends") || path.includes("ari-circle-quest") || path.endsWith("/ari-circle-feed.html")) return "connect";
     if (path.endsWith("/ari-circle.html")) return "profile";
     return "";
   }
