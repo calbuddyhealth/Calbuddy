@@ -48,11 +48,16 @@ test("main profile photo is larger, circular, and has no decorative outer ring",
   assert.doesNotMatch(profileCss, /circle-profile__avatar-fallback[\s\S]{0,220}border-radius: 28px !important/);
 });
 
-test("Custom photo opens the existing background image picker and renders full-card", () => {
-  assert.match(editor, /chooseCustomBackground\(\)/);
-  assert.match(editor, /document\.getElementById\("circle-cover-input"\)/);
+test("Custom photo uses an in-dialog iOS-safe picker and the existing media upload pipeline", () => {
+  assert.match(editor, /circle-editor-custom-cover-input/);
+  assert.match(editor, /Choose photo from library/);
+  assert.match(editor, /showCustomBackgroundPicker\(\)/);
+  assert.match(editor, /handleCustomBackgroundFile\(event\)/);
+  assert.match(editor, /ProfileMedia\.processFile\([\s\S]*MEDIA_TYPES\.COVER/);
   assert.match(editor, /Custom photo \(current\)/);
   assert.match(editor, /circle:profile-media-uploaded/);
+  assert.match(editor, /getValue\("cover_url"\) === "__custom_photo__"/);
+  assert.match(circleCss, /circle-custom-background-picker\[hidden\]/);
   assert.match(profileCss, /data-profile-template="custom"[\s\S]*circle-profile__cover[\s\S]*position: absolute !important/);
   assert.match(profileCss, /data-profile-template="custom"[\s\S]*circle-profile__cover-image[\s\S]*object-fit: cover !important/);
   assert.match(profileCss, /data-profile-template="custom"[\s\S]*linear-gradient/);
