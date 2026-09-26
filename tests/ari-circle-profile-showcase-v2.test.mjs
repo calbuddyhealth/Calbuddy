@@ -29,6 +29,13 @@ test("Edit Profile exposes Midnight plus violet fire pink spectrum themes and Cu
   assert.doesNotMatch(editor, /avatar_url/);
 });
 
+test("birthday rendering preserves date-only values across time zones", () => {
+  assert.match(renderer, /calendarMatch/);
+  assert.match(renderer, /Date\.UTC\(/);
+  assert.match(renderer, /timeZone: "UTC"/);
+  assert.match(renderer, /HTML date inputs persist birthdays as YYYY-MM-DD calendar dates/);
+});
+
 test("profile background templates fill the entire identity card through the action buttons", () => {
   assert.match(renderer, /profileCard\.dataset\.profileTemplate = templateName/);
   assert.match(profileCss, /\.circle-profile\[data-profile-template="violet-spectrum"\]/);
