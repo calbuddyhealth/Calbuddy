@@ -231,6 +231,7 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
     "ari-agent-mailbox.js",
     "ari-agent-worker.js",
     "ari-autonomy-cycle.js",
+    "ari-chatgpt-browser-worker.js",
     "ari-chatgpt-dialogue-cycle.js",
     "ari-theory-dialogue-cycle.js",
     "ari-circle-moderation-worker.js",
@@ -283,6 +284,7 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
   assert.equal(names.has("ari-circle-owner-photo-review.js"), true, "Circle owner photo review must remain an explicit reviewed server API surface");
   assert.equal(names.has("ari-daily-chat-quota.js"), true, "daily chat quota must remain an explicit reviewed server API surface");
   assert.equal(names.has("ari-autonomy-cycle.js"), true, "owner autonomy cycle must remain an explicit reviewed server API surface");
+  assert.equal(names.has("ari-chatgpt-browser-worker.js"), true, "owner ChatGPT browser worker must remain an explicit reviewed server API surface");
   assert.equal(names.has("ari-chatgpt-dialogue-cycle.js"), true, "Ari and ChatGPT repair dialogue must remain an explicit reviewed server API surface");
   assert.equal(names.has("ari-theory-dialogue-cycle.js"), true, "Ari and ChatGPT consciousness theory dialogue must remain an explicit reviewed server API surface");
   assert.equal(names.has("ari-community-cycle.js"), true, "Agent Community autonomy must remain an explicit reviewed server API surface");
