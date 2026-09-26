@@ -389,3 +389,110 @@ body.circle-friends-page .circle-v5-bottom-nav a {
     font-size: 16px !important;
   }
 }
+
+
+/* Find Friends viewport fit V1.0.2
+   The shared V5 shell and this page both declared width:100% plus padding.
+   Without border-box that makes the rendered page wider than the iPhone
+   layout viewport, which looks like the page is zoomed in. */
+body.circle-friends-page,
+body.circle-friends-page *,
+body.circle-friends-page *::before,
+body.circle-friends-page *::after {
+  box-sizing:border-box;
+}
+
+html,
+body.circle-friends-page {
+  width:100%;
+  max-width:100%;
+  overflow-x:hidden;
+}
+
+body.circle-friends-page .circle-v5-page {
+  width:100% !important;
+  max-width:760px !important;
+  min-width:0 !important;
+  padding-right:14px !important;
+  padding-left:14px !important;
+  overflow-x:clip;
+}
+
+body.circle-friends-page .circle-v5-header,
+body.circle-friends-page .circle-v5-page-main,
+body.circle-friends-page .circle-friends-main,
+body.circle-friends-page .circle-friends-radar,
+body.circle-friends-page .circle-friends-search,
+body.circle-friends-page .circle-friends-section,
+body.circle-friends-page .circle-friends-empty,
+body.circle-friends-page .ari-circle-location-card {
+  width:100% !important;
+  max-width:100% !important;
+  min-width:0 !important;
+}
+
+body.circle-friends-page .circle-friends-main {
+  margin:0 !important;
+  padding:10px 0 calc(126px + env(safe-area-inset-bottom)) !important;
+}
+
+body.circle-friends-page .circle-friends-hero > *,
+body.circle-friends-page .circle-friends-section-head > *,
+body.circle-friends-page .ari-circle-location-card > *,
+body.circle-friends-page .circle-friends-search > div > * {
+  min-width:0;
+}
+
+@media (max-width:620px) {
+  body.circle-friends-page .circle-friends-main {
+    padding-right:0 !important;
+    padding-left:0 !important;
+  }
+
+  body.circle-friends-page .circle-friends-hero {
+    grid-template-columns:minmax(0,1fr) !important;
+    align-items:start;
+  }
+
+  body.circle-friends-page .circle-friends-back {
+    justify-self:start;
+    max-width:100%;
+    white-space:nowrap;
+  }
+
+  body.circle-friends-page .ari-circle-location-card__actions {
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    width:100%;
+  }
+
+  body.circle-friends-page .ari-circle-location-card__actions button {
+    min-width:0;
+    width:100%;
+  }
+
+  body.circle-friends-page .ari-circle-location-card__actions button.is-quiet:last-child {
+    grid-column:1/-1;
+  }
+}
+
+@media (max-width:420px) {
+  body.circle-friends-page .circle-friends-search > div {
+    grid-template-columns:minmax(0,1fr) 88px;
+  }
+
+  body.circle-friends-page .circle-friends-search button {
+    width:88px;
+    min-width:0;
+    padding-right:8px;
+    padding-left:8px;
+  }
+
+  body.circle-friends-page .ari-circle-location-card {
+    grid-template-columns:minmax(0,1fr) auto;
+  }
+
+  body.circle-friends-page .ari-circle-location-card__radius select {
+    max-width:104px;
+  }
+}
