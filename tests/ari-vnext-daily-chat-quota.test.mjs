@@ -94,7 +94,7 @@ test("authenticated quota endpoint saves timezone and returns a quota snapshot",
 });
 
 test("browser bridge syncs IANA timezone, renders remaining questions, and bypasses model for pending yes or cancel", () => {
-  assert.match(bridge, /version: "1\.12\.0"/);
+  assert.match(bridge, /version: "1\.12\.1"/);
   assert.match(bridge, /Intl\.DateTimeFormat\(\)\.resolvedOptions\(\)\.timeZone/);
   assert.match(bridge, /\/api\/ari-daily-chat-quota/);
   assert.match(bridge, /ariDailyQuotaStatus/);
