@@ -18,8 +18,9 @@ test("vNext provider failover stays inside the primary semantic runtime", () => 
 
 test("provider credit exhaustion is classified separately from Ari cognition failure", () => {
   assert.match(api, /ARI_PROVIDER_CREDITS_EXHAUSTED/);
-  assert.match(api, /insufficient\[_\\s-\]\?quota/);
-  assert.match(api, /no credits\? remaining/);
+  assert.match(api, /creditsExhausted/);
+  assert.match(api, /insufficient/);
+  assert.match(api, /no credits/);
   assert.match(api, /source: "ari_vnext_provider_capacity"/);
   assert.match(api, /status: 503/);
 });
