@@ -4,7 +4,7 @@
 window.Ari = window.Ari || {};
 
 window.AriVNextBridge = {
-  version: "1.12.0",
+  version: "1.12.1",
   source: "ari-vnext-bridge",
   pendingStorageKey: "ari_vnext_pending_action",
   peerReflectionStorageKey: "ari_vnext_peer_reflection_last",
@@ -106,17 +106,35 @@ window.AriVNextBridge = {
     if (data?.quota) this.publishDailyQuota(data.quota);
 
     if (!response.ok) {
-      if (["ARI_DAILY_CHAT_LIMIT", "ARI_QUOTA_UNAVAILABLE"].includes(String(data?.code || ""))) {
+      const code = String(data?.code || "").trim();
+      if (["ARI_DAILY_CHAT_LIMIT", "ARI_QUOTA_UNAVAILABLE"].includes(code)) {
         return {
           success: false,
           ready: false,
           reply: data?.reply || data?.error || "Ari is unavailable right now.",
           quota: data?.quota || this.dailyQuota,
-          code: data?.code,
+          code,
+          retryable: data?.retryable !== false,
           source: data?.source || "ari_vnext_daily_chat_quota"
         };
       }
-      throw new Error(data?.error || "Ari vNext request failed.");
+      if (["ARI_PROVIDER_CREDITS_EXHAUSTED", "ARI_PROVIDER_RATE_LIMITED", "ARI_PROVIDER_TIMEOUT"].includes(code)) {
+        return {
+          success: false,
+          ready: false,
+          reply: data?.reply || "Ari's model provider is temporarily unavailable.",
+          code,
+          retryable: data?.retryable !== false,
+          providerUnavailable: true,
+          pendingAction: null,
+          action: null,
+          source: data?.source || "ari_vnext_provider_capacity"
+        };
+      }
+      const error = new Error(data?.error || "Ari vNext request failed.");
+      error.code = code || "ARI_VNEXT_REQUEST_FAILED";
+      error.status = response.status;
+      throw error;
     }
 
     if (data?.pendingAction) this.setPendingAction(data.pendingAction);

@@ -41,7 +41,7 @@ import {
 } from "../../../server/ari-agent-community.js";
 import { executeOwnerChatgptDiscussionAction } from "../../../server/ari-chatgpt-browser-bridge.js";
 
-const RESPONSES_URL = process.env.ARI_RESPONSES_URL || process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
+const DEFAULT_OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const LOW_RISK_PRIMARY_FAST_PATHS = new Set([
   "propose_log_meal",
   "propose_log_weight",
@@ -1898,14 +1898,93 @@ function buildInput(turn = {}) {
   return input;
 }
 
-async function callResponses({ turn, policy, instructions, input, tools = [], toolChoice = "auto" } = {}) {
-  const apiKey = String(process.env.ARI_PROVIDER_API_KEY || process.env.OPENAI_API_KEY || "").trim();
-  if (!apiKey) throw new Error("Ari model provider key is not configured.");
+function modelProviderCandidates() {
+  const ariKey = String(process.env.ARI_PROVIDER_API_KEY || "").trim();
+  const openAiKey = String(process.env.OPENAI_API_KEY || "").trim();
+  const fallbackKey = String(process.env.ARI_FALLBACK_PROVIDER_API_KEY || "").trim();
+  const ariUrl = String(process.env.ARI_RESPONSES_URL || process.env.OPENAI_RESPONSES_URL || DEFAULT_OPENAI_RESPONSES_URL).trim();
+  const openAiUrl = String(process.env.OPENAI_RESPONSES_URL || DEFAULT_OPENAI_RESPONSES_URL).trim();
+  const fallbackUrl = String(process.env.ARI_FALLBACK_RESPONSES_URL || "").trim();
+  const candidates = [];
 
+  if (ariKey) {
+    candidates.push({ name: "ari_primary", apiKey: ariKey, url: ariUrl });
+  } else if (openAiKey) {
+    candidates.push({ name: "openai_primary", apiKey: openAiKey, url: openAiUrl });
+  }
+
+  if (fallbackKey && fallbackUrl) {
+    candidates.push({ name: "ari_fallback", apiKey: fallbackKey, url: fallbackUrl });
+  }
+
+  // When ARI_PROVIDER_API_KEY is a distinct credential, OPENAI_API_KEY remains
+  // an independent same-runtime fallback rather than a legacy semantic path.
+  if (ariKey && openAiKey) {
+    candidates.push({ name: "openai_fallback", apiKey: openAiKey, url: openAiUrl });
+  }
+
+  const seen = new Set();
+  return candidates.filter((candidate) => {
+    const fingerprint = `${candidate.url}\u0000${candidate.apiKey}`;
+    if (!candidate.url || !candidate.apiKey || seen.has(fingerprint)) return false;
+    seen.add(fingerprint);
+    return true;
+  });
+}
+
+function providerErrorFromResponse(data = {}, response, candidate = {}) {
+  const provider = data?.error && typeof data.error === "object" ? data.error : {};
+  const error = new Error(provider?.message || "ARI model provider request failed.");
+  error.status = Number(response?.status) || 500;
+  error.providerCode = String(provider?.code || "").trim() || null;
+  error.providerType = String(provider?.type || "").trim() || null;
+  error.providerRoute = String(candidate?.name || "").trim() || null;
+  return error;
+}
+
+function isRecoverableProviderFailure(error) {
+  const status = Number(error?.status);
+  return !Number.isFinite(status) || status === 408 || status === 429 || status >= 500;
+}
+
+async function callProviderCandidate({ candidate, body, timeoutMs }) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), policy?.timeoutMs || 25000);
-  const normalizedTools = Array.isArray(tools) ? tools : [];
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
+  try {
+    const response = await fetch(candidate.url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${candidate.apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw providerErrorFromResponse(data, response, candidate);
+    return data;
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      const timeoutError = new Error("Ari vNext model request timed out.");
+      timeoutError.status = 504;
+      timeoutError.providerCode = "provider_timeout";
+      timeoutError.providerType = "timeout";
+      timeoutError.providerRoute = String(candidate?.name || "").trim() || null;
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function callResponses({ turn, policy, instructions, input, tools = [], toolChoice = "auto" } = {}) {
+  const candidates = modelProviderCandidates();
+  if (!candidates.length) throw new Error("Ari model provider key is not configured.");
+
+  const normalizedTools = Array.isArray(tools) ? tools : [];
   const body = {
     model: policy?.model,
     instructions,
@@ -1930,34 +2009,29 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
     body.prompt_cache_key = `ari-vnext:${userId.slice(0, 54)}`.slice(0, 64);
   }
 
-  try {
-    const response = await fetch(RESPONSES_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal
-    });
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const error = new Error(data?.error?.message || "ARI model provider request failed.");
-      error.status = response.status;
-      throw error;
+  let lastError = null;
+  for (let index = 0; index < candidates.length; index += 1) {
+    const candidate = candidates[index];
+    try {
+      return await callProviderCandidate({
+        candidate,
+        body,
+        timeoutMs: policy?.timeoutMs || 25000
+      });
+    } catch (error) {
+      lastError = error;
+      const hasFallback = index < candidates.length - 1;
+      if (!hasFallback || !isRecoverableProviderFailure(error)) throw error;
+      console.warn("[ARI Provider Failover]", {
+        from: candidate.name,
+        status: Number(error?.status) || null,
+        code: error?.providerCode || error?.providerType || null,
+        to: candidates[index + 1]?.name || null
+      });
     }
-    return data;
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      const timeoutError = new Error("Ari vNext model request timed out.");
-      timeoutError.status = 504;
-      throw timeoutError;
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
   }
+
+  throw lastError || new Error("ARI model provider request failed.");
 }
 
 export function missingWorkoutDateClarification(turn = {}, route = {}) {
