@@ -1396,11 +1396,15 @@ export default async function handler(req, res) {
       await releaseAriRequest(requestIdentity);
     }
     console.error("[ARI vNext Error]", error);
-    return res.status(normalizeStatus(error?.status)).json({
+    const failure = classifyRuntimeFailure(error, requestIdentity?.userId || "");
+    return res.status(failure.status).json({
       success: false,
       ready: false,
-      error: error?.message || "Ari vNext could not complete the turn.",
-      source: "ari_vnext_api",
+      retryable: failure.retryable,
+      code: failure.code,
+      reply: failure.reply,
+      error: failure.error,
+      source: failure.source,
       timing: { totalMs: Date.now() - startedAt }
     });
   }
@@ -1489,6 +1493,70 @@ function resolveBody(req) {
 function normalizeStatus(status) {
   const number = Number(status);
   return Number.isFinite(number) && number >= 400 && number <= 599 ? Math.floor(number) : 500;
+}
+
+function isOwnerUserId(userId = "") {
+  const expected = cleanText(process.env.ARI_OWNER_USER_ID, 200).toLowerCase();
+  const actual = cleanText(userId, 200).toLowerCase();
+  return Boolean(expected && actual && expected === actual);
+}
+
+function classifyRuntimeFailure(error, userId = "") {
+  const upstreamStatus = normalizeStatus(error?.status);
+  const providerCode = cleanText(error?.providerCode, 160).toLowerCase();
+  const providerType = cleanText(error?.providerType, 160).toLowerCase();
+  const message = cleanText(error?.message || "", 1200);
+  const providerSignal = `${providerCode} ${providerType} ${message}`.toLowerCase();
+  const creditsExhausted =
+    upstreamStatus === 429 &&
+    /(?:insufficient[_\s-]?quota|no credits? remaining|add credits?|billing|usage balance|quota exceeded|current quota)/i.test(providerSignal);
+
+  if (creditsExhausted) {
+    const owner = isOwnerUserId(userId);
+    return {
+      status: 503,
+      retryable: false,
+      code: "ARI_PROVIDER_CREDITS_EXHAUSTED",
+      reply: owner
+        ? "Ari's model provider has no API credits remaining. Add provider credits or configure a Responses-compatible fallback provider, then try again."
+        : "Ari's model provider is temporarily unavailable. Please try again later.",
+      error: owner
+        ? "Model-provider API credits are exhausted."
+        : "Ari's model provider is temporarily unavailable.",
+      source: "ari_vnext_provider_capacity"
+    };
+  }
+
+  if (upstreamStatus === 429) {
+    return {
+      status: 503,
+      retryable: true,
+      code: "ARI_PROVIDER_RATE_LIMITED",
+      reply: "Ari's model provider is temporarily rate-limited. Please try again shortly.",
+      error: "Ari's model provider is temporarily rate-limited.",
+      source: "ari_vnext_provider_capacity"
+    };
+  }
+
+  if (upstreamStatus === 504 || providerType === "timeout" || providerCode === "provider_timeout") {
+    return {
+      status: 504,
+      retryable: true,
+      code: "ARI_PROVIDER_TIMEOUT",
+      reply: "Ari's model provider took too long to respond. Please try again.",
+      error: "Ari's model provider timed out.",
+      source: "ari_vnext_provider_capacity"
+    };
+  }
+
+  return {
+    status: upstreamStatus,
+    retryable: upstreamStatus >= 500,
+    code: "ARI_VNEXT_RUNTIME_FAILED",
+    reply: "I couldn't complete that request through Ari's primary runtime. Please try again.",
+    error: message || "Ari vNext could not complete the turn.",
+    source: "ari_vnext_api"
+  };
 }
 
 function setHeaders(res) {
