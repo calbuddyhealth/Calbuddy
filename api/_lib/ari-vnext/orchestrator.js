@@ -42,7 +42,6 @@ import {
 import { executeOwnerChatgptDiscussionAction } from "../../../server/ari-chatgpt-browser-bridge.js";
 
 const DEFAULT_OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
-const RESPONSES_URL = process.env.ARI_RESPONSES_URL || process.env.OPENAI_RESPONSES_URL || DEFAULT_OPENAI_RESPONSES_URL;
 const LOW_RISK_PRIMARY_FAST_PATHS = new Set([
   "propose_log_meal",
   "propose_log_weight",
