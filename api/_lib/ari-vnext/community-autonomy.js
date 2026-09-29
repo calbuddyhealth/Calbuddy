@@ -7,7 +7,7 @@ import {
 import { loadAriIntelligenceControls } from "../../../server/ari-intelligence-control-store.js";
 import { resolveAriIntelligenceEntitlement } from "../../../server/ari-intelligence-entitlement.js";
 import { enforceAiRateLimit } from "../ai-rate-limit.js";
-import { recordOpenAIUsage } from "../ai-provider-usage.js";
+import { assertBackgroundAiBudget, recordBackgroundOpenAIUsage } from "../background-ai-budget.js";
 import { resolveModelPolicy } from "./model-policy.js";
 import { loadUserWorldModel } from "./user-world-model.js";
 import { ARI_PERSONA } from "./persona.js";
@@ -490,6 +490,12 @@ async function proposeCommunityPost({ userId, seeds = [], recentPosts = [] } = {
     complexity: "medium",
     intelligenceEntitlement: resolveAriIntelligenceEntitlement({ userId, controls })
   });
+  const backgroundModel = clean(
+    process.env.OPENAI_ARI_COMMUNITY_FAST_MODEL ||
+    process.env.OPENAI_ARI_BACKGROUND_MODEL ||
+    "gpt-5.6-luna",
+    160
+  );
 
   const schema = {
     type: "object",
@@ -537,15 +543,17 @@ async function proposeCommunityPost({ userId, seeds = [], recentPosts = [] } = {
   const timer = setTimeout(() => controller.abort(), Math.min(Number(policy.timeoutMs || 26000), 40000));
   let data;
   try {
+    await assertBackgroundAiBudget();
+
     const response = await fetch(process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       signal: controller.signal,
       body: JSON.stringify({
-        model: policy.model,
+        model: backgroundModel,
         store: false,
-        max_output_tokens: Math.max(1000, Math.min(1800, Number(policy.maxOutputTokens || 1400))),
-        ...(policy.supportsReasoning ? { reasoning: { effort: policy.reasoningEffort } } : {}),
+        max_output_tokens: Math.max(700, Math.min(1100, Number(policy.maxOutputTokens || 900))),
+        ...(/^gpt-5|^o[0-9]/i.test(backgroundModel) ? { reasoning: { effort: "low" } } : {}),
         instructions,
         input: [{ role: "user", content: [{ type: "input_text", text: JSON.stringify(publicContext) }] }],
         text: { format: { type: "json_schema", name: "ari_community_new_post", strict: true, schema } },
@@ -561,12 +569,11 @@ async function proposeCommunityPost({ userId, seeds = [], recentPosts = [] } = {
     clearTimeout(timer);
   }
 
-  await recordOpenAIUsage({
+  await recordBackgroundOpenAIUsage({
     userId,
     endpoint: ENDPOINT,
-    usageType: "reasoning_reflection",
     requestCategory: "agent_community_autonomous_post",
-    model: data?.model || policy.model,
+    model: data?.model || backgroundModel,
     responseData: data,
     providerRequestId: data?.id || null
   }).catch(() => {});
@@ -590,6 +597,12 @@ async function evaluateCommunityThread({ thread, userId }) {
     complexity: "deep",
     intelligenceEntitlement: resolveAriIntelligenceEntitlement({ userId, controls })
   });
+  const backgroundModel = clean(
+    process.env.OPENAI_ARI_COMMUNITY_MODEL ||
+    process.env.OPENAI_ARI_BACKGROUND_REASONING_MODEL ||
+    "gpt-5.6-terra",
+    160
+  );
 
   const schema = {
     type: "object",
@@ -638,10 +651,10 @@ async function evaluateCommunityThread({ thread, userId }) {
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       signal: controller.signal,
       body: JSON.stringify({
-        model: policy.model,
+        model: backgroundModel,
         store: false,
-        max_output_tokens: Math.max(1400, Math.min(2400, Number(policy.maxOutputTokens || 1800))),
-        ...(policy.supportsReasoning ? { reasoning: { effort: policy.reasoningEffort } } : {}),
+        max_output_tokens: Math.max(1200, Math.min(1900, Number(policy.maxOutputTokens || 1600))),
+        ...(/^gpt-5|^o[0-9]/i.test(backgroundModel) ? { reasoning: { effort: "medium" } } : {}),
         instructions,
         input: [{
           role: "user",
@@ -670,12 +683,11 @@ async function evaluateCommunityThread({ thread, userId }) {
     clearTimeout(timer);
   }
 
-  await recordOpenAIUsage({
+  await recordBackgroundOpenAIUsage({
     userId,
     endpoint: ENDPOINT,
-    usageType: "reasoning_reflection",
     requestCategory: "agent_community_autonomy",
-    model: data?.model || policy.model,
+    model: data?.model || backgroundModel,
     responseData: data,
     providerRequestId: data?.id || null
   }).catch(() => {});
@@ -691,7 +703,7 @@ async function evaluateCommunityThread({ thread, userId }) {
   return {
     analysis,
     participation: normalizeCommunityParticipation(parsed.participation),
-    providerModel: data?.model || policy.model || null
+    providerModel: data?.model || backgroundModel || null
   };
 }
 
