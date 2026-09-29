@@ -262,12 +262,16 @@ export async function submitDreamBatch({
     return { batchId, inputFileId, reservationId: reservation.reservationId, customId };
   } catch (error) {
     if (batchId) {
-      await cancelBatch({ batchId, apiKey, fetcher }).catch(() => {});
+      // Once the provider accepted a Batch, preserve the reservation even if
+      // cancellation or metadata persistence fails. The reservation will
+      // expire automatically rather than understating possibly billable work.
+      await cancelBatch({ batchId, apiKey, fetcher }).catch(() => false);
+    } else {
+      if (inputFileId) {
+        await deleteOpenAIFile({ fileId: inputFileId, apiKey, fetcher }).catch(() => {});
+      }
+      await releaseReservation({ reservationId: reservation.reservationId }).catch(() => {});
     }
-    if (inputFileId) {
-      await deleteOpenAIFile({ fileId: inputFileId, apiKey, fetcher }).catch(() => {});
-    }
-    await releaseReservation({ reservationId: reservation.reservationId }).catch(() => {});
     throw error;
   }
 }
@@ -309,7 +313,7 @@ export async function pollDreamBatch({
     }
   } catch (error) {
     return {
-      success: false,
+      success: true,
       dreamed: false,
       batchPending: true,
       reason: error?.name === "AbortError" ? "dream_batch_status_timeout" : "dream_batch_status_unavailable",
@@ -365,7 +369,7 @@ export async function pollDreamBatch({
 
   if (batchStatus !== "completed") {
     return {
-      success: false,
+      success: true,
       dreamed: false,
       batchPending: true,
       reason: "dream_batch_unknown_pending_state",
@@ -419,7 +423,7 @@ export async function pollDreamBatch({
     outputText = await outputResponse.text().catch(() => "");
     if (!outputResponse.ok) {
       return {
-        success: false,
+        success: true,
         dreamed: false,
         batchPending: true,
         reason: `dream_batch_output_${outputResponse.status}`,
@@ -429,7 +433,7 @@ export async function pollDreamBatch({
     }
   } catch (error) {
     return {
-      success: false,
+      success: true,
       dreamed: false,
       batchPending: true,
       reason: error?.name === "AbortError" ? "dream_batch_output_timeout" : "dream_batch_output_unavailable",
