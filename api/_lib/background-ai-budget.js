@@ -178,7 +178,8 @@ export function estimateBackgroundReservationUsd({
   const normalized = normalizeModelClass(model);
   const floor = normalized === "sol" ? 0.10 : normalized === "terra" ? 0.04 : 0.01;
   const hostedToolAllowance = estimateHostedToolAllowance(requestBody);
-  return roundMoney(Math.min(5, Math.max(floor, raw * 1.15 + hostedToolAllowance + 0.005)));
+  const tokenReservation = Math.max(floor, raw * 1.15 + 0.005);
+  return roundMoney(Math.min(5, tokenReservation + hostedToolAllowance));
 }
 
 export async function reserveBackgroundAiBudget({
