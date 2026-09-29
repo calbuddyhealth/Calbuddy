@@ -33,6 +33,21 @@ test("GPT-5.6 family pricing is recorded correctly", () => {
   assert.match(sol.pricingSource, /gpt-5\.6-sol$/);
 });
 
+test("GPT-5.6 cost accounting applies long-context pricing above 272K input tokens", () => {
+  const estimate = estimateOpenAICost({
+    model: "gpt-5.6-terra",
+    usage: {
+      inputTokens: 300000,
+      cachedInputTokens: 0,
+      outputTokens: 100000
+    }
+  });
+  assert.equal(estimate.estimatedCostUsd, 3);
+  assert.match(estimate.pricingSource, /long_context$/);
+  assert.equal(estimate.rates.inputMultiplier, 2);
+  assert.equal(estimate.rates.outputMultiplier, 1.5);
+});
+
 test("background spend governor blocks when the daily limit is reached", async () => {
   const original = {
     SUPABASE_URL: process.env.SUPABASE_URL,
