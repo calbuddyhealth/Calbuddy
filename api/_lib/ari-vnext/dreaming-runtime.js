@@ -671,7 +671,8 @@ export function dreamingBatchEnabled() {
     "https://api.openai.com/v1/responses",
     1200
   ).toLowerCase();
-  return responsesUrl.startsWith("https://api.openai.com/") && Boolean(clean(process.env.OPENAI_API_KEY, 8000));
+  const openAiKey = clean(process.env.OPENAI_API_KEY || process.env.ARI_PROVIDER_API_KEY, 8000);
+  return responsesUrl.startsWith("https://api.openai.com/") && Boolean(openAiKey);
 }
 
 function safeObject(value) {
