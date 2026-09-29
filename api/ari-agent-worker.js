@@ -1,5 +1,5 @@
 import { runBackgroundAgentBatch } from "./_lib/ari-vnext/background-agent-runtime.js";
-import { runNextUrgentCognitiveTrigger } from "./_lib/ari-vnext/cognitive-scheduler.js";
+import { runNextUrgentCognitiveTrigger } from "./_lib/ari-vnext/cognitive-trigger-runner.js";
 
 export const config = { maxDuration: 120 };
 
