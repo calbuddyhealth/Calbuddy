@@ -675,6 +675,11 @@ export function dreamingBatchEnabled() {
   return responsesUrl.startsWith("https://api.openai.com/") && Boolean(openAiKey);
 }
 
+function validDate(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(date.getTime()) ? date : new Date();
+}
+
 function safeObject(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   try { return JSON.parse(JSON.stringify(value)); } catch { return {}; }
