@@ -190,6 +190,7 @@ test("Dreaming Batch submission reserves half-price spend and stores provider li
     runId: "run-batch-1",
     evidence: e,
     model: "gpt-5.6-terra",
+    apiKey: "test-batch-key",
     now: new Date("2026-09-29T04:00:00Z"),
     reserve: async value => {
       reserved = value;
@@ -257,6 +258,7 @@ test("Dreaming Batch polling costs no model call while provider work is pending"
       }
     },
     evidence: evidence(),
+    apiKey: "test-batch-key",
     fetcher: async url => {
       assert.match(String(url), /\/v1\/batches\/batch-2$/);
       return jsonResponse({ id: "batch-2", status: "in_progress" });
@@ -316,6 +318,7 @@ test("Dreaming Batch completion meters discounted usage then persists normalized
       }
     },
     evidence: e,
+    apiKey: "test-batch-key",
     fetcher: async (url, options = {}) => {
       const href = String(url);
       if (href.endsWith("/v1/batches/batch-3")) {
@@ -379,6 +382,7 @@ test("Dreaming Batch accounts for successful provider work even when output cann
       }
     },
     evidence: evidence(),
+    apiKey: "test-batch-key",
     fetcher: async (url, options = {}) => {
       const href = String(url);
       if (href.endsWith("/v1/batches/batch-4")) {
