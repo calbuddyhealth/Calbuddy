@@ -1,4 +1,4 @@
-import { recordOpenAIUsage } from "./ai-provider-usage.js";
+import { estimateOpenAICost, recordOpenAIUsage } from "./ai-provider-usage.js";
 
 const DEFAULT_DAILY_BUDGET_USD = 1.00;
 const DEFAULT_MONTHLY_BUDGET_USD = 20.00;
@@ -36,7 +36,7 @@ export async function getBackgroundAiBudgetStatus({ now = new Date(), fetcher = 
 
   try {
     const params = new URLSearchParams({
-      select: "created_at,usage_type,request_category,estimated_cost_usd",
+      select: "created_at,usage_type,request_category,model,input_tokens,cached_input_tokens,output_tokens,total_tokens,estimated_cost_usd,pricing_source",
       created_at: `gte.${monthStart.toISOString()}`,
       order: "created_at.asc",
       limit: "5000"
@@ -53,7 +53,7 @@ export async function getBackgroundAiBudgetStatus({ now = new Date(), fetcher = 
     let monthlySpendUsd = 0;
     for (const row of Array.isArray(rows) ? rows : []) {
       if (!isBackgroundUsageRow(row)) continue;
-      const cost = Math.max(0, Number(row?.estimated_cost_usd) || 0);
+      const cost = backgroundRowCost(row);
       monthlySpendUsd += cost;
       const created = Date.parse(String(row?.created_at || ""));
       if (Number.isFinite(created) && created >= dayStart.getTime()) dailySpendUsd += cost;
@@ -121,6 +121,33 @@ function isBackgroundUsageRow(row = {}) {
   if (String(row?.usage_type || "").toLowerCase() === "background") return true;
   const category = String(row?.request_category || "").toLowerCase();
   return BACKGROUND_CATEGORY_PREFIXES.some((prefix) => category.startsWith(prefix));
+}
+
+function backgroundRowCost(row = {}) {
+  const recorded = Math.max(0, Number(row?.estimated_cost_usd) || 0);
+  const inputTokens = Math.max(0, Number(row?.input_tokens) || 0);
+  const cachedInputTokens = Math.max(0, Number(row?.cached_input_tokens) || 0);
+  const outputTokens = Math.max(0, Number(row?.output_tokens) || 0);
+  const totalTokens = Math.max(0, Number(row?.total_tokens) || inputTokens + outputTokens);
+  const pricingSource = String(row?.pricing_source || "");
+
+  if (
+    totalTokens > 0 &&
+    (recorded === 0 || pricingSource.startsWith("unpriced_model:"))
+  ) {
+    const recalculated = estimateOpenAICost({
+      model: row?.model || "",
+      usage: { inputTokens, cachedInputTokens, outputTokens, totalTokens }
+    });
+    if (
+      recalculated?.pricingSource &&
+      !String(recalculated.pricingSource).startsWith("unpriced_model:")
+    ) {
+      return Math.max(0, Number(recalculated.estimatedCostUsd) || 0);
+    }
+  }
+
+  return recorded;
 }
 
 function positiveNumber(value, fallback) {
