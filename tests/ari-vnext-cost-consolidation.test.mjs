@@ -19,16 +19,16 @@ import {
 const OWNER_ID = "11111111-1111-4111-8111-111111111111";
 
 test("GPT-5.6 family pricing is recorded correctly", () => {
-  const usage = { inputTokens: 1_000_000, cachedInputTokens: 200_000, outputTokens: 100_000 };
+  const usage = { inputTokens: 100_000, cachedInputTokens: 20_000, outputTokens: 10_000 };
 
   const sol = estimateOpenAICost({ model: "gpt-5.6-sol", usage });
   const terra = estimateOpenAICost({ model: "gpt-5.6-terra", usage });
   const luna = estimateOpenAICost({ model: "gpt-5.6-luna", usage });
   const alias = estimateOpenAICost({ model: "gpt-5.6", usage });
 
-  assert.equal(sol.estimatedCostUsd, 5.28);
-  assert.equal(terra.estimatedCostUsd, 2.84);
-  assert.equal(luna.estimatedCostUsd, 0.284);
+  assert.equal(sol.estimatedCostUsd, 0.528);
+  assert.equal(terra.estimatedCostUsd, 0.284);
+  assert.equal(luna.estimatedCostUsd, 0.0284);
   assert.equal(alias.estimatedCostUsd, sol.estimatedCostUsd);
   assert.match(sol.pricingSource, /gpt-5\.6-sol$/);
 });
