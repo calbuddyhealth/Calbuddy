@@ -3,7 +3,7 @@
 // repository files/search/CI, and optional public web evidence. They cannot edit
 // repositories, mutate ARI XP state, send arbitrary messages, or escape the worker.
 
-import { assertBackgroundAiBudget, recordBackgroundOpenAIUsage } from "../background-ai-budget.js";
+import { executeBackgroundOpenAIRequest } from "../background-ai-budget.js";
 import {
   developerToolResultToExecutionEvidence,
   executeDeveloperWorkspaceTool
@@ -418,41 +418,30 @@ async function callResponses({
   }
 
   try {
-    await assertBackgroundAiBudget();
-
-    const response = await fetch(RESPONSES_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal
+    const provider = await executeBackgroundOpenAIRequest({
+      userId: job?.userId || null,
+      endpoint: "/api/ari-agent-worker",
+      requestCategory: `ari_background_specialist_${clean(job?.jobType || "task", 60)}`,
+      model,
+      body,
+      apiKey,
+      url: RESPONSES_URL,
+      signal: controller.signal,
+      metadata: { jobType: clean(job?.jobType, 80) || null }
     });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
+    const data = provider.data || {};
+    if (!provider.ok) {
       const error = codedError(
         clean(data?.error?.code, 120) || "AGENT_WORKER_PROVIDER_FAILED",
         clean(data?.error?.message, 1000) || "Ari background specialist provider request failed."
       );
-      error.status = response.status;
-      const retryAfter = Number(response.headers.get("retry-after"));
+      error.status = provider.status;
+      const retryAfter = Number(provider.headers?.get?.("retry-after"));
       error.retryAfterSeconds = Number.isFinite(retryAfter) && retryAfter > 0
         ? Math.min(3600, Math.ceil(retryAfter))
         : null;
       throw error;
     }
-
-    await recordBackgroundOpenAIUsage({
-      userId: job?.userId || null,
-      endpoint: "/api/ari-agent-worker",
-      requestCategory: `ari_background_specialist_${clean(job?.jobType || "task", 60)}`,
-      model: data?.model || model,
-      responseData: data,
-      providerRequestId: data?.id || null,
-      metadata: { jobType: clean(job?.jobType, 80) || null }
-    }).catch(() => {});
-
     return data;
   } catch (error) {
     if (error?.name === "AbortError") {
