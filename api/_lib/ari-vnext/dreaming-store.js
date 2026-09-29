@@ -168,14 +168,14 @@ export async function loadLatestDreamRun({ userId } = {}) {
   if (!id || !config || !dreamingEnabled()) return null;
   const rows = await readTable(config, RUN_TABLE, {
     user_id: `eq.${id}`,
-    select: "id,status,evidence_fingerprint,evidence_counts,model,summary,insight_count,started_at,completed_at,updated_at",
+    select: "id,status,evidence_fingerprint,evidence_counts,model,summary,insight_count,metadata,started_at,completed_at,updated_at",
     order: "started_at.desc",
     limit: "1"
   });
   return rows[0] || null;
 }
 
-export async function startDreamRun({ userId, runId, fingerprint, counts, model, now = new Date() } = {}) {
+export async function startDreamRun({ userId, runId, fingerprint, counts, model, metadata = {}, now = new Date() } = {}) {
   const id = cleanUserId(userId);
   const config = supabaseConfig();
   if (!id || !config || !runId) return { stored: false, reason: "store_unavailable" };
@@ -189,11 +189,25 @@ export async function startDreamRun({ userId, runId, fingerprint, counts, model,
     insight_count: 0,
     started_at: validDate(now).toISOString(),
     updated_at: validDate(now).toISOString(),
-    metadata: { version: ARI_DREAMING_VERSION, hiddenChainOfThoughtStored: false, rawEvidenceStored: false }
+    metadata: {
+      version: ARI_DREAMING_VERSION,
+      hiddenChainOfThoughtStored: false,
+      rawEvidenceStored: false,
+      ...safeObject(metadata)
+    }
   }, "POST");
 }
 
-export async function finishDreamRun({ userId, runId, status, summary = "", insightCount = 0, error = null, now = new Date() } = {}) {
+export async function finishDreamRun({
+  userId,
+  runId,
+  status,
+  summary = "",
+  insightCount = 0,
+  error = null,
+  metadata = {},
+  now = new Date()
+} = {}) {
   const id = cleanUserId(userId);
   const config = supabaseConfig();
   if (!id || !config || !runId) return { stored: false, reason: "store_unavailable" };
@@ -207,10 +221,46 @@ export async function finishDreamRun({ userId, runId, status, summary = "", insi
       insight_count: Math.max(0, Number(insightCount) || 0),
       completed_at: validDate(now).toISOString(),
       updated_at: validDate(now).toISOString(),
-      metadata: { version: ARI_DREAMING_VERSION, hiddenChainOfThoughtStored: false, rawEvidenceStored: false, ...(error ? { error: clean(error, 360) } : {}) }
+      metadata: {
+        version: ARI_DREAMING_VERSION,
+        hiddenChainOfThoughtStored: false,
+        rawEvidenceStored: false,
+        ...safeObject(metadata),
+        ...(error ? { error: clean(error, 360) } : {})
+      }
     })
   });
   return { stored: response.ok, reason: response.ok ? null : `http_${response.status}` };
+}
+
+export async function updateDreamRunMetadata({
+  userId,
+  runId,
+  metadata = {},
+  now = new Date()
+} = {}) {
+  const id = cleanUserId(userId);
+  const config = supabaseConfig();
+  if (!id || !config || !runId) return { stored: false, reason: "store_unavailable" };
+  const query = new URLSearchParams({ user_id: `eq.${id}`, id: `eq.${runId}` });
+  try {
+    const response = await timedFetch(`${config.url}/rest/v1/${RUN_TABLE}?${query}`, {
+      method: "PATCH",
+      headers: serverHeaders(config.key, { Prefer: "return=minimal" }),
+      body: JSON.stringify({
+        metadata: {
+          version: ARI_DREAMING_VERSION,
+          hiddenChainOfThoughtStored: false,
+          rawEvidenceStored: false,
+          ...safeObject(metadata)
+        },
+        updated_at: validDate(now).toISOString()
+      })
+    });
+    return { stored: response.ok, reason: response.ok ? null : `http_${response.status}` };
+  } catch (error) {
+    return { stored: false, reason: error?.name || "write_failed" };
+  }
 }
 
 export async function persistDreamInsights({ userId, runId, insights = [], now = new Date() } = {}) {
