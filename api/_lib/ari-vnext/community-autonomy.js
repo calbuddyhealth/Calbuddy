@@ -235,6 +235,29 @@ export function normalizeCommunityParticipation(raw = null) {
   };
 }
 
+export async function probeCommunityWork({ userId, now = new Date() } = {}) {
+  const id = clean(userId, 200);
+  if (!id || isExplicitlyDisabled(process.env.ARI_AGENT_COMMUNITY_AUTONOMY_ENABLED)) {
+    return { available: false, hasWork: false, candidateCount: 0, reason: "community_unavailable" };
+  }
+  try {
+    const [interactions, posts] = await Promise.all([
+      listRecentCommunityInteractions({ userId: id, limit: 120 }),
+      listCommunityThreads("")
+    ]);
+    const selected = selectCommunityThreadsForCycle({ posts, interactions, now });
+    return {
+      available: true,
+      hasWork: selected.length > 0,
+      candidateCount: selected.length,
+      latestInteractionAt: interactions?.[0]?.createdAt || null,
+      reason: selected.length ? "new_or_advanced_threads" : "no_new_threads"
+    };
+  } catch {
+    return { available: false, hasWork: false, candidateCount: 0, reason: "community_probe_failed" };
+  }
+}
+
 export async function runAriCommunityCycle({ userId, now = new Date() } = {}) {
   const id = clean(userId, 200);
   if (!id) return { success: false, acted: false, reason: "owner_id_missing" };
