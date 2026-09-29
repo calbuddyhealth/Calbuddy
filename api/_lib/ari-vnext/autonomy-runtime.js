@@ -9,6 +9,7 @@
 // destructive data, billing, or permission-escalation authority. Those are
 // external infrastructure boundaries rather than cognitive restrictions.
 
+import { assertBackgroundAiBudget, recordBackgroundOpenAIUsage } from "../background-ai-budget.js";
 import { normalizeCuriosityState } from "./curiosity-core.js";
 import { recordInitiativeSurface } from "./initiative-events.js";
 import { loadUserWorldModel, persistUserWorldModel } from "./user-world-model.js";
@@ -858,12 +859,20 @@ async function createPatchProposal({ goal, planning, files, allowCodeCommit, use
 
 async function callStructuredModel({ userId, schemaName, schema, instructions, input, maxOutputTokens }) {
   const apiKey = clean(process.env.ARI_PROVIDER_API_KEY || process.env.OPENAI_API_KEY, 8000);
+  const planningCall = schemaName === "ari_autonomy_investigation_plan";
   const model = clean(
-    process.env.ARI_AUTONOMY_MODEL ||
-    process.env.OPENAI_ARI_ADVANCED_MODEL ||
-    process.env.OPENAI_ARI_OWNER_MODEL ||
-    process.env.OPENAI_ARI_CORTEX_ADVISER_MODEL ||
-    "gpt-5.4",
+    planningCall
+      ? (
+          process.env.OPENAI_ARI_AUTONOMY_PLANNER_MODEL ||
+          process.env.OPENAI_ARI_BACKGROUND_MODEL ||
+          "gpt-5.6-luna"
+        )
+      : (
+          process.env.ARI_AUTONOMY_MODEL ||
+          process.env.OPENAI_ARI_AUTONOMY_MODEL ||
+          process.env.OPENAI_ARI_ADVANCED_MODEL ||
+          "gpt-5.6-sol"
+        ),
     120
   );
   if (!apiKey || !model) return null;
@@ -888,7 +897,11 @@ async function callStructuredModel({ userId, schemaName, schema, instructions, i
     safety_identifier: clean(userId, 200),
     prompt_cache_key: `ari-autonomy:${clean(userId, 43)}`.slice(0, 64)
   };
-  if (/^gpt-5|^o[0-9]/i.test(model)) body.reasoning = { effort: "high" };
+  if (/^gpt-5|^o[0-9]/i.test(model)) {
+    body.reasoning = { effort: planningCall ? "low" : "high" };
+  }
+
+  await assertBackgroundAiBudget();
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30000);
@@ -901,6 +914,17 @@ async function callStructuredModel({ userId, schemaName, schema, instructions, i
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) return null;
+
+    await recordBackgroundOpenAIUsage({
+      userId,
+      endpoint: "/api/ari-autonomy-cycle",
+      requestCategory: planningCall ? "ari_autonomy_planning" : "ari_autonomy_patch_proposal",
+      model: data?.model || model,
+      responseData: data,
+      providerRequestId: data?.id || null,
+      metadata: { schemaName }
+    }).catch(() => {});
+
     return parseJson(extractOutputText(data));
   } catch {
     return null;
