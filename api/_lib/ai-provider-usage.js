@@ -107,20 +107,30 @@ export function extractOpenAIUsage(data = {}) {
 
 export function estimateOpenAICost({ model = "", usage = {} } = {}) {
   const rates = resolveRates(model);
+  const normalizedModel = normalizeModel(model);
   const inputTokens = safeInt(usage.inputTokens);
   const cachedInputTokens = Math.min(inputTokens, safeInt(usage.cachedInputTokens));
   const uncachedInputTokens = Math.max(0, inputTokens - cachedInputTokens);
   const outputTokens = safeInt(usage.outputTokens);
+  const longContext = normalizedModel.startsWith("gpt-5.6") && inputTokens > 272000;
+  const inputMultiplier = longContext ? 2 : 1;
+  const outputMultiplier = longContext ? 1.5 : 1;
 
   const cost =
-    (uncachedInputTokens / 1_000_000) * rates.input +
-    (cachedInputTokens / 1_000_000) * rates.cachedInput +
-    (outputTokens / 1_000_000) * rates.output;
+    (uncachedInputTokens / 1_000_000) * rates.input * inputMultiplier +
+    (cachedInputTokens / 1_000_000) * rates.cachedInput * inputMultiplier +
+    (outputTokens / 1_000_000) * rates.output * outputMultiplier;
 
   return {
     estimatedCostUsd: Number(cost.toFixed(8)),
-    pricingSource: rates.pricingSource,
-    rates
+    pricingSource: longContext
+      ? `${rates.pricingSource}:long_context`
+      : rates.pricingSource,
+    rates: {
+      ...rates,
+      inputMultiplier,
+      outputMultiplier
+    }
   };
 }
 
