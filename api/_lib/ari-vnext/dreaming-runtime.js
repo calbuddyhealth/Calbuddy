@@ -1,6 +1,7 @@
 // ARI vNext — scheduled Dreaming & Consolidation runtime.
 
 import { randomUUID } from "node:crypto";
+import { assertBackgroundAiBudget, recordBackgroundOpenAIUsage } from "../background-ai-budget.js";
 import {
   ARI_DREAMING_VERSION,
   buildDreamModelPayload,
@@ -42,6 +43,15 @@ export async function runAriDreamingCycle({
   const fingerprint = dreamEvidenceFingerprint(evidence);
   const evidenceAt = latestDreamEvidenceAt(evidence);
   const latest = await loadLatest({ userId });
+  const latestFailedMs = Date.parse(String(latest?.completed_at || latest?.updated_at || latest?.created_at || ""));
+  if (latest?.status === "failed" && Number.isFinite(latestFailedMs) && (clockMs(now) - latestFailedMs) < 12 * 3600000) {
+    return {
+      success: true,
+      dreamed: false,
+      reason: "dreaming_backoff_after_failure",
+      retryAfter: new Date(latestFailedMs + 12 * 3600000).toISOString()
+    };
+  }
   const latestCompletedMs = Date.parse(String(latest?.completed_at || ""));
   const evidenceMs = Date.parse(String(evidenceAt || ""));
   if (latest?.status === "completed" && (
@@ -103,9 +113,12 @@ export async function synthesizeDream({ evidence, model = dreamModel(), fetcher 
     reasoning: supportsReasoning(model) ? { effort: dreamEffort() } : undefined,
     instructions: dreamInstructions(),
     input: [{ role: "user", content: [{ type: "input_text", text: JSON.stringify(buildDreamModelPayload(evidence)) }] }],
-    text: { format: { type: "json_schema", name: "ari_dream_consolidation", strict: true, schema: dreamSchema() } }
+    text: { format: { type: "json_schema", name: "ari_dream_consolidation", strict: true, schema: dreamSchema() } },
+    prompt_cache_key: "ari-dream-consolidation-v1"
   };
   if (!body.reasoning) delete body.reasoning;
+
+  await assertBackgroundAiBudget();
 
   const response = await fetcher(RESPONSES_URL, {
     method: "POST",
@@ -115,6 +128,15 @@ export async function synthesizeDream({ evidence, model = dreamModel(), fetcher 
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`dreaming_provider_${response.status}`);
+
+  await recordBackgroundOpenAIUsage({
+    endpoint: "/api/ari-dreaming-cycle",
+    requestCategory: "ari_dreaming_consolidation",
+    model: data?.model || model,
+    responseData: data,
+    providerRequestId: data?.id || null
+  }).catch(() => {});
+
   const parsed = parseJson(extractOutputText(data));
   if (!parsed) throw new Error("dreaming_invalid_provider_output");
   return parsed;
@@ -190,13 +212,16 @@ function dreamSchema() {
 
 function dreamModel() {
   return clean(process.env.OPENAI_ARI_DREAM_MODEL, 120)
-    || clean(process.env.OPENAI_ARI_REASONING_TEACHER_MODEL, 120)
-    || clean(process.env.OPENAI_ARI_OWNER_MODEL, 120)
-    || "gpt-5.6";
+    || clean(process.env.OPENAI_ARI_BACKGROUND_REASONING_MODEL, 120)
+    || "gpt-5.6-terra";
 }
 function dreamEffort() {
   const value = clean(process.env.OPENAI_ARI_DREAM_EFFORT, 30).toLowerCase();
   return ["low", "medium", "high", "xhigh"].includes(value) ? value : "medium";
+}
+function clockMs(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(date.getTime()) ? date.getTime() : Date.now();
 }
 function supportsReasoning(model = "") { return /^(?:gpt-(?:5|6)|o[0-9])/i.test(String(model || "")); }
 function extractOutputText(data = {}) {
