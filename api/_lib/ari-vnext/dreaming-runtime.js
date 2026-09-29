@@ -1,7 +1,7 @@
 // ARI vNext — scheduled Dreaming & Consolidation runtime.
 
 import { randomUUID } from "node:crypto";
-import { assertBackgroundAiBudget, recordBackgroundOpenAIUsage } from "../background-ai-budget.js";
+import { executeBackgroundOpenAIRequest } from "../background-ai-budget.js";
 import {
   ARI_DREAMING_VERSION,
   buildDreamModelPayload,
@@ -67,7 +67,7 @@ export async function runAriDreamingCycle({
   if (!started?.stored) return { success: false, dreamed: false, reason: started?.reason || "dream_run_start_failed" };
 
   try {
-    const raw = await synthesize({ evidence, model });
+    const raw = await synthesize({ evidence, model, userId });
     const normalized = normalizeDreamOutput(raw, evidence);
     const stored = await persistInsights({ userId, runId, insights: normalized.insights, now });
     await finishRun({
@@ -103,7 +103,7 @@ export async function runAriDreamingCycle({
   }
 }
 
-export async function synthesizeDream({ evidence, model = dreamModel(), fetcher = fetch } = {}) {
+export async function synthesizeDream({ evidence, model = dreamModel(), userId = null, fetcher = fetch } = {}) {
   const apiKey = clean(process.env.ARI_PROVIDER_API_KEY || process.env.OPENAI_API_KEY, 8000);
   if (!apiKey) throw new Error("dreaming_provider_key_missing");
   const body = {
@@ -118,24 +118,19 @@ export async function synthesizeDream({ evidence, model = dreamModel(), fetcher 
   };
   if (!body.reasoning) delete body.reasoning;
 
-  await assertBackgroundAiBudget();
-
-  const response = await fetcher(RESPONSES_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(TIMEOUT_MS)
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(`dreaming_provider_${response.status}`);
-
-  await recordBackgroundOpenAIUsage({
+  const provider = await executeBackgroundOpenAIRequest({
+    userId,
     endpoint: "/api/ari-dreaming-cycle",
     requestCategory: "ari_dreaming_consolidation",
-    model: data?.model || model,
-    responseData: data,
-    providerRequestId: data?.id || null
-  }).catch(() => {});
+    model,
+    body,
+    apiKey,
+    url: RESPONSES_URL,
+    fetcher,
+    signal: AbortSignal.timeout(TIMEOUT_MS)
+  });
+  const data = provider.data || {};
+  if (!provider.ok) throw new Error(`dreaming_provider_${provider.status}`);
 
   const parsed = parseJson(extractOutputText(data));
   if (!parsed) throw new Error("dreaming_invalid_provider_output");
