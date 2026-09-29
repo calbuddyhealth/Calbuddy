@@ -142,7 +142,8 @@ export function estimateBackgroundReservationUsd({
   model = "",
   requestBody = null,
   estimatedInputTokens = null,
-  maxOutputTokens = null
+  maxOutputTokens = null,
+  costMultiplier = 1
 } = {}) {
   const serializedLength = requestBody
     ? safeJsonString(requestBody).length
@@ -174,7 +175,8 @@ export function estimateBackgroundReservationUsd({
     ));
   }
 
-  const raw = Math.max(0, Number(estimate?.estimatedCostUsd) || 0);
+  const multiplier = Math.max(0, Number(costMultiplier) || 1);
+  const raw = Math.max(0, Number(estimate?.estimatedCostUsd) || 0) * multiplier;
   const normalized = normalizeModelClass(model);
   const floor = normalized === "sol" ? 0.10 : normalized === "terra" ? 0.04 : 0.01;
   const hostedToolAllowance = estimateHostedToolAllowance(requestBody);
@@ -189,6 +191,7 @@ export async function reserveBackgroundAiBudget({
   requestBody = null,
   estimatedInputTokens = null,
   maxOutputTokens = null,
+  costMultiplier = 1,
   now = new Date(),
   fetcher = fetch
 } = {}) {
@@ -207,7 +210,8 @@ export async function reserveBackgroundAiBudget({
     model,
     requestBody,
     estimatedInputTokens,
-    maxOutputTokens
+    maxOutputTokens,
+    costMultiplier
   });
 
   const response = await fetcher(`${config.url}/rest/v1/rpc/ari_reserve_background_ai_budget`, {
@@ -281,6 +285,37 @@ export async function settleBackgroundAiBudget({
   }
 }
 
+export async function extendBackgroundAiBudgetReservation({
+  reservationId,
+  expiresAt,
+  fetcher = fetch
+} = {}) {
+  const config = supabaseConfig();
+  const id = clean(reservationId, 100);
+  const target = validDate(expiresAt);
+  if (!config || !id || !Number.isFinite(target.getTime())) {
+    return { extended: false, reason: "invalid_extension_input" };
+  }
+
+  try {
+    const response = await fetcher(`${config.url}/rest/v1/rpc/ari_extend_background_ai_budget_reservation`, {
+      method: "POST",
+      headers: serverHeaders(config.key),
+      body: JSON.stringify({
+        p_reservation_id: id,
+        p_expires_at: target.toISOString()
+      }),
+      signal: AbortSignal.timeout(5000)
+    });
+    const data = await response.json().catch(() => null);
+    return response.ok
+      ? { extended: data?.extended === true, data }
+      : { extended: false, reason: `http_${response.status}` };
+  } catch {
+    return { extended: false, reason: "reservation_extension_failed" };
+  }
+}
+
 export async function releaseBackgroundAiBudget({
   reservationId,
   fetcher = fetch
@@ -324,6 +359,7 @@ export async function executeBackgroundOpenAIRequest({
     model,
     requestBody: body,
     maxOutputTokens: body?.max_output_tokens,
+    costMultiplier,
     fetcher
   });
 
@@ -352,7 +388,8 @@ export async function executeBackgroundOpenAIRequest({
       model: data?.model || model,
       responseData: data,
       providerRequestId: data?.id || null,
-      metadata
+      metadata,
+      costMultiplier
     }).catch(() => {});
 
     await settleBackgroundAiBudget({
@@ -377,7 +414,8 @@ export async function recordBackgroundOpenAIUsage({
   model,
   responseData = {},
   providerRequestId = null,
-  metadata = {}
+  metadata = {},
+  costMultiplier = 1
 } = {}) {
   return recordOpenAIUsage({
     userId: normalizeUserId(userId) || null,
@@ -387,6 +425,7 @@ export async function recordBackgroundOpenAIUsage({
     model,
     responseData,
     providerRequestId,
+    costMultiplier,
     metadata: {
       ...(metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {}),
       background: true
