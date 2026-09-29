@@ -4,7 +4,7 @@
 // the critique and resulting patch. Ari may accept it, challenge it with
 // evidence, or escalate an unresolved disagreement to the owner.
 
-import { assertBackgroundAiBudget, recordBackgroundOpenAIUsage } from "../background-ai-budget.js";
+import { executeBackgroundOpenAIRequest } from "../background-ai-budget.js";
 
 export const ARI_CHATGPT_REPAIR_DIALOGUE_VERSION = "1.0.0";
 
@@ -166,6 +166,43 @@ export function buildAriDialogueComment({
     "",
     `**Confidence:** ${normalized.confidence}`
   ].filter(Boolean).join("\n");
+}
+
+export async function probeRepairDialogueWork({
+  repo = process.env.GITHUB_REPO || "",
+  token = process.env.GITHUB_TOKEN || "",
+  request = githubRequest
+} = {}) {
+  if (!isRepairDialogueEnabled()) return { available: false, pending: false, reason: "repair_dialogue_disabled" };
+  const repository = clean(repo, 300);
+  const secret = String(token || "").trim();
+  if (!repository || !secret) return { available: false, pending: false, reason: "github_not_configured" };
+
+  try {
+    const maxRounds = clampInt(process.env.ARI_CHATGPT_MAX_DIALOGUE_ROUNDS, 1, 5, DEFAULT_MAX_ROUNDS);
+    const issues = await findOpenHandoffIssues({ repo: repository, token: secret, request });
+    for (const issue of issues.slice(0, 10)) {
+      const issueNumber = Number(issue?.number);
+      if (!issueNumber) continue;
+      const comments = await request(
+        `https://api.github.com/repos/${repository}/issues/${issueNumber}/comments?per_page=100`,
+        secret
+      );
+      const pending = findPendingChatGptTurn(comments, { maxRounds });
+      if (pending) {
+        return {
+          available: true,
+          pending: true,
+          issueNumber,
+          round: pending.round,
+          reason: "pending_chatgpt_review"
+        };
+      }
+    }
+    return { available: true, pending: false, reason: "no_unanswered_chatgpt_turn" };
+  } catch {
+    return { available: false, pending: false, reason: "repair_probe_failed" };
+  }
 }
 
 export async function runRepairDialogueCycle({
@@ -408,32 +445,19 @@ async function callDialogueModel({
   if (userId) body.safety_identifier = clean(userId, 200);
   if (/^gpt-5|^o[0-9]/i.test(model)) body.reasoning = { effort: "medium" };
 
-  await assertBackgroundAiBudget();
-
-  const response = await fetch(RESPONSES_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(30000)
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) return null;
-
-  await recordBackgroundOpenAIUsage({
+  const provider = await executeBackgroundOpenAIRequest({
     userId,
     endpoint: "/api/ari-chatgpt-dialogue-cycle",
     requestCategory: "ari_repair_dialogue",
-    model: data?.model || model,
-    responseData: data,
-    providerRequestId: data?.id || null,
+    model,
+    body,
+    apiKey,
+    url: RESPONSES_URL,
+    signal: AbortSignal.timeout(30000),
     metadata: { round: Number(round) || 0 }
-  }).catch(() => {});
-
-  return parseJson(extractOutputText(data));
+  });
+  if (!provider.ok) return null;
+  return parseJson(extractOutputText(provider.data || {}));
 }
 
 async function githubRequest(url, token, options = {}) {

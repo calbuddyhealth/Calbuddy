@@ -5,7 +5,7 @@ import {
   buildExperienceKey,
   computePredictionError
 } from "./experience-core.js";
-import { assertBackgroundAiBudget, recordBackgroundOpenAIUsage } from "../background-ai-budget.js";
+import { executeBackgroundOpenAIRequest } from "../background-ai-budget.js";
 import {
   countExperiencesSince,
   experienceEngineEnabled,
@@ -99,7 +99,7 @@ export async function runAriExperienceCycle({
   const results = [];
   for (const job of jobs.slice(0, perCycle)) {
     try {
-      const raw = await investigate({ job, now: clock });
+      const raw = await investigate({ job, now: clock, userId: id });
       const record = buildPersistenceRecord({ job, raw, now: clock });
       const stored = await persist({ userId: id, experience: record });
       results.push({
@@ -140,7 +140,7 @@ export async function runAriExperienceCycle({
   };
 }
 
-export async function synthesizeExperience({ job, now = new Date(), fetcher = fetch } = {}) {
+export async function synthesizeExperience({ job, now = new Date(), userId = null, fetcher = fetch } = {}) {
   const apiKey = clean(process.env.ARI_PROVIDER_API_KEY || process.env.OPENAI_API_KEY, 8000);
   if (!apiKey) throw new Error("experience_provider_key_missing");
 
@@ -175,28 +175,20 @@ export async function synthesizeExperience({ job, now = new Date(), fetcher = fe
   if (!body.reasoning) delete body.reasoning;
   if (!body.tools.length) delete body.tools;
 
-  await assertBackgroundAiBudget({ now });
-
-  const response = await fetcher(RESPONSES_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(TIMEOUT_MS)
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(`experience_provider_${response.status}`);
-
-  await recordBackgroundOpenAIUsage({
+  const provider = await executeBackgroundOpenAIRequest({
+    userId,
     endpoint: "/api/ari-experience-cycle",
     requestCategory: `ari_experience_${mode}`,
-    model: data?.model || model,
-    responseData: data,
-    providerRequestId: data?.id || null,
+    model,
+    body,
+    apiKey,
+    url: RESPONSES_URL,
+    fetcher,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
     metadata: { sourceType: clean(job?.sourceType, 80) || null }
-  }).catch(() => {});
+  });
+  const data = provider.data || {};
+  if (!provider.ok) throw new Error(`experience_provider_${provider.status}`);
 
   const parsed = parseJson(extractOutputText(data));
   if (!parsed) throw new Error("experience_invalid_provider_output");

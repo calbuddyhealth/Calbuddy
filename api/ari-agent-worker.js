@@ -1,4 +1,5 @@
 import { runBackgroundAgentBatch } from "./_lib/ari-vnext/background-agent-runtime.js";
+import { runNextUrgentCognitiveTrigger } from "./_lib/ari-vnext/cognitive-trigger-runner.js";
 
 export const config = { maxDuration: 120 };
 
@@ -43,6 +44,19 @@ export default async function handler(req, res) {
       visibilitySeconds,
       timeBudgetMs: intEnv("ARI_ASYNC_WORKER_TIME_BUDGET_MS", 105000, 30000, 110000)
     });
+    let cognitiveTrigger = null;
+    const ownerUserId = clean(process.env.ARI_OWNER_USER_ID, 200);
+    if (Number(result?.claimed || 0) === 0 && ownerUserId) {
+      cognitiveTrigger = await runNextUrgentCognitiveTrigger({
+        userId: ownerUserId,
+        now: new Date()
+      }).catch((error) => ({
+        success: false,
+        acted: false,
+        reason: clean(error?.message || error, 240)
+      }));
+    }
+
     console.info("[ARI Background Agent Worker]", {
       claimed: Number(result?.claimed || 0),
       completed: Number(result?.completed || 0),
@@ -50,9 +64,15 @@ export default async function handler(req, res) {
       deadlettered: Number(result?.deadlettered || 0),
       verifiersQueued: Number(result?.verifiersQueued || 0),
       resolversQueued: Number(result?.resolversQueued || 0),
-      stoppedForRateLimit: result?.stoppedForRateLimit === true
+      stoppedForRateLimit: result?.stoppedForRateLimit === true,
+      cognitiveTrigger: cognitiveTrigger
+        ? { acted: cognitiveTrigger?.acted === true, lane: cognitiveTrigger?.lane || null, reason: cognitiveTrigger?.reason || null }
+        : null
     });
-    return res.status(result?.success === false ? 500 : 200).json(result);
+    return res.status(result?.success === false ? 500 : 200).json({
+      ...result,
+      cognitiveTrigger
+    });
   } catch (error) {
     console.error("[ARI Background Agent Worker Fatal]", clean(error?.message || error, 500));
     return res.status(500).json({
@@ -68,6 +88,7 @@ function setHeaders(res) {
   res.setHeader("Cache-Control", "private, no-store, max-age=0");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-ARI-Agent-Worker", "pgmq-v1");
+  res.setHeader("X-ARI-Cognitive-Trigger", "v2");
 }
 
 function intEnv(name, fallback, min, max) {

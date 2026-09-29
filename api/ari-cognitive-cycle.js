@@ -1,11 +1,12 @@
 import { runAriCognitiveScheduler } from "./_lib/ari-vnext/cognitive-scheduler.js";
+import { enqueueCognitiveTrigger } from "./_lib/ari-vnext/cognitive-scheduler-store.js";
 
 export const config = { maxDuration: 180 };
 
 export default async function handler(req, res) {
   setHeaders(res);
-  if (req.method !== "GET") {
-    res.setHeader("Allow", "GET");
+  if (!["GET", "POST"].includes(req.method)) {
+    res.setHeader("Allow", "GET, POST");
     return res.status(405).json({ success: false, error: "Method not allowed." });
   }
 
@@ -25,6 +26,25 @@ export default async function handler(req, res) {
   }
 
   try {
+    if (req.method === "POST") {
+      const body = req?.body && typeof req.body === "object" ? req.body : {};
+      const queued = await enqueueCognitiveTrigger({
+        userId,
+        lane: body?.lane,
+        reason: body?.reason,
+        priority: body?.priority || "urgent",
+        payload: body?.payload || {},
+        notBefore: body?.notBefore || null,
+        expiresAt: body?.expiresAt || null
+      });
+      return res.status(queued?.queued ? 202 : 400).json({
+        success: queued?.queued === true,
+        queued: queued?.queued === true,
+        trigger: queued?.trigger || null,
+        reason: queued?.reason || null
+      });
+    }
+
     const result = await runAriCognitiveScheduler({ userId, now: new Date() });
     return res.status(result?.success === false ? 500 : 200).json(result);
   } catch (error) {
@@ -41,7 +61,7 @@ function setHeaders(res) {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.setHeader("Cache-Control", "private, no-store, max-age=0");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-ARI-Cognitive-Scheduler", "v1");
+  res.setHeader("X-ARI-Cognitive-Scheduler", "v2");
 }
 function clean(value, max = 1000) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
