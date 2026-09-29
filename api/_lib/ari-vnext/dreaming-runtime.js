@@ -175,9 +175,10 @@ export async function submitDreamBatch({
   fetcher = fetch,
   reserve = reserveBackgroundAiBudget,
   extendReservation = extendBackgroundAiBudgetReservation,
-  releaseReservation = releaseBackgroundAiBudget
+  releaseReservation = releaseBackgroundAiBudget,
+  apiKey = clean(process.env.OPENAI_API_KEY || process.env.ARI_PROVIDER_API_KEY, 8000)
 } = {}) {
-  const apiKey = clean(process.env.OPENAI_API_KEY || process.env.ARI_PROVIDER_API_KEY, 8000);
+  apiKey = clean(apiKey, 8000);
   if (!apiKey) throw new Error("dreaming_provider_key_missing");
 
   const body = buildDreamRequestBody({ evidence, model });
@@ -286,9 +287,10 @@ export async function pollDreamBatch({
   fetcher = fetch,
   recordUsage = recordBackgroundOpenAIUsage,
   settleReservation = settleBackgroundAiBudget,
-  releaseReservation = releaseBackgroundAiBudget
+  releaseReservation = releaseBackgroundAiBudget,
+  apiKey = clean(process.env.OPENAI_API_KEY || process.env.ARI_PROVIDER_API_KEY, 8000)
 } = {}) {
-  const apiKey = clean(process.env.OPENAI_API_KEY || process.env.ARI_PROVIDER_API_KEY, 8000);
+  apiKey = clean(apiKey, 8000);
   if (!apiKey) throw new Error("dreaming_provider_key_missing");
 
   const metadata = safeObject(latest?.metadata);
