@@ -229,6 +229,9 @@ export async function collectCognitiveSignals({
   const dreamFailureAge = latestDream?.status === "failed"
     ? hoursSince(dreamAttemptAt, clock)
     : Number.POSITIVE_INFINITY;
+  const pendingDreamBatch = latestDream?.status === "started" &&
+    latestDream?.metadata?.batchMode === true &&
+    Boolean(latestDream?.metadata?.batchId);
 
   return {
     repair: {
@@ -268,14 +271,18 @@ export async function collectCognitiveSignals({
       reason: community?.reason || "no_community_work"
     },
     dreaming: {
-      activityScore: 0,
-      urgent: false,
-      blocked: latestDream?.status === "failed" && dreamFailureAge < 12,
+      activityScore: pendingDreamBatch ? 1 : 0,
+      urgent: pendingDreamBatch,
+      blocked: !pendingDreamBatch && latestDream?.status === "failed" && dreamFailureAge < 12,
+      batchPending: pendingDreamBatch,
+      batchId: pendingDreamBatch ? clean(latestDream?.metadata?.batchId, 200) : null,
       latestStatus: clean(latestDream?.status, 40) || null,
       latestAttemptAt: dreamAttemptAt,
-      reason: latestDream?.status === "failed" && dreamFailureAge < 12
-        ? "dream_failure_backoff"
-        : "maintenance_only_until_starvation"
+      reason: pendingDreamBatch
+        ? "dream_batch_pending"
+        : latestDream?.status === "failed" && dreamFailureAge < 12
+          ? "dream_failure_backoff"
+          : "maintenance_only_until_starvation"
     },
     theory: {
       activityScore: 0,
