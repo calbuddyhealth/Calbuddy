@@ -6,7 +6,7 @@
 // phenomenal consciousness explicitly unresolved unless evidence warrants a
 // narrower functional claim.
 
-import { assertBackgroundAiBudget, recordBackgroundOpenAIUsage } from "../background-ai-budget.js";
+import { executeBackgroundOpenAIRequest } from "../background-ai-budget.js";
 import { loadUserWorldModel, persistUserWorldModel } from "./user-world-model.js";
 import { deriveOmegaRCTState } from "./omega-rct.js";
 
@@ -558,32 +558,19 @@ async function callTheoryModel({
   if (userId) body.safety_identifier = clean(userId, 200);
   if (/^gpt-5|^o[0-9]/i.test(model)) body.reasoning = { effort: "medium" };
 
-  await assertBackgroundAiBudget({ now });
-
-  const response = await fetch(RESPONSES_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(45000)
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) return null;
-
-  await recordBackgroundOpenAIUsage({
+  const provider = await executeBackgroundOpenAIRequest({
     userId,
     endpoint: "/api/ari-theory-dialogue-cycle",
     requestCategory: "ari_theory_dialogue",
-    model: data?.model || model,
-    responseData: data,
-    providerRequestId: data?.id || null,
+    model,
+    body,
+    apiKey,
+    url: RESPONSES_URL,
+    signal: AbortSignal.timeout(45000),
     metadata: { mode: clean(mode, 40), turn: Number(turn) || 0 }
-  }).catch(() => {});
-
-  return parseJson(extractOutputText(data));
+  });
+  if (!provider.ok) return null;
+  return parseJson(extractOutputText(provider.data || {}));
 }
 
 function theoryMoveSchema(mode) {
