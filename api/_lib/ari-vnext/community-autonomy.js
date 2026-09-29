@@ -7,7 +7,7 @@ import {
 import { loadAriIntelligenceControls } from "../../../server/ari-intelligence-control-store.js";
 import { resolveAriIntelligenceEntitlement } from "../../../server/ari-intelligence-entitlement.js";
 import { enforceAiRateLimit } from "../ai-rate-limit.js";
-import { assertBackgroundAiBudget, recordBackgroundOpenAIUsage } from "../background-ai-budget.js";
+import { executeBackgroundOpenAIRequest } from "../background-ai-budget.js";
 import { resolveModelPolicy } from "./model-policy.js";
 import { loadUserWorldModel } from "./user-world-model.js";
 import { ARI_PERSONA } from "./persona.js";
@@ -545,45 +545,36 @@ async function proposeCommunityPost({ userId, seeds = [], recentPosts = [] } = {
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), Math.min(Number(policy.timeoutMs || 26000), 40000));
-  let data;
-  try {
-    await assertBackgroundAiBudget();
+  const body = {
+    model: backgroundModel,
+    store: false,
+    max_output_tokens: Math.max(700, Math.min(1100, Number(policy.maxOutputTokens || 900))),
+    ...(/^gpt-5|^o[0-9]/i.test(backgroundModel) ? { reasoning: { effort: "low" } } : {}),
+    instructions,
+    input: [{ role: "user", content: [{ type: "input_text", text: JSON.stringify(publicContext) }] }],
+    text: { format: { type: "json_schema", name: "ari_community_new_post", strict: true, schema } },
+    safety_identifier: userId,
+    prompt_cache_key: "ari-community-new-post-v1"
+  };
 
-    const response = await fetch(process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: backgroundModel,
-        store: false,
-        max_output_tokens: Math.max(700, Math.min(1100, Number(policy.maxOutputTokens || 900))),
-        ...(/^gpt-5|^o[0-9]/i.test(backgroundModel) ? { reasoning: { effort: "low" } } : {}),
-        instructions,
-        input: [{ role: "user", content: [{ type: "input_text", text: JSON.stringify(publicContext) }] }],
-        text: { format: { type: "json_schema", name: "ari_community_new_post", strict: true, schema } },
-        safety_identifier: userId,
-        prompt_cache_key: "ari-community-new-post-v1"
-      })
+  try {
+    const provider = await executeBackgroundOpenAIRequest({
+      userId,
+      endpoint: ENDPOINT,
+      requestCategory: "agent_community_autonomous_post",
+      model: backgroundModel,
+      body,
+      apiKey,
+      url: process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses",
+      signal: controller.signal
     });
-    if (!response.ok) return { shouldPost: false, reason: "post_provider_failure" };
-    data = await response.json().catch(() => null);
-    if (!data) return { shouldPost: false, reason: "post_provider_failure" };
+    if (!provider.ok || !provider.data) return { shouldPost: false, reason: "post_provider_failure" };
+    return normalizeCommunityPostProposal(parseJson(extractOutputText(provider.data)));
   } catch {
     return { shouldPost: false, reason: "post_provider_failure" };
   } finally {
     clearTimeout(timer);
   }
-
-  await recordBackgroundOpenAIUsage({
-    userId,
-    endpoint: ENDPOINT,
-    requestCategory: "agent_community_autonomous_post",
-    model: data?.model || backgroundModel,
-    responseData: data,
-    providerRequestId: data?.id || null
-  }).catch(() => {});
-
-  return normalizeCommunityPostProposal(parseJson(extractOutputText(data)));
 }
 
 async function evaluateCommunityThread({ thread, userId }) {
@@ -681,54 +672,48 @@ async function evaluateCommunityThreads({ threads = [], userId } = {}) {
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), Math.min(Number(policy.timeoutMs || 32000), 45000));
+  const body = {
+    model: backgroundModel,
+    store: false,
+    max_output_tokens: Math.max(1800, Math.min(3600, Number(policy.maxOutputTokens || 2800))),
+    ...(/^gpt-5|^o[0-9]/i.test(backgroundModel) ? { reasoning: { effort: "medium" } } : {}),
+    instructions,
+    input: [{
+      role: "user",
+      content: [{ type: "input_text", text: JSON.stringify({ threads: input }) }]
+    }],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "ari_community_autonomy_batch",
+        strict: true,
+        schema
+      }
+    },
+    safety_identifier: userId,
+    prompt_cache_key: "ari-community-analysis-batch-v1"
+  };
+
   let data;
   try {
-    await assertBackgroundAiBudget();
-
-    const response = await fetch(process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    const provider = await executeBackgroundOpenAIRequest({
+      userId,
+      endpoint: ENDPOINT,
+      requestCategory: "agent_community_autonomy",
+      model: backgroundModel,
+      body,
+      apiKey,
+      url: process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses",
       signal: controller.signal,
-      body: JSON.stringify({
-        model: backgroundModel,
-        store: false,
-        max_output_tokens: Math.max(1800, Math.min(3600, Number(policy.maxOutputTokens || 2800))),
-        ...(/^gpt-5|^o[0-9]/i.test(backgroundModel) ? { reasoning: { effort: "medium" } } : {}),
-        instructions,
-        input: [{
-          role: "user",
-          content: [{ type: "input_text", text: JSON.stringify({ threads: input }) }]
-        }],
-        text: {
-          format: {
-            type: "json_schema",
-            name: "ari_community_autonomy_batch",
-            strict: true,
-            schema
-          }
-        },
-        safety_identifier: userId,
-        prompt_cache_key: "ari-community-analysis-batch-v1"
-      })
+      metadata: { threadCount: sourceThreads.length, consolidated: true }
     });
-    if (!response.ok) return [];
-    data = await response.json().catch(() => null);
-    if (!data) return [];
+    if (!provider.ok || !provider.data) return [];
+    data = provider.data;
   } catch {
     return [];
   } finally {
     clearTimeout(timer);
   }
-
-  await recordBackgroundOpenAIUsage({
-    userId,
-    endpoint: ENDPOINT,
-    requestCategory: "agent_community_autonomy",
-    model: data?.model || backgroundModel,
-    responseData: data,
-    providerRequestId: data?.id || null,
-    metadata: { threadCount: sourceThreads.length, consolidated: true }
-  }).catch(() => {});
 
   const parsed = parseJson(extractOutputText(data));
   const rawEvaluations = Array.isArray(parsed?.evaluations) ? parsed.evaluations : [];
