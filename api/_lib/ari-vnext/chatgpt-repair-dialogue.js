@@ -168,6 +168,43 @@ export function buildAriDialogueComment({
   ].filter(Boolean).join("\n");
 }
 
+export async function probeRepairDialogueWork({
+  repo = process.env.GITHUB_REPO || "",
+  token = process.env.GITHUB_TOKEN || "",
+  request = githubRequest
+} = {}) {
+  if (!isRepairDialogueEnabled()) return { available: false, pending: false, reason: "repair_dialogue_disabled" };
+  const repository = clean(repo, 300);
+  const secret = String(token || "").trim();
+  if (!repository || !secret) return { available: false, pending: false, reason: "github_not_configured" };
+
+  try {
+    const maxRounds = clampInt(process.env.ARI_CHATGPT_MAX_DIALOGUE_ROUNDS, 1, 5, DEFAULT_MAX_ROUNDS);
+    const issues = await findOpenHandoffIssues({ repo: repository, token: secret, request });
+    for (const issue of issues.slice(0, 10)) {
+      const issueNumber = Number(issue?.number);
+      if (!issueNumber) continue;
+      const comments = await request(
+        `https://api.github.com/repos/${repository}/issues/${issueNumber}/comments?per_page=100`,
+        secret
+      );
+      const pending = findPendingChatGptTurn(comments, { maxRounds });
+      if (pending) {
+        return {
+          available: true,
+          pending: true,
+          issueNumber,
+          round: pending.round,
+          reason: "pending_chatgpt_review"
+        };
+      }
+    }
+    return { available: true, pending: false, reason: "no_unanswered_chatgpt_turn" };
+  } catch {
+    return { available: false, pending: false, reason: "repair_probe_failed" };
+  }
+}
+
 export async function runRepairDialogueCycle({
   userId = "",
   repo = process.env.GITHUB_REPO || "",
