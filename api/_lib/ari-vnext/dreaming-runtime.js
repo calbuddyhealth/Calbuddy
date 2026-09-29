@@ -177,7 +177,7 @@ export async function submitDreamBatch({
   extendReservation = extendBackgroundAiBudgetReservation,
   releaseReservation = releaseBackgroundAiBudget
 } = {}) {
-  const apiKey = clean(process.env.ARI_PROVIDER_API_KEY || process.env.OPENAI_API_KEY, 8000);
+  const apiKey = clean(process.env.OPENAI_API_KEY || process.env.ARI_PROVIDER_API_KEY, 8000);
   if (!apiKey) throw new Error("dreaming_provider_key_missing");
 
   const body = buildDreamRequestBody({ evidence, model });
@@ -288,7 +288,7 @@ export async function pollDreamBatch({
   settleReservation = settleBackgroundAiBudget,
   releaseReservation = releaseBackgroundAiBudget
 } = {}) {
-  const apiKey = clean(process.env.ARI_PROVIDER_API_KEY || process.env.OPENAI_API_KEY, 8000);
+  const apiKey = clean(process.env.OPENAI_API_KEY || process.env.ARI_PROVIDER_API_KEY, 8000);
   if (!apiKey) throw new Error("dreaming_provider_key_missing");
 
   const metadata = safeObject(latest?.metadata);
@@ -660,7 +660,16 @@ async function deleteOpenAIFile({ fileId, apiKey, fetcher = fetch } = {}) {
 }
 
 export function dreamingBatchEnabled() {
-  return String(process.env.ARI_DREAMING_BATCH_ENABLED ?? "true").trim().toLowerCase() !== "false";
+  if (String(process.env.ARI_DREAMING_BATCH_ENABLED ?? "true").trim().toLowerCase() === "false") {
+    return false;
+  }
+  const responsesUrl = clean(
+    process.env.ARI_RESPONSES_URL ||
+    process.env.OPENAI_RESPONSES_URL ||
+    "https://api.openai.com/v1/responses",
+    1200
+  ).toLowerCase();
+  return responsesUrl.startsWith("https://api.openai.com/") && Boolean(clean(process.env.OPENAI_API_KEY, 8000));
 }
 
 function safeObject(value) {
