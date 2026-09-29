@@ -177,7 +177,8 @@ export function estimateBackgroundReservationUsd({
   const raw = Math.max(0, Number(estimate?.estimatedCostUsd) || 0);
   const normalized = normalizeModelClass(model);
   const floor = normalized === "sol" ? 0.10 : normalized === "terra" ? 0.04 : 0.01;
-  return roundMoney(Math.min(5, Math.max(floor, raw * 1.15 + 0.005)));
+  const hostedToolAllowance = estimateHostedToolAllowance(requestBody);
+  return roundMoney(Math.min(5, Math.max(floor, raw * 1.15 + hostedToolAllowance + 0.005)));
 }
 
 export async function reserveBackgroundAiBudget({
@@ -255,7 +256,10 @@ export async function settleBackgroundAiBudget({
   const usage = extractOpenAIUsage(responseData);
   const estimate = estimateOpenAICost({ model, usage });
   const multiplier = Math.max(0, Number(costMultiplier) || 1);
-  const actualCostUsd = roundMoney((Number(estimate?.estimatedCostUsd) || 0) * multiplier);
+  const actualCostUsd = roundMoney(
+    (Number(estimate?.estimatedCostUsd) || 0) * multiplier +
+    observedHostedToolCost(responseData)
+  );
 
   try {
     const response = await fetcher(`${config.url}/rest/v1/rpc/ari_settle_background_ai_budget`, {
@@ -413,6 +417,27 @@ function backgroundRowCost(row = {}) {
     }
   }
   return recorded;
+}
+
+function estimateHostedToolAllowance(body = null) {
+  const tools = Array.isArray(body?.tools) ? body.tools : [];
+  let allowance = 0;
+  for (const tool of tools) {
+    const type = clean(tool?.type, 80).toLowerCase();
+    if (type === "web_search" || type === "web_search_preview") allowance += 0.05;
+    else if (type === "file_search") allowance += 0.0125;
+  }
+  return allowance;
+}
+
+function observedHostedToolCost(responseData = {}) {
+  let cost = 0;
+  for (const item of Array.isArray(responseData?.output) ? responseData.output : []) {
+    const type = clean(item?.type, 80).toLowerCase();
+    if (type === "web_search_call") cost += 0.01;
+    else if (type === "file_search_call") cost += 0.0025;
+  }
+  return cost;
 }
 
 function normalizeUserId(value) {
