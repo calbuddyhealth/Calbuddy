@@ -84,6 +84,7 @@ export async function runAriCognitiveScheduler({
   if (!id) return { success: false, acted: false, reason: "owner_id_missing" };
   const clock = validDate(now);
 
+  const triggeredLane = normalizeLane(trigger?.lane);
   const [budgetBefore, events, signals] = await Promise.all([
     getBackgroundAiBudgetStatus({ userId: id, now: clock }),
     loadEvents({
@@ -91,7 +92,9 @@ export async function runAriCognitiveScheduler({
       since: new Date(clock.getTime() - 14 * 86400000),
       limit: 180
     }).catch(() => []),
-    collectSignals({ userId: id, now: clock }).catch(() => emptySignals())
+    triggeredLane
+      ? Promise.resolve(emptySignals())
+      : collectSignals({ userId: id, now: clock }).catch(() => emptySignals())
   ]);
 
   const history = deriveSchedulerHistory(events, clock);
@@ -103,7 +106,6 @@ export async function runAriCognitiveScheduler({
   });
 
   let decision;
-  const triggeredLane = normalizeLane(trigger?.lane);
   if (triggeredLane && laneEnabled(triggeredLane)) {
     decision = {
       lane: triggeredLane,
