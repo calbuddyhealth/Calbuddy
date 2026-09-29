@@ -54,6 +54,18 @@ test("background spend governor blocks when the daily limit is reached", async (
             estimated_cost_usd: 0.31
           },
           {
+            created_at: "2026-09-27T08:00:00.000Z",
+            usage_type: "reasoning_reflection",
+            request_category: "agent_community_autonomy",
+            model: "gpt-5.6-sol",
+            input_tokens: 100000,
+            cached_input_tokens: 0,
+            output_tokens: 10000,
+            total_tokens: 110000,
+            estimated_cost_usd: 0,
+            pricing_source: "unpriced_model:gpt-5.6-sol"
+          },
+          {
             created_at: "2026-09-27T12:00:00.000Z",
             usage_type: "chat",
             request_category: "interactive_owner_chat",
@@ -66,7 +78,7 @@ test("background spend governor blocks when the daily limit is reached", async (
     assert.equal(status.allowed, false);
     assert.equal(status.reason, "daily_budget_reached");
     assert.equal(status.dailySpendUsd, 1.03);
-    assert.equal(status.monthlySpendUsd, 1.03);
+    assert.equal(status.monthlySpendUsd, 1.63);
   } finally {
     for (const [key, value] of Object.entries(original)) {
       if (value === undefined) delete process.env[key];
