@@ -14,32 +14,8 @@
       "schedule": "17 * * * *"
     },
     {
-      "path": "/api/ari-experience-cycle",
-      "schedule": "7 1,7,13,19 * * *"
-    },
-    {
-      "path": "/api/ari-autonomy-cycle",
-      "schedule": "47 4,16 * * *"
-    },
-    {
-      "path": "/api/ari-dreaming-cycle",
-      "schedule": "13 12 * * *"
-    },
-    {
-      "path": "/api/ari-community-cycle",
-      "schedule": "23 2,10,18 * * *"
-    },
-    {
-      "path": "/api/ari-chatgpt-dialogue-cycle",
-      "schedule": "6 5,6,7 * * *"
-    },
-    {
-      "path": "/api/ari-theory-dialogue-cycle",
-      "schedule": "47 3 * * *"
-    },
-    {
-      "path": "/api/ari-theory-dialogue-cycle",
-      "schedule": "6 4,6 * * *"
+      "path": "/api/ari-cognitive-cycle",
+      "schedule": "7 1,5,9,13,17,21 * * *"
     }
   ],
   "rewrites": [

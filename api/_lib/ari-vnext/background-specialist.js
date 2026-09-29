@@ -3,6 +3,7 @@
 // repository files/search/CI, and optional public web evidence. They cannot edit
 // repositories, mutate ARI XP state, send arbitrary messages, or escape the worker.
 
+import { assertBackgroundAiBudget, recordBackgroundOpenAIUsage } from "../background-ai-budget.js";
 import {
   developerToolResultToExecutionEvidence,
   executeDeveloperWorkspaceTool
@@ -376,10 +377,9 @@ async function callResponses({
 
   const model =
     clean(process.env.OPENAI_ARI_ASYNC_WORKER_MODEL, 160) ||
-    clean(process.env.OPENAI_ARI_MULTI_AGENT_MODEL, 160) ||
-    clean(process.env.OPENAI_ARI_OWNER_MODEL, 160) ||
-    clean(process.env.OPENAI_ARI_ADVANCED_MODEL, 160) ||
-    "gpt-5.6";
+    clean(process.env.OPENAI_ARI_BACKGROUND_REASONING_MODEL, 160) ||
+    clean(process.env.OPENAI_ARI_BACKGROUND_MODEL, 160) ||
+    "gpt-5.6-terra";
 
   const controller = new AbortController();
   const configuredTimeoutMs = boundedInt(
@@ -418,6 +418,8 @@ async function callResponses({
   }
 
   try {
+    await assertBackgroundAiBudget();
+
     const response = await fetch(RESPONSES_URL, {
       method: "POST",
       headers: {
@@ -440,6 +442,17 @@ async function callResponses({
         : null;
       throw error;
     }
+
+    await recordBackgroundOpenAIUsage({
+      userId: job?.userId || null,
+      endpoint: "/api/ari-agent-worker",
+      requestCategory: `ari_background_specialist_${clean(job?.jobType || "task", 60)}`,
+      model: data?.model || model,
+      responseData: data,
+      providerRequestId: data?.id || null,
+      metadata: { jobType: clean(job?.jobType, 80) || null }
+    }).catch(() => {});
+
     return data;
   } catch (error) {
     if (error?.name === "AbortError") {

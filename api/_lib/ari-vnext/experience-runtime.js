@@ -5,6 +5,7 @@ import {
   buildExperienceKey,
   computePredictionError
 } from "./experience-core.js";
+import { assertBackgroundAiBudget, recordBackgroundOpenAIUsage } from "../background-ai-budget.js";
 import {
   countExperiencesSince,
   experienceEngineEnabled,
@@ -168,10 +169,13 @@ export async function synthesizeExperience({ job, now = new Date(), fetcher = fe
         strict: true,
         schema: experienceSchema()
       }
-    }
+    },
+    prompt_cache_key: clean(`ari-experience:${job?.sourceType || mode}`, 64)
   };
   if (!body.reasoning) delete body.reasoning;
   if (!body.tools.length) delete body.tools;
+
+  await assertBackgroundAiBudget({ now });
 
   const response = await fetcher(RESPONSES_URL, {
     method: "POST",
@@ -184,6 +188,15 @@ export async function synthesizeExperience({ job, now = new Date(), fetcher = fe
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`experience_provider_${response.status}`);
+
+  await recordBackgroundOpenAIUsage({
+    endpoint: "/api/ari-experience-cycle",
+    requestCategory: `ari_experience_${mode}`,
+    model: data?.model || model,
+    responseData: data,
+    providerRequestId: data?.id || null,
+    metadata: { sourceType: clean(job?.sourceType, 80) || null }
+  }).catch(() => {});
 
   const parsed = parseJson(extractOutputText(data));
   if (!parsed) throw new Error("experience_invalid_provider_output");
@@ -518,9 +531,8 @@ function boundedInt(value, fallback, min, max) {
 }
 function experienceModel() {
   return clean(process.env.OPENAI_ARI_EXPERIENCE_MODEL, 160)
-    || clean(process.env.OPENAI_ARI_DREAM_MODEL, 160)
-    || clean(process.env.OPENAI_ARI_OWNER_MODEL, 160)
-    || "gpt-5.6";
+    || clean(process.env.OPENAI_ARI_BACKGROUND_MODEL, 160)
+    || "gpt-5.6-luna";
 }
 function experienceEffort() {
   const value = clean(process.env.OPENAI_ARI_EXPERIENCE_EFFORT, 30).toLowerCase();

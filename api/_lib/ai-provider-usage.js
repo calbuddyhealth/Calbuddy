@@ -2,6 +2,10 @@
 // Keeps provider cost accounting separate from user-facing quota accounting.
 
 const OPENAI_STANDARD_RATES_USD_PER_MILLION = {
+  "gpt-5.6-sol": { input: 4.00, cachedInput: 0.40, output: 20.00 },
+  "gpt-5.6-terra": { input: 2.00, cachedInput: 0.20, output: 12.00 },
+  "gpt-5.6-luna": { input: 0.20, cachedInput: 0.02, output: 1.20 },
+  "gpt-5.6": { input: 4.00, cachedInput: 0.40, output: 20.00 },
   "gpt-4o-mini": { input: 0.15, cachedInput: 0.075, output: 0.60 },
   "gpt-4.1-mini": { input: 0.40, cachedInput: 0.10, output: 1.60 },
   "gpt-4o": { input: 2.50, cachedInput: 1.25, output: 10.00 }
@@ -26,7 +30,9 @@ function normalizeModel(model = "") {
   if (!value) return "unknown";
 
   // Snapshot IDs inherit their alias pricing unless explicitly overridden.
-  for (const alias of Object.keys(OPENAI_STANDARD_RATES_USD_PER_MILLION)) {
+  const aliases = Object.keys(OPENAI_STANDARD_RATES_USD_PER_MILLION)
+    .sort((a, b) => b.length - a.length);
+  for (const alias of aliases) {
     if (value === alias || value.startsWith(`${alias}-`)) return alias;
   }
 
@@ -40,7 +46,7 @@ function resolveRates(model = "") {
   if (known) {
     return {
       ...known,
-      pricingSource: `openai_standard_2026-08-16:${normalized}`
+      pricingSource: `openai_standard_2026-09-28:${normalized}`
     };
   }
 

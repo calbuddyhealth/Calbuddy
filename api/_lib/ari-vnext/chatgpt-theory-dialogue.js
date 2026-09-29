@@ -6,6 +6,7 @@
 // phenomenal consciousness explicitly unresolved unless evidence warrants a
 // narrower functional claim.
 
+import { assertBackgroundAiBudget, recordBackgroundOpenAIUsage } from "../background-ai-budget.js";
 import { loadUserWorldModel, persistUserWorldModel } from "./user-world-model.js";
 import { deriveOmegaRCTState } from "./omega-rct.js";
 
@@ -491,10 +492,9 @@ async function callTheoryModel({
 }) {
   const apiKey = clean(process.env.ARI_PROVIDER_API_KEY || process.env.OPENAI_API_KEY, 8000);
   const model = clean(
-    process.env.ARI_AUTONOMY_MODEL ||
-    process.env.OPENAI_ARI_ADVANCED_MODEL ||
-    process.env.OPENAI_ARI_OWNER_MODEL ||
-    "gpt-5.4",
+    process.env.OPENAI_ARI_THEORY_MODEL ||
+    process.env.OPENAI_ARI_BACKGROUND_REASONING_MODEL ||
+    "gpt-5.6-terra",
     120
   );
   if (!apiKey || !model) return null;
@@ -556,7 +556,9 @@ async function callTheoryModel({
   };
   if (!body.tools) delete body.tools;
   if (userId) body.safety_identifier = clean(userId, 200);
-  if (/^gpt-5|^o[0-9]/i.test(model)) body.reasoning = { effort: "high" };
+  if (/^gpt-5|^o[0-9]/i.test(model)) body.reasoning = { effort: "medium" };
+
+  await assertBackgroundAiBudget({ now });
 
   const response = await fetch(RESPONSES_URL, {
     method: "POST",
@@ -570,6 +572,17 @@ async function callTheoryModel({
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) return null;
+
+  await recordBackgroundOpenAIUsage({
+    userId,
+    endpoint: "/api/ari-theory-dialogue-cycle",
+    requestCategory: "ari_theory_dialogue",
+    model: data?.model || model,
+    responseData: data,
+    providerRequestId: data?.id || null,
+    metadata: { mode: clean(mode, 40), turn: Number(turn) || 0 }
+  }).catch(() => {});
+
   return parseJson(extractOutputText(data));
 }
 

@@ -4,6 +4,8 @@
 // the critique and resulting patch. Ari may accept it, challenge it with
 // evidence, or escalate an unresolved disagreement to the owner.
 
+import { assertBackgroundAiBudget, recordBackgroundOpenAIUsage } from "../background-ai-budget.js";
+
 export const ARI_CHATGPT_REPAIR_DIALOGUE_VERSION = "1.0.0";
 
 const RESPONSES_URL =
@@ -316,10 +318,9 @@ async function callDialogueModel({
 }) {
   const apiKey = clean(process.env.ARI_PROVIDER_API_KEY || process.env.OPENAI_API_KEY, 8000);
   const model = clean(
-    process.env.ARI_AUTONOMY_MODEL ||
-    process.env.OPENAI_ARI_ADVANCED_MODEL ||
-    process.env.OPENAI_ARI_OWNER_MODEL ||
-    "gpt-5.4",
+    process.env.OPENAI_ARI_REPAIR_MODEL ||
+    process.env.OPENAI_ARI_BACKGROUND_REASONING_MODEL ||
+    "gpt-5.6-terra",
     120
   );
   if (!apiKey || !model) return null;
@@ -405,7 +406,9 @@ async function callDialogueModel({
     prompt_cache_key: clean(`ari-repair-dialogue:${userId || "owner"}`, 64)
   };
   if (userId) body.safety_identifier = clean(userId, 200);
-  if (/^gpt-5|^o[0-9]/i.test(model)) body.reasoning = { effort: "high" };
+  if (/^gpt-5|^o[0-9]/i.test(model)) body.reasoning = { effort: "medium" };
+
+  await assertBackgroundAiBudget();
 
   const response = await fetch(RESPONSES_URL, {
     method: "POST",
@@ -419,6 +422,17 @@ async function callDialogueModel({
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) return null;
+
+  await recordBackgroundOpenAIUsage({
+    userId,
+    endpoint: "/api/ari-chatgpt-dialogue-cycle",
+    requestCategory: "ari_repair_dialogue",
+    model: data?.model || model,
+    responseData: data,
+    providerRequestId: data?.id || null,
+    metadata: { round: Number(round) || 0 }
+  }).catch(() => {});
+
   return parseJson(extractOutputText(data));
 }
 
