@@ -1,7 +1,7 @@
 import { runBackgroundAgentBatch } from "./_lib/ari-vnext/background-agent-runtime.js";
 import { runNextUrgentCognitiveTrigger } from "./_lib/ari-vnext/cognitive-scheduler.js";
 
-export const config = { maxDuration: 180 };
+export const config = { maxDuration: 120 };
 
 export default async function handler(req, res) {
   setHeaders(res);
@@ -87,7 +87,8 @@ function setHeaders(res) {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.setHeader("Cache-Control", "private, no-store, max-age=0");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-ARI-Agent-Worker", "pgmq-cognitive-v2");
+  res.setHeader("X-ARI-Agent-Worker", "pgmq-v1");
+  res.setHeader("X-ARI-Cognitive-Trigger", "v2");
 }
 
 function intEnv(name, fallback, min, max) {
