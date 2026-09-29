@@ -11,6 +11,7 @@ import {
 import {
   buildCognitiveCandidates,
   chooseCognitiveLane,
+  collectCognitiveSignals,
   runAriCognitiveScheduler,
   selectDeterministicCognitiveLane
 } from "../api/_lib/ari-vnext/cognitive-scheduler.js";
@@ -162,6 +163,45 @@ test("starvation protection forces an otherwise quiet Dreaming lane", () => {
   assert.equal(decision.modelCalls, 0);
 });
 
+test("pending Dreaming Batch is deterministically selected for no-model polling", async () => {
+  const now = new Date("2026-09-29T08:00:00.000Z");
+  const signals = await collectCognitiveSignals({
+    userId: OWNER_ID,
+    now,
+    repairProbe: async () => ({ pending: false }),
+    experienceProbe: async () => ({ dueCount: 0, seedCount: 0 }),
+    communityProbe: async () => ({ hasWork: false, candidateCount: 0 }),
+    goalsLoader: async () => [],
+    dreamLoader: async () => ({
+      id: "run-pending-batch",
+      status: "started",
+      model: "gpt-5.6-terra",
+      metadata: { batchMode: true, batchId: "batch-pending-1" },
+      started_at: "2026-09-29T04:00:00.000Z",
+      updated_at: "2026-09-29T04:00:00.000Z"
+    }),
+    initiativesLoader: async () => []
+  });
+
+  assert.equal(signals.dreaming.batchPending, true);
+  assert.equal(signals.dreaming.urgent, true);
+  assert.equal(signals.dreaming.activityScore, 1);
+
+  const candidates = buildCognitiveCandidates({
+    history: {
+      startedAt: "2026-09-29T00:00:00.000Z",
+      lanes: { dreaming: "2026-09-29T04:00:00.000Z" }
+    },
+    signals,
+    budget: {},
+    now
+  });
+  const decision = selectDeterministicCognitiveLane({ candidates });
+  assert.equal(decision.lane, "dreaming");
+  assert.equal(decision.reason, "urgent_signal");
+  assert.equal(decision.modelCalls, 0);
+});
+
 test("Luna is used only as a single tie-break call for close eligible lanes", async () => {
   const original = {
     ARI_PROVIDER_API_KEY: process.env.ARI_PROVIDER_API_KEY,
@@ -277,6 +317,25 @@ test("atomic budget reservation calls the server-side reservation RPC before pro
   } finally {
     restoreEnv(original);
   }
+});
+
+test("Batch reservation uses the 50 percent token multiplier before provider work", () => {
+  const body = {
+    input: "x".repeat(200000),
+    max_output_tokens: 10000
+  };
+  const standard = estimateBackgroundReservationUsd({
+    model: "gpt-5.6-terra",
+    requestBody: body,
+    costMultiplier: 1
+  });
+  const batch = estimateBackgroundReservationUsd({
+    model: "gpt-5.6-terra",
+    requestBody: body,
+    costMultiplier: 0.5
+  });
+  assert.ok(batch < standard);
+  assert.ok(batch > 0);
 });
 
 test("web-search-capable background calls reserve more than token-only calls", () => {
