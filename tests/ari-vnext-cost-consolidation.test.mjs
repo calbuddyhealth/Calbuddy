@@ -382,6 +382,29 @@ test("hybrid scheduler migration keeps trigger and reservation state server-only
   assert.match(sql, /grant execute[\s\S]*to service_role/i);
 });
 
+test("provider usage request ids remain unique so retries cannot double-count spend", async () => {
+  const sql = await readFile(
+    new URL("../supabase/migrations/20260929035455_ai_provider_usage_request_idempotency.sql", import.meta.url),
+    "utf8"
+  );
+  const source = await readFile(new URL("../api/_lib/ai-provider-usage.js", import.meta.url), "utf8");
+  assert.match(sql, /create unique index/i);
+  assert.match(sql, /provider, provider_request_id/i);
+  assert.match(source, /on_conflict/);
+  assert.match(source, /resolution=ignore-duplicates/);
+});
+
+test("Batch reservation extension remains service-role-only", async () => {
+  const sql = await readFile(
+    new URL("../supabase/migrations/20260929034723_ari_background_batch_reservation_extension.sql", import.meta.url),
+    "utf8"
+  );
+  assert.match(sql, /security invoker/i);
+  assert.match(sql, /interval '48 hours'/i);
+  assert.match(sql, /revoke execute[\s\S]*from public, anon, authenticated/i);
+  assert.match(sql, /grant execute[\s\S]*to service_role/i);
+});
+
 function emptySignals() {
   return {
     repair: { activityScore: 0, urgent: false },
