@@ -132,7 +132,8 @@ export async function recordOpenAIUsage({
   model,
   responseData = {},
   providerRequestId = null,
-  metadata = {}
+  metadata = {},
+  costMultiplier = 1
 } = {}) {
   try {
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -142,7 +143,17 @@ export async function recordOpenAIUsage({
 
     const resolvedModel = clean(responseData?.model || model || "unknown", 180) || "unknown";
     const usage = extractOpenAIUsage(responseData);
-    const cost = estimateOpenAICost({ model: resolvedModel, usage });
+    const baseCost = estimateOpenAICost({ model: resolvedModel, usage });
+    const multiplier = Number.isFinite(Number(costMultiplier)) && Number(costMultiplier) >= 0
+      ? Number(costMultiplier)
+      : 1;
+    const cost = {
+      ...baseCost,
+      estimatedCostUsd: Number((baseCost.estimatedCostUsd * multiplier).toFixed(8)),
+      pricingSource: multiplier === 1
+        ? baseCost.pricingSource
+        : `${baseCost.pricingSource}:multiplier_${multiplier}`
+    };
 
     const row = {
       user_id: userId || null,
