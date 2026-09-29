@@ -9,7 +9,7 @@
 // destructive data, billing, or permission-escalation authority. Those are
 // external infrastructure boundaries rather than cognitive restrictions.
 
-import { assertBackgroundAiBudget, recordBackgroundOpenAIUsage } from "../background-ai-budget.js";
+import { executeBackgroundOpenAIRequest } from "../background-ai-budget.js";
 import { normalizeCuriosityState } from "./curiosity-core.js";
 import { recordInitiativeSurface } from "./initiative-events.js";
 import { loadUserWorldModel, persistUserWorldModel } from "./user-world-model.js";
@@ -901,31 +901,22 @@ async function callStructuredModel({ userId, schemaName, schema, instructions, i
     body.reasoning = { effort: planningCall ? "low" : "high" };
   }
 
-  await assertBackgroundAiBudget();
-
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30000);
   try {
-    const response = await fetch(RESPONSES_URL, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: controller.signal
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) return null;
-
-    await recordBackgroundOpenAIUsage({
+    const provider = await executeBackgroundOpenAIRequest({
       userId,
       endpoint: "/api/ari-autonomy-cycle",
       requestCategory: planningCall ? "ari_autonomy_planning" : "ari_autonomy_patch_proposal",
-      model: data?.model || model,
-      responseData: data,
-      providerRequestId: data?.id || null,
+      model,
+      body,
+      apiKey,
+      url: RESPONSES_URL,
+      signal: controller.signal,
       metadata: { schemaName }
-    }).catch(() => {});
-
-    return parseJson(extractOutputText(data));
+    });
+    if (!provider.ok) return null;
+    return parseJson(extractOutputText(provider.data || {}));
   } catch {
     return null;
   } finally {
