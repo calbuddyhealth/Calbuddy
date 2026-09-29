@@ -149,6 +149,39 @@ export async function claimCognitiveTrigger({ userId, fetcher = fetch } = {}) {
   }
 }
 
+export async function deferCognitiveTrigger({
+  userId,
+  triggerId,
+  delayMinutes = 240,
+  payload = {},
+  fetcher = fetch
+} = {}) {
+  const config = supabaseConfig();
+  const id = clean(userId, 200);
+  const trigger = clean(triggerId, 100);
+  if (!config || !id || !trigger) return { stored: false };
+
+  const params = new URLSearchParams({ id: `eq.${trigger}`, user_id: `eq.${id}`, status: "eq.running" });
+  const now = new Date();
+  try {
+    const response = await fetcher(`${config.url}/rest/v1/${TRIGGER_TABLE}?${params.toString()}`, {
+      method: "PATCH",
+      headers: serverHeaders(config.key, { Prefer: "return=minimal" }),
+      body: JSON.stringify({
+        status: "pending",
+        payload: safeJson(payload),
+        not_before: new Date(now.getTime() + Math.max(15, Math.min(1440, Number(delayMinutes) || 240)) * 60000).toISOString(),
+        claimed_at: null,
+        updated_at: now.toISOString()
+      }),
+      signal: AbortSignal.timeout(5000)
+    });
+    return { stored: response.ok };
+  } catch {
+    return { stored: false };
+  }
+}
+
 export async function finishCognitiveTrigger({
   userId,
   triggerId,
