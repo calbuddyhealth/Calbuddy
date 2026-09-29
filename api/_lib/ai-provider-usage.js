@@ -172,13 +172,19 @@ export async function recordOpenAIUsage({
       metadata: metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {}
     };
 
-    const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/ai_provider_usage_logs`, {
+    const usageUrl = new URL(`${process.env.SUPABASE_URL}/rest/v1/ai_provider_usage_logs`);
+    if (row.provider_request_id) {
+      usageUrl.searchParams.set("on_conflict", "provider,provider_request_id");
+    }
+    const response = await fetch(usageUrl.toString(), {
       method: "POST",
       headers: {
         apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
         Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
         "Content-Type": "application/json",
-        Prefer: "return=minimal"
+        Prefer: row.provider_request_id
+          ? "resolution=ignore-duplicates,return=minimal"
+          : "return=minimal"
       },
       body: JSON.stringify(row)
     });
