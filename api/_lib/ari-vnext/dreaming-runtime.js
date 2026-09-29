@@ -296,14 +296,26 @@ export async function pollDreamBatch({
     return { success: false, dreamed: false, reason: "dream_batch_metadata_missing", runId };
   }
 
-  const response = await fetcher(`${BATCH_API_URL}/${encodeURIComponent(batchId)}`, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${apiKey}` },
-    signal: AbortSignal.timeout(15000)
-  });
-  const batch = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    return { success: false, dreamed: false, reason: `dream_batch_status_${response.status}`, runId, batchId };
+  let batch;
+  try {
+    const response = await fetcher(`${BATCH_API_URL}/${encodeURIComponent(batchId)}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(15000)
+    });
+    batch = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return { success: false, dreamed: false, reason: `dream_batch_status_${response.status}`, runId, batchId };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      dreamed: false,
+      batchPending: true,
+      reason: error?.name === "AbortError" ? "dream_batch_status_timeout" : "dream_batch_status_unavailable",
+      runId,
+      batchId
+    };
   }
 
   const batchStatus = clean(batch?.status, 40);
@@ -321,6 +333,13 @@ export async function pollDreamBatch({
 
   if (["failed", "expired", "cancelled"].includes(batchStatus)) {
     if (reservationId) await releaseReservation({ reservationId }).catch(() => {});
+    await cleanupBatchFiles({
+      inputFileId: metadata.inputFileId,
+      outputFileId: batch?.output_file_id,
+      errorFileId: batch?.error_file_id,
+      apiKey,
+      fetcher
+    });
     await finishRun({
       userId,
       runId,
@@ -329,6 +348,7 @@ export async function pollDreamBatch({
       metadata: {
         ...metadata,
         batchStatus,
+        errorFileId: batch?.error_file_id || null,
         batchFinishedAt: validDate(now).toISOString()
       },
       now
@@ -343,21 +363,79 @@ export async function pollDreamBatch({
     };
   }
 
-  if (batchStatus !== "completed" || !batch?.output_file_id) {
-    return { success: false, dreamed: false, reason: "dream_batch_unexpected_state", runId, batchId, batchStatus };
+  if (batchStatus !== "completed") {
+    return {
+      success: false,
+      dreamed: false,
+      batchPending: true,
+      reason: "dream_batch_unknown_pending_state",
+      runId,
+      batchId,
+      batchStatus
+    };
   }
 
-  const outputResponse = await fetcher(
-    `${FILES_API_URL}/${encodeURIComponent(batch.output_file_id)}/content`,
-    {
-      method: "GET",
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal: AbortSignal.timeout(20000)
+  if (!batch?.output_file_id) {
+    if (reservationId) await releaseReservation({ reservationId }).catch(() => {});
+    await cleanupBatchFiles({
+      inputFileId: metadata.inputFileId,
+      errorFileId: batch?.error_file_id,
+      apiKey,
+      fetcher
+    });
+    await finishRun({
+      userId,
+      runId,
+      status: "failed",
+      error: "dream_batch_completed_without_output",
+      metadata: {
+        ...metadata,
+        batchStatus,
+        errorFileId: batch?.error_file_id || null,
+        batchFinishedAt: validDate(now).toISOString()
+      },
+      now
+    });
+    return {
+      success: false,
+      dreamed: false,
+      reason: "dream_batch_completed_without_output",
+      runId,
+      batchId,
+      batchStatus
+    };
+  }
+
+  let outputText = "";
+  try {
+    const outputResponse = await fetcher(
+      `${FILES_API_URL}/${encodeURIComponent(batch.output_file_id)}/content`,
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(20000)
+      }
+    );
+    outputText = await outputResponse.text().catch(() => "");
+    if (!outputResponse.ok) {
+      return {
+        success: false,
+        dreamed: false,
+        batchPending: true,
+        reason: `dream_batch_output_${outputResponse.status}`,
+        runId,
+        batchId
+      };
     }
-  );
-  const outputText = await outputResponse.text().catch(() => "");
-  if (!outputResponse.ok) {
-    return { success: false, dreamed: false, reason: `dream_batch_output_${outputResponse.status}`, runId, batchId };
+  } catch (error) {
+    return {
+      success: false,
+      dreamed: false,
+      batchPending: true,
+      reason: error?.name === "AbortError" ? "dream_batch_output_timeout" : "dream_batch_output_unavailable",
+      runId,
+      batchId
+    };
   }
 
   const line = parseBatchOutputLine(outputText, metadata.customId);
@@ -365,6 +443,13 @@ export async function pollDreamBatch({
   const providerStatus = Number(line?.response?.status_code || 0);
   if (!providerBody || providerStatus < 200 || providerStatus >= 300) {
     if (reservationId) await releaseReservation({ reservationId }).catch(() => {});
+    await cleanupBatchFiles({
+      inputFileId: metadata.inputFileId,
+      outputFileId: batch.output_file_id,
+      errorFileId: batch?.error_file_id,
+      apiKey,
+      fetcher
+    });
     await finishRun({
       userId,
       runId,
@@ -374,6 +459,7 @@ export async function pollDreamBatch({
         ...metadata,
         batchStatus,
         outputFileId: batch.output_file_id,
+        errorFileId: batch?.error_file_id || null,
         batchFinishedAt: validDate(now).toISOString()
       },
       now
@@ -381,11 +467,8 @@ export async function pollDreamBatch({
     return { success: false, dreamed: false, reason: "dream_batch_provider_failure", runId, batchId };
   }
 
-  const parsed = parseJson(extractOutputText(providerBody));
-  if (!parsed) throw new Error("dreaming_invalid_provider_output");
-  const normalized = normalizeDreamOutput(parsed, evidence);
-  const stored = await persistInsights({ userId, runId, insights: normalized.insights, now });
-
+  // Provider work has succeeded and may already be billable. Account for it
+  // before validating Ari's downstream structured-output contract.
   await recordUsage({
     userId,
     endpoint: "/api/ari-dreaming-cycle",
@@ -411,31 +494,83 @@ export async function pollDreamBatch({
     }).catch(() => {});
   }
 
-  await finishRun({
-    userId,
-    runId,
-    status: "completed",
-    summary: normalized.summary,
-    insightCount: stored?.stored || 0,
-    metadata: {
-      ...metadata,
-      batchStatus,
-      outputFileId: batch.output_file_id,
-      batchFinishedAt: validDate(now).toISOString(),
-      providerRequestId: line?.response?.request_id || providerBody?.id || null
-    },
-    now
-  });
+  try {
+    const parsed = parseJson(extractOutputText(providerBody));
+    if (!parsed) throw new Error("dreaming_invalid_provider_output");
 
-  return completedDreamResult({
-    runId,
-    model: providerBody?.model || model,
-    refs: collectEvidenceRefs(evidence),
-    evidence,
-    normalized,
-    stored,
-    extra: { batch: true, batchId, batchStatus }
-  });
+    const normalized = normalizeDreamOutput(parsed, evidence);
+    const stored = await persistInsights({ userId, runId, insights: normalized.insights, now });
+    if (!stored || !Number.isFinite(Number(stored.stored))) {
+      throw new Error("dreaming_batch_insight_persistence_failed");
+    }
+
+    await finishRun({
+      userId,
+      runId,
+      status: "completed",
+      summary: normalized.summary,
+      insightCount: stored?.stored || 0,
+      metadata: {
+        ...metadata,
+        batchStatus,
+        outputFileId: batch.output_file_id,
+        batchFinishedAt: validDate(now).toISOString(),
+        providerRequestId: line?.response?.request_id || providerBody?.id || null
+      },
+      now
+    });
+
+    await cleanupBatchFiles({
+      inputFileId: metadata.inputFileId,
+      outputFileId: batch.output_file_id,
+      errorFileId: batch?.error_file_id,
+      apiKey,
+      fetcher
+    });
+
+    return completedDreamResult({
+      runId,
+      model: providerBody?.model || model,
+      refs: collectEvidenceRefs(evidence),
+      evidence,
+      normalized,
+      stored,
+      extra: { batch: true, batchId, batchStatus }
+    });
+  } catch (error) {
+    await finishRun({
+      userId,
+      runId,
+      status: "failed",
+      error: clean(error?.message, 360) || "dream_batch_ingest_failed",
+      metadata: {
+        ...metadata,
+        batchStatus,
+        outputFileId: batch.output_file_id,
+        batchFinishedAt: validDate(now).toISOString(),
+        providerRequestId: line?.response?.request_id || providerBody?.id || null,
+        billedProviderWork: true
+      },
+      now
+    }).catch(() => {});
+
+    await cleanupBatchFiles({
+      inputFileId: metadata.inputFileId,
+      outputFileId: batch.output_file_id,
+      errorFileId: batch?.error_file_id,
+      apiKey,
+      fetcher
+    });
+
+    return {
+      success: false,
+      dreamed: false,
+      reason: "dream_batch_ingest_failed",
+      runId,
+      batchId,
+      batchStatus
+    };
+  }
 }
 
 export function buildDreamRequestBody({ evidence, model = dreamModel() } = {}) {
@@ -495,6 +630,19 @@ async function cancelBatch({ batchId, apiKey, fetcher = fetch } = {}) {
     signal: AbortSignal.timeout(10000)
   });
   return response.ok;
+}
+
+async function cleanupBatchFiles({
+  inputFileId = null,
+  outputFileId = null,
+  errorFileId = null,
+  apiKey,
+  fetcher = fetch
+} = {}) {
+  const ids = [...new Set([inputFileId, outputFileId, errorFileId].map((id) => clean(id, 200)).filter(Boolean))];
+  await Promise.all(ids.map((fileId) =>
+    deleteOpenAIFile({ fileId, apiKey, fetcher }).catch(() => false)
+  ));
 }
 
 async function deleteOpenAIFile({ fileId, apiKey, fetcher = fetch } = {}) {
