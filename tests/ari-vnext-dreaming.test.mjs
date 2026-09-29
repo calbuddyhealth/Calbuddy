@@ -10,8 +10,35 @@ import {
   sanitizeDreamConversation,
   selectDreamInsightsForTurn
 } from "../api/_lib/ari-vnext/dreaming-core.js";
-import { runAriDreamingCycle } from "../api/_lib/ari-vnext/dreaming-runtime.js";
+import {
+  buildDreamRequestBody,
+  pollDreamBatch,
+  runAriDreamingCycle,
+  submitDreamBatch
+} from "../api/_lib/ari-vnext/dreaming-runtime.js";
 import dreamingHandler from "../api/ari-dreaming-cycle.js";
+
+function jsonResponse(payload, ok = true, status = 200) {
+  return {
+    ok,
+    status,
+    headers: { get: () => null },
+    json: async () => payload,
+    text: async () => JSON.stringify(payload)
+  };
+}
+
+function textResponse(text, ok = true, status = 200) {
+  return {
+    ok,
+    status,
+    headers: { get: () => null },
+    json: async () => {
+      try { return JSON.parse(text); } catch { return {}; }
+    },
+    text: async () => text
+  };
+}
 
 function evidence() {
   return {
@@ -149,6 +176,250 @@ test("dreaming runtime stores only normalized attributed insights", async () => 
   assert.equal(result.acceptedInsights, 1);
   assert.equal(result.storedInsights, 1);
   assert.equal(calls[1][1].insights[0].provisional, true);
+});
+
+test("Dreaming Batch submission reserves half-price spend and stores provider lifecycle ids", async () => {
+  const e = evidence();
+  const calls = [];
+  let reserved = null;
+  let extended = null;
+  let metadata = null;
+
+  const result = await submitDreamBatch({
+    userId: "11111111-1111-4111-8111-111111111111",
+    runId: "run-batch-1",
+    evidence: e,
+    model: "gpt-5.6-terra",
+    apiKey: "test-batch-key",
+    now: new Date("2026-09-29T04:00:00Z"),
+    reserve: async value => {
+      reserved = value;
+      return {
+        allowed: true,
+        reservationId: "22222222-2222-4222-8222-222222222222",
+        userId: value.userId
+      };
+    },
+    extendReservation: async value => {
+      extended = value;
+      return { extended: true };
+    },
+    releaseReservation: async () => {
+      throw new Error("reservation should not release on successful submission");
+    },
+    updateRun: async value => {
+      metadata = value.metadata;
+      return { stored: true };
+    },
+    fetcher: async (url, options = {}) => {
+      calls.push({ url: String(url), options });
+      if (String(url).endsWith("/v1/files") && options.method === "POST") {
+        assert.equal(options.body.get("purpose"), "batch");
+        assert.ok(options.body.get("file"));
+        return jsonResponse({ id: "file-input-1" });
+      }
+      if (String(url).endsWith("/v1/batches") && options.method === "POST") {
+        const body = JSON.parse(options.body);
+        assert.equal(body.input_file_id, "file-input-1");
+        assert.equal(body.endpoint, "/v1/responses");
+        assert.equal(body.completion_window, "24h");
+        return jsonResponse({ id: "batch-1", status: "validating" });
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    }
+  });
+
+  assert.equal(result.batchId, "batch-1");
+  assert.equal(reserved.costMultiplier, 0.5);
+  assert.equal(reserved.requestCategory, "ari_dreaming_batch");
+  assert.ok(extended.expiresAt.getTime() >= new Date("2026-09-30T10:00:00Z").getTime());
+  assert.equal(metadata.batchMode, true);
+  assert.equal(metadata.batchId, "batch-1");
+  assert.equal(metadata.inputFileId, "file-input-1");
+  assert.equal(metadata.reservationId, "22222222-2222-4222-8222-222222222222");
+  assert.equal(metadata.discountMultiplier, 0.5);
+  assert.equal(calls.length, 2);
+});
+
+test("Dreaming Batch polling costs no model call while provider work is pending", async () => {
+  let recorded = 0;
+  let settled = 0;
+  const result = await pollDreamBatch({
+    userId: "11111111-1111-4111-8111-111111111111",
+    latest: {
+      id: "run-batch-2",
+      status: "started",
+      model: "gpt-5.6-terra",
+      metadata: {
+        batchMode: true,
+        batchId: "batch-2",
+        reservationId: "33333333-3333-4333-8333-333333333333",
+        customId: "ari-dream-run-batch-2"
+      }
+    },
+    evidence: evidence(),
+    apiKey: "test-batch-key",
+    fetcher: async url => {
+      assert.match(String(url), /\/v1\/batches\/batch-2$/);
+      return jsonResponse({ id: "batch-2", status: "in_progress" });
+    },
+    recordUsage: async () => { recorded += 1; },
+    settleReservation: async () => { settled += 1; }
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.batchPending, true);
+  assert.equal(result.reason, "dream_batch_pending");
+  assert.equal(recorded, 0);
+  assert.equal(settled, 0);
+});
+
+test("Dreaming Batch completion meters discounted usage then persists normalized insights", async () => {
+  const e = evidence();
+  let recorded = null;
+  let settled = null;
+  let persisted = null;
+  let finished = null;
+  const output = {
+    summary: "Repeated collaboration evidence supports one communication insight.",
+    insights: [{
+      kind: "communication",
+      domain: "conversation",
+      title: "Prefer architectural explanations",
+      summary: "When repeated patches fail, explain the systemic cause and proposed architecture rather than adding another local patch.",
+      confidence: 0.86,
+      evidenceRefs: ["turn:t2", "turn:t3"],
+      evidenceBasis: "Correction followed by positive outcome.",
+      action: "apply",
+      transferConditions: ["Repeated systemic failure"],
+      disconfirmers: ["Clearly isolated bug"],
+      sensitive: false
+    }]
+  };
+  const providerBody = {
+    id: "resp-batch-3",
+    model: "gpt-5.6-terra",
+    output_text: JSON.stringify(output),
+    usage: { input_tokens: 2000, output_tokens: 500, total_tokens: 2500 }
+  };
+
+  const result = await pollDreamBatch({
+    userId: "11111111-1111-4111-8111-111111111111",
+    latest: {
+      id: "run-batch-3",
+      status: "started",
+      model: "gpt-5.6-terra",
+      metadata: {
+        batchMode: true,
+        batchId: "batch-3",
+        inputFileId: "file-input-3",
+        reservationId: "44444444-4444-4444-8444-444444444444",
+        customId: "ari-dream-run-batch-3"
+      }
+    },
+    evidence: e,
+    apiKey: "test-batch-key",
+    fetcher: async (url, options = {}) => {
+      const href = String(url);
+      if (href.endsWith("/v1/batches/batch-3")) {
+        return jsonResponse({ id: "batch-3", status: "completed", output_file_id: "file-output-3" });
+      }
+      if (href.endsWith("/v1/files/file-output-3/content")) {
+        return textResponse(JSON.stringify({
+          id: "batch_req_3",
+          custom_id: "ari-dream-run-batch-3",
+          response: { status_code: 200, request_id: "req-3", body: providerBody },
+          error: null
+        }) + "\n");
+      }
+      if (options.method === "DELETE" && /\/v1\/files\/(file-input-3|file-output-3)$/.test(href)) {
+        return jsonResponse({ deleted: true });
+      }
+      throw new Error(`unexpected URL: ${url}`);
+    },
+    recordUsage: async value => { recorded = value; },
+    settleReservation: async value => { settled = value; return { settled: true }; },
+    persistInsights: async value => { persisted = value; return { stored: value.insights.length }; },
+    finishRun: async value => { finished = value; return { stored: true }; }
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.dreamed, true);
+  assert.equal(result.batch, true);
+  assert.equal(result.storedInsights, 1);
+  assert.equal(recorded.costMultiplier, 0.5);
+  assert.equal(recorded.requestCategory, "ari_dreaming_batch");
+  assert.equal(settled.costMultiplier, 0.5);
+  assert.equal(settled.reservationId, "44444444-4444-4444-8444-444444444444");
+  assert.equal(persisted.insights.length, 1);
+  assert.equal(finished.status, "completed");
+});
+
+test("Dreaming Batch accounts for successful provider work even when output cannot be ingested", async () => {
+  let recorded = 0;
+  let settled = 0;
+  let released = 0;
+  let finished = null;
+  const providerBody = {
+    id: "resp-batch-4",
+    model: "gpt-5.6-terra",
+    output_text: "not-json",
+    usage: { input_tokens: 1800, output_tokens: 80, total_tokens: 1880 }
+  };
+
+  const result = await pollDreamBatch({
+    userId: "11111111-1111-4111-8111-111111111111",
+    latest: {
+      id: "run-batch-4",
+      status: "started",
+      model: "gpt-5.6-terra",
+      metadata: {
+        batchMode: true,
+        batchId: "batch-4",
+        inputFileId: "file-input-4",
+        reservationId: "55555555-5555-4555-8555-555555555555",
+        customId: "ari-dream-run-batch-4"
+      }
+    },
+    evidence: evidence(),
+    apiKey: "test-batch-key",
+    fetcher: async (url, options = {}) => {
+      const href = String(url);
+      if (href.endsWith("/v1/batches/batch-4")) {
+        return jsonResponse({ id: "batch-4", status: "completed", output_file_id: "file-output-4" });
+      }
+      if (href.endsWith("/v1/files/file-output-4/content")) {
+        return textResponse(JSON.stringify({
+          custom_id: "ari-dream-run-batch-4",
+          response: { status_code: 200, request_id: "req-4", body: providerBody },
+          error: null
+        }) + "\n");
+      }
+      if (options.method === "DELETE") return jsonResponse({ deleted: true });
+      throw new Error(`unexpected URL: ${url}`);
+    },
+    recordUsage: async () => { recorded += 1; },
+    settleReservation: async () => { settled += 1; return { settled: true }; },
+    releaseReservation: async () => { released += 1; },
+    finishRun: async value => { finished = value; return { stored: true }; }
+  });
+
+  assert.equal(result.success, false);
+  assert.equal(result.reason, "dream_batch_ingest_failed");
+  assert.equal(recorded, 1);
+  assert.equal(settled, 1);
+  assert.equal(released, 0);
+  assert.equal(finished.status, "failed");
+  assert.equal(finished.metadata.billedProviderWork, true);
+});
+
+test("Dreaming request body is identical between sync and Batch execution", () => {
+  const body = buildDreamRequestBody({ evidence: evidence(), model: "gpt-5.6-terra" });
+  assert.equal(body.model, "gpt-5.6-terra");
+  assert.equal(body.store, false);
+  assert.equal(body.max_output_tokens, 2400);
+  assert.equal(body.text.format.type, "json_schema");
+  assert.equal(body.text.format.name, "ari_dream_consolidation");
 });
 
 test("dreaming cron endpoint fails closed without the cron secret", async () => {

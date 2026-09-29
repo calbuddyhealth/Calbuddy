@@ -11,6 +11,7 @@ import {
 import {
   buildCognitiveCandidates,
   chooseCognitiveLane,
+  collectCognitiveSignals,
   runAriCognitiveScheduler,
   selectDeterministicCognitiveLane
 } from "../api/_lib/ari-vnext/cognitive-scheduler.js";
@@ -18,18 +19,33 @@ import {
 const OWNER_ID = "11111111-1111-4111-8111-111111111111";
 
 test("GPT-5.6 family pricing is recorded correctly", () => {
-  const usage = { inputTokens: 1_000_000, cachedInputTokens: 200_000, outputTokens: 100_000 };
+  const usage = { inputTokens: 100_000, cachedInputTokens: 20_000, outputTokens: 10_000 };
 
   const sol = estimateOpenAICost({ model: "gpt-5.6-sol", usage });
   const terra = estimateOpenAICost({ model: "gpt-5.6-terra", usage });
   const luna = estimateOpenAICost({ model: "gpt-5.6-luna", usage });
   const alias = estimateOpenAICost({ model: "gpt-5.6", usage });
 
-  assert.equal(sol.estimatedCostUsd, 5.28);
-  assert.equal(terra.estimatedCostUsd, 2.84);
-  assert.equal(luna.estimatedCostUsd, 0.284);
+  assert.equal(sol.estimatedCostUsd, 0.528);
+  assert.equal(terra.estimatedCostUsd, 0.284);
+  assert.equal(luna.estimatedCostUsd, 0.0284);
   assert.equal(alias.estimatedCostUsd, sol.estimatedCostUsd);
   assert.match(sol.pricingSource, /gpt-5\.6-sol$/);
+});
+
+test("GPT-5.6 cost accounting applies long-context pricing above 272K input tokens", () => {
+  const estimate = estimateOpenAICost({
+    model: "gpt-5.6-terra",
+    usage: {
+      inputTokens: 300000,
+      cachedInputTokens: 0,
+      outputTokens: 100000
+    }
+  });
+  assert.equal(estimate.estimatedCostUsd, 3);
+  assert.match(estimate.pricingSource, /long_context$/);
+  assert.equal(estimate.rates.inputMultiplier, 2);
+  assert.equal(estimate.rates.outputMultiplier, 1.5);
 });
 
 test("background spend governor blocks when the daily limit is reached", async () => {
@@ -162,6 +178,45 @@ test("starvation protection forces an otherwise quiet Dreaming lane", () => {
   assert.equal(decision.modelCalls, 0);
 });
 
+test("pending Dreaming Batch is deterministically selected for no-model polling", async () => {
+  const now = new Date("2026-09-29T08:00:00.000Z");
+  const signals = await collectCognitiveSignals({
+    userId: OWNER_ID,
+    now,
+    repairProbe: async () => ({ pending: false }),
+    experienceProbe: async () => ({ dueCount: 0, seedCount: 0 }),
+    communityProbe: async () => ({ hasWork: false, candidateCount: 0 }),
+    goalsLoader: async () => [],
+    dreamLoader: async () => ({
+      id: "run-pending-batch",
+      status: "started",
+      model: "gpt-5.6-terra",
+      metadata: { batchMode: true, batchId: "batch-pending-1" },
+      started_at: "2026-09-29T04:00:00.000Z",
+      updated_at: "2026-09-29T04:00:00.000Z"
+    }),
+    initiativesLoader: async () => []
+  });
+
+  assert.equal(signals.dreaming.batchPending, true);
+  assert.equal(signals.dreaming.urgent, true);
+  assert.equal(signals.dreaming.activityScore, 1);
+
+  const candidates = buildCognitiveCandidates({
+    history: {
+      startedAt: "2026-09-29T00:00:00.000Z",
+      lanes: { dreaming: "2026-09-29T04:00:00.000Z" }
+    },
+    signals,
+    budget: {},
+    now
+  });
+  const decision = selectDeterministicCognitiveLane({ candidates });
+  assert.equal(decision.lane, "dreaming");
+  assert.equal(decision.reason, "urgent_signal");
+  assert.equal(decision.modelCalls, 0);
+});
+
 test("Luna is used only as a single tie-break call for close eligible lanes", async () => {
   const original = {
     ARI_PROVIDER_API_KEY: process.env.ARI_PROVIDER_API_KEY,
@@ -279,6 +334,25 @@ test("atomic budget reservation calls the server-side reservation RPC before pro
   }
 });
 
+test("Batch reservation uses the 50 percent token multiplier before provider work", () => {
+  const body = {
+    input: "x".repeat(200000),
+    max_output_tokens: 10000
+  };
+  const standard = estimateBackgroundReservationUsd({
+    model: "gpt-5.6-terra",
+    requestBody: body,
+    costMultiplier: 1
+  });
+  const batch = estimateBackgroundReservationUsd({
+    model: "gpt-5.6-terra",
+    requestBody: body,
+    costMultiplier: 0.5
+  });
+  assert.ok(batch < standard);
+  assert.ok(batch > 0);
+});
+
 test("web-search-capable background calls reserve more than token-only calls", () => {
   const base = estimateBackgroundReservationUsd({
     model: "gpt-5.6-terra",
@@ -319,6 +393,29 @@ test("hybrid scheduler migration keeps trigger and reservation state server-only
   assert.match(sql, /ari_background_ai_budget_reservations/);
   assert.match(sql, /pg_advisory_xact_lock/);
   assert.match(sql, /security invoker/i);
+  assert.match(sql, /revoke execute[\s\S]*from public, anon, authenticated/i);
+  assert.match(sql, /grant execute[\s\S]*to service_role/i);
+});
+
+test("provider usage request ids remain unique so retries cannot double-count spend", async () => {
+  const sql = await readFile(
+    new URL("../supabase/migrations/20260929035455_ai_provider_usage_request_idempotency.sql", import.meta.url),
+    "utf8"
+  );
+  const source = await readFile(new URL("../api/_lib/ai-provider-usage.js", import.meta.url), "utf8");
+  assert.match(sql, /create unique index/i);
+  assert.match(sql, /provider, provider_request_id/i);
+  assert.match(source, /on_conflict/);
+  assert.match(source, /resolution=ignore-duplicates/);
+});
+
+test("Batch reservation extension remains service-role-only", async () => {
+  const sql = await readFile(
+    new URL("../supabase/migrations/20260929034723_ari_background_batch_reservation_extension.sql", import.meta.url),
+    "utf8"
+  );
+  assert.match(sql, /security invoker/i);
+  assert.match(sql, /interval '48 hours'/i);
   assert.match(sql, /revoke execute[\s\S]*from public, anon, authenticated/i);
   assert.match(sql, /grant execute[\s\S]*to service_role/i);
 });

@@ -107,20 +107,30 @@ export function extractOpenAIUsage(data = {}) {
 
 export function estimateOpenAICost({ model = "", usage = {} } = {}) {
   const rates = resolveRates(model);
+  const normalizedModel = normalizeModel(model);
   const inputTokens = safeInt(usage.inputTokens);
   const cachedInputTokens = Math.min(inputTokens, safeInt(usage.cachedInputTokens));
   const uncachedInputTokens = Math.max(0, inputTokens - cachedInputTokens);
   const outputTokens = safeInt(usage.outputTokens);
+  const longContext = normalizedModel.startsWith("gpt-5.6") && inputTokens > 272000;
+  const inputMultiplier = longContext ? 2 : 1;
+  const outputMultiplier = longContext ? 1.5 : 1;
 
   const cost =
-    (uncachedInputTokens / 1_000_000) * rates.input +
-    (cachedInputTokens / 1_000_000) * rates.cachedInput +
-    (outputTokens / 1_000_000) * rates.output;
+    (uncachedInputTokens / 1_000_000) * rates.input * inputMultiplier +
+    (cachedInputTokens / 1_000_000) * rates.cachedInput * inputMultiplier +
+    (outputTokens / 1_000_000) * rates.output * outputMultiplier;
 
   return {
     estimatedCostUsd: Number(cost.toFixed(8)),
-    pricingSource: rates.pricingSource,
-    rates
+    pricingSource: longContext
+      ? `${rates.pricingSource}:long_context`
+      : rates.pricingSource,
+    rates: {
+      ...rates,
+      inputMultiplier,
+      outputMultiplier
+    }
   };
 }
 
@@ -132,7 +142,8 @@ export async function recordOpenAIUsage({
   model,
   responseData = {},
   providerRequestId = null,
-  metadata = {}
+  metadata = {},
+  costMultiplier = 1
 } = {}) {
   try {
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -142,7 +153,17 @@ export async function recordOpenAIUsage({
 
     const resolvedModel = clean(responseData?.model || model || "unknown", 180) || "unknown";
     const usage = extractOpenAIUsage(responseData);
-    const cost = estimateOpenAICost({ model: resolvedModel, usage });
+    const baseCost = estimateOpenAICost({ model: resolvedModel, usage });
+    const multiplier = Number.isFinite(Number(costMultiplier)) && Number(costMultiplier) >= 0
+      ? Number(costMultiplier)
+      : 1;
+    const cost = {
+      ...baseCost,
+      estimatedCostUsd: Number((baseCost.estimatedCostUsd * multiplier).toFixed(8)),
+      pricingSource: multiplier === 1
+        ? baseCost.pricingSource
+        : `${baseCost.pricingSource}:multiplier_${multiplier}`
+    };
 
     const row = {
       user_id: userId || null,
@@ -161,13 +182,19 @@ export async function recordOpenAIUsage({
       metadata: metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {}
     };
 
-    const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/ai_provider_usage_logs`, {
+    const usageUrl = new URL(`${process.env.SUPABASE_URL}/rest/v1/ai_provider_usage_logs`);
+    if (row.provider_request_id) {
+      usageUrl.searchParams.set("on_conflict", "provider,provider_request_id");
+    }
+    const response = await fetch(usageUrl.toString(), {
       method: "POST",
       headers: {
         apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
         Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
         "Content-Type": "application/json",
-        Prefer: "return=minimal"
+        Prefer: row.provider_request_id
+          ? "resolution=ignore-duplicates,return=minimal"
+          : "return=minimal"
       },
       body: JSON.stringify(row)
     });
