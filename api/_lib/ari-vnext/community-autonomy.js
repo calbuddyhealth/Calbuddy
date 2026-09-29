@@ -557,7 +557,8 @@ async function proposeCommunityPost({ userId, seeds = [], recentPosts = [] } = {
         instructions,
         input: [{ role: "user", content: [{ type: "input_text", text: JSON.stringify(publicContext) }] }],
         text: { format: { type: "json_schema", name: "ari_community_new_post", strict: true, schema } },
-        safety_identifier: userId
+        safety_identifier: userId,
+        prompt_cache_key: "ari-community-new-post-v1"
       })
     });
     if (!response.ok) return { shouldPost: false, reason: "post_provider_failure" };
@@ -646,6 +647,8 @@ async function evaluateCommunityThread({ thread, userId }) {
   const timer = setTimeout(() => controller.abort(), Math.min(Number(policy.timeoutMs || 32000), 45000));
   let data;
   try {
+    await assertBackgroundAiBudget();
+
     const response = await fetch(process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -671,7 +674,8 @@ async function evaluateCommunityThread({ thread, userId }) {
             schema
           }
         },
-        safety_identifier: userId
+        safety_identifier: userId,
+        prompt_cache_key: "ari-community-analysis-v1"
       })
     });
     if (!response.ok) return null;
