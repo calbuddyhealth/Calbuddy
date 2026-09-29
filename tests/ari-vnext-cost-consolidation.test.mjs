@@ -16,7 +16,7 @@ test("GPT-5.6 family pricing is recorded correctly", () => {
 
   assert.equal(sol.estimatedCostUsd, 5.28);
   assert.equal(terra.estimatedCostUsd, 2.84);
-  assert.equal(luna.estimatedCostUsd, 0.164);
+  assert.equal(luna.estimatedCostUsd, 0.284);
   assert.equal(alias.estimatedCostUsd, sol.estimatedCostUsd);
   assert.match(sol.pricingSource, /gpt-5\.6-sol$/);
 });
