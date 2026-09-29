@@ -4,7 +4,11 @@ import { runAriDreamingCycle } from "./dreaming-runtime.js";
 import { probeCommunityWork, runAriCommunityCycle } from "./community-autonomy.js";
 import { probeRepairDialogueWork, runRepairDialogueCycle } from "./chatgpt-repair-dialogue.js";
 import { runTheoryDialogueCycle } from "./chatgpt-theory-dialogue.js";
-import { listDueExperienceFollowups } from "./experience-store.js";
+import {
+  listDueExperienceFollowups,
+  listRecentExperiences,
+  loadExperienceSeeds
+} from "./experience-store.js";
 import { loadLatestDreamRun } from "./dreaming-store.js";
 import { loadGoals } from "./goal-store.js";
 import { listRecentInitiatives } from "./initiative-events.js";
@@ -239,7 +243,7 @@ export async function collectCognitiveSignals({
   userId,
   now = new Date(),
   repairProbe = probeRepairDialogueWork,
-  experienceProbe = listDueExperienceFollowups,
+  experienceProbe = probeExperienceWork,
   communityProbe = probeCommunityWork,
   goalsLoader = loadGoals,
   dreamLoader = loadLatestDreamRun,
@@ -249,7 +253,7 @@ export async function collectCognitiveSignals({
   const [repairResult, experienceResult, communityResult, goalsResult, dreamResult, initiativesResult] =
     await Promise.allSettled([
       repairProbe(),
-      experienceProbe({ userId, now: clock, limit: 3 }),
+      experienceProbe({ userId, now: clock }),
       communityProbe({ userId, now: clock }),
       goalsLoader({ userId, includeClosed: false, limit: 60 }),
       dreamLoader({ userId }),
@@ -257,7 +261,7 @@ export async function collectCognitiveSignals({
     ]);
 
   const repair = fulfilledValue(repairResult, {});
-  const dueExperiences = fulfilledValue(experienceResult, []);
+  const experience = fulfilledValue(experienceResult, {});
   const community = fulfilledValue(communityResult, {});
   const goals = fulfilledValue(goalsResult, []);
   const latestDream = fulfilledValue(dreamResult, null);
@@ -300,12 +304,15 @@ export async function collectCognitiveSignals({
           : "no_active_autonomy_goal"
     },
     experience: {
-      activityScore: Array.isArray(dueExperiences) && dueExperiences.length
-        ? Math.min(1, 0.55 + dueExperiences.length * 0.12)
-        : 0,
+      activityScore: experience?.dueCount > 0
+        ? Math.min(1, 0.58 + experience.dueCount * 0.12)
+        : experience?.seedCount > 0
+          ? Math.min(0.82, 0.45 + experience.seedCount * 0.10)
+          : 0,
       urgent: false,
-      dueCount: Array.isArray(dueExperiences) ? dueExperiences.length : 0,
-      reason: dueExperiences?.length ? "due_experience_followup" : "no_due_followup"
+      dueCount: finite(experience?.dueCount, 0),
+      seedCount: finite(experience?.seedCount, 0),
+      reason: experience?.reason || "no_experience_work"
     },
     community: {
       activityScore: community?.hasWork
@@ -331,6 +338,31 @@ export async function collectCognitiveSignals({
       reason: "maintenance_only_until_starvation"
     }
   };
+}
+
+export async function probeExperienceWork({ userId, now = new Date() } = {}) {
+  try {
+    const [due, recent] = await Promise.all([
+      listDueExperienceFollowups({ userId, now, limit: 3 }),
+      listRecentExperiences({ userId, limit: 28 })
+    ]);
+    if (Array.isArray(due) && due.length) {
+      return { available: true, dueCount: due.length, seedCount: 0, reason: "due_experience_followup" };
+    }
+    const seeds = await loadExperienceSeeds({
+      userId,
+      recentExperiences: Array.isArray(recent) ? recent : [],
+      limit: 4
+    });
+    return {
+      available: true,
+      dueCount: 0,
+      seedCount: Array.isArray(seeds) ? seeds.length : 0,
+      reason: Array.isArray(seeds) && seeds.length ? "new_experience_seed" : "no_experience_work"
+    };
+  } catch {
+    return { available: false, dueCount: 0, seedCount: 0, reason: "experience_probe_failed" };
+  }
 }
 
 export function buildCognitiveCandidates({
