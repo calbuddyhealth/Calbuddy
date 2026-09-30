@@ -8,8 +8,9 @@ import { communicationClosureToInstruction } from "./communication-closure.js";
 import { convictionInstruction } from "./conviction-learning.js";
 import { dreamingContextToInstruction } from "./dreaming-core.js";
 import { experienceContextToInstruction } from "./experience-core.js";
+import { contextBudgetChars } from "./cost-router.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.23.0";
+export const CONTEXT_ROUTER_VERSION = "1.24.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -194,7 +195,7 @@ export function contextToText(context = {}) {
   try {
     const protectedContext = buildProtectedContext(context);
     const protectedJson = JSON.stringify(protectedContext, null, 2);
-    const rules = cognitiveContextRules(context).slice(0, 12000);
+    const rules = cognitiveContextRules(context).slice(0, 6000);
 
     const sectionHeader = "PROTECTED CONTINUITY CONTEXT — preserve and use this before optional cognition:";
     const rulesHeader = "COGNITIVE/BEHAVIOR RULES:";
@@ -206,7 +207,8 @@ export function contextToText(context = {}) {
       rules
     ].filter(Boolean).join("\n\n");
 
-    const remaining = Math.max(0, 24000 - fixed.length - supplementalHeader.length - 4);
+    const totalBudget = contextBudgetChars();
+    const remaining = Math.max(0, totalBudget - fixed.length - supplementalHeader.length - 4);
     const supplementalJson = buildSupplementalContextText(context, remaining);
 
     return [
@@ -223,7 +225,7 @@ function buildProtectedContext(context = {}) {
   const output = {};
 
   if (context.relevantMemory !== undefined) {
-    output.relevantMemory = String(context.relevantMemory || "").slice(0, 8000);
+    output.relevantMemory = String(context.relevantMemory || "").slice(0, 4000);
   }
 
   if (context.memoryCapability && typeof context.memoryCapability === "object") {
@@ -286,8 +288,8 @@ function buildSupplementalContextText(context = {}, maxChars = 0) {
 }
 
 function compactContextField(key, value) {
-  if (key === "relevantMemory") return String(value || "").slice(0, 9000);
-  if (Array.isArray(value)) return value.slice(0, 60);
+  if (key === "relevantMemory") return String(value || "").slice(0, 4500);
+  if (Array.isArray(value)) return value.slice(0, 30);
   if (value && typeof value === "object") {
     try {
       const copy = JSON.parse(JSON.stringify(value));
@@ -296,10 +298,10 @@ function compactContextField(key, value) {
         copy.goals = copy.goals.slice(0, 3);
         while (copy.goals.length > 1 && JSON.stringify(copy).length > 6000) copy.goals.pop();
       }
-      if (key === "decisionState" && Array.isArray(copy.recent)) copy.recent = copy.recent.slice(0, 12);
+      if (key === "decisionState" && Array.isArray(copy.recent)) copy.recent = copy.recent.slice(0, 8);
       if (key === "userWorldModel") {
-        if (Array.isArray(copy.preferences?.items)) copy.preferences.items = copy.preferences.items.slice(0, 18);
-        if (Array.isArray(copy.constraints?.items)) copy.constraints.items = copy.constraints.items.slice(0, 18);
+        if (Array.isArray(copy.preferences?.items)) copy.preferences.items = copy.preferences.items.slice(0, 12);
+        if (Array.isArray(copy.constraints?.items)) copy.constraints.items = copy.constraints.items.slice(0, 12);
 
         // sourceSummary is durable telemetry, not primary conversational
         // evidence. Keep compact signals but never let raw curiosity/autonomy
@@ -317,7 +319,7 @@ function compactContextField(key, value) {
           };
         }
 
-        if (JSON.stringify(copy).length > 8500 && copy.sourceSummary) {
+        if (JSON.stringify(copy).length > 5200 && copy.sourceSummary) {
           copy.sourceSummary = {
             profile: copy.sourceSummary.profile || null,
             durableMemoryLines: copy.sourceSummary.durableMemoryLines ?? null,
