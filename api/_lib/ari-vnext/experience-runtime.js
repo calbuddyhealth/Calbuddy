@@ -6,6 +6,7 @@ import {
   computePredictionError
 } from "./experience-core.js";
 import { executeBackgroundOpenAIRequest } from "../background-ai-budget.js";
+import { resolveBackgroundModel } from "./cost-router.js";
 import {
   countExperiencesSince,
   experienceEngineEnabled,
@@ -522,9 +523,13 @@ function boundedInt(value, fallback, min, max) {
   return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
 }
 function experienceModel() {
-  return clean(process.env.OPENAI_ARI_EXPERIENCE_MODEL, 160)
-    || clean(process.env.OPENAI_ARI_BACKGROUND_MODEL, 160)
-    || "gpt-5.6-luna";
+  return resolveBackgroundModel({
+    requestedModel:
+      clean(process.env.OPENAI_ARI_EXPERIENCE_MODEL, 160) ||
+      clean(process.env.OPENAI_ARI_BACKGROUND_MODEL, 160) ||
+      "gpt-5.6-luna",
+    reasoning: false
+  });
 }
 function experienceEffort() {
   const value = clean(process.env.OPENAI_ARI_EXPERIENCE_EFFORT, 30).toLowerCase();
