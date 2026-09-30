@@ -205,7 +205,7 @@ export function compactInstructionText(value = "", {
 }
 
 export function contextBudgetChars() {
-  return boundedInt(process.env.ARI_RELEVANT_CONTEXT_CHARS, 9000, 6000, 18000);
+  return boundedInt(process.env.ARI_RELEVANT_CONTEXT_CHARS, 14000, 10000, 18000);
 }
 
 export function promptBudgetTelemetry({ instructions = "", input = [] } = {}) {
