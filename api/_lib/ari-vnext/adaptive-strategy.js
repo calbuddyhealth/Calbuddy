@@ -253,14 +253,15 @@ export function shouldRunAdaptiveStrategyReflection({
     "useful_failure",
     "action_verified"
   ].some(state => executionProgress.has(state));
-  const periodicReview = Number(cognitiveTurnCount || 0) > 0 && Number(cognitiveTurnCount || 0) % 5 === 0;
+  const periodicReview = Number(cognitiveTurnCount || 0) > 0 && Number(cognitiveTurnCount || 0) % 20 === 0;
   const confidence = String(result?.metacognition?.confidence || "").toLowerCase();
   const missingEvidence = Array.isArray(result?.metacognition?.missingEvidence)
     ? result.metacognition.missingEvidence
     : [];
   const uncertaintyReview =
+    result?.modelPolicy?.mode === "deep" &&
     ["partial", "limited"].includes(confidence) &&
-    missingEvidence.length >= 1 &&
+    missingEvidence.length >= 2 &&
     result?.safety?.highStakes !== true;
 
   return correction || outcomeLearning || realWorldOutcomeLearning || demonstratedExecutionLearning || periodicReview || uncertaintyReview;
