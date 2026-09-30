@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   ARI_COST_ROUTER_VERSION,
+  applyInteractiveCostGuard,
   compactInstructionText,
   compileConversationInput,
   promptBudgetTelemetry,
@@ -19,7 +20,9 @@ const ORIGINAL_ENV = {
   OPENAI_ARI_ADVANCED_MODEL: process.env.OPENAI_ARI_ADVANCED_MODEL,
   ARI_CONTEXT_HISTORY_MESSAGES: process.env.ARI_CONTEXT_HISTORY_MESSAGES,
   ARI_CONTEXT_HISTORY_CHARS: process.env.ARI_CONTEXT_HISTORY_CHARS,
-  ARI_CONTEXT_INSTRUCTION_CHARS: process.env.ARI_CONTEXT_INSTRUCTION_CHARS
+  ARI_CONTEXT_INSTRUCTION_CHARS: process.env.ARI_CONTEXT_INSTRUCTION_CHARS,
+  ARI_OWNER_MAX_SOL_CALL_USD: process.env.ARI_OWNER_MAX_SOL_CALL_USD,
+  ARI_OWNER_ALLOW_OVERSIZE_SOL: process.env.ARI_OWNER_ALLOW_OVERSIZE_SOL
 };
 
 test.afterEach(() => {
@@ -60,6 +63,30 @@ test("background Sol is downgraded unless explicitly enabled", () => {
 
   process.env.ARI_ALLOW_BACKGROUND_SOL = "true";
   assert.equal(resolveBackgroundModel({ requestedModel: "gpt-5.6-sol", reasoning: true }), "gpt-5.6-sol");
+});
+
+test("oversized owner Sol calls downgrade to Terra before the provider call", () => {
+  process.env.ARI_OWNER_MAX_SOL_CALL_USD = "0.05";
+  delete process.env.ARI_OWNER_ALLOW_OVERSIZE_SOL;
+  delete process.env.OPENAI_ARI_OWNER_DEFAULT_MODEL;
+
+  const guarded = applyInteractiveCostGuard({
+    policy: {
+      model: "gpt-5.6-sol",
+      accessClass: "owner",
+      maxOutputTokens: 2800,
+      supportsReasoning: true,
+      costTier: "owner_sol_escalation",
+      escalated: true
+    },
+    instructions: "I".repeat(18000),
+    input: [{ role: "user", content: "U".repeat(8000) }]
+  });
+
+  assert.equal(guarded.model, "gpt-5.6-terra");
+  assert.equal(guarded.costTier, "owner_terra_budget_guard");
+  assert.equal(guarded.costGuard.downgraded, true);
+  assert.equal(guarded.routingReason, "sol_per_call_budget_guard");
 });
 
 test("conversation compiler keeps only bounded recent history", () => {
