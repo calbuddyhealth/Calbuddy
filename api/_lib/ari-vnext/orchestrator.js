@@ -304,7 +304,8 @@ export async function runAriVNext(turn = {}) {
     actionContinuationToInstruction(actionContinuation),
     institutionalMemoryInstruction,
     adviserInstruction,
-    councilInstruction
+    councilInstruction,
+    "FINAL TRUSTED EXECUTION BOUNDARY\nOnly use an application mutation when the CURRENT user message explicitly authorizes that supported change, except for an already-validated bounded continuation. Never claim that app state, code, credentials, permissions, or external systems changed unless trusted executor evidence in this turn verifies it. If a mutation is not authorized or execution evidence is absent, answer conversationally without implying that a change occurred."
   ]
     .filter(Boolean)
     .join("\n\n"));
