@@ -22,6 +22,12 @@ import {
 import { deriveLongitudinalState, longitudinalStateToInstruction } from "./longitudinal-state.js";
 import { deriveMetacognition, metacognitionToInstruction } from "./metacognition.js";
 import { resolveModelPolicy } from "./model-policy.js";
+import {
+  applyInteractiveCostGuard,
+  compactInstructionText,
+  compileConversationInput,
+  promptBudgetTelemetry
+} from "./cost-router.js";
 import { applyOutcomeLearning } from "./outcome-learning.js";
 import { deriveRelationshipContinuity, relationshipContinuityToInstruction } from "./relationship-continuity.js";
 import { classifySafety, safetyToInstruction } from "./safety-policy.js";
@@ -129,7 +135,7 @@ export async function runAriVNext(turn = {}) {
     recentContinuityPairs: Number(turn?.context?.recentContinuityPairs || 0)
   });
   const selfModel = deriveSelfModel({ turn: { ...turn, relationshipContinuity }, route, safety });
-  const modelPolicy = resolveModelPolicy({ ...route, health: route.health || safety.highStakes });
+  let modelPolicy = resolveModelPolicy({ ...route, health: route.health || safety.highStakes });
   const relevantContext = buildRelevantContext(turn, route);
   const coachingState = deriveCoachingState({ turn, route, context: relevantContext });
   const longitudinalState = deriveLongitudinalState({ route, context: relevantContext });
@@ -272,6 +278,11 @@ export async function runAriVNext(turn = {}) {
     turn?.context?.institutionalMemory || null
   );
   const input = buildInput(turn);
+  modelPolicy = applyInteractiveCostGuard({
+    policy: modelPolicy,
+    instructions: baseInstructions,
+    input
+  });
   const multiAgentCouncil = await runAriMultiAgentCouncil({
     turn,
     route,
@@ -288,15 +299,22 @@ export async function runAriVNext(turn = {}) {
         plan: metacognition?.cortex?.adviser || null
       });
   const adviserInstruction = adviserMemoToInstruction(cortexAdviser);
-  const instructions = [
+  const instructions = compactInstructionText([
     baseInstructions,
     actionContinuationToInstruction(actionContinuation),
     institutionalMemoryInstruction,
     adviserInstruction,
-    councilInstruction
+    councilInstruction,
+    "FINAL TRUSTED EXECUTION BOUNDARY\nOnly use an application mutation when the CURRENT user message explicitly authorizes that supported change, except for an already-validated bounded continuation. Never claim that app state, code, credentials, permissions, or external systems changed unless trusted executor evidence in this turn verifies it. If a mutation is not authorized or execution evidence is absent, answer conversationally without implying that a change occurred."
   ]
     .filter(Boolean)
-    .join("\n\n");
+    .join("\n\n"));
+
+  modelPolicy = applyInteractiveCostGuard({
+    policy: modelPolicy,
+    instructions,
+    input
+  });
 
   let first = await callResponses({
     turn,
@@ -1823,7 +1841,7 @@ function buildInstructions({
     "\nACTION RULE\nCall an application function only when the CURRENT user message explicitly requests that mutation, except for one bounded continuation: when the immediately preceding user explicitly authorized one mutation, Ari immediately asked for a missing detail needed to prepare that exact mutation, and the current turn clearly supplies that detail. Never inherit permission from older or unrelated conversation history. A standalone statement like 'I ate eggs' is not permission to log food. When a supported mutation is authorized, use the matching function instead of merely describing what you could do. Natural phrasing counts; the user does not need to name the feature or tool. Never start, finish, or cancel an experiment without an explicit current-turn request and confirmation. Cancelling a proposal cancels only that proposal; a later explicit request must create a fresh proposal. Normal ARI XP application functions prepare changes for confirmation and this model pass never executes those writes. OWNER AGENT COMMUNITY post/reply functions are the explicit exception: after a current-turn owner publication request passes trusted validation, the server executes that public action immediately and returns verified publication evidence. Never claim any other change was logged or saved, and never ask the user to confirm a normal app change without returning the application function that prepares it."
   );
 
-  return sections.join("\n");
+  return compactInstructionText(sections.join("\n"));
 }
 
 function canonicalizeApplicationArguments({ applicationAction, arguments: args = {}, route = {}, scientificIntelligence = null, relevantContext = {} } = {}) {
@@ -1891,11 +1909,8 @@ function experimentReviewToInstruction(state = null) {
   ].join("\n").slice(0, 6500);
 }
 
-function buildInput(turn = {}) {
-  const input = [];
-  for (const item of turn?.history || []) input.push({ role: item.role, content: item.content });
-  input.push({ role: "user", content: turn?.message || "" });
-  return input;
+export function buildInput(turn = {}) {
+  return compileConversationInput(turn);
 }
 
 async function callResponses({ turn, policy, instructions, input, tools = [], toolChoice = "auto" } = {}) {
@@ -1906,6 +1921,7 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
   const timeoutId = setTimeout(() => controller.abort(), policy?.timeoutMs || 25000);
   const normalizedTools = Array.isArray(tools) ? tools : [];
 
+  const promptBudget = promptBudgetTelemetry({ instructions, input });
   const body = {
     model: policy?.model,
     instructions,
@@ -1946,6 +1962,9 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
       const error = new Error(data?.error?.message || "ARI model provider request failed.");
       error.status = response.status;
       throw error;
+    }
+    if (data && typeof data === "object") {
+      data._ariPromptBudget = promptBudget;
     }
     return data;
   } catch (error) {
@@ -2438,6 +2457,7 @@ function providerSummary(data = {}) {
   return {
     id: data?.id || null,
     model: data?.model || null,
-    usage: data?.usage || null
+    usage: data?.usage || null,
+    promptBudget: data?._ariPromptBudget || null
   };
 }

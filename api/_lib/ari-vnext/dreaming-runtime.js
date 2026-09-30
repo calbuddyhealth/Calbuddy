@@ -2,6 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { executeBackgroundOpenAIRequest } from "../background-ai-budget.js";
+import { resolveBackgroundModel } from "./cost-router.js";
 import {
   ARI_DREAMING_VERSION,
   buildDreamModelPayload,
@@ -206,9 +207,13 @@ function dreamSchema() {
 }
 
 function dreamModel() {
-  return clean(process.env.OPENAI_ARI_DREAM_MODEL, 120)
-    || clean(process.env.OPENAI_ARI_BACKGROUND_REASONING_MODEL, 120)
-    || "gpt-5.6-terra";
+  return resolveBackgroundModel({
+    requestedModel:
+      clean(process.env.OPENAI_ARI_DREAM_MODEL, 120) ||
+      clean(process.env.OPENAI_ARI_BACKGROUND_REASONING_MODEL, 120) ||
+      "gpt-5.6-terra",
+    reasoning: true
+  });
 }
 function dreamEffort() {
   const value = clean(process.env.OPENAI_ARI_DREAM_EFFORT, 30).toLowerCase();

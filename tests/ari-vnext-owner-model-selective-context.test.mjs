@@ -14,7 +14,7 @@ const owner = () => ({
   reasoningProfile: "adaptive"
 });
 
-test("owner casual chat keeps the advanced owner model", () => {
+test("owner casual chat stays on the Terra default instead of spending Sol", () => {
   const standard = resolveModelPolicy({ intelligenceEntitlement: owner() });
   const casual = resolveModelPolicy({
     intelligenceEntitlement: owner(),
@@ -24,8 +24,9 @@ test("owner casual chat keeps the advanced owner model", () => {
   assert.equal(casual.model, standard.model);
   assert.equal(casual.reasoningEffort, "low");
   assert.equal(casual.ownerModelContinuity, true);
-  assert.equal(casual.costTier, "owner_advanced_sol_low");
-  assert.ok(casual.maxOutputTokens >= 900);
+  assert.equal(casual.escalated, false);
+  assert.equal(casual.costTier, "owner_terra_default");
+  assert.ok(casual.maxOutputTokens >= 700);
 });
 
 test("owner current-information turns keep their complexity while enabling live retrieval", () => {

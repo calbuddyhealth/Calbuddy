@@ -14,6 +14,7 @@ const ORIGINAL_ENV = {
   OPENAI_ARI_REASONING_TEACHER_MODEL: process.env.OPENAI_ARI_REASONING_TEACHER_MODEL,
   OPENAI_ARI_OWNER_MODEL: process.env.OPENAI_ARI_OWNER_MODEL,
   OPENAI_ARI_ADVANCED_MODEL: process.env.OPENAI_ARI_ADVANCED_MODEL,
+  OPENAI_ARI_BACKGROUND_REASONING_MODEL: process.env.OPENAI_ARI_BACKGROUND_REASONING_MODEL,
   OPENAI_ARI_ADAPTIVE_STRATEGY_MODEL: process.env.OPENAI_ARI_ADAPTIVE_STRATEGY_MODEL,
   OPENAI_API_KEY: process.env.OPENAI_API_KEY
 };
@@ -71,9 +72,10 @@ test("reasoning academy activates for explicit judgment even on a non-deep route
   );
 });
 
-test("teacher model preference uses dedicated teacher then owner model before current provider", () => {
+test("teacher model preference uses dedicated teacher then economical background reasoning", () => {
   process.env.OPENAI_ARI_REASONING_TEACHER_MODEL = "teacher-model";
   process.env.OPENAI_ARI_OWNER_MODEL = "owner-model";
+  process.env.OPENAI_ARI_BACKGROUND_REASONING_MODEL = "background-reasoning-model";
 
   assert.equal(
     selectReasoningTeacherModel({
@@ -89,7 +91,7 @@ test("teacher model preference uses dedicated teacher then owner model before cu
       academyMode: true,
       result: { provider: { model: "current-model" } }
     }),
-    "owner-model"
+    "background-reasoning-model"
   );
 });
 
