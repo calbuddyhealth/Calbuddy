@@ -1,6 +1,8 @@
+import { resolveOwnerInteractiveModel } from "./cost-router.js";
+
 // ARI vNext model routing.
 
-export const MODEL_POLICY_VERSION = "2.4.0";
+export const MODEL_POLICY_VERSION = "3.0.0";
 
 export function resolveModelPolicy(route = {}) {
   const intelligence = route?.intelligenceEntitlement || null;
@@ -60,24 +62,29 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
     intelligence?.accessClass === "premium"
   );
   const casualConversation = route?.casualConversation === true;
-
-  // Ari Unlimited deliberately receives the same advanced chat-model class as
-  // Owner Mode for non-casual turns, but this does not confer owner identity,
-  // cognitive loop, or developer access. Owner Mode always keeps the strongest
-  // configured owner model underneath Ari; latency is controlled through
-  // reasoning effort rather than swapping the model out for casual chat.
-  const ownerGradeChat = owner || ariUnlimited;
-  const advancedModel = ownerGradeChat
-    ? process.env.OPENAI_ARI_OWNER_MODEL || process.env.OPENAI_ARI_ADVANCED_MODEL || "gpt-5.6"
-    : process.env.OPENAI_ARI_PREMIUM_MODEL || process.env.OPENAI_ARI_ADVANCED_MODEL || "gpt-5.6";
-  const fastModel = ownerGradeChat
-    ? process.env.OPENAI_ARI_OWNER_FAST_MODEL || process.env.OPENAI_ARI_VNEXT_FAST_MODEL || "gpt-4o-mini"
-    : process.env.OPENAI_ARI_PREMIUM_FAST_MODEL || process.env.OPENAI_ARI_VNEXT_FAST_MODEL || "gpt-4o-mini";
-
-  const model = owner ? advancedModel : casualConversation ? fastModel : advancedModel;
   const mode = resolveWorkMode(route);
   const freshness = resolveFreshness(route);
   const reasoningProfile = normalizeAdvancedReasoningProfile(intelligence?.reasoningProfile);
+
+  const nonOwnerAdvancedModel =
+    process.env.OPENAI_ARI_PREMIUM_MODEL ||
+    process.env.OPENAI_ARI_ADVANCED_MODEL ||
+    "gpt-5.6-terra";
+  const nonOwnerFastModel =
+    process.env.OPENAI_ARI_PREMIUM_FAST_MODEL ||
+    process.env.OPENAI_ARI_VNEXT_FAST_MODEL ||
+    "gpt-5.6-luna";
+
+  const ownerRouting = owner
+    ? resolveOwnerInteractiveModel({ mode, route, reasoningProfile })
+    : null;
+
+  const model = owner
+    ? ownerRouting.model
+    : casualConversation
+      ? nonOwnerFastModel
+      : nonOwnerAdvancedModel;
+
   const supportsReasoning = isReasoningModel(model);
   const reasoningEffort = supportsReasoning
     ? resolveAdvancedReasoningEffort({ mode, reasoningProfile, route, casualConversation, owner })
@@ -95,35 +102,35 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
     reasoningEffort,
     maxOutputTokens: casualConversation
       ? owner
-        ? 900
+        ? 700
         : 500
       : mode === "deep"
-        ? 3200
+        ? 2800
         : mode === "fast"
-          ? 1400
-          : 2400,
+          ? 1100
+          : 1800,
     timeoutMs: casualConversation
-      ? owner
-        ? 22000
-        : 12000
+      ? 16000
       : reasoningEffort === "xhigh" || reasoningEffort === "max"
         ? 60000
         : mode === "deep"
           ? 50000
           : mode === "fast"
-            ? 30000
-            : 40000,
-    costTier: casualConversation
-      ? owner
-        ? "owner_advanced_sol_low"
-        : ariUnlimited
+            ? 24000
+            : 34000,
+    costTier: owner
+      ? ownerRouting?.escalated
+        ? "owner_sol_escalation"
+        : "owner_terra_default"
+      : casualConversation
+        ? ariUnlimited
           ? "ari_unlimited_fast"
           : "premium_fast"
-      : owner
-        ? "owner_advanced_sol"
         : ariUnlimited
-          ? "ari_unlimited_advanced_sol"
+          ? "ari_unlimited_advanced"
           : "premium_advanced",
+    routingReason: ownerRouting?.reason || null,
+    escalated: ownerRouting?.escalated === true,
     liveSearchRequired: freshness === "live",
     conversationBeta: true,
     ownerModelContinuity: owner,
@@ -134,12 +141,12 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
 function resolveWorkMode(route = {}) {
   const mustUseDeep = Boolean(
     route?.complexity === "deep" ||
-    route?.health ||
-    route?.developer
+    route?.health
   );
 
   const mustUseStandard = Boolean(
     route?.complexity === "standard" ||
+    route?.developer ||
     route?.coachingState ||
     (route?.training && route?.goals) ||
     (route?.training && route?.nutrition) ||
