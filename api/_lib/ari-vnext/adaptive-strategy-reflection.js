@@ -52,17 +52,13 @@ export function shouldUseReasoningAcademy({ turn = {}, result = {} } = {}) {
 export function selectReasoningTeacherModel({ result = {}, academyMode = false } = {}) {
   if (academyMode) {
     return clean(process.env.OPENAI_ARI_REASONING_TEACHER_MODEL, 120)
-      || clean(process.env.OPENAI_ARI_OWNER_MODEL, 120)
-      || clean(process.env.OPENAI_ARI_ADVANCED_MODEL, 120)
-      || clean(result?.provider?.model, 120)
-      || clean(result?.modelPolicy?.model, 120)
-      || "gpt-5.6";
+      || clean(process.env.OPENAI_ARI_BACKGROUND_REASONING_MODEL, 120)
+      || "gpt-5.6-terra";
   }
 
   return clean(process.env.OPENAI_ARI_ADAPTIVE_STRATEGY_MODEL, 120)
-    || clean(result?.provider?.model, 120)
-    || clean(result?.modelPolicy?.model, 120)
-    || "gpt-5.6";
+    || clean(process.env.OPENAI_ARI_BACKGROUND_MODEL, 120)
+    || "gpt-5.6-luna";
 }
 
 export function normalizeReasoningAcademyLesson(raw = null) {
