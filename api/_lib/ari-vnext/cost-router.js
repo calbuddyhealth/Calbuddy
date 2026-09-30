@@ -1,6 +1,8 @@
 // ARI vNext — cost-aware cognitive gateway helpers.
 // Keeps model tiering and prompt budgets deterministic and testable.
 
+import { estimateOpenAICost } from "../ai-provider-usage.js";
+
 export const ARI_COST_ROUTER_VERSION = "1.0.0";
 
 const DEFAULT_OWNER_MODEL = "gpt-5.6-terra";
@@ -61,6 +63,68 @@ export function resolveBackgroundModel({
     return reasoning ? DEFAULT_BACKGROUND_REASONING_MODEL : DEFAULT_BACKGROUND_FAST_MODEL;
   }
   return requested;
+}
+
+export function applyInteractiveCostGuard({
+  policy = {},
+  instructions = "",
+  input = []
+} = {}) {
+  const telemetry = promptBudgetTelemetry({ instructions, input });
+  const maxOutputTokens = Math.max(1, Number(policy?.maxOutputTokens || 1200));
+  const estimate = estimateOpenAICost({
+    model: policy?.model || "",
+    usage: {
+      inputTokens: telemetry.estimatedInputTokens,
+      cachedInputTokens: 0,
+      outputTokens: maxOutputTokens,
+      totalTokens: telemetry.estimatedInputTokens + maxOutputTokens
+    }
+  });
+  const estimatedMaxCostUsd = Math.max(0, Number(estimate?.estimatedCostUsd) || 0);
+  const perCallLimitUsd = positiveNumber(process.env.ARI_OWNER_MAX_SOL_CALL_USD, 0.20);
+  const allowOversizeSol =
+    String(process.env.ARI_OWNER_ALLOW_OVERSIZE_SOL || "").trim().toLowerCase() === "true";
+
+  const costGuard = {
+    version: ARI_COST_ROUTER_VERSION,
+    estimatedMaxCostUsd: roundMoney(estimatedMaxCostUsd),
+    perCallLimitUsd: roundMoney(perCallLimitUsd),
+    estimatedInputTokens: telemetry.estimatedInputTokens,
+    totalChars: telemetry.totalChars,
+    downgraded: false,
+    reason: "within_call_budget"
+  };
+
+  if (
+    policy?.accessClass === "owner" &&
+    isSolClassModel(policy?.model) &&
+    estimatedMaxCostUsd > perCallLimitUsd &&
+    !allowOversizeSol
+  ) {
+    const model =
+      clean(process.env.OPENAI_ARI_OWNER_DEFAULT_MODEL, 160) ||
+      clean(process.env.OPENAI_ARI_OWNER_BALANCED_MODEL, 160) ||
+      DEFAULT_OWNER_MODEL;
+    return {
+      ...policy,
+      model,
+      supportsReasoning: true,
+      costTier: "owner_terra_budget_guard",
+      escalated: false,
+      routingReason: "sol_per_call_budget_guard",
+      costGuard: {
+        ...costGuard,
+        downgraded: true,
+        reason: "sol_estimate_above_per_call_limit"
+      }
+    };
+  }
+
+  return {
+    ...policy,
+    costGuard
+  };
 }
 
 export function compileConversationInput(turn = {}) {
@@ -171,6 +235,15 @@ function trimAtBoundary(value = "", edge = "end") {
   }
   const index = text.lastIndexOf("\n");
   return index > Math.max(0, text.length - 500) ? text.slice(0, index) : text;
+}
+
+function roundMoney(value) {
+  return Math.round(Math.max(0, Number(value) || 0) * 1000000) / 1000000;
+}
+
+function positiveNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
 }
 
 function boundedInt(value, fallback, min, max) {
