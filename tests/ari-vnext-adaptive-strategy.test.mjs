@@ -320,7 +320,8 @@ test("reflection is selective rather than running after every turn", () => {
 
   assert.equal(shouldRunAdaptiveStrategyReflection({ message: "Thanks", result: normalResult, cognitiveTurnCount: 3 }), false);
   assert.equal(shouldRunAdaptiveStrategyReflection({ message: "That's wrong.", result: normalResult, cognitiveTurnCount: 3 }), true);
-  assert.equal(shouldRunAdaptiveStrategyReflection({ message: "Continue", result: normalResult, cognitiveTurnCount: 5 }), true);
+  assert.equal(shouldRunAdaptiveStrategyReflection({ message: "Continue", result: normalResult, cognitiveTurnCount: 5 }), false);
+  assert.equal(shouldRunAdaptiveStrategyReflection({ message: "Continue", result: normalResult, cognitiveTurnCount: 20 }), true);
 });
 
 test("proposal normalization retains a compact lesson and practical-prior maturation creates an Ari Signal", () => {
