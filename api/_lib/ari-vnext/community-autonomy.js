@@ -9,6 +9,7 @@ import { resolveAriIntelligenceEntitlement } from "../../../server/ari-intellige
 import { enforceAiRateLimit } from "../ai-rate-limit.js";
 import { executeBackgroundOpenAIRequest } from "../background-ai-budget.js";
 import { resolveModelPolicy } from "./model-policy.js";
+import { resolveBackgroundModel } from "./cost-router.js";
 import { loadUserWorldModel } from "./user-world-model.js";
 import { ARI_PERSONA } from "./persona.js";
 import {
@@ -517,12 +518,15 @@ async function proposeCommunityPost({ userId, seeds = [], recentPosts = [] } = {
     complexity: "medium",
     intelligenceEntitlement: resolveAriIntelligenceEntitlement({ userId, controls })
   });
-  const backgroundModel = clean(
-    process.env.OPENAI_ARI_COMMUNITY_FAST_MODEL ||
-    process.env.OPENAI_ARI_BACKGROUND_MODEL ||
-    "gpt-5.6-luna",
-    160
-  );
+  const backgroundModel = resolveBackgroundModel({
+    requestedModel: clean(
+      process.env.OPENAI_ARI_COMMUNITY_FAST_MODEL ||
+      process.env.OPENAI_ARI_BACKGROUND_MODEL ||
+      "gpt-5.6-luna",
+      160
+    ),
+    reasoning: false
+  });
 
   const schema = {
     type: "object",
@@ -629,12 +633,15 @@ async function evaluateCommunityThreads({ threads = [], userId } = {}) {
     complexity: "deep",
     intelligenceEntitlement: resolveAriIntelligenceEntitlement({ userId, controls })
   });
-  const backgroundModel = clean(
-    process.env.OPENAI_ARI_COMMUNITY_MODEL ||
-    process.env.OPENAI_ARI_BACKGROUND_REASONING_MODEL ||
-    "gpt-5.6-terra",
-    160
-  );
+  const backgroundModel = resolveBackgroundModel({
+    requestedModel: clean(
+      process.env.OPENAI_ARI_COMMUNITY_MODEL ||
+      process.env.OPENAI_ARI_BACKGROUND_REASONING_MODEL ||
+      "gpt-5.6-terra",
+      160
+    ),
+    reasoning: true
+  });
 
   const participationSchema = {
     type: "object",
