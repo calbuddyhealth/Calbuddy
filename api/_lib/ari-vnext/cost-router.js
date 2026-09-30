@@ -160,7 +160,7 @@ export function compileConversationInput(turn = {}) {
   for (let index = history.length - 1; index >= 0 && selected.length < maxHistoryMessages; index -= 1) {
     const item = history[index] || {};
     const role = item?.role === "assistant" ? "assistant" : "user";
-    const content = clean(item?.content, maxPerHistoryMessage);
+    const content = cleanMessage(item?.content, maxPerHistoryMessage);
     if (!content) continue;
 
     const remaining = maxHistoryChars - usedChars;
@@ -176,7 +176,7 @@ export function compileConversationInput(turn = {}) {
   selected.reverse();
   selected.push({
     role: "user",
-    content: clean(turn?.message, maxCurrentMessageChars)
+    content: cleanMessage(turn?.message, maxCurrentMessageChars)
   });
 
   return selected;
@@ -251,6 +251,10 @@ function boundedInt(value, fallback, min, max) {
   return Number.isFinite(number)
     ? Math.max(min, Math.min(max, number))
     : fallback;
+}
+
+function cleanMessage(value = "", max = 1000) {
+  return String(value ?? "").trim().slice(0, max);
 }
 
 function clean(value = "", max = 1000) {
