@@ -31,7 +31,7 @@ function advancedEntitlement(reasoningProfile = "adaptive") {
   };
 }
 
-test("Advanced Ari uses GPT-5.6 Sol alias with low reasoning for short meaningful conversation", () => {
+test("Advanced owner conversation uses Terra by default for short meaningful conversation", () => {
   delete process.env.OPENAI_ARI_ADVANCED_MODEL;
   const policy = resolveModelPolicy({
     complexity: "fast",
@@ -41,20 +41,22 @@ test("Advanced Ari uses GPT-5.6 Sol alias with low reasoning for short meaningfu
 
   assert.equal(policy.intelligenceTier, "owner_experimental");
   assert.equal(policy.accessClass, "owner");
-  assert.equal(policy.model, "gpt-5.6");
+  assert.equal(policy.model, process.env.OPENAI_ARI_OWNER_DEFAULT_MODEL || process.env.OPENAI_ARI_OWNER_BALANCED_MODEL || "gpt-5.6-terra");
   assert.equal(policy.reasoningEffort, "low");
+  assert.equal(policy.escalated, false);
   assert.equal(policy.conversationBeta, true);
 });
 
-test("Advanced Ari deep owner profile escalates reasoning without changing model identity", () => {
+test("Advanced Ari deep owner profile escalates from Terra to the Sol tier", () => {
   const policy = resolveModelPolicy({
     complexity: "standard",
     intelligenceEntitlement: advancedEntitlement("deep")
   });
 
-  assert.equal(policy.model, "gpt-5.6");
+  assert.equal(policy.model, process.env.OPENAI_ARI_OWNER_DEEP_MODEL || process.env.OPENAI_ARI_OWNER_MODEL || process.env.OPENAI_ARI_ADVANCED_MODEL || "gpt-5.6-sol");
   assert.equal(policy.reasoningEffort, "xhigh");
-  assert.equal(policy.costTier, "owner_advanced_sol");
+  assert.equal(policy.costTier, "owner_sol_escalation");
+  assert.equal(policy.escalated, true);
 });
 
 test("Standard Ari stays on the existing economical model policy", () => {
@@ -158,7 +160,7 @@ test("current-information Advanced Ari keeps flagship reasoning while enabling l
     intelligenceEntitlement: advancedEntitlement("adaptive")
   });
 
-  assert.equal(policy.model, "gpt-5.6");
+  assert.equal(policy.model, process.env.OPENAI_ARI_OWNER_DEEP_MODEL || process.env.OPENAI_ARI_OWNER_MODEL || process.env.OPENAI_ARI_ADVANCED_MODEL || "gpt-5.6-sol");
   assert.equal(policy.mode, "deep");
   assert.equal(policy.freshness, "live");
   assert.equal(policy.liveSearchRequired, true);
