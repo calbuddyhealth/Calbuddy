@@ -259,9 +259,8 @@ export function shouldRunAdaptiveStrategyReflection({
     ? result.metacognition.missingEvidence
     : [];
   const uncertaintyReview =
-    result?.modelPolicy?.mode === "deep" &&
     ["partial", "limited"].includes(confidence) &&
-    missingEvidence.length >= 2 &&
+    missingEvidence.length >= 1 &&
     result?.safety?.highStakes !== true;
 
   return correction || outcomeLearning || realWorldOutcomeLearning || demonstratedExecutionLearning || periodicReview || uncertaintyReview;
