@@ -299,7 +299,7 @@ export async function runAriVNext(turn = {}) {
         plan: metacognition?.cortex?.adviser || null
       });
   const adviserInstruction = adviserMemoToInstruction(cortexAdviser);
-  const instructions = [
+  const instructions = compactInstructionText([
     baseInstructions,
     actionContinuationToInstruction(actionContinuation),
     institutionalMemoryInstruction,
@@ -307,7 +307,13 @@ export async function runAriVNext(turn = {}) {
     councilInstruction
   ]
     .filter(Boolean)
-    .join("\n\n");
+    .join("\n\n"));
+
+  modelPolicy = applyInteractiveCostGuard({
+    policy: modelPolicy,
+    instructions,
+    input
+  });
 
   let first = await callResponses({
     turn,
