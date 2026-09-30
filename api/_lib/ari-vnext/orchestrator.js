@@ -23,6 +23,7 @@ import { deriveLongitudinalState, longitudinalStateToInstruction } from "./longi
 import { deriveMetacognition, metacognitionToInstruction } from "./metacognition.js";
 import { resolveModelPolicy } from "./model-policy.js";
 import {
+  applyInteractiveCostGuard,
   compactInstructionText,
   compileConversationInput,
   promptBudgetTelemetry
@@ -134,7 +135,7 @@ export async function runAriVNext(turn = {}) {
     recentContinuityPairs: Number(turn?.context?.recentContinuityPairs || 0)
   });
   const selfModel = deriveSelfModel({ turn: { ...turn, relationshipContinuity }, route, safety });
-  const modelPolicy = resolveModelPolicy({ ...route, health: route.health || safety.highStakes });
+  let modelPolicy = resolveModelPolicy({ ...route, health: route.health || safety.highStakes });
   const relevantContext = buildRelevantContext(turn, route);
   const coachingState = deriveCoachingState({ turn, route, context: relevantContext });
   const longitudinalState = deriveLongitudinalState({ route, context: relevantContext });
@@ -277,6 +278,11 @@ export async function runAriVNext(turn = {}) {
     turn?.context?.institutionalMemory || null
   );
   const input = buildInput(turn);
+  modelPolicy = applyInteractiveCostGuard({
+    policy: modelPolicy,
+    instructions: baseInstructions,
+    input
+  });
   const multiAgentCouncil = await runAriMultiAgentCouncil({
     turn,
     route,
@@ -2444,6 +2450,7 @@ function providerSummary(data = {}) {
   return {
     id: data?.id || null,
     model: data?.model || null,
-    usage: data?.usage || null
+    usage: data?.usage || null,
+    promptBudget: data?._ariPromptBudget || null
   };
 }
