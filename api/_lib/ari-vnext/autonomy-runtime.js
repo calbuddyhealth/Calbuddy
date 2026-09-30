@@ -10,6 +10,7 @@
 // external infrastructure boundaries rather than cognitive restrictions.
 
 import { executeBackgroundOpenAIRequest } from "../background-ai-budget.js";
+import { resolveBackgroundModel } from "./cost-router.js";
 import { normalizeCuriosityState } from "./curiosity-core.js";
 import { recordInitiativeSurface } from "./initiative-events.js";
 import { loadUserWorldModel, persistUserWorldModel } from "./user-world-model.js";
@@ -860,7 +861,7 @@ async function createPatchProposal({ goal, planning, files, allowCodeCommit, use
 async function callStructuredModel({ userId, schemaName, schema, instructions, input, maxOutputTokens }) {
   const apiKey = clean(process.env.ARI_PROVIDER_API_KEY || process.env.OPENAI_API_KEY, 8000);
   const planningCall = schemaName === "ari_autonomy_investigation_plan";
-  const model = clean(
+  const requestedModel = clean(
     planningCall
       ? (
           process.env.OPENAI_ARI_AUTONOMY_PLANNER_MODEL ||
@@ -870,11 +871,15 @@ async function callStructuredModel({ userId, schemaName, schema, instructions, i
       : (
           process.env.ARI_AUTONOMY_MODEL ||
           process.env.OPENAI_ARI_AUTONOMY_MODEL ||
-          process.env.OPENAI_ARI_ADVANCED_MODEL ||
-          "gpt-5.6-sol"
+          process.env.OPENAI_ARI_BACKGROUND_REASONING_MODEL ||
+          "gpt-5.6-terra"
         ),
     120
   );
+  const model = resolveBackgroundModel({
+    requestedModel,
+    reasoning: !planningCall
+  });
   if (!apiKey || !model) return null;
 
   const body = {
@@ -898,7 +903,7 @@ async function callStructuredModel({ userId, schemaName, schema, instructions, i
     prompt_cache_key: `ari-autonomy:${clean(userId, 43)}`.slice(0, 64)
   };
   if (/^gpt-5|^o[0-9]/i.test(model)) {
-    body.reasoning = { effort: planningCall ? "low" : "high" };
+    body.reasoning = { effort: planningCall ? "low" : "medium" };
   }
 
   const controller = new AbortController();
