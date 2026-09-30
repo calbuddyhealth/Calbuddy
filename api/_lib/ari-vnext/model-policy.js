@@ -66,11 +66,19 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
   const freshness = resolveFreshness(route);
   const reasoningProfile = normalizeAdvancedReasoningProfile(intelligence?.reasoningProfile);
 
-  const nonOwnerAdvancedModel =
+  const ariUnlimitedAdvancedModel =
+    process.env.OPENAI_ARI_OWNER_MODEL ||
+    process.env.OPENAI_ARI_ADVANCED_MODEL ||
+    "gpt-5.6-sol";
+  const ariUnlimitedFastModel =
+    process.env.OPENAI_ARI_OWNER_FAST_MODEL ||
+    process.env.OPENAI_ARI_VNEXT_FAST_MODEL ||
+    "gpt-5.6-luna";
+  const premiumAdvancedModel =
     process.env.OPENAI_ARI_PREMIUM_MODEL ||
     process.env.OPENAI_ARI_ADVANCED_MODEL ||
     "gpt-5.6-terra";
-  const nonOwnerFastModel =
+  const premiumFastModel =
     process.env.OPENAI_ARI_PREMIUM_FAST_MODEL ||
     process.env.OPENAI_ARI_VNEXT_FAST_MODEL ||
     "gpt-5.6-luna";
@@ -81,9 +89,13 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
 
   const model = owner
     ? ownerRouting.model
-    : casualConversation
-      ? nonOwnerFastModel
-      : nonOwnerAdvancedModel;
+    : ariUnlimited
+      ? casualConversation
+        ? ariUnlimitedFastModel
+        : ariUnlimitedAdvancedModel
+      : casualConversation
+        ? premiumFastModel
+        : premiumAdvancedModel;
 
   const supportsReasoning = isReasoningModel(model);
   const reasoningEffort = supportsReasoning
@@ -127,7 +139,7 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
           ? "ari_unlimited_fast"
           : "premium_fast"
         : ariUnlimited
-          ? "ari_unlimited_advanced"
+          ? "ari_unlimited_advanced_sol"
           : "premium_advanced",
     routingReason: ownerRouting?.reason || null,
     escalated: ownerRouting?.escalated === true,
