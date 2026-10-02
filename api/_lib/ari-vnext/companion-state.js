@@ -2,7 +2,7 @@
 // Unifies existing relationship, communication, affect, and cognitive-loop
 // signals for the current conversation. This module performs no model call.
 
-export const ARI_COMPANION_STATE_VERSION = "2.0.0";
+export const ARI_COMPANION_STATE_VERSION = "2.1.0";
 
 const STOPWORDS = new Set([
   "a","an","and","are","as","at","be","been","but","by","do","for","from","had","has","have",
@@ -17,7 +17,8 @@ export function deriveCompanionState({
   safety = {},
   relationshipContinuity = null,
   metacognition = null,
-  relevantContext = null
+  relevantContext = null,
+  instinctKernel = null
 } = {}) {
   const message = clean(turn?.message, 5000);
   const relationship = relationshipContinuity && typeof relationshipContinuity === "object"
