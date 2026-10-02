@@ -330,7 +330,7 @@ body.circle-connect-next .circle-connect-activity-badge {
   display:none;
 }
 body.circle-connect-next .circle-connect-card__content {
-  grid-template-columns:minmax(0,1fr) 132px;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
   gap:14px;
   margin-top:13px;
 }
@@ -353,7 +353,7 @@ body.circle-connect-next .circle-connect-facts {
   font-variant-emoji:text;
 }
 body.circle-connect-next .circle-connect-card__media {
-  width:132px;
+  width:100%;
   aspect-ratio:4 / 3;
   border:0;
   border-radius:16px;
@@ -465,11 +465,11 @@ body.circle-connect-next .circle-v5-bottom-nav a.is-active {
     border-radius:20px;
   }
   body.circle-connect-next .circle-connect-card__content {
-    grid-template-columns:minmax(0,1fr) 110px;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
     gap:10px;
   }
   body.circle-connect-next .circle-connect-card__media {
-    width:110px;
+    width:100%;
     border-radius:14px;
   }
 }
