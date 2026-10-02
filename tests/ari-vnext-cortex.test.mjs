@@ -189,7 +189,7 @@ test("metacognition preserves Cortex, Reward, and Omega state while Ari Executiv
   });
   const instruction = metacognitionToInstruction(state);
 
-  assert.equal(ARI_METACOGNITION_VERSION, "1.6.0");
+  assert.equal(ARI_METACOGNITION_VERSION, "1.7.0");
   assert.equal(state.cortex.active, true);
   assert.equal(state.omegaRCT.active, true);
   assert.equal(state.cortex.omegaRCT.version, "1.2.0");
