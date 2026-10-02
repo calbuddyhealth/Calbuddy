@@ -19,6 +19,7 @@ import {
   listAgentMailboxMessages,
   sendAgentMailboxMessage
 } from "../../../server/ari-supabase-agent-mailbox.js";
+import { reserveTurnCompute } from "./turn-compute-governor.js";
 
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 
@@ -832,6 +833,7 @@ async function planSpecialistTasks({
     turn,
     model,
     modelPolicy,
+    requestCategory: "multi_agent_coordinator",
     instructions,
     input,
     tools: [],
@@ -900,6 +902,7 @@ async function runSpecialist({
     turn,
     model,
     modelPolicy,
+    requestCategory: task?.followup === true ? "multi_agent_followup_specialist" : "multi_agent_specialist",
     instructions,
     input,
     tools: webAllowed ? [{ type: "web_search" }] : [],
@@ -1256,6 +1259,7 @@ async function verifySharedWorkspace({
     turn,
     model,
     modelPolicy,
+    requestCategory: "multi_agent_verifier",
     instructions,
     input,
     tools: [],
@@ -1457,6 +1461,7 @@ async function callAgentResponses({
   turn = {},
   model,
   modelPolicy = null,
+  requestCategory = "multi_agent",
   instructions,
   input,
   tools = [],
@@ -1465,6 +1470,20 @@ async function callAgentResponses({
 } = {}) {
   const apiKey = clean(process.env.OPENAI_API_KEY, 500);
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured.");
+
+  const reservation = reserveTurnCompute({
+    turn,
+    category: requestCategory,
+    model,
+    inputChars: clean(instructions, 20000).length + safeJsonString(input).length,
+    maxOutputTokens
+  });
+  if (!reservation.allowed) {
+    const error = new Error(`ARI supplemental compute blocked: ${reservation.reason}`);
+    error.code = "ARI_TURN_COMPUTE_BLOCKED";
+    error.compute = reservation;
+    throw error;
+  }
 
   const timeoutMs = boundedInt(
     process.env.ARI_MULTI_AGENT_TIMEOUT_MS,
@@ -1527,6 +1546,10 @@ async function callAgentResponses({
   } finally {
     clearTimeout(timer);
   }
+}
+
+function safeJsonString(value) {
+  try { return JSON.stringify(value ?? {}); } catch { return ""; }
 }
 
 function compactWorkspace(workspace = [], maxChars = 12000) {
