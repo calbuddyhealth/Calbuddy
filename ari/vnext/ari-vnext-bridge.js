@@ -4,11 +4,12 @@
 window.Ari = window.Ari || {};
 
 window.AriVNextBridge = {
-  version: "1.13.0",
+  version: "1.14.0",
   source: "ari-vnext-bridge",
   pendingStorageKey: "ari_vnext_pending_action",
   peerReflectionStorageKey: "ari_vnext_peer_reflection_last",
   peerReflectionPreferenceKey: "ari_vnext_peer_reflection_enabled",
+  reasoningContinuityStoragePrefix: "ari_vnext_reasoning_continuity",
   quotaTimezoneKey: "",
   dailyQuota: null,
 
@@ -58,13 +59,18 @@ window.AriVNextBridge = {
     const context = await this.buildContext({ ...options, message: text, history });
     const surface = options?.page || options?.surface || window.location.pathname || "unknown";
     const turnId = normalizeTurnId(options?.turnId || options?.requestId) || makeTurnId();
+    const conversationId = normalizeTurnId(
+      options?.conversationId || window.CalBuddy?.getConversationId?.()
+    ) || null;
+    const reasoningContinuityToken = this.getReasoningContinuityToken(conversationId);
     const signal = options?.signal || null;
 
     if (signal?.aborted) throw makeBridgeAbortError();
 
     const payload = {
       turnId,
-      conversationId: normalizeTurnId(options?.conversationId || window.CalBuddy?.getConversationId?.()) || null,
+      conversationId,
+      reasoningContinuityToken,
       message: text,
       history,
       surface,
@@ -105,6 +111,11 @@ window.AriVNextBridge = {
 
     if (data?.quota) this.publishDailyQuota(data.quota);
     if (data?.runtimeModel) window.dispatchEvent(new CustomEvent("ari:runtimeModel", { detail: { runtimeModel: data.runtimeModel } }));
+    if (conversationId && data?.reasoningContinuity?.token) {
+      this.setReasoningContinuityToken(conversationId, data.reasoningContinuity.token);
+    } else if (conversationId && data?.reasoningContinuity?.active === false) {
+      this.clearReasoningContinuityToken(conversationId);
+    }
 
     if (!response.ok) {
       if (["ARI_DAILY_CHAT_LIMIT", "ARI_QUOTA_UNAVAILABLE"].includes(String(data?.code || ""))) {
@@ -144,6 +155,40 @@ window.AriVNextBridge = {
     });
 
     return data;
+  },
+
+  getReasoningContinuityToken(conversationId = null) {
+    const id = normalizeTurnId(conversationId);
+    if (!id) return null;
+    try {
+      const value = sessionStorage.getItem(`${this.reasoningContinuityStoragePrefix}:${id}`);
+      return typeof value === "string" && value.length > 20 ? value : null;
+    } catch {
+      return null;
+    }
+  },
+
+  setReasoningContinuityToken(conversationId = null, token = null) {
+    const id = normalizeTurnId(conversationId);
+    const value = String(token || "").trim();
+    if (!id || value.length < 20) return false;
+    try {
+      sessionStorage.setItem(`${this.reasoningContinuityStoragePrefix}:${id}`, value);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  clearReasoningContinuityToken(conversationId = null) {
+    const id = normalizeTurnId(conversationId);
+    if (!id) return false;
+    try {
+      sessionStorage.removeItem(`${this.reasoningContinuityStoragePrefix}:${id}`);
+      return true;
+    } catch {
+      return false;
+    }
   },
 
   async syncDailyQuotaTimezone({ accessToken, signal = null } = {}) {
