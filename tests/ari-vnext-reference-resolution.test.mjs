@@ -66,3 +66,24 @@ test("ambiguous references without conversational context do not spend a web sea
   assert.equal(route.referenceResolutionSearch, false);
   assert.equal(route.webSearchRequired, false);
 });
+
+
+test("unresolved-step questions inherit recent developer investigation context", () => {
+  const route = routeContext({
+    message: "What's the unresolved step?",
+    history: [
+      { role: "user", content: "Run an audit of Ari's cognitive system." },
+      { role: "assistant", content: "I reached the bounded developer investigation step limit and preserved the next unresolved step." }
+    ],
+    context: {
+      intelligenceEntitlement: {
+        ownerEligible: true,
+        accessClass: "owner",
+        accountRole: "owner"
+      }
+    }
+  });
+
+  assert.equal(route.followUp, true);
+  assert.equal(route.developer, true);
+});
