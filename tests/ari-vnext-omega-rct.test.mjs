@@ -152,7 +152,7 @@ test("metacognition preserves Omega-RCT inside Cortex while Ari Executive owns p
   });
   const instruction = metacognitionToInstruction(state);
 
-  assert.equal(ARI_METACOGNITION_VERSION, "1.6.0");
+  assert.equal(ARI_METACOGNITION_VERSION, "1.7.0");
   assert.equal(state.omegaRCT.active, true);
   assert.equal(state.cortex.omegaRCT.version, "1.2.0");
   assert.equal(state.executivePolicy.authority.singleRuntimeDecisionAuthority, true);
