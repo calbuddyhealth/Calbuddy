@@ -2676,6 +2676,12 @@ function withInternalCouncil(payload = {}, council = null) {
   return payload;
 }
 
+function boundedInt(value, fallback, min, max) {
+  const number = Math.floor(Number(value));
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(min, Math.min(max, number));
+}
+
 function providerSummary(data = {}) {
   return {
     id: data?.id || null,
