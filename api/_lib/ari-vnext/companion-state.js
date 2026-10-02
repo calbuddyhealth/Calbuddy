@@ -160,7 +160,7 @@ export function deriveCompanionState({
 export function companionStateToInstruction(state = null) {
   if (!state) return "";
   const lines = [
-    "ARI COMPANION CORE v1",
+    `ARI COMPANION CORE v${ARI_COMPANION_STATE_VERSION}`,
     "This is a deterministic social-executive state assembled from existing conversation systems. It is not a claim that Ari has subjective feelings or an off-screen life.",
     `Conversation mode: ${state.conversationalMode || "collaborative"}. Response posture: ${state.responsePosture || "neutral"}. Familiarity: ${state.familiarity || "new"}.`,
     "Make the interaction feel continuous through judgment, timing, repair, and relevant callbacks rather than repeated statements that you remember the user.",
