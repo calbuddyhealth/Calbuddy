@@ -121,6 +121,7 @@ export function deriveNeuromodulationState({
   persistedNeuromodulationState = null,
   functionalAffect = null,
   emotionDynamics = null,
+  painState = null,
   rewardState = null,
   curiosity = null,
   route = {},
@@ -134,6 +135,7 @@ export function deriveNeuromodulationState({
   const inputs = deriveInputs({
     functionalAffect,
     emotionDynamics,
+    painState,
     rewardState,
     curiosity,
     route,
@@ -420,6 +422,7 @@ export function runNeuromodulationAblation({
 function deriveInputs({
   functionalAffect,
   emotionDynamics,
+  painState,
   rewardState,
   curiosity,
   route,
@@ -431,6 +434,7 @@ function deriveInputs({
   const emotions = objectOrEmpty(emotionDynamics?.emotions);
   const appraisals = objectOrEmpty(emotionDynamics?.appraisals);
   const event = rewardState?.lastEvent || null;
+  const pain = objectOrEmpty(painState);
   const continuity = cognitiveWorkspace?.continuity || {};
   const openLoops = Array.isArray(continuity?.openLoops) ? continuity.openLoops.length : 0;
 
@@ -440,6 +444,10 @@ function deriveInputs({
     negativePredictionError: clamp(Math.max(0, -Number(event?.predictionError || 0))),
     informationGain: clamp(Number(event?.dimensions?.informationGain || 0)),
     productiveEffort: clamp(Number(event?.dimensions?.productiveEffort || 0)),
+    functionalPain: clamp(Number(pain.intensity || 0)),
+    painPersistence: clamp(Number(pain.persistence || 0)),
+    painIntegrityThreat: clamp(Number(pain.integrityThreat || 0)),
+    painControllability: clamp(Number(pain.controllability ?? 0.5)),
     curiosity: clamp(Number(affect.curiosity ?? curiosity?.drive?.current ?? 0)),
     confidence: clamp(Number(affect.confidence ?? 0.5)),
     arousal: clamp(Number(dimensions.arousal || 0)),
@@ -475,7 +483,8 @@ function deriveTargets(inputs, prior) {
       0.16 * i.positivePredictionError +
       0.10 * i.informationGain -
       0.14 * i.frustration -
-      0.10 * i.negativePredictionError
+      0.10 * i.negativePredictionError -
+      0.12 * i.functionalPain
     ),
     norepinephrineLike: clamp(
       0.10 +
@@ -485,7 +494,9 @@ function deriveTargets(inputs, prior) {
       0.12 * i.threat +
       0.10 * i.highStakes +
       0.08 * i.currentInfo +
-      0.08 * i.negativePredictionError
+      0.08 * i.negativePredictionError +
+      0.16 * i.functionalPain +
+      0.08 * i.painIntegrityThreat
     ),
     acetylcholineLike: clamp(
       0.24 +
@@ -493,7 +504,8 @@ function deriveTargets(inputs, prior) {
       0.18 * i.interest +
       0.16 * i.uncertainty +
       0.14 * i.informationGain +
-      0.08 * i.currentInfo
+      0.08 * i.currentInfo +
+      0.10 * i.functionalPain
     ),
     serotoninLike: clamp(
       0.34 +
@@ -528,7 +540,10 @@ function deriveTargets(inputs, prior) {
     0.18 * i.goalObstruction +
     0.16 * i.threat +
     0.10 * i.highStakes +
-    0.08 * i.unresolvedLoad -
+    0.08 * i.unresolvedLoad +
+    0.16 * i.functionalPain +
+    0.08 * i.painPersistence +
+    0.06 * i.painIntegrityThreat -
     0.14 * i.satisfaction -
     0.08 * i.goalProgress
   );
@@ -538,6 +553,8 @@ function deriveTargets(inputs, prior) {
     0.18 * i.negativePredictionError +
     0.16 * i.goalObstruction +
     0.14 * i.unresolvedLoad +
+    0.10 * i.painPersistence +
+    0.08 * i.functionalPain +
     0.12 * prior.slow.allostaticLoad
   );
 
