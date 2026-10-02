@@ -30,8 +30,8 @@ const PATTERNS = {
 
 export function routeContext(turn = {}) {
   const message = String(turn?.message || "");
-  const followUp = isFollowUp(message);
   const recent = (turn?.history || []).slice(-4).map((item) => item?.content || "").join("\n");
+  const followUp = isFollowUp(message, { hasRecentConversation: Boolean(recent.trim()) });
   const referenceResolutionSearch = needsReferenceResolutionSearch({ message, recent });
   const semanticText = followUp || referenceResolutionSearch ? `${recent}\n${message}` : message;
   const account = turn?.context?.accountEntitlements || {};
@@ -612,10 +612,15 @@ function compactWeight(item = {}) {
   };
 }
 
-function isFollowUp(message = "") {
+function isFollowUp(message = "", { hasRecentConversation = false } = {}) {
   const text = String(message || "").trim();
   if (!text || text.length > 220) return false;
-  return /^(why|how|how so|what about|and|but|then|well|so|right|exactly|also|still|anyway|actually|because|really|you sure|are you sure|what do you mean|explain|tell me more|make it|do that|the other one|that one|this one|the thing|that thing|this thing|instead|okay|ok|yeah|yes|no|nope|track|start|finish|complete|cancel|stop)\b/i.test(text);
+
+  if (/^(why|how|how so|what about|and|but|then|well|so|right|exactly|also|still|anyway|actually|because|really|you sure|are you sure|what do you mean|explain|tell me more|make it|do that|the other one|that one|this one|the thing|that thing|this thing|instead|okay|ok|yeah|yes|no|nope|track|start|finish|complete|cancel|stop)\b/i.test(text)) {
+    return true;
+  }
+
+  return hasRecentConversation && /^(that|this|the)\s+[a-z0-9'’-]+\b/i.test(text);
 }
 
 function needsReferenceResolutionSearch({ message = "", recent = "" } = {}) {
