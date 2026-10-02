@@ -30,3 +30,12 @@ test("trusted validation and confirmation remain downstream of the fast path", (
   assert.ok(pendingIndex > validationIndex);
   assert.ok(deterministicIndex > pendingIndex);
 });
+
+
+test("owner cognitive trace reads use the trusted read-only fast path", () => {
+  assert.match(orchestrator, /"owner_cognitive_trace_read"/);
+  const setStart = orchestrator.indexOf("const LOW_RISK_PRIMARY_FAST_PATHS = new Set([");
+  const setEnd = orchestrator.indexOf("]);", setStart);
+  const fastPathBlock = orchestrator.slice(setStart, setEnd);
+  assert.match(fastPathBlock, /"owner_cognitive_trace_read"/);
+});
