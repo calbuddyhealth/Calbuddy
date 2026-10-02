@@ -7,6 +7,7 @@ const pearl = fs.readFileSync("assets/css/ari-circle-v5-pearl.css", "utf8");
 const premium = fs.readFileSync("assets/css/ari-circle-v5-premium.css", "utf8");
 const authority = fs.readFileSync("assets/css/ari-circle-v5-visual-authority.css", "utf8");
 const connectCss = fs.readFileSync("assets/css/ari-circle-connect-v1.css", "utf8");
+const connectPremium = fs.readFileSync("assets/css/ari-circle-connect-premium-v2.css", "utf8");
 const feedCss = fs.readFileSync("assets/css/ari-circle-feed-next.css", "utf8");
 const feed = fs.readFileSync("ari-circle-feed.html", "utf8");
 const meetup = fs.readFileSync("ari-circle-meetup.html", "utf8");
@@ -37,14 +38,19 @@ test("Connect and retained legacy Feed assets avoid nested blur-heavy cards", ()
   assert.doesNotMatch(feedCss, /backdrop-filter:[^;]*blur\(3[0-9]px\)/);
 });
 
-test("Connect has compact discovery identity", () => {
+test("Connect uses restrained premium discovery hierarchy", () => {
+  assert.match(meetup, /ari-circle-connect-premium-v2\.css\?v=2\.0\.0/);
   assert.match(meetup, /class="circle-connect-actionbar"/);
   assert.match(meetup, /id="hostMeetupButton"[\s\S]*circle-connect-action__label">Host<\/span>/);
-  assert.match(meetup, /href="ari-circle-friends\.html"[\s\S]*circle-connect-action__label">Find Friends<\/span>/);
-  assert.doesNotMatch(meetup, /Find something to do\./);
-  assert.match(meetup, /Pick a vibe/);
-  assert.match(meetup, /HAPPENING NOW/);
+  assert.match(meetup, /href="ari-circle-friends\.html"[\s\S]*circle-connect-action__label">Find people<\/span>/);
+  assert.match(meetup, /id="activityTitle">Explore<\/h2>/);
+  assert.match(meetup, /data-activity=""><span>All<\/span>/);
+  assert.doesNotMatch(meetup, /Pick a vibe/);
+  assert.doesNotMatch(meetup, /WHAT ARE YOU UP FOR\?/);
   assert.doesNotMatch(meetup, /REAL WORLD XP/);
+  assert.match(connectPremium, /grid-template-columns:minmax\(0,1fr\) auto auto/);
+  assert.match(connectPremium, /circle-connect-chip\.is-active/);
+  assert.match(connectPremium, /background:#18263b/);
 });
 
 test("legacy Feed route redirects to Connect", () => {

@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
   <link rel="stylesheet" href="assets/css/ari-circle-search-location-v1.css?v=1.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-connect-v1.css?v=1.7.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-connect-premium-v2.css?v=2.0.0" />
 </head>
 <body class="circle-v5-real-world circle-connect-next">
   <main class="circle-v5-page" id="meetupPage" hidden>
@@ -36,23 +37,23 @@
         <div data-ari-circle-search-location data-surface="meetup"></div>
         <a class="circle-connect-action circle-connect-action--friends" href="ari-circle-friends.html">
           <span class="circle-connect-action__icon" aria-hidden="true">+</span>
-          <span class="circle-connect-action__label">Find Friends</span>
+          <span class="circle-connect-action__label">Find people</span>
         </a>
       </section>
 
       <section class="circle-connect-activity" aria-labelledby="activityTitle">
         <div class="circle-connect-section-head">
-          <div><p>WHAT ARE YOU UP FOR?</p><h2 id="activityTitle">Pick a vibe</h2></div>
+          <div><h2 id="activityTitle">Explore</h2></div>
         </div>
         <div class="circle-connect-chip-rail" id="meetupActivityFilters" aria-label="Meetup activity filters">
-          <button class="circle-connect-chip is-active" type="button" data-activity=""><span class="circle-connect-chip__icon" aria-hidden="true">✦</span><span>Anything</span></button>
-          <button class="circle-connect-chip" type="button" data-activity="gym"><span class="circle-connect-chip__icon" aria-hidden="true">🏋️</span><span>Gym</span></button>
-          <button class="circle-connect-chip" type="button" data-activity="coffee"><span class="circle-connect-chip__icon" aria-hidden="true">☕</span><span>Coffee</span></button>
-          <button class="circle-connect-chip" type="button" data-activity="walking"><span class="circle-connect-chip__icon" aria-hidden="true">🚶</span><span>Walk</span></button>
-          <button class="circle-connect-chip" type="button" data-activity="hiking"><span class="circle-connect-chip__icon" aria-hidden="true">🥾</span><span>Hike</span></button>
-          <button class="circle-connect-chip" type="button" data-activity="running"><span class="circle-connect-chip__icon" aria-hidden="true">🏃</span><span>Run</span></button>
-          <button class="circle-connect-chip" type="button" data-activity="sports"><span class="circle-connect-chip__icon" aria-hidden="true">🏀</span><span>Sports</span></button>
-          <button class="circle-connect-chip" type="button" data-activity="food"><span class="circle-connect-chip__icon" aria-hidden="true">🍴</span><span>Food</span></button>
+          <button class="circle-connect-chip is-active" type="button" data-activity=""><span>All</span></button>
+          <button class="circle-connect-chip" type="button" data-activity="gym"><span>Gym</span></button>
+          <button class="circle-connect-chip" type="button" data-activity="coffee"><span>Coffee</span></button>
+          <button class="circle-connect-chip" type="button" data-activity="walking"><span>Walk</span></button>
+          <button class="circle-connect-chip" type="button" data-activity="hiking"><span>Hike</span></button>
+          <button class="circle-connect-chip" type="button" data-activity="running"><span>Run</span></button>
+          <button class="circle-connect-chip" type="button" data-activity="sports"><span>Sports</span></button>
+          <button class="circle-connect-chip" type="button" data-activity="food"><span>Food</span></button>
         </div>
       </section>
 
@@ -61,7 +62,7 @@
 
       <section class="circle-connect-section" id="meetupNowSection" aria-labelledby="meetupNowTitle" hidden>
         <div class="circle-connect-section-head">
-          <div><p>HAPPENING NOW</p><h2 id="meetupNowTitle">Jump in <span class="circle-connect-section-count" data-meetup-count>0</span></h2></div>
+          <div><p>HAPPENING NOW</p><h2 id="meetupNowTitle">Happening now <span class="circle-connect-section-count" data-meetup-count>0</span></h2></div>
           <span class="circle-live-dot" aria-hidden="true"></span>
         </div>
         <div class="circle-connect-list" id="meetupNowList"></div>
@@ -83,14 +84,14 @@
 
       <section class="circle-connect-section" id="meetupWeekendSection" aria-labelledby="meetupWeekendTitle" hidden>
         <div class="circle-connect-section-head">
-          <div><p>THIS WEEKEND</p><h2 id="meetupWeekendTitle">Make a plan <span class="circle-connect-section-count" data-meetup-count>0</span></h2></div>
+          <div><p>THIS WEEKEND</p><h2 id="meetupWeekendTitle">This weekend <span class="circle-connect-section-count" data-meetup-count>0</span></h2></div>
         </div>
         <div class="circle-connect-list" id="meetupWeekendList"></div>
       </section>
 
       <section class="circle-connect-section" id="meetupLaterSection" aria-labelledby="meetupLaterTitle" hidden>
         <div class="circle-connect-section-head">
-          <div><p>COMING UP</p><h2 id="meetupLaterTitle">More to explore <span class="circle-connect-section-count" data-meetup-count>0</span></h2></div>
+          <div><p>COMING UP</p><h2 id="meetupLaterTitle">Coming up <span class="circle-connect-section-count" data-meetup-count>0</span></h2></div>
         </div>
         <div class="circle-connect-list" id="meetupLaterList"></div>
       </section>
@@ -209,7 +210,7 @@
     <div class="circle-v5-dialog__body">
       <div class="circle-v5-dialog__head">
         <div><p class="circle-v5-hero__kicker">HOST</p><h2 id="meetupRequestsTitle">Join requests</h2></div>
-        <button class="circle-v5-close" type="button" data-close="meetupRequestsDialog" aria-label="Close">×</button>
+        <button class="circle-v5-close" type="button" data-close="hostMeetupDialog" aria-label="Close">×</button>
       </div>
       <p class="circle-v5-form-note" id="meetupRequestsStatus">Loading requests…</p>
       <div class="circle-connect-list" id="meetupRequestsList" aria-live="polite"></div>
