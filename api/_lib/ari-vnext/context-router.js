@@ -8,9 +8,9 @@ import { communicationClosureToInstruction } from "./communication-closure.js";
 import { convictionInstruction } from "./conviction-learning.js";
 import { dreamingContextToInstruction } from "./dreaming-core.js";
 import { experienceContextToInstruction } from "./experience-core.js";
-import { contextBudgetChars } from "./cost-router.js";
+import { contextBudgetChars, deriveReasoningDemand } from "./cost-router.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.26.0";
+export const CONTEXT_ROUTER_VERSION = "1.27.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -68,6 +68,27 @@ export function routeContext(turn = {}) {
     health,
     recommendationIntent
   });
+  const coachingState = nutrition && (training || goals) || training && goals;
+  const complexity = estimateComplexity(message);
+  const domainCount = [nutrition, training, goals, social, memory]
+    .reduce((count, active) => count + (active ? 1 : 0), 0);
+  const reasoningDemand = deriveReasoningDemand({
+    complexity,
+    developer,
+    health,
+    currentInfo,
+    coachingState,
+    recommendationIntent,
+    solEscalationEligible,
+    followUp,
+    messageLength: message.length,
+    domainCount,
+    nutrition,
+    training,
+    goals,
+    social,
+    memory
+  });
   const casualConversation = isCasualConversation({
     message,
     followUp,
@@ -88,7 +109,7 @@ export function routeContext(turn = {}) {
     nutrition,
     training,
     goals,
-    coachingState: nutrition && (training || goals) || training && goals,
+    coachingState,
     social,
     memory,
     health,
@@ -96,6 +117,7 @@ export function routeContext(turn = {}) {
     developer,
     recommendationIntent,
     solEscalationEligible,
+    reasoningDemand,
     modelIdentityRequested,
     ownerModelRequest,
     teenMode,
@@ -103,7 +125,7 @@ export function routeContext(turn = {}) {
     intelligenceEntitlement,
     followUp,
     casualConversation,
-    complexity: estimateComplexity(message)
+    complexity
   };
 }
 
