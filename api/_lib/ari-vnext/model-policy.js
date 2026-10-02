@@ -56,11 +56,13 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
   const reasoningProfile = normalizeAdvancedReasoningProfile(intelligence?.reasoningProfile);
 
   const ariUnlimitedAdvancedModel =
-    process.env.OPENAI_ARI_UNLIMITED_SOL_MODEL ||
-    "gpt-6.1-sol";
+    process.env.OPENAI_ARI_OWNER_MODEL ||
+    process.env.OPENAI_ARI_ADVANCED_MODEL ||
+    "gpt-5.6-sol";
   const ariUnlimitedFastModel =
-    process.env.OPENAI_ARI_UNLIMITED_LUNA_MODEL ||
-    "gpt-6-luna";
+    process.env.OPENAI_ARI_OWNER_FAST_MODEL ||
+    process.env.OPENAI_ARI_VNEXT_FAST_MODEL ||
+    "gpt-5.6-luna";
 
   const ownerRouting = owner
     ? resolveOwnerInteractiveModel({ mode, route, reasoningProfile })
