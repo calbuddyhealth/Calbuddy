@@ -542,7 +542,7 @@ function compactVerification(result = {}) {
   return {
     status: clean(verification?.status, 40) || (failedTests ? "failed" : passedTests ? "partial" : "unknown"),
     id: clean(verification?.id, 160) || null,
-    summary: clean(verification?.summary, 260) || null,
+    summaryPresent: Boolean(clean(verification?.summary, 20)),
     trustedEvidencePresent: Boolean(verification || passedTests || failedTests),
     passedTestCount: passedTests,
     failedTestCount: failedTests
