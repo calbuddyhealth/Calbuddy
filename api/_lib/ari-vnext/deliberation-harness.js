@@ -24,6 +24,7 @@ export function deriveDeliberationHarness({
   const priorFailure = hasPriorFailure(modelPolicy?.reasoningDemand?.reasons);
   const cortexNeeds = metacognition?.cortex?.needs || {};
   const instinct = instinctKernel?.modulation?.deliberation || {};
+  const signal = metacognition?.cognitiveSignals?.directives || {};
   const simplicityPressure = Number(instinct?.simplicityPressure || 0);
   const explorationPressure = Number(instinct?.explorationPressure || 0);
 
@@ -41,6 +42,8 @@ export function deriveDeliberationHarness({
     tier === "adversarial_verify" ? 3 :
     tier === "structured" ? 2 : 1;
   const candidatePasses =
+    signal.conserveCompute === true && tier !== "adversarial_verify" ? 1 :
+    signal.considerAlternative === true && tier !== "direct" ? Math.max(2, baseCandidatePasses) :
     tier !== "adversarial_verify" &&
     simplicityPressure >= 0.78 &&
     explorationPressure < 0.72
@@ -53,6 +56,7 @@ export function deriveDeliberationHarness({
     cortexNeeds?.countercase === true
   );
   const verificationGate = Boolean(
+    signal.verifyEvidence === true ||
     highStakes ||
     tier === "adversarial_verify" ||
     (route?.developer === true && route?.complexity === "deep") ||
@@ -96,7 +100,7 @@ export function deriveDeliberationHarness({
       failureModeReview,
       reconcileToolEvidenceBeforeClaimingSuccess: true,
       distinguishObservedFromInferred: true,
-      changeMethodAfterRepeatedFailure: priorFailure || instinct?.changeMethod === true,
+      changeMethodAfterRepeatedFailure: priorFailure || instinct?.changeMethod === true || signal.changeMethod === true,
       preserveUsefulPartialWorkAcrossCorrections: true,
       stopRule: verificationGate ? "verified_or_materially_blocked" : "sufficiently_supported"
     },

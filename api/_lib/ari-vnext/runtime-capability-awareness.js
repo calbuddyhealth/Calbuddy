@@ -82,7 +82,8 @@ export function deriveRuntimeCapabilityAwareness({
       persistentMemory,
       conversationContinuity,
       persistedReasoning,
-      selectedCognitiveCapabilities
+      selectedCognitiveCapabilities,
+      cognitiveSignalNetwork: metacognition?.cognitiveSignals?.active === true
     },
     conditionalResources: conditional,
     usefulCombinations: combinations
@@ -108,6 +109,7 @@ export function capabilityAwarenessToInstruction(state = null) {
       `Runtime-managed cognitive capabilities selected for this turn: ${now.selectedCognitiveCapabilities.join(", ")}.`
     );
   }
+  if (now.cognitiveSignalNetwork) lines.push("A bounded cognitive signal network is active: local threshold/decay/inhibition/cooldown control feeds Ari Executive; it does not create permissions or provider calls.");
 
   if (state.explicitInquiry && Array.isArray(now.callableToolNames) && now.callableToolNames.length) {
     lines.push(`Exact callable tools NOW: ${now.callableToolNames.join(", ")}.`);
@@ -163,6 +165,7 @@ export function publicRuntimeCapabilityAwareness(state = null) {
       persistentMemory: state?.resourcesNow?.persistentMemory === true,
       conversationContinuity: state?.resourcesNow?.conversationContinuity === true,
       persistedReasoning: state?.resourcesNow?.persistedReasoning === true,
+      cognitiveSignalNetwork: state?.resourcesNow?.cognitiveSignalNetwork === true,
       selectedCognitiveCapabilities: Array.isArray(state?.resourcesNow?.selectedCognitiveCapabilities)
         ? state.resourcesNow.selectedCognitiveCapabilities.slice(0, 20)
         : []

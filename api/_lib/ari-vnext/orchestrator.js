@@ -13,6 +13,8 @@ import { cognitionCoordinatorToInstruction, deriveCognitionCoordinator } from ".
 import { deliberationHarnessToInstruction, deriveDeliberationHarness } from "./deliberation-harness.js";
 import { biblicalWisdomToInstruction, deriveBiblicalWisdomLayer } from "./biblical-wisdom.js";
 import { deriveInstinctKernel } from "./instinct-kernel.js";
+import { observeCognitiveToolResult } from "./cognitive-signals.js";
+import { cognitiveSignalDecisionToInstruction, deriveAriExecutivePolicy } from "./ari-executive.js";
 import { communicationProfileToInstruction, resolvePersonalizedCommunicationProfile } from "./communication-profile.js";
 import { communicationLearningToInstruction } from "./communication-outcomes.js";
 import { buildRelevantContext, contextToText, routeContext } from "./context-router.js";
@@ -163,6 +165,7 @@ export async function runAriVNext(turn = {}) {
     modelPolicy
   });
   const metacognition = deriveMetacognition({
+    turn,
     route,
     context: relevantContext,
     safety,
@@ -376,6 +379,7 @@ export async function runAriVNext(turn = {}) {
       institutionalMemoryInstruction,
       adviserInstruction,
       councilInstruction,
+      cognitiveSignalDecisionToInstruction(metacognition.executivePolicy?.directives),
       "FINAL TRUSTED EXECUTION BOUNDARY\nOnly use an application mutation when the CURRENT user message explicitly authorizes that supported change, except for an already-validated bounded continuation. Never claim that app state, code, credentials, permissions, or external systems changed unless trusted executor evidence in this turn verifies it. If a mutation is not authorized or execution evidence is absent, answer conversationally without implying that a change occurred."
     ]
       .filter(Boolean)
@@ -415,6 +419,7 @@ export async function runAriVNext(turn = {}) {
     institutionalMemoryInstruction,
     adviserInstruction,
     councilInstruction,
+    cognitiveSignalDecisionToInstruction(metacognition.executivePolicy?.directives),
     "FINAL TRUSTED EXECUTION BOUNDARY\nOnly use an application mutation when the CURRENT user message explicitly authorizes that supported change, except for an already-validated bounded continuation. Never claim that app state, code, credentials, permissions, or external systems changed unless trusted executor evidence in this turn verifies it. If a mutation is not authorized or execution evidence is absent, answer conversationally without implying that a change occurred."
   ]
     .filter(Boolean)
@@ -1394,6 +1399,15 @@ async function executeOwnerDeveloperWorkspaceTurn({
     });
     const observed = developerToolResultToExecutionEvidence(toolResult, action);
     evidence = mergeDeveloperEvidence(evidence, observed);
+    metacognition.cognitiveSignals = observeCognitiveToolResult({
+      current: metacognition.cognitiveSignals, turn, toolResult, step
+    });
+    if (metacognition.cognitiveSignals) {
+      metacognition.executivePolicy = deriveAriExecutivePolicy({
+        ...metacognition, route, safety,
+        executionSession: turn?.context?.userWorldModel?.ariCognitiveWorkspace?.executionWorkspace || null
+      });
+    }
 
     if (action === "repo_read" && toolResult?.success && toolResult?.filePath && typeof toolResult?.content === "string") {
       verifiedReads.set(String(toolResult.filePath), toolResult);
@@ -1412,7 +1426,7 @@ async function executeOwnerDeveloperWorkspaceTurn({
     response = await callResponses({
       turn,
       policy: modelPolicy,
-      instructions: instructions + "\nOWNER DEVELOPER EXECUTION WORKSPACE\nThe preceding function output is observed repository/CI/memory/mailbox evidence. Let that evidence determine the next step. You may search owner memory for a prior analogy, search the repository, read another exact file, check CI, inspect the configured Supabase mailbox, send a bounded handoff/finding/question to another authorized Ari/SOL worker, or prepare one exact isolated-branch edit. Supabase is an explicit audited mailbox datastore, never a sandbox escape or arbitrary network proxy. Do not repeat a failed step unchanged. Do not claim a test passed unless repo_ci_status reports conclusion=success.",
+      instructions: instructions + "\n" + cognitiveSignalDecisionToInstruction(metacognition.executivePolicy?.directives) + "\nOWNER DEVELOPER EXECUTION WORKSPACE\nThe preceding function output is observed repository/CI/memory/mailbox evidence. Let that evidence determine the next step. You may search owner memory for a prior analogy, search the repository, read another exact file, check CI, inspect the configured Supabase mailbox, send a bounded handoff/finding/question to another authorized Ari/SOL worker, or prepare one exact isolated-branch edit. Supabase is an explicit audited mailbox datastore, never a sandbox escape or arbitrary network proxy. Do not repeat a failed step unchanged. Do not claim a test passed unless repo_ci_status reports conclusion=success.",
       input: continuationInput,
       tools: developerTools
     });

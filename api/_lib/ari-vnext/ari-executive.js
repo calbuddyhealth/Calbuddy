@@ -55,7 +55,8 @@ export function deriveAriExecutivePolicy({
   omegaRCT = null,
   executionSession = null,
   instructionActivation = null,
-  instinctKernel = null
+  instinctKernel = null,
+  cognitiveSignals = null
 } = {}) {
   const consequenceTier = safety?.highStakes === true ? "high" : "ordinary";
   const activeQuestion = curiosity?.activeQuestion || null;
@@ -155,7 +156,9 @@ export function deriveAriExecutivePolicy({
     ? cortex.selectedCapabilities.slice(0, 8).map((item) => clean(item, 80)).filter(Boolean)
     : [];
 
+  const signal = cognitiveSignals?.directives || {};
   const verificationDepth =
+    signal.verifyEvidence === true ||
     instinctVerificationBias >= 0.9 ||
     safety?.highStakes === true ||
     route?.currentInfo === true ||
@@ -187,15 +190,17 @@ export function deriveAriExecutivePolicy({
     instinctExplorationBias,
     instinctExperimentBias
   );
-  const explorationDepth = explorationScore >= 0.76 ? "high" : explorationScore >= 0.54 ? "moderate" : "normal";
+  const signalExplorationScore = Math.max(explorationScore, signal.investigate ? 0.76 : 0);
+  const explorationDepth = signal.conserveCompute ? "normal" : signalExplorationScore >= 0.76 ? "high" : signalExplorationScore >= 0.54 ? "moderate" : "normal";
 
   const persistence =
+    signal.changeMethod === true ||
     instinctKernel?.modulation?.deliberation?.changeMethod === true ||
     penaltyTotal > 0.3 ||
     affectModulation.strategySwitch === true ||
     emotionModulation.strategySwitch === true
       ? "change_method"
-      : instinctPersistenceBias >= 0.7 ||
+      : signal.persistGoal === true || instinctPersistenceBias >= 0.7 ||
         persistenceBias >= 0.7 ||
         affectPersistenceBias >= 0.68 ||
         emotionPersistenceBias >= 0.68 ||
@@ -241,6 +246,12 @@ export function deriveAriExecutivePolicy({
       evidenceSignals: compactArray(evidenceSignals, 10, 80)
     },
     directives: {
+      cognitiveSignalActions: cognitiveSignals?.actions?.map(item => item.action).slice(0, 9) || [],
+      attendRelevantMemory: signal.attendMemory === true,
+      attendRelationshipContinuity: signal.attendRelationship === true,
+      inspectRepositoryEvidence: signal.inspectRepository === true,
+      conserveSupplementalCompute: signal.conserveCompute === true,
+      signalAlternativeSelected: signal.considerAlternative === true,
       answerDirectly: true,
       currentUserTaskPriority: true,
       userTaskDoesNotEraseLongTermAriDevelopment: true,
@@ -591,11 +602,13 @@ export function executivePolicyToInstruction(policy = null) {
   const turn = policy.turn || {};
   const signals = policy.signals || {};
   const instinct = signals.instincts || null;
+  const signalInstruction = cognitiveSignalDecisionToInstruction(d);
 
   if (policy?.activation?.compactBase === true) {
     return [
       `ARI EXECUTIVE v${ARI_EXECUTIVE_VERSION}`,
       `Turn state: confidence=${turn.confidence || "grounded"}; attention=${(turn.attention || []).join(", ") || "conversation"}.`,
+      signalInstruction,
       "Answer directly from current evidence. Missing fields stay unknown. Hard enforcement and the Ari runtime constitution remain authoritative.",
       instinct?.dominant
         ? `Pre-deliberative instinct: ${instinct.dominant}@${instinct.dominantStrength}; mandatory=${(instinct.mandatoryConstraints || []).join(",") || "none"}; suppress=${(instinct.suppressions || []).join(",") || "none"}.`
@@ -634,6 +647,13 @@ export function executivePolicyToInstruction(policy = null) {
       ? `Missing evidence: ${turn.missingEvidence.join(", ")}. Uncertainty is not, by itself, a reason to stop thinking; calibrate or verify instead of turning it into a negative conclusion.`
       : "No material missing evidence identified.",
     `Strategy: verification=${d.verificationDepth || "normal"}; exploration=${d.explorationDepth || "normal"}; persistence=${d.persistence || "normal"}; countercase=${d.countercase ? "yes" : "no"}; peer=${d.peerConsultation ? "eligible" : "not_needed"}.`,
+    signalInstruction,
+    d.signalAlternativeSelected
+      ? "Test a materially different hypothesis when it can resolve the present uncertainty; imagined alternatives are not evidence."
+      : "",
+    d.conserveSupplementalCompute
+      ? "Keep optional exploration within this response; signals never authorize extra calls or restart scheduled work. Preserve required verification."
+      : "",
     instinct?.dominant
       ? `Instinct: ${instinct.dominant}@${instinct.dominantStrength}; enforce=${(instinct.mandatoryConstraints || []).slice(0, 4).join(",") || "none"}; suppress=${(instinct.suppressions || []).slice(0, 3).join(",") || "none"}. Reflexes constrain; drives bias.`
       : "",
@@ -734,6 +754,15 @@ export function executivePolicyToInstruction(policy = null) {
   ].filter(Boolean);
 
   return lines.join("\n").slice(0, Number(policy?.promptBudget?.targetChars || 4400));
+}
+
+export function cognitiveSignalDecisionToInstruction(directives = {}) {
+  // Decision identifiers come from the bounded runtime, never arbitrary tool text.
+  const allowed = new Set(["attend_memory", "attend_relationship", "verify_evidence", "investigate", "consider_alternative", "persist_goal", "inspect_repository", "conserve_compute", "integrate_evidence"]);
+  const actions = (directives.cognitiveSignalActions || []).filter(id => allowed.has(id)).slice(0, 9);
+  return actions.length
+    ? `Cognitive signal priorities: ${actions.join(", ")}. Attend only relevant evidence; use only currently authorized resources. These are priorities, not executed actions.`
+    : "";
 }
 
 function deriveSelfDirectionState({ curiosity = null, enabled = false } = {}) {
