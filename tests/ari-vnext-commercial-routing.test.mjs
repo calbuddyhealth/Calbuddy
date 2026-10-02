@@ -44,7 +44,7 @@ test("premium Ari defaults to Luna", () => {
   const policy = resolveModelPolicy(route);
 
   assert.equal(policy.accessClass, "premium");
-  assert.equal(policy.model, process.env.OPENAI_ARI_PREMIUM_LUNA_MODEL || "gpt-5.6-luna");
+  assert.equal(policy.model, process.env.OPENAI_ARI_PREMIUM_LUNA_MODEL || "gpt-6-luna");
   assert.equal(policy.escalated, false);
   assert.equal(policy.costTier, "premium_luna");
   assert.equal(policy.routingReason, "luna_default");
@@ -59,7 +59,7 @@ test("premium Ari escalates hard non-recommendation work to Sol", () => {
   assert.equal(route.solEscalationEligible, true);
 
   const policy = resolveModelPolicy(route);
-  assert.equal(policy.model, process.env.OPENAI_ARI_PREMIUM_SOL_MODEL || "gpt-5.6-sol");
+  assert.equal(policy.model, process.env.OPENAI_ARI_PREMIUM_SOL_MODEL || "gpt-6.1-sol");
   assert.equal(policy.escalated, true);
   assert.equal(policy.costTier, "premium_sol_escalation");
   assert.equal(policy.routingReason, "hard_problem");
@@ -76,7 +76,7 @@ test("premium recommendations stay on Luna even when comparison language is deep
   assert.equal(route.solEscalationEligible, false);
 
   const policy = resolveModelPolicy(route);
-  assert.equal(policy.model, process.env.OPENAI_ARI_PREMIUM_LUNA_MODEL || "gpt-5.6-luna");
+  assert.equal(policy.model, process.env.OPENAI_ARI_PREMIUM_LUNA_MODEL || "gpt-6-luna");
   assert.equal(policy.escalated, false);
   assert.equal(policy.costTier, "premium_luna");
   assert.equal(policy.routingReason, "luna_recommendation_quality");

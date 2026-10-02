@@ -3,48 +3,62 @@
 
 import { estimateOpenAICost } from "../ai-provider-usage.js";
 
-export const ARI_COST_ROUTER_VERSION = "1.0.0";
+export const ARI_COST_ROUTER_VERSION = "1.1.0";
 
-const DEFAULT_OWNER_MODEL = "gpt-5.6-terra";
-const DEFAULT_OWNER_DEEP_MODEL = "gpt-5.6-sol";
-const DEFAULT_BACKGROUND_FAST_MODEL = "gpt-5.6-luna";
-const DEFAULT_BACKGROUND_REASONING_MODEL = "gpt-5.6-terra";
+const DEFAULT_OWNER_MODEL = "gpt-6.1-sol";
+const DEFAULT_OWNER_ASTRA_MODEL = "gpt-6-astra";
+const DEFAULT_OWNER_BUDGET_MODEL = "gpt-6-luna";
+const DEFAULT_BACKGROUND_FAST_MODEL = "gpt-6-luna";
+const DEFAULT_BACKGROUND_REASONING_MODEL = "gpt-6-luna";
 
 export function resolveOwnerInteractiveModel({
   mode = "standard",
   route = {},
   reasoningProfile = "adaptive"
 } = {}) {
+  const allowLegacyOverrides =
+    String(process.env.ARI_OWNER_USE_LEGACY_MODEL_OVERRIDES || "").trim().toLowerCase() === "true";
+
   const normalModel =
-    clean(process.env.OPENAI_ARI_OWNER_DEFAULT_MODEL, 160) ||
-    clean(process.env.OPENAI_ARI_OWNER_BALANCED_MODEL, 160) ||
+    clean(process.env.OPENAI_ARI_OWNER_SOL_MODEL, 160) ||
+    (allowLegacyOverrides
+      ? clean(process.env.OPENAI_ARI_OWNER_DEFAULT_MODEL, 160) ||
+        clean(process.env.OPENAI_ARI_OWNER_BALANCED_MODEL, 160)
+      : "") ||
     DEFAULT_OWNER_MODEL;
 
-  const deepModel =
-    clean(process.env.OPENAI_ARI_OWNER_DEEP_MODEL, 160) ||
-    clean(process.env.OPENAI_ARI_OWNER_MODEL, 160) ||
-    clean(process.env.OPENAI_ARI_ADVANCED_MODEL, 160) ||
-    DEFAULT_OWNER_DEEP_MODEL;
+  const astraModel =
+    clean(process.env.OPENAI_ARI_OWNER_ASTRA_MODEL, 160) ||
+    DEFAULT_OWNER_ASTRA_MODEL;
 
-  const forceEconomy =
-    String(process.env.ARI_OWNER_FORCE_TERRA || "").trim().toLowerCase() === "true";
-
+  const explicitRequest = clean(route?.ownerModelRequest, 40).toLowerCase();
   const explicitDeepProfile = clean(reasoningProfile, 40).toLowerCase() === "deep";
-  const deepRoute = mode === "deep" || route?.complexity === "deep" || route?.health === true;
-  const escalate = !forceEconomy && (deepRoute || explicitDeepProfile);
+  const hardProblem = route?.solEscalationEligible === true;
+  const forceSol =
+    String(process.env.ARI_OWNER_FORCE_SOL || "").trim().toLowerCase() === "true";
+
+  const escalateToAstra = explicitRequest === "astra" || (
+    explicitRequest !== "sol" &&
+    !forceSol &&
+    (hardProblem || explicitDeepProfile)
+  );
 
   return {
-    model: escalate ? deepModel : normalModel,
-    escalated: escalate,
-    reason: escalate
-      ? explicitDeepProfile
-        ? "explicit_deep_profile"
-        : route?.health === true
-          ? "high_stakes_health"
-          : "deep_complexity"
-      : forceEconomy
-        ? "owner_force_terra"
-        : "terra_default"
+    model: escalateToAstra ? astraModel : normalModel,
+    fallbackModel: normalModel,
+    budgetModel: DEFAULT_OWNER_BUDGET_MODEL,
+    escalated: escalateToAstra,
+    reason: escalateToAstra
+      ? explicitRequest === "astra"
+        ? "explicit_astra_request"
+        : explicitDeepProfile
+          ? "explicit_deep_profile"
+          : "hard_problem"
+      : explicitRequest === "sol"
+        ? "explicit_sol_request"
+        : forceSol
+          ? "owner_force_sol"
+          : "sol_default"
   };
 }
 
@@ -59,8 +73,12 @@ export function resolveBackgroundModel({
   const allowSol =
     String(process.env.ARI_ALLOW_BACKGROUND_SOL || "").trim().toLowerCase() === "true";
 
+  // Astra is never permitted for autonomous/background work. It is reserved
+  // for an active owner turn, where the request and spend are visible.
+  if (isAstraClassModel(requested)) return fallback;
+
   if (!allowSol && isSolClassModel(requested)) {
-    return reasoning ? DEFAULT_BACKGROUND_REASONING_MODEL : DEFAULT_BACKGROUND_FAST_MODEL;
+    return fallback;
   }
   return requested;
 }
@@ -82,9 +100,14 @@ export function applyInteractiveCostGuard({
     }
   });
   const estimatedMaxCostUsd = Math.max(0, Number(estimate?.estimatedCostUsd) || 0);
-  const perCallLimitUsd = positiveNumber(process.env.ARI_OWNER_MAX_SOL_CALL_USD, 0.20);
-  const allowOversizeSol =
-    String(process.env.ARI_OWNER_ALLOW_OVERSIZE_SOL || "").trim().toLowerCase() === "true";
+  const astra = isAstraClassModel(policy?.model);
+  const sol = isSolClassModel(policy?.model);
+  const perCallLimitUsd = astra
+    ? positiveNumber(process.env.ARI_OWNER_MAX_ASTRA_CALL_USD, 0.50)
+    : positiveNumber(process.env.ARI_OWNER_MAX_SOL_CALL_USD, 0.20);
+  const allowOversize = astra
+    ? String(process.env.ARI_OWNER_ALLOW_OVERSIZE_ASTRA || "").trim().toLowerCase() === "true"
+    : String(process.env.ARI_OWNER_ALLOW_OVERSIZE_SOL || "").trim().toLowerCase() === "true";
 
   const costGuard = {
     version: ARI_COST_ROUTER_VERSION,
@@ -98,25 +121,27 @@ export function applyInteractiveCostGuard({
 
   if (
     policy?.accessClass === "owner" &&
-    isSolClassModel(policy?.model) &&
+    (astra || sol) &&
     estimatedMaxCostUsd > perCallLimitUsd &&
-    !allowOversizeSol
+    !allowOversize
   ) {
-    const model =
-      clean(process.env.OPENAI_ARI_OWNER_DEFAULT_MODEL, 160) ||
-      clean(process.env.OPENAI_ARI_OWNER_BALANCED_MODEL, 160) ||
-      DEFAULT_OWNER_MODEL;
+    const model = astra
+      ? clean(policy?.fallbackModel, 160) || DEFAULT_OWNER_MODEL
+      : clean(process.env.OPENAI_ARI_OWNER_BUDGET_MODEL, 160) || DEFAULT_OWNER_BUDGET_MODEL;
     return {
       ...policy,
       model,
+      fallbackModel: astra ? DEFAULT_OWNER_BUDGET_MODEL : null,
       supportsReasoning: true,
-      costTier: "owner_terra_budget_guard",
+      costTier: astra ? "owner_sol_budget_guard" : "owner_luna_budget_guard",
       escalated: false,
-      routingReason: "sol_per_call_budget_guard",
+      routingReason: astra ? "astra_per_call_budget_guard" : "sol_per_call_budget_guard",
       costGuard: {
         ...costGuard,
         downgraded: true,
-        reason: "sol_estimate_above_per_call_limit"
+        reason: astra
+          ? "astra_estimate_above_per_call_limit"
+          : "sol_estimate_above_per_call_limit"
       }
     };
   }
@@ -223,7 +248,12 @@ export function promptBudgetTelemetry({ instructions = "", input = [] } = {}) {
 
 export function isSolClassModel(value = "") {
   const model = clean(value, 160).toLowerCase();
-  return model === "gpt-5.6" || model.includes("gpt-5.6-sol") || /(?:^|[-_])sol(?:$|[-_])/.test(model);
+  return model === "gpt-5.6" || /(?:^|[-_])sol(?:$|[-_])/.test(model);
+}
+
+export function isAstraClassModel(value = "") {
+  const model = clean(value, 160).toLowerCase();
+  return /(?:^|[-_])astra(?:$|[-_])/.test(model);
 }
 
 function trimAtBoundary(value = "", edge = "end") {

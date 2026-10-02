@@ -13,16 +13,18 @@ import {
 
 const ORIGINAL_ENV = {
   ARI_ALLOW_BACKGROUND_SOL: process.env.ARI_ALLOW_BACKGROUND_SOL,
-  ARI_OWNER_FORCE_TERRA: process.env.ARI_OWNER_FORCE_TERRA,
-  OPENAI_ARI_OWNER_DEFAULT_MODEL: process.env.OPENAI_ARI_OWNER_DEFAULT_MODEL,
-  OPENAI_ARI_OWNER_DEEP_MODEL: process.env.OPENAI_ARI_OWNER_DEEP_MODEL,
-  OPENAI_ARI_OWNER_MODEL: process.env.OPENAI_ARI_OWNER_MODEL,
-  OPENAI_ARI_ADVANCED_MODEL: process.env.OPENAI_ARI_ADVANCED_MODEL,
+  ARI_OWNER_FORCE_SOL: process.env.ARI_OWNER_FORCE_SOL,
+  ARI_OWNER_USE_LEGACY_MODEL_OVERRIDES: process.env.ARI_OWNER_USE_LEGACY_MODEL_OVERRIDES,
+  OPENAI_ARI_OWNER_SOL_MODEL: process.env.OPENAI_ARI_OWNER_SOL_MODEL,
+  OPENAI_ARI_OWNER_ASTRA_MODEL: process.env.OPENAI_ARI_OWNER_ASTRA_MODEL,
+  OPENAI_ARI_OWNER_BUDGET_MODEL: process.env.OPENAI_ARI_OWNER_BUDGET_MODEL,
   ARI_CONTEXT_HISTORY_MESSAGES: process.env.ARI_CONTEXT_HISTORY_MESSAGES,
   ARI_CONTEXT_HISTORY_CHARS: process.env.ARI_CONTEXT_HISTORY_CHARS,
   ARI_CONTEXT_INSTRUCTION_CHARS: process.env.ARI_CONTEXT_INSTRUCTION_CHARS,
   ARI_OWNER_MAX_SOL_CALL_USD: process.env.ARI_OWNER_MAX_SOL_CALL_USD,
-  ARI_OWNER_ALLOW_OVERSIZE_SOL: process.env.ARI_OWNER_ALLOW_OVERSIZE_SOL
+  ARI_OWNER_MAX_ASTRA_CALL_USD: process.env.ARI_OWNER_MAX_ASTRA_CALL_USD,
+  ARI_OWNER_ALLOW_OVERSIZE_SOL: process.env.ARI_OWNER_ALLOW_OVERSIZE_SOL,
+  ARI_OWNER_ALLOW_OVERSIZE_ASTRA: process.env.ARI_OWNER_ALLOW_OVERSIZE_ASTRA
 };
 
 test.afterEach(() => {
@@ -32,61 +34,101 @@ test.afterEach(() => {
   }
 });
 
-test("owner routing defaults to Terra and only escalates deep work to Sol", () => {
-  delete process.env.OPENAI_ARI_OWNER_DEFAULT_MODEL;
-  delete process.env.OPENAI_ARI_OWNER_DEEP_MODEL;
-  delete process.env.OPENAI_ARI_OWNER_MODEL;
-  delete process.env.OPENAI_ARI_ADVANCED_MODEL;
-  delete process.env.ARI_OWNER_FORCE_TERRA;
+test("owner routing defaults to Sol and escalates only hard or explicit work to Astra", () => {
+  delete process.env.OPENAI_ARI_OWNER_SOL_MODEL;
+  delete process.env.OPENAI_ARI_OWNER_ASTRA_MODEL;
+  delete process.env.ARI_OWNER_FORCE_SOL;
 
   const ordinary = resolveOwnerInteractiveModel({
     mode: "standard",
-    route: { complexity: "standard" },
+    route: { complexity: "standard", solEscalationEligible: false },
     reasoningProfile: "adaptive"
   });
-  assert.equal(ordinary.model, "gpt-5.6-terra");
+  assert.equal(ordinary.model, "gpt-6.1-sol");
+  assert.equal(ordinary.fallbackModel, "gpt-6.1-sol");
   assert.equal(ordinary.escalated, false);
 
-  const deep = resolveOwnerInteractiveModel({
+  const hard = resolveOwnerInteractiveModel({
     mode: "deep",
-    route: { complexity: "deep" },
+    route: { complexity: "deep", solEscalationEligible: true },
     reasoningProfile: "adaptive"
   });
-  assert.equal(deep.model, "gpt-5.6-sol");
-  assert.equal(deep.escalated, true);
+  assert.equal(hard.model, "gpt-6-astra");
+  assert.equal(hard.fallbackModel, "gpt-6.1-sol");
+  assert.equal(hard.escalated, true);
+
+  const manual = resolveOwnerInteractiveModel({
+    mode: "fast",
+    route: { ownerModelRequest: "astra", solEscalationEligible: false },
+    reasoningProfile: "adaptive"
+  });
+  assert.equal(manual.model, "gpt-6-astra");
+  assert.equal(manual.reason, "explicit_astra_request");
+
+  const forcedSol = resolveOwnerInteractiveModel({
+    mode: "deep",
+    route: { ownerModelRequest: "sol", solEscalationEligible: true },
+    reasoningProfile: "adaptive"
+  });
+  assert.equal(forcedSol.model, "gpt-6.1-sol");
+  assert.equal(forcedSol.escalated, false);
 });
 
-test("background Sol is downgraded unless explicitly enabled", () => {
+test("background routing never permits Astra and gates Sol", () => {
   delete process.env.ARI_ALLOW_BACKGROUND_SOL;
-  assert.equal(resolveBackgroundModel({ requestedModel: "gpt-5.6-sol", reasoning: false }), "gpt-5.6-luna");
-  assert.equal(resolveBackgroundModel({ requestedModel: "gpt-5.6", reasoning: true }), "gpt-5.6-terra");
+  assert.equal(resolveBackgroundModel({ requestedModel: "gpt-6-astra", reasoning: true }), "gpt-6-luna");
+  assert.equal(resolveBackgroundModel({ requestedModel: "gpt-6.1-sol", reasoning: false }), "gpt-6-luna");
 
   process.env.ARI_ALLOW_BACKGROUND_SOL = "true";
-  assert.equal(resolveBackgroundModel({ requestedModel: "gpt-5.6-sol", reasoning: true }), "gpt-5.6-sol");
+  assert.equal(resolveBackgroundModel({ requestedModel: "gpt-6.1-sol", reasoning: true }), "gpt-6.1-sol");
+  assert.equal(resolveBackgroundModel({ requestedModel: "gpt-6-astra", reasoning: true }), "gpt-6-luna");
 });
 
-test("oversized owner Sol calls downgrade to Terra before the provider call", () => {
-  process.env.ARI_OWNER_MAX_SOL_CALL_USD = "0.05";
+test("oversized owner Sol calls downgrade to Luna before the provider call", () => {
+  process.env.ARI_OWNER_MAX_SOL_CALL_USD = "0.01";
   delete process.env.ARI_OWNER_ALLOW_OVERSIZE_SOL;
-  delete process.env.OPENAI_ARI_OWNER_DEFAULT_MODEL;
 
   const guarded = applyInteractiveCostGuard({
     policy: {
-      model: "gpt-5.6-sol",
+      model: "gpt-6.1-sol",
       accessClass: "owner",
       maxOutputTokens: 2800,
       supportsReasoning: true,
-      costTier: "owner_sol_escalation",
+      costTier: "owner_sol_default",
+      escalated: false
+    },
+    instructions: "I".repeat(18000),
+    input: [{ role: "user", content: "U".repeat(8000) }]
+  });
+
+  assert.equal(guarded.model, "gpt-6-luna");
+  assert.equal(guarded.costTier, "owner_luna_budget_guard");
+  assert.equal(guarded.costGuard.downgraded, true);
+  assert.equal(guarded.routingReason, "sol_per_call_budget_guard");
+});
+
+test("oversized Astra calls downgrade to Sol before the provider call", () => {
+  process.env.ARI_OWNER_MAX_ASTRA_CALL_USD = "0.02";
+  delete process.env.ARI_OWNER_ALLOW_OVERSIZE_ASTRA;
+
+  const guarded = applyInteractiveCostGuard({
+    policy: {
+      model: "gpt-6-astra",
+      fallbackModel: "gpt-6.1-sol",
+      accessClass: "owner",
+      maxOutputTokens: 2800,
+      supportsReasoning: true,
+      costTier: "owner_astra_escalation",
       escalated: true
     },
     instructions: "I".repeat(18000),
     input: [{ role: "user", content: "U".repeat(8000) }]
   });
 
-  assert.equal(guarded.model, "gpt-5.6-terra");
-  assert.equal(guarded.costTier, "owner_terra_budget_guard");
+  assert.equal(guarded.model, "gpt-6.1-sol");
+  assert.equal(guarded.costTier, "owner_sol_budget_guard");
   assert.equal(guarded.costGuard.downgraded, true);
-  assert.equal(guarded.routingReason, "sol_per_call_budget_guard");
+  assert.equal(guarded.routingReason, "astra_per_call_budget_guard");
 });
 
 test("conversation compiler keeps only bounded recent history", () => {

@@ -30,6 +30,7 @@ import {
 } from "./cost-router.js";
 import { applyOutcomeLearning } from "./outcome-learning.js";
 import { deriveRelationshipContinuity, relationshipContinuityToInstruction } from "./relationship-continuity.js";
+import { withRuntimeModelIdentity } from "./runtime-model-awareness.js";
 import { recommendationQualityInstruction } from "./recommendation-quality.js";
 import { classifySafety, safetyToInstruction } from "./safety-policy.js";
 import { deriveScientificIntelligence, scientificIntelligenceToInstruction } from "./scientific-intelligence.js";
@@ -1927,32 +1928,39 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
   const timeoutId = setTimeout(() => controller.abort(), policy?.timeoutMs || 25000);
   const normalizedTools = Array.isArray(tools) ? tools : [];
 
-  const promptBudget = promptBudgetTelemetry({ instructions, input });
-  const body = {
-    model: policy?.model,
-    instructions,
-    input,
-    max_output_tokens: policy?.maxOutputTokens || 1200,
-    store: false
+  const buildBody = (model, fallbackFrom = null) => {
+    const body = {
+      model,
+      instructions: withRuntimeModelIdentity({
+        instructions,
+        policy,
+        activeModel: model,
+        fallbackFrom
+      }),
+      input,
+      max_output_tokens: policy?.maxOutputTokens || 1200,
+      store: false
+    };
+
+    if (normalizedTools.length) {
+      body.tools = normalizedTools;
+      body.tool_choice = toolChoice || "auto";
+      body.parallel_tool_calls = false;
+    }
+
+    if (policy?.supportsReasoning && policy?.reasoningEffort) {
+      body.reasoning = { effort: policy.reasoningEffort };
+    }
+
+    if (turn?.userId) {
+      const userId = String(turn.userId);
+      body.safety_identifier = userId.slice(0, 200);
+      body.prompt_cache_key = `ari-vnext:${userId.slice(0, 54)}`.slice(0, 64);
+    }
+    return body;
   };
 
-  if (normalizedTools.length) {
-    body.tools = normalizedTools;
-    body.tool_choice = toolChoice || "auto";
-    body.parallel_tool_calls = false;
-  }
-
-  if (policy?.supportsReasoning && policy?.reasoningEffort) {
-    body.reasoning = { effort: policy.reasoningEffort };
-  }
-
-  if (turn?.userId) {
-    const userId = String(turn.userId);
-    body.safety_identifier = userId.slice(0, 200);
-    body.prompt_cache_key = `ari-vnext:${userId.slice(0, 54)}`.slice(0, 64);
-  }
-
-  try {
+  const send = async (body) => {
     const response = await fetch(RESPONSES_URL, {
       method: "POST",
       headers: {
@@ -1962,17 +1970,49 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
       body: JSON.stringify(body),
       signal: controller.signal
     });
-
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const error = new Error(data?.error?.message || "ARI model provider request failed.");
-      error.status = response.status;
+    return { response, data, body };
+  };
+
+  try {
+    const selectedModel = String(policy?.model || "").trim();
+    let attempt = await send(buildBody(selectedModel));
+
+    if (shouldTryProviderModelFallback({
+      response: attempt.response,
+      data: attempt.data,
+      policy
+    })) {
+      const fallbackModel = String(policy?.fallbackModel || "").trim();
+      const originalStatus = attempt.response.status;
+      const originalMessage = String(attempt.data?.error?.message || "").slice(0, 500);
+      const fallbackAttempt = await send(buildBody(fallbackModel, selectedModel));
+      if (fallbackAttempt.response.ok) {
+        attempt = fallbackAttempt;
+        attempt.data._ariRoutingFallback = {
+          from: selectedModel,
+          to: fallbackModel,
+          reason: "provider_model_unavailable",
+          originalStatus,
+          originalMessage
+        };
+      } else {
+        attempt = fallbackAttempt;
+      }
+    }
+
+    if (!attempt.response.ok) {
+      const error = new Error(attempt.data?.error?.message || "ARI model provider request failed.");
+      error.status = attempt.response.status;
       throw error;
     }
-    if (data && typeof data === "object") {
-      data._ariPromptBudget = promptBudget;
+    if (attempt.data && typeof attempt.data === "object") {
+      attempt.data._ariPromptBudget = promptBudgetTelemetry({
+        instructions: attempt.body.instructions,
+        input
+      });
     }
-    return data;
+    return attempt.data;
   } catch (error) {
     if (error?.name === "AbortError") {
       const timeoutError = new Error("Ari vNext model request timed out.");
@@ -1983,6 +2023,18 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+function shouldTryProviderModelFallback({ response, data = {}, policy = {} } = {}) {
+  const selectedModel = String(policy?.model || "").trim();
+  const fallbackModel = String(policy?.fallbackModel || "").trim();
+  if (!fallbackModel || fallbackModel === selectedModel) return false;
+
+  const status = Number(response?.status || 0);
+  if (![400, 403, 404, 410, 422, 429].includes(status)) return false;
+
+  const message = String(data?.error?.message || data?.error || "").toLowerCase();
+  return /model|astra|access|permission|unavailable|not available|deprecat|shutdown|not found|does not exist|unsupported|rate limit/.test(message);
 }
 
 export function missingWorkoutDateClarification(turn = {}, route = {}) {
@@ -2464,6 +2516,7 @@ function providerSummary(data = {}) {
     id: data?.id || null,
     model: data?.model || null,
     usage: data?.usage || null,
-    promptBudget: data?._ariPromptBudget || null
+    promptBudget: data?._ariPromptBudget || null,
+    routingFallback: data?._ariRoutingFallback || null
   };
 }

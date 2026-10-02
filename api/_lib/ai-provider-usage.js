@@ -2,6 +2,10 @@
 // Keeps provider cost accounting separate from user-facing quota accounting.
 
 const OPENAI_STANDARD_RATES_USD_PER_MILLION = {
+  "gpt-6-astra": { input: 10.00, cachedInput: 1.00, output: 50.00 },
+  "gpt-6.1-sol": { input: 2.00, cachedInput: 0.10, output: 10.00 },
+  "gpt-6-sol": { input: 2.00, cachedInput: 0.20, output: 10.00 },
+  "gpt-6-luna": { input: 0.10, cachedInput: 0.01, output: 0.50 },
   "gpt-5.6-sol": { input: 4.00, cachedInput: 0.40, output: 20.00 },
   "gpt-5.6-terra": { input: 2.00, cachedInput: 0.20, output: 12.00 },
   "gpt-5.6-luna": { input: 0.20, cachedInput: 0.02, output: 1.20 },
@@ -46,7 +50,7 @@ function resolveRates(model = "") {
   if (known) {
     return {
       ...known,
-      pricingSource: `openai_standard_2026-09-28:${normalized}`
+      pricingSource: `openai_standard_2026-10-01:${normalized}`
     };
   }
 
