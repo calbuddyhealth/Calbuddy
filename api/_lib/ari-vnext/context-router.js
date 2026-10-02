@@ -2,15 +2,9 @@
 // This is intentionally small. The primary model still owns semantic judgment.
 
 import { advancedConversationInstruction } from "./conversation-contract.js";
-import { beliefSystemInstruction } from "./belief-system.js";
-import { behavioralIdentityToInstruction } from "./behavioral-identity.js";
-import { communicationClosureToInstruction } from "./communication-closure.js";
-import { convictionInstruction } from "./conviction-learning.js";
-import { dreamingContextToInstruction } from "./dreaming-core.js";
-import { experienceContextToInstruction } from "./experience-core.js";
 import { contextBudgetChars, deriveReasoningDemand } from "./cost-router.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.27.0";
+export const CONTEXT_ROUTER_VERSION = "1.28.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -475,26 +469,20 @@ function cognitiveContextRules(context = {}) {
   }
 
   const cognitiveWorkspace = context?.userWorldModel?.ariCognitiveWorkspace || null;
-  const beliefState = cognitiveWorkspace?.beliefSystem || null;
-  const beliefInstruction = beliefSystemInstruction(beliefState);
-  if (beliefInstruction) lines.push(beliefInstruction);
-
-  const behavioralIdentityInstruction = behavioralIdentityToInstruction(
-    cognitiveWorkspace?.behavioralIdentity || null
-  );
-  if (behavioralIdentityInstruction) lines.push(behavioralIdentityInstruction);
-
-  const closureInstruction = communicationClosureToInstruction(cognitiveWorkspace?.communicationClosure || null);
-  if (closureInstruction) lines.push(closureInstruction);
-
-  const dreamingInstruction = dreamingContextToInstruction(context?.dreaming || null);
-  if (dreamingInstruction) lines.push(dreamingInstruction);
-
-  const experienceInstruction = experienceContextToInstruction(context?.experiences || null);
-  if (experienceInstruction) lines.push(experienceInstruction);
-
-  if (context?.convictionLearning) {
-    lines.push(convictionInstruction(context.convictionLearning));
+  if (
+    cognitiveWorkspace ||
+    context?.dreaming ||
+    context?.experiences ||
+    context?.convictionLearning
+  ) {
+    lines.push(
+      "UNIFIED COGNITION EVIDENCE RULES:",
+      "- Durable cognition records are evidence sources, not independent behavioral authorities.",
+      "- Ari Executive is the sole experimental cognition instruction authority; Companion Core owns relationship behavior; Communication Profile owns style; Deliberation Harness owns difficult reasoning process.",
+      "- Current user corrections and current verified evidence outrank stored beliefs, identity summaries, dreams, experiences, goals, and prior conclusions.",
+      "- Dream-derived material is provisional. Experience records are precedents, not universal rules. Goal/conviction records do not authorize actions or override the current user's instructions.",
+      "- Communication-closure state may prevent a completion claim until its required evidence exists, but it must not force unrelated conversation back onto an old task."
+    );
   }
 
   if (context?.decisionState) {
