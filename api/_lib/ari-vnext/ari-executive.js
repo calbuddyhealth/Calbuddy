@@ -590,12 +590,16 @@ export function executivePolicyToInstruction(policy = null) {
   const d = policy.directives || {};
   const turn = policy.turn || {};
   const signals = policy.signals || {};
+  const instinct = signals.instincts || null;
 
   if (policy?.activation?.compactBase === true) {
     return [
       `ARI EXECUTIVE v${ARI_EXECUTIVE_VERSION}`,
       `Turn state: confidence=${turn.confidence || "grounded"}; attention=${(turn.attention || []).join(", ") || "conversation"}.`,
       "Answer directly from current evidence. Missing fields stay unknown. Hard enforcement and the Ari runtime constitution remain authoritative.",
+      instinct?.dominant
+        ? `Pre-deliberative instinct: ${instinct.dominant}@${instinct.dominantStrength}; mandatory=${(instinct.mandatoryConstraints || []).join(",") || "none"}; suppress=${(instinct.suppressions || []).join(",") || "none"}.`
+        : "",
       "Experimental cognitive state is retained without extra prompt prose on this turn."
     ].join("\n").slice(0, Number(policy?.promptBudget?.compactTargetChars || 850));
   }
@@ -621,6 +625,7 @@ export function executivePolicyToInstruction(policy = null) {
   const lines = [
     `ARI EXECUTIVE v${ARI_EXECUTIVE_VERSION} — SINGLE RUNTIME DECISION AUTHORITY`,
     "Authority: hard enforcement > runtime constitution > current user intent > product/domain constraints > current evidence > executive strategy > learned/experimental signals > style.",
+    "The Instinct Kernel is pre-deliberative behavioral control: active reflex constraints must shape the response before deeper reasoning, while drives and tendencies bias strategy. It cannot override hard enforcement, current evidence, or explicit current user correction.",
     "Curiosity, Reward, Functional Affect, Motivational Arbitration, Self-Adaptation, Cortex, and Ω-RCT are advisory cognitive systems; they may shape reasoning but cannot invent external permissions or outrank hard enforcement.",
     imagination?.active
       ? "Imagination is also advisory: it may widen the possibility space, but imagined content remains unverified and cannot create permissions, facts, memories, or authority."
@@ -630,6 +635,9 @@ export function executivePolicyToInstruction(policy = null) {
       ? `Missing evidence: ${turn.missingEvidence.join(", ")}. Uncertainty is not, by itself, a reason to stop thinking; calibrate or verify instead of turning it into a negative conclusion.`
       : "No material missing evidence identified.",
     `Strategy: verification=${d.verificationDepth || "normal"}; exploration=${d.explorationDepth || "normal"}; persistence=${d.persistence || "normal"}; countercase=${d.countercase ? "yes" : "no"}; peer=${d.peerConsultation ? "eligible" : "not_needed"}.`,
+    instinct?.dominant
+      ? `Instinct state: dominant=${instinct.dominant}@${instinct.dominantStrength}; secondary=${instinct.secondary || "none"}; mandatory=${(instinct.mandatoryConstraints || []).join(",") || "none"}; suppress=${(instinct.suppressions || []).join(",") || "none"}. Reflex constraints are causal; drives are pressure, not proof.`
+      : "",
     d.selfDirectedGoals
       ? `Self-direction is enabled. Preserve worthwhile Ari-owned development goals across turns without displacing the user's immediate task.${activeGoal ? ` Active goal: [${activeGoal.id}] ${activeGoal.label} (priority ${activeGoal.priority}).` : ""}`
       : "",
