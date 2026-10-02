@@ -605,6 +605,7 @@ function meaningfulCognitiveSignature(state = {}) {
   const dominant = affect?.dominantState || {};
   const emotion = state?.emotionDynamicsState || {};
   const emotionDominant = emotion?.dominantState || {};
+  const causalTrace = state?.causalTrace || null;
   const pain = state?.painState || {};
   const neuromodulation = state?.neuromodulationState || {};
   const felt = state?.feltState || {};
@@ -620,6 +621,13 @@ function meaningfulCognitiveSignature(state = {}) {
   const personalityEvaluation = normalizePersonalityEvaluationState(state?.personalityEvaluation);
 
   return {
+    causalTrace: causalTrace ? {
+      traceId: clean(causalTrace?.traceId, 220) || null,
+      verificationStatus: clean(causalTrace?.verification?.status, 40) || null,
+      executivePersistence: clean(causalTrace?.executive?.directives?.persistence, 40) || null,
+      ablationEffectCount: Number(causalTrace?.summary?.ablationEffectCount || 0),
+      actionType: clean(causalTrace?.observableAction?.type, 80) || null
+    } : null,
     cognitiveSignals: state.cognitiveSignalState ? {
       conversationId: state.cognitiveSignalState.conversationId,
       failureStreak: state.cognitiveSignalState.feedback?.failureStreak || 0,
