@@ -369,13 +369,42 @@ export async function runAriVNext(turn = {}) {
     input
   });
 
-  let first = await callResponses({
-    turn,
-    policy: modelPolicy,
-    instructions,
-    input,
-    tools
-  });
+  const referenceResolutionTools = route.referenceResolutionSearch
+    ? tools.filter((tool) => tool?.type === "web_search")
+    : tools;
+
+  let first;
+  if (route.referenceResolutionSearch && referenceResolutionTools.length) {
+    try {
+      first = await callResponses({
+        turn,
+        policy: modelPolicy,
+        instructions,
+        input,
+        tools: referenceResolutionTools,
+        toolChoice: "required"
+      });
+    } catch {
+      // If a provider/model temporarily rejects forced built-in tool choice,
+      // preserve normal chat availability and let the explicit recovery
+      // instruction plus auto tool selection make the best available attempt.
+      first = await callResponses({
+        turn,
+        policy: modelPolicy,
+        instructions,
+        input,
+        tools
+      });
+    }
+  } else {
+    first = await callResponses({
+      turn,
+      policy: modelPolicy,
+      instructions,
+      input,
+      tools
+    });
+  }
 
   let functionCall = findFunctionCall(first?.output);
   const functionNames = new Set(
