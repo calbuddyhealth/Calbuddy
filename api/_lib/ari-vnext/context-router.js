@@ -22,6 +22,8 @@ const PATTERNS = {
   liveInfo: /\b(news|weather|forecast|price|prices|score|scores|standings|stock price|market price|exchange rate|release date|availability|president|vice president|prime minister|governor|mayor|senator|representative|congress|supreme court|ceo|cfo|chairman|officeholder|administration|cabinet|election|elections|poll|polls|in office|who is .* president|who's .* president)\b/i,
   recency: /\b(latest|current|currently|today(?:'s)?|tonight|this week|this month|this year|right now|as of now|newest|recent)\b/i,
   changingReference: /\b(research|study|studies|guideline|guidelines|recommendation|recommendations|evidence|software|version|release)\b/i,
+  recommendation: /\b(?:recommend(?: me)?|recommendation|best (?:option|choice|restaurant|bar|cafe|hotel|product|car|suv|vehicle|phone|laptop|place)|what should i (?:buy|get|choose|pick|order|eat|watch|use)|where should i (?:eat|go|stay|shop)|which (?:one|option|product|car|suv|vehicle|phone|laptop) should i)\b/i,
+  recommendationDynamic: /\b(?:restaurant|bar|cafe|hotel|store|shop|buy|purchase|product|car|suv|vehicle|phone|laptop|computer|headphones|shoes|service|near me|nearby|price|prices|available|availability)\b/i,
   developer: /\b(github|repo|repository|branch|commit|deploy|vercel|supabase|pipeline|runtime|debug|code|javascript|html|css|sql|api|ari(?:'s|\s+(?:xp|rebirth))|reasoning|autonom(?:y|ous)|sentien(?:ce|t)|conviction|learning loop|independent intelligence)\b/i
 };
 
@@ -41,12 +43,20 @@ export function routeContext(turn = {}) {
   const social = PATTERNS.social.test(semanticText) || actionNetworkAvailable;
   const memory = PATTERNS.memory.test(semanticText) || followUp;
   const health = PATTERNS.health.test(semanticText);
-  const recommendationIntent = PATTERNS.recommendation.test(semanticText);\n  const currentInfo = needsCurrentInfo(semanticText);
+  const recommendationIntent = PATTERNS.recommendation.test(semanticText);
+  const currentInfo = needsCurrentInfo(semanticText);
   const developer =
     PATTERNS.developer.test(semanticText) ||
     Boolean(turn?.context?.visualInspection) ||
     Boolean(turn?.context?.executionEvidence);
-  const solEscalationEligible = shouldEscalateToSol({\n    message,\n    semanticText,\n    developer,\n    health,\n    recommendationIntent\n  });\n  const casualConversation = isCasualConversation({
+  const solEscalationEligible = shouldEscalateToSol({
+    message,
+    semanticText,
+    developer,
+    health,
+    recommendationIntent
+  });
+  const casualConversation = isCasualConversation({
     message,
     followUp,
     nutrition,
@@ -72,6 +82,8 @@ export function routeContext(turn = {}) {
     health,
     currentInfo,
     developer,
+    recommendationIntent,
+    solEscalationEligible,
     teenMode,
     circleAllowed: account?.circleAllowed === true,
     intelligenceEntitlement,
