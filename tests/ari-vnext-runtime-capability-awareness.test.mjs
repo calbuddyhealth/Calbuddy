@@ -314,7 +314,7 @@ test("cognitive audit exposes live engineered systems instead of reporting them 
   assert.match(instruction, /MEASURED COGNITIVE STATE/);
   assert.match(instruction, /Exact callable tools NOW:.*owner_repo_read/);
   assert.match(instruction, /Do not say a cognitive subsystem is absent/);
-  assert.doesNotMatch(instruction, /hidden chain-of-thought/i);
+  assert.match(instruction, /not hidden reasoning/i);
 });
 
 test("public capability metadata exposes bounded cognitive telemetry without exact tool names", () => {
