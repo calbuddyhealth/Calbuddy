@@ -27,6 +27,7 @@ const PATTERNS = {
   modelIdentity: /\b(?:what|which)\s+(?:exact\s+)?model\s+(?:are\s+you|you(?:'re| are))\s+(?:using|running|on)|\bwhat model are you\b|\bwhich model are you\b|\bwhat(?:'s| is) your (?:active )?model\b|\bare you (?:using|running) (?:astra|sol|luna)\b/i,
   ownerAstraRequest: /\b(?:use|run|switch(?: this| me)? to|route(?: this)? to|answer with|do this with)\s+(?:gpt[- ]?6\s+)?astra\b|\bastra mode\b/i,
   ownerSolRequest: /\b(?:use|run|switch(?: this| me)? to|route(?: this)? to|answer with|do this with)\s+(?:gpt[- ]?6(?:\.1)?\s+)?sol\b|\bsol mode\b/i,
+  astraBenchmark: /\b(?:benchmark|compare|versus|vs\.?|against)\b.{0,120}\bastra\b|\bastra\b.{0,120}\b(?:benchmark|compare|versus|vs\.?|against)\b/i,
   developer: /\b(github|repo|repository|branch|commit|deploy|vercel|supabase|pipeline|runtime|debug|code|javascript|html|css|sql|api|ari(?:'s|\s+(?:xp|rebirth))|reasoning|autonom(?:y|ous)|sentien(?:ce|t)|conviction|learning loop|independent intelligence)\b/i
 };
 
@@ -49,6 +50,7 @@ export function routeContext(turn = {}) {
   const health = PATTERNS.health.test(semanticText);
   const recommendationIntent = PATTERNS.recommendation.test(semanticText);
   const modelIdentityRequested = ownerEligible && PATTERNS.modelIdentity.test(semanticText);
+  const astraBenchmarkIntent = ownerEligible && PATTERNS.astraBenchmark.test(message);
   const ownerModelRequest = ownerEligible
     ? PATTERNS.ownerAstraRequest.test(message)
       ? "astra"
@@ -120,6 +122,7 @@ export function routeContext(turn = {}) {
     reasoningDemand,
     modelIdentityRequested,
     ownerModelRequest,
+    astraBenchmarkIntent,
     teenMode,
     circleAllowed: account?.circleAllowed === true,
     intelligenceEntitlement,
