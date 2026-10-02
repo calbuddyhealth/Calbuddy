@@ -112,3 +112,44 @@
   .ari-nav-link.nav-circle .ari-nav-title,
   .ari-nav-link.nav-circle .ari-nav-dot { animation:none !important; }
 }
+
+
+/* Persistent conversation control */
+.ari-new-conversation-btn {
+  width: 30px;
+  height: 30px;
+  margin-left: 8px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(89, 112, 202, .26);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .82);
+  color: #4962b2;
+  box-shadow: 0 6px 16px rgba(43, 65, 145, .08);
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+
+.ari-new-conversation-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ari-new-conversation-btn:active {
+  transform: scale(.94);
+}
+
+.ari-new-conversation-btn:focus-visible {
+  outline: 2px solid rgba(57, 125, 255, .65);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ari-new-conversation-btn { transition: none !important; }
+}

@@ -2,11 +2,11 @@
 (() => {
   const style = document.createElement("link");
   style.rel = "stylesheet";
-  style.href = "assets/css/home-menu-polish.css?v=1.0.0";
+  style.href = "assets/css/home-menu-polish.css?v=1.1.0";
   document.head.appendChild(style);
 
   const sessions = document.createElement("script");
-  sessions.src = "js/ari-conversation-sessions.js?v=1.0.0";
+  sessions.src = "js/ari-conversation-sessions.js?v=1.1.0";
   document.body.appendChild(sessions);
 })();
 
