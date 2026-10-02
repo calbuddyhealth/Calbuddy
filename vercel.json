@@ -1,23 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "crons": [
-    {
-      "path": "/api/ari-agent-worker",
-      "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/ari-circle-moderation-worker",
-      "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/ari-signals-scan",
-      "schedule": "17 * * * *"
-    },
-    {
-      "path": "/api/ari-cognitive-cycle",
-      "schedule": "7 1,5,9,13,17,21 * * *"
-    }
-  ],
   "rewrites": [
     {
       "source": "/api/knowledge",
