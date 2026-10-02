@@ -11,6 +11,7 @@ import { coachingStateToInstruction, deriveCoachingState } from "./coaching-stat
 import { companionStateToInstruction, deriveCompanionState } from "./companion-state.js";
 import { cognitionCoordinatorToInstruction, deriveCognitionCoordinator } from "./cognition-coordinator.js";
 import { deliberationHarnessToInstruction, deriveDeliberationHarness } from "./deliberation-harness.js";
+import { biblicalWisdomToInstruction, deriveBiblicalWisdomLayer } from "./biblical-wisdom.js";
 import { deriveInstinctKernel } from "./instinct-kernel.js";
 import { communicationProfileToInstruction, resolvePersonalizedCommunicationProfile } from "./communication-profile.js";
 import { communicationLearningToInstruction } from "./communication-outcomes.js";
@@ -196,6 +197,12 @@ export async function runAriVNext(turn = {}) {
     relationshipContinuity,
     instinctKernel
   });
+  const biblicalWisdom = deriveBiblicalWisdomLayer({
+    turn,
+    route,
+    safety,
+    modelPolicy
+  });
   const rawScientificIntelligence = deriveScientificIntelligence({
     turn,
     route,
@@ -310,6 +317,7 @@ export async function runAriVNext(turn = {}) {
     companionState,
     cognitionCoordinator,
     deliberationHarness,
+    biblicalWisdom,
     goalHierarchy,
     metacognition,
     scientificIntelligence,
@@ -1849,6 +1857,7 @@ function buildInstructions({
   companionState,
   cognitionCoordinator,
   deliberationHarness,
+  biblicalWisdom,
   goalHierarchy,
   metacognition,
   scientificIntelligence,
@@ -1865,6 +1874,7 @@ function buildInstructions({
     "\n" + companionStateToInstruction(companionState),
     "\n" + cognitionCoordinatorToInstruction(cognitionCoordinator),
     "\n" + deliberationHarnessToInstruction(deliberationHarness),
+    biblicalWisdom?.active ? "\n" + biblicalWisdomToInstruction(biblicalWisdom) : "",
     "\nMETACOGNITION\n" + metacognitionToInstruction(metacognition),
     "\nCOMMUNICATION PROFILE\n" + communicationProfileToInstruction(communication),
     "\nSAFETY CONTEXT\n" + safetyToInstruction(safety)
