@@ -7,6 +7,8 @@ import {
   isBackgroundAiEnabled,
   isBackgroundWorkerEnabled
 } from "../api/_lib/background-ai-switch.js";
+import { routeContext } from "../api/_lib/ari-vnext/context-router.js";
+import { resolveOwnerInteractiveModel } from "../api/_lib/ari-vnext/cost-router.js";
 import {
   ARI_TURN_COMPUTE_GOVERNOR_VERSION,
   createTurnComputeGovernor,
@@ -70,6 +72,29 @@ test("turn compute governor keeps routine work single-pass and scales bounded su
   assert.equal(critical.maxCalls, 3);
   assert.equal(benchmark.explicitBenchmark, true);
   assert.ok(benchmark.maxCalls > critical.maxCalls);
+});
+
+test("explicit Astra benchmarks keep the primary answer on Sol even for deep tasks", () => {
+  const route = routeContext({
+    message: "Benchmark this deep repository architecture against Astra and compare the failure modes.",
+    history: [],
+    context: { intelligenceEntitlement: owner() }
+  });
+  assert.equal(route.astraBenchmarkIntent, true);
+
+  const routing = resolveOwnerInteractiveModel({
+    mode: "deep",
+    route: {
+      ...route,
+      developer: true,
+      solEscalationEligible: true,
+      messageLength: 2400
+    },
+    reasoningProfile: "adaptive"
+  });
+  assert.equal(routing.model, process.env.OPENAI_ARI_OWNER_SOL_MODEL || "gpt-6.1-sol");
+  assert.equal(routing.escalated, false);
+  assert.equal(routing.reason, "sol_benchmark_primary");
 });
 
 test("supplemental reservations share one call and dollar ledger", () => {
