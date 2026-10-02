@@ -137,3 +137,30 @@ test("live provider path uses stored response chaining and effort configuration 
   assert.match(bridge, /sessionStorage\.setItem/);
   assert.match(bridge, /reasoningContinuityToken/);
 });
+
+
+test("step-limit developer responses fail closed for provider reasoning continuity", async () => {
+  const orchestrator = await readFile(
+    new URL("../api/_lib/ari-vnext/orchestrator.js", import.meta.url),
+    "utf8"
+  );
+  const api = await readFile(
+    new URL("../api/ari-vnext.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(orchestrator, /continuitySafe:\s*false/);
+  assert.match(orchestrator, /unresolved_tool_call_at_step_limit/);
+  assert.match(api, /result\?\.provider\?\.continuitySafe !== false/);
+});
+
+test("provider continuation resets fresh when a prior response is missing tool output", async () => {
+  const orchestrator = await readFile(
+    new URL("../api/_lib/ari-vnext/orchestrator.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(orchestrator, /no tool output found for function call/);
+  assert.match(orchestrator, /provider_rejected_continuation/);
+  assert.match(orchestrator, /forceFreshReasoning:\s*true/);
+});
