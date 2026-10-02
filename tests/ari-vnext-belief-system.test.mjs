@@ -9,7 +9,7 @@ import {
   deriveBeliefSystem
 } from "../api/_lib/ari-vnext/belief-system.js";
 import { deriveCognitiveWorkspace } from "../api/_lib/ari-vnext/cognitive-loop.js";
-import { contextToText } from "../api/_lib/ari-vnext/context-router.js";
+import { deriveCognitionCoordinator, cognitionCoordinatorToInstruction } from "../api/_lib/ari-vnext/cognition-coordinator.js";
 
 function conviction({ feasibility = null, outcome = null, commitment = 0.9 } = {}) {
   return {
@@ -106,16 +106,21 @@ test("cognitive workspace derives belief posture from the active conviction goal
   assert.equal(workspace.beliefSystem.activeGoal.commitment, 0.9);
 });
 
-test("context router gives the model compact belief-system rules", () => {
+test("belief system remains cognition evidence under the unified executive authority", () => {
   const workspace = deriveCognitiveWorkspace({
     turn: { message: "This may be almost impossible, but test a better approach." },
     route: { developer: true },
     context: { convictionLearning: conviction({ feasibility: 0.15 }) }
   });
-  const output = contextToText({
-    userWorldModel: { ariCognitiveWorkspace: workspace },
-    convictionLearning: conviction({ feasibility: 0.15 })
+  const coordinator = deriveCognitionCoordinator({
+    route: { developer: true, complexity: "deep" },
+    relevantContext: {
+      userWorldModel: { ariCognitiveWorkspace: workspace },
+      convictionLearning: conviction({ feasibility: 0.15 })
+    }
   });
-  assert.match(output, /ARI BELIEF SYSTEM/i);
-  assert.match(output, /Possibility and probability are different/i);
+  const output = cognitionCoordinatorToInstruction(coordinator);
+  assert.match(output, /UNIFIED COGNITION COORDINATOR/i);
+  assert.equal(coordinator.authorities.experimentalCognition, "ari_executive");
+  assert.ok(coordinator.selectedEvidence.some(item => item.kind === "conviction_goal" || item.kind === "belief"));
 });
