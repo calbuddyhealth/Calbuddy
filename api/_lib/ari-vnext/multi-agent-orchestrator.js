@@ -56,6 +56,10 @@ export function deriveMultiAgentPlan({
     Number(performance?.teamTrialCount || 0) >= 5 &&
     Number(performance?.selectionConfidence || 0) >= 0.45;
 
+  if (turn?.context?.turnComputeGovernor?.explicitBenchmark === true) {
+    return inactivePlan("benchmark_lane_reserves_compute", { owner, explicit });
+  }
+
   if (!enabled) {
     return inactivePlan("disabled", { owner, explicit });
   }
