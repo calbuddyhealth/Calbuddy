@@ -23,6 +23,8 @@ test("owner casual chat stays on the Sol default instead of spending Astra", () 
 
   assert.equal(casual.model, standard.model);
   assert.equal(casual.reasoningEffort, "low");
+  assert.equal(casual.reasoningMode, "standard");
+  assert.equal(casual.persistReasoning, false);
   assert.equal(casual.ownerModelContinuity, true);
   assert.equal(casual.escalated, false);
   assert.equal(casual.costTier, "owner_sol_default");
@@ -39,7 +41,28 @@ test("owner current-information turns keep their complexity while enabling live 
   assert.equal(policy.freshness, "live");
   assert.equal(policy.liveSearchRequired, true);
   assert.equal(policy.reasoningEffort, "medium");
+  assert.equal(policy.reasoningMode, "standard");
+  assert.equal(policy.reasoningContext, "all_turns");
+  assert.equal(policy.persistReasoning, true);
   assert.equal(policy.ownerModelContinuity, true);
+});
+
+test("critical owner work uses Sol pro before automatic Astra escalation", () => {
+  const policy = resolveModelPolicy({
+    intelligenceEntitlement: owner(),
+    developer: true,
+    complexity: "deep",
+    solEscalationEligible: true
+  });
+
+  assert.equal(policy.reasoningDemand.band, "critical");
+  assert.equal(policy.reasoningDemand.score, 9);
+  assert.equal(policy.model, process.env.OPENAI_ARI_OWNER_SOL_MODEL || "gpt-6.1-sol");
+  assert.equal(policy.routingReason, "sol_pro_first");
+  assert.equal(policy.reasoningMode, "pro");
+  assert.equal(policy.reasoningContext, "all_turns");
+  assert.equal(policy.persistReasoning, true);
+  assert.equal(policy.escalated, false);
 });
 
 test("simple turns suppress inactive cognitive instruction blocks", () => {
