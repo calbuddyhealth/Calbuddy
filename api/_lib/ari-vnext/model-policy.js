@@ -2,7 +2,7 @@ import { resolveOwnerInteractiveModel } from "./cost-router.js";
 
 // ARI vNext model routing.
 
-export const MODEL_POLICY_VERSION = "3.0.0";
+export const MODEL_POLICY_VERSION = "4.0.0";
 
 export function resolveModelPolicy(route = {}) {
   const intelligence = route?.intelligenceEntitlement || null;
@@ -10,20 +10,11 @@ export function resolveModelPolicy(route = {}) {
     return resolveAdvancedModelPolicy(route, intelligence);
   }
 
-  const fastModel = process.env.OPENAI_ARI_VNEXT_FAST_MODEL || "gpt-4o-mini";
-  const primaryModel = process.env.OPENAI_ARI_VNEXT_MODEL || "gpt-4o-mini";
-  const deepModel = process.env.OPENAI_ARI_VNEXT_DEEP_MODEL || "gpt-5.6-luna";
-  const currentModel = process.env.OPENAI_ARI_VNEXT_CURRENT_MODEL || "gpt-5.4-mini";
-
+  // Free Ari is intentionally simple and predictable: one economical model,
+  // bounded output, and no automatic escalation to Luna/Terra/Sol.
+  const model = process.env.OPENAI_ARI_FREE_MODEL || "gpt-4o-mini";
   const mode = resolveWorkMode(route);
   const freshness = resolveFreshness(route);
-  const model = freshness === "live"
-    ? currentModel
-    : mode === "deep"
-      ? deepModel
-      : mode === "fast"
-        ? fastModel
-        : primaryModel;
   const supportsReasoning = isReasoningModel(model);
 
   return {
@@ -34,19 +25,13 @@ export function resolveModelPolicy(route = {}) {
     freshness,
     model,
     supportsReasoning,
-    reasoningEffort: supportsReasoning
-      ? mode === "deep"
-        ? "high"
-        : mode === "fast"
-          ? "low"
-          : "medium"
-      : null,
-    maxOutputTokens: mode === "deep" ? 2200 : mode === "standard" ? 1800 : 700,
-    timeoutMs: mode === "deep" ? 45000 : mode === "standard" ? 26000 : 12000,
-    costTier: freshness === "live"
-      ? mode === "deep" ? "deep_live_search" : mode === "standard" ? "standard_live_search" : "fast_live_search"
-      : mode === "deep" ? "escalated" : "economy",
+    reasoningEffort: supportsReasoning ? "low" : null,
+    maxOutputTokens: mode === "deep" ? 900 : mode === "standard" ? 700 : 450,
+    timeoutMs: mode === "deep" ? 22000 : mode === "standard" ? 18000 : 12000,
+    costTier: freshness === "live" ? "free_direct_live" : "free_direct",
     liveSearchRequired: freshness === "live",
+    escalated: false,
+    routingReason: "free_direct",
     casualConversation: route?.casualConversation === true
   };
 }
@@ -74,17 +59,12 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
     process.env.OPENAI_ARI_OWNER_FAST_MODEL ||
     process.env.OPENAI_ARI_VNEXT_FAST_MODEL ||
     "gpt-5.6-luna";
-  const premiumAdvancedModel =
-    process.env.OPENAI_ARI_PREMIUM_MODEL ||
-    process.env.OPENAI_ARI_ADVANCED_MODEL ||
-    "gpt-5.6-terra";
-  const premiumFastModel =
-    process.env.OPENAI_ARI_PREMIUM_FAST_MODEL ||
-    process.env.OPENAI_ARI_VNEXT_FAST_MODEL ||
-    "gpt-5.6-luna";
 
   const ownerRouting = owner
     ? resolveOwnerInteractiveModel({ mode, route, reasoningProfile })
+    : null;
+  const premiumRouting = premium
+    ? resolvePremiumInteractiveModel({ mode, route, reasoningProfile })
     : null;
 
   const model = owner
@@ -93,14 +73,13 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
       ? casualConversation
         ? ariUnlimitedFastModel
         : ariUnlimitedAdvancedModel
-      : casualConversation
-        ? premiumFastModel
-        : premiumAdvancedModel;
+      : premiumRouting?.model || "gpt-5.6-luna";
 
   const supportsReasoning = isReasoningModel(model);
   const reasoningEffort = supportsReasoning
     ? resolveAdvancedReasoningEffort({ mode, reasoningProfile, route, casualConversation, owner })
     : null;
+  const premiumEscalated = premiumRouting?.escalated === true;
 
   return {
     version: MODEL_POLICY_VERSION,
@@ -115,9 +94,9 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
     maxOutputTokens: casualConversation
       ? owner
         ? 700
-        : 500
+        : 650
       : mode === "deep"
-        ? 2800
+        ? 2400
         : mode === "fast"
           ? 1100
           : 1800,
@@ -134,20 +113,65 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
       ? ownerRouting?.escalated
         ? "owner_sol_escalation"
         : "owner_terra_default"
-      : casualConversation
-        ? ariUnlimited
+      : ariUnlimited
+        ? casualConversation
           ? "ari_unlimited_fast"
-          : "premium_fast"
+          : "ari_unlimited_advanced_sol"
+        : premiumEscalated
+          ? "premium_sol_escalation"
+          : "premium_luna",
+    routingReason: owner
+      ? ownerRouting?.reason || null
+      : premium
+        ? premiumRouting?.reason || null
         : ariUnlimited
-          ? "ari_unlimited_advanced_sol"
-          : "premium_advanced",
-    routingReason: ownerRouting?.reason || null,
-    escalated: ownerRouting?.escalated === true,
+          ? casualConversation ? "ari_unlimited_fast" : "ari_unlimited_advanced"
+          : null,
+    escalated: ownerRouting?.escalated === true || premiumEscalated,
     liveSearchRequired: freshness === "live",
     conversationBeta: true,
     ownerModelContinuity: owner,
     casualConversation
   };
+}
+
+function resolvePremiumInteractiveModel({
+  mode = "standard",
+  route = {},
+  reasoningProfile = "adaptive"
+} = {}) {
+  const lunaModel =
+    process.env.OPENAI_ARI_PREMIUM_LUNA_MODEL ||
+    "gpt-5.6-luna";
+  const solModel =
+    process.env.OPENAI_ARI_PREMIUM_SOL_MODEL ||
+    "gpt-5.6-sol";
+
+  // Recommendations are intentionally Luna-first. Better evidence, constraints,
+  // and ranking should improve recommendation quality before model escalation.
+  const recommendationLane = route?.recommendationIntent === true;
+  const explicitDeepProfile = cleanReasoningProfile(reasoningProfile) === "deep";
+  const hardProblem = route?.solEscalationEligible === true;
+  const escalate = !recommendationLane && (
+    hardProblem ||
+    (explicitDeepProfile && mode === "deep")
+  );
+
+  return {
+    model: escalate ? solModel : lunaModel,
+    escalated: escalate,
+    reason: escalate
+      ? hardProblem
+        ? "hard_problem"
+        : "explicit_deep_profile"
+      : recommendationLane
+        ? "luna_recommendation_quality"
+        : "luna_default"
+  };
+}
+
+function cleanReasoningProfile(value = "") {
+  return String(value || "").trim().toLowerCase();
 }
 
 function resolveWorkMode(route = {}) {
