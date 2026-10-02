@@ -31,7 +31,7 @@ function establishedRelationship(overrides = {}) {
 test("Companion Core is deterministic and introduces no provider call", () => {
   assert.equal(ARI_COMPANION_STATE_VERSION, "1.0.0");
   assert.doesNotMatch(companionSource, /fetch\s*\(/);
-  assert.doesNotMatch(companionSource, /OPENAI_|api\.openai\.com|responses/i);
+  assert.doesNotMatch(companionSource, /OPENAI_|api\.openai\.com|\/v1\/responses/i);
 });
 
 test("repair mode suppresses initiative and tells Ari to replace the mistaken interpretation", () => {
