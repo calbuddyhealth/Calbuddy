@@ -578,7 +578,7 @@ export function deriveAriExecutivePolicy({
     activation: instructionActivation || null,
     promptBudget: {
       compactTargetChars: 850,
-      targetChars: 4400,
+      targetChars: 4600,
       experimentalInstructionSourceCount: 1,
       subsystemProseDirectlyInjected: false
     }
@@ -625,7 +625,6 @@ export function executivePolicyToInstruction(policy = null) {
   const lines = [
     `ARI EXECUTIVE v${ARI_EXECUTIVE_VERSION} — SINGLE RUNTIME DECISION AUTHORITY`,
     "Authority: hard enforcement > runtime constitution > current user intent > product/domain constraints > current evidence > executive strategy > learned/experimental signals > style.",
-    "The Instinct Kernel is pre-deliberative behavioral control: active reflex constraints must shape the response before deeper reasoning, while drives and tendencies bias strategy. It cannot override hard enforcement, current evidence, or explicit current user correction.",
     "Curiosity, Reward, Functional Affect, Motivational Arbitration, Self-Adaptation, Cortex, and Ω-RCT are advisory cognitive systems; they may shape reasoning but cannot invent external permissions or outrank hard enforcement.",
     imagination?.active
       ? "Imagination is also advisory: it may widen the possibility space, but imagined content remains unverified and cannot create permissions, facts, memories, or authority."
@@ -636,7 +635,7 @@ export function executivePolicyToInstruction(policy = null) {
       : "No material missing evidence identified.",
     `Strategy: verification=${d.verificationDepth || "normal"}; exploration=${d.explorationDepth || "normal"}; persistence=${d.persistence || "normal"}; countercase=${d.countercase ? "yes" : "no"}; peer=${d.peerConsultation ? "eligible" : "not_needed"}.`,
     instinct?.dominant
-      ? `Instinct state: dominant=${instinct.dominant}@${instinct.dominantStrength}; secondary=${instinct.secondary || "none"}; mandatory=${(instinct.mandatoryConstraints || []).join(",") || "none"}; suppress=${(instinct.suppressions || []).join(",") || "none"}. Reflex constraints are causal; drives are pressure, not proof.`
+      ? `Instinct: ${instinct.dominant}@${instinct.dominantStrength}; enforce=${(instinct.mandatoryConstraints || []).slice(0, 4).join(",") || "none"}; suppress=${(instinct.suppressions || []).slice(0, 3).join(",") || "none"}. Reflexes constrain; drives bias.`
       : "",
     d.selfDirectedGoals
       ? `Self-direction is enabled. Preserve worthwhile Ari-owned development goals across turns without displacing the user's immediate task.${activeGoal ? ` Active goal: [${activeGoal.id}] ${activeGoal.label} (priority ${activeGoal.priority}).` : ""}`
