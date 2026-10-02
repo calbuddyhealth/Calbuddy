@@ -3,8 +3,9 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 
 test("communication closure is wired through cognition, model context, persistence, and migration", async () => {
-  const [cognitive, contextRouter, api, migration] = await Promise.all([
+  const [cognitive, coordinator, contextRouter, api, migration] = await Promise.all([
     readFile(new URL("../api/_lib/ari-vnext/cognitive-loop.js", import.meta.url), "utf8"),
+    readFile(new URL("../api/_lib/ari-vnext/cognition-coordinator.js", import.meta.url), "utf8"),
     readFile(new URL("../api/_lib/ari-vnext/context-router.js", import.meta.url), "utf8"),
     readFile(new URL("../api/ari-vnext.js", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/20260925093000_ari_communication_closure_engine.sql", import.meta.url), "utf8")
@@ -14,8 +15,10 @@ test("communication closure is wired through cognition, model context, persisten
   assert.match(cognitive, /advanceCommunicationClosure/);
   assert.match(cognitive, /communicationClosure:\s*nextCommunicationClosure/);
 
-  assert.match(contextRouter, /communicationClosureToInstruction/);
-  assert.match(contextRouter, /cognitiveWorkspace\?\.communicationClosure/);
+  assert.match(coordinator, /communicationClosure/);
+  assert.match(coordinator, /communication_closure/);
+  assert.doesNotMatch(contextRouter, /communicationClosureToInstruction/);
+  assert.match(contextRouter, /UNIFIED COGNITION EVIDENCE RULES/);
 
   assert.match(api, /persistCommunicationClosure/);
   assert.match(api, /summarizeCommunicationClosure/);

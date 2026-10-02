@@ -8,6 +8,7 @@ import {
   deriveCompanionState
 } from "../api/_lib/ari-vnext/companion-state.js";
 import { deriveRelationshipContinuity } from "../api/_lib/ari-vnext/relationship-continuity.js";
+import { resolvePersonalizedCommunicationProfile } from "../api/_lib/ari-vnext/communication-profile.js";
 
 const companionSource = await readFile(
   new URL("../api/_lib/ari-vnext/companion-state.js", import.meta.url),
@@ -29,7 +30,7 @@ function establishedRelationship(overrides = {}) {
 }
 
 test("Companion Core is deterministic and introduces no provider call", () => {
-  assert.equal(ARI_COMPANION_STATE_VERSION, "1.0.0");
+  assert.equal(ARI_COMPANION_STATE_VERSION, "2.0.0");
   assert.doesNotMatch(companionSource, /fetch\s*\(/);
   assert.doesNotMatch(companionSource, /OPENAI_|api\.openai\.com|\/v1\/responses/i);
 });
@@ -39,7 +40,11 @@ test("repair mode suppresses initiative and tells Ari to replace the mistaken in
     turn: { message: "No, that's not what I meant. I meant the owner chat." },
     route: { casualConversation: false },
     safety: { highStakes: false },
-    communication: { humor: "frequent", directness: "direct" },
+    communication: resolvePersonalizedCommunicationProfile({
+      preferences: { humor: "frequent", directness: "direct" },
+      message: "No, that's not what I meant. I meant the owner chat.",
+      safety: { highStakes: false }
+    }),
     relationshipContinuity: establishedRelationship({
       unfinishedThreads: [{
         id: "thread-1",
@@ -54,6 +59,9 @@ test("repair mode suppresses initiative and tells Ari to replace the mistaken in
   assert.equal(state.conversationalMode, "repair");
   assert.equal(state.repair.active, true);
   assert.equal(state.repair.replaceInterpretationBeforeAdvancing, true);
+  assert.equal(state.repair.invalidateDependentAssumptions, true);
+  assert.equal(state.repair.preserveUnaffectedProgress, true);
+  assert.equal(state.repair.source, "conversation_repair_friction");
   assert.equal(state.initiative.allowed, false);
   assert.equal(state.responseStyle.humor, "off");
   assert.match(companionStateToInstruction(state), /do not defend the previous answer/i);
@@ -114,7 +122,33 @@ test("established greetings may surface one genuinely high-priority unfinished t
   assert.equal(state.initiative.allowed, true);
   assert.equal(state.initiative.strength, "light");
   assert.equal(state.continuity.oneNaturalCallbackMaximum, true);
+  assert.equal(state.continuity.strength, "established");
   assert.equal(state.initiative.askFollowUpSolelyForEngagement, false);
+});
+
+test("explicit Ari Signal engagement is treated as user-invoked, not proactive initiative", () => {
+  const state = deriveCompanionState({
+    turn: { message: "Tell me about this signal." },
+    route: { casualConversation: false },
+    safety: { highStakes: false },
+    relationshipContinuity: establishedRelationship({
+      unfinishedThreads: [{
+        id: "signal-thread",
+        type: "decision",
+        priority: "high",
+        state: "review_due",
+        summary: "A prediction is ready to review."
+      }]
+    }),
+    relevantContext: {
+      initiativeContext: { source: "explicit_ari_signal_engagement" }
+    }
+  });
+
+  assert.equal(state.interaction.userInvokedSignal, true);
+  assert.equal(state.initiative.allowed, false);
+  assert.equal(state.initiative.userInvoked, true);
+  assert.equal(state.initiative.reason, "user_invoked_signal_not_proactive_initiative");
 });
 
 test("pending actions are never surfaced as casual companion initiative", () => {
@@ -202,5 +236,5 @@ test("relationship continuity incorporates cognitive open loops and active commu
 test("live orchestrator derives Companion Core and injects its instruction before the model call", () => {
   assert.match(orchestratorSource, /deriveCompanionState\(\{/);
   assert.match(orchestratorSource, /companionStateToInstruction\(companionState\)/);
-  assert.match(orchestratorSource, /relationshipContinuity,\s*companionState,\s*deliberationHarness,\s*goalHierarchy/);
+  assert.match(orchestratorSource, /relationshipContinuity,\s*companionState,\s*cognitionCoordinator,\s*deliberationHarness,\s*goalHierarchy/);
 });

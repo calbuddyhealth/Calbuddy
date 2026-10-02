@@ -3,7 +3,8 @@
 
 import {
   applyConversationPersonalization,
-  ARI_CONVERSATION_PERSONALIZATION_VERSION
+  ARI_CONVERSATION_PERSONALIZATION_VERSION,
+  detectConversationSignal
 } from "./conversation-personalization.js";
 
 export const COMMUNICATION_PROFILE_VERSION = "2.0.0";
@@ -37,12 +38,19 @@ export function resolvePersonalizedCommunicationProfile({
   safety = null
 } = {}) {
   const explicitProfile = resolveCommunicationProfile(preferences);
-  return applyConversationPersonalization({
+  const resolved = applyConversationPersonalization({
     explicitProfile,
     learning,
     message,
     safety
   });
+  return {
+    ...resolved,
+    personalization: {
+      ...(resolved.personalization || {}),
+      currentTurnSignal: detectConversationSignal({ message })
+    }
+  };
 }
 
 export function communicationProfileToInstruction(profile = {}) {

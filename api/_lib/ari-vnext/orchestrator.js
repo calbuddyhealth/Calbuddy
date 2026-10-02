@@ -9,6 +9,7 @@ import { institutionalMemoryToInstruction } from "./institutional-memory.js";
 import { ARI_PERSONA } from "./persona.js";
 import { coachingStateToInstruction, deriveCoachingState } from "./coaching-state.js";
 import { companionStateToInstruction, deriveCompanionState } from "./companion-state.js";
+import { cognitionCoordinatorToInstruction, deriveCognitionCoordinator } from "./cognition-coordinator.js";
 import { deliberationHarnessToInstruction, deriveDeliberationHarness } from "./deliberation-harness.js";
 import { communicationProfileToInstruction, resolvePersonalizedCommunicationProfile } from "./communication-profile.js";
 import { communicationLearningToInstruction } from "./communication-outcomes.js";
@@ -31,7 +32,7 @@ import {
   promptBudgetTelemetry
 } from "./cost-router.js";
 import { applyOutcomeLearning } from "./outcome-learning.js";
-import { deriveRelationshipContinuity, relationshipContinuityToInstruction } from "./relationship-continuity.js";
+import { deriveRelationshipContinuity } from "./relationship-continuity.js";
 import { withRuntimeModelIdentity } from "./runtime-model-awareness.js";
 import { recommendationQualityInstruction } from "./recommendation-quality.js";
 import { classifySafety, safetyToInstruction } from "./safety-policy.js";
@@ -166,6 +167,13 @@ export async function runAriVNext(turn = {}) {
     metacognition,
     relevantContext
   });
+  const cognitionCoordinator = deriveCognitionCoordinator({
+    route,
+    safety,
+    companionState,
+    metacognition,
+    relevantContext
+  });
   const deliberationHarness = deriveDeliberationHarness({
     turn,
     route,
@@ -286,8 +294,8 @@ export async function runAriVNext(turn = {}) {
     communication,
     safety,
     selfModel,
-    relationshipContinuity,
     companionState,
+    cognitionCoordinator,
     deliberationHarness,
     goalHierarchy,
     metacognition,
@@ -457,6 +465,7 @@ export async function runAriVNext(turn = {}) {
       selfModel,
       relationshipContinuity,
       companionState,
+      cognitionCoordinator,
       deliberationHarness,
       goalHierarchy,
       metacognition,
@@ -1823,8 +1832,8 @@ function buildInstructions({
   communication,
   safety,
   selfModel,
-  relationshipContinuity,
   companionState,
+  cognitionCoordinator,
   deliberationHarness,
   goalHierarchy,
   metacognition,
@@ -1839,8 +1848,8 @@ function buildInstructions({
     ARI_PERSONA,
     "\nTEMPORAL GROUNDING\n" + temporalContextToInstruction(temporalContext, route),
     "\nSELF MODEL\n" + selfModelToInstruction(selfModel),
-    "\n" + relationshipContinuityToInstruction(relationshipContinuity),
     "\n" + companionStateToInstruction(companionState),
+    "\n" + cognitionCoordinatorToInstruction(cognitionCoordinator),
     "\n" + deliberationHarnessToInstruction(deliberationHarness),
     "\nMETACOGNITION\n" + metacognitionToInstruction(metacognition),
     "\nCOMMUNICATION PROFILE\n" + communicationProfileToInstruction(communication),

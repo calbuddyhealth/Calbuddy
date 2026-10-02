@@ -2,7 +2,7 @@
 // Unifies existing relationship, communication, affect, and cognitive-loop
 // signals for the current conversation. This module performs no model call.
 
-export const ARI_COMPANION_STATE_VERSION = "1.0.0";
+export const ARI_COMPANION_STATE_VERSION = "2.0.0";
 
 const STOPWORDS = new Set([
   "a","an","and","are","as","at","be","been","but","by","do","for","from","had","has","have",
@@ -24,7 +24,8 @@ export function deriveCompanionState({
     ? relationshipContinuity
     : {};
   const familiarity = clean(relationship?.familiarity, 40) || "new";
-  const repairActive = detectRepair(message);
+  const conversationSignal = communication?.personalization?.currentTurnSignal || null;
+  const repairActive = conversationSignal?.source === "conversation_repair_friction";
   const highStakes = safety?.highStakes === true;
   const greeting = isSimpleGreeting(message);
   const continuityCue = explicitContinuityCue(message);
@@ -67,6 +68,7 @@ export function deriveCompanionState({
     metacognition
   });
 
+  const userInvokedSignal = relevantContext?.initiativeContext?.source === "explicit_ari_signal_engagement";
   const initiative = deriveConversationalInitiative({
     route,
     highStakes,
@@ -74,7 +76,8 @@ export function deriveCompanionState({
     greeting,
     familiarity,
     relevantThread,
-    shouldReferencePast
+    shouldReferencePast,
+    userInvokedSignal
   });
 
   const personalization = communication?.personalization || {};
@@ -90,18 +93,38 @@ export function deriveCompanionState({
     responsePosture,
     repair: {
       active: repairActive,
+      source: repairActive ? clean(conversationSignal?.source, 80) : null,
+      confidence: repairActive ? clamp01(Number(conversationSignal?.confidence || 0)) : 0,
       acknowledgeExactMismatch: repairActive,
       replaceInterpretationBeforeAdvancing: repairActive,
+      invalidateDependentAssumptions: repairActive,
+      preserveUnaffectedProgress: true,
       defendPreviousAnswer: false
     },
     continuity: {
       shouldReferencePast,
+      strength: continuityStrength({
+        familiarity,
+        recentContinuityPairs: relationship?.recentContinuityPairs,
+        openLoopCount: threads.length,
+        sharedEventCount: recentSharedEvents.length
+      }),
+      openLoopCount: threads.length,
+      sharedEventCount: recentSharedEvents.length,
       relevantThread: compactThread(relevantThread),
       relevantSharedEvent: compactEvent(relevantSharedEvent),
       oneNaturalCallbackMaximum: true,
-      biographyRecitalAllowed: false
+      biographyRecitalAllowed: false,
+      forcedCallbackAllowed: false
     },
     initiative,
+    interaction: {
+      tempo: interactionTempo(message),
+      correctionActive: repairActive,
+      continuityCue,
+      userInvokedSignal,
+      explicitTask: route?.casualConversation !== true
+    },
     responseStyle: {
       warmth: highStakes
         ? "steady"
@@ -137,16 +160,16 @@ export function deriveCompanionState({
 export function companionStateToInstruction(state = null) {
   if (!state) return "";
   const lines = [
-    "ARI COMPANION CORE v1",
+    `ARI COMPANION CORE v${ARI_COMPANION_STATE_VERSION}`,
     "This is a deterministic social-executive state assembled from existing conversation systems. It is not a claim that Ari has subjective feelings or an off-screen life.",
     `Conversation mode: ${state.conversationalMode || "collaborative"}. Response posture: ${state.responsePosture || "neutral"}. Familiarity: ${state.familiarity || "new"}.`,
     "Make the interaction feel continuous through judgment, timing, repair, and relevant callbacks rather than repeated statements that you remember the user.",
     "Do not optimize for engagement, dependency, session length, guilt, pressure, or emotional exclusivity.",
     state?.repair?.active
-      ? "REPAIR MODE: acknowledge the specific misunderstanding briefly, replace the mistaken interpretation, and continue from the corrected interpretation. Do not defend the previous answer."
+      ? "REPAIR MODE: identify the specific misunderstanding briefly, replace the affected interpretation, invalidate conclusions that depended on it, preserve unaffected useful work, and continue. Do not defend the previous answer."
       : "",
     state?.continuity?.shouldReferencePast
-      ? "CONTINUITY: one natural callback is allowed when it directly helps this turn. Do not recite biography or stack multiple callbacks."
+      ? `CONTINUITY: one natural callback is allowed when it directly helps this turn. Continuity strength: ${state.continuity.strength || "limited"}. Do not recite biography or stack multiple callbacks.`
       : "CONTINUITY: no callback is required. Do not force memory into the conversation.",
     state?.continuity?.relevantThread?.summary
       ? `Relevant unfinished thread: ${clean(state.continuity.relevantThread.summary, 520)}`
@@ -197,10 +220,22 @@ function deriveConversationalInitiative({
   greeting = false,
   familiarity = "new",
   relevantThread = null,
-  shouldReferencePast = false
+  shouldReferencePast = false,
+  userInvokedSignal = false
 } = {}) {
   if (highStakes) return noInitiative("high_stakes");
   if (repairActive) return noInitiative("repair_first");
+  if (userInvokedSignal) {
+    return {
+      allowed: false,
+      strength: "none",
+      canMentionOpenLoop: false,
+      askFollowUpSolelyForEngagement: false,
+      canAskUsefulQuestion: true,
+      userInvoked: true,
+      reason: "user_invoked_signal_not_proactive_initiative"
+    };
+  }
 
   const threadPriority = clean(relevantThread?.priority, 20).toLowerCase();
   const threadType = clean(relevantThread?.type, 60).toLowerCase();
@@ -324,12 +359,32 @@ function compactEvent(event = null) {
   };
 }
 
-function detectRepair(message = "") {
-  return /^(?:no[,\s]|wait[,\s]|not quite|that's not|that is not|you misunderstood|you misread|wrong|i meant|what i meant)|\b(not what i asked|not what i meant|you didn't answer|you did not answer|you misunderstood me|that's wrong|that is wrong|you got that wrong)\b/i.test(clean(message, 1800));
-}
-
 function explicitContinuityCue(message = "") {
   return /\b(earlier|before|last time|previously|we talked|we discussed|we did|that change|that thing|continue|pick up|where we left|remember)\b/i.test(clean(message, 1800));
+}
+
+function continuityStrength({
+  familiarity = "new",
+  recentContinuityPairs = 0,
+  openLoopCount = 0,
+  sharedEventCount = 0
+} = {}) {
+  const score =
+    (familiarity === "established" ? 3 : familiarity === "familiar" ? 2 : familiarity === "developing" ? 1 : 0) +
+    (Number(recentContinuityPairs || 0) > 0 ? 1 : 0) +
+    (Number(openLoopCount || 0) > 0 ? 1 : 0) +
+    (Number(sharedEventCount || 0) > 0 ? 1 : 0);
+  if (score >= 5) return "strong";
+  if (score >= 3) return "established";
+  if (score >= 1) return "developing";
+  return "limited";
+}
+
+function interactionTempo(message = "") {
+  const length = clean(message, 5000).length;
+  if (length <= 40) return "brief";
+  if (length >= 900) return "extended";
+  return "normal";
 }
 
 function isSimpleGreeting(message = "") {
