@@ -87,7 +87,7 @@ test("owner, premium, and casual entitlements remain separate dimensions", () =>
   });
 });
 
-test("owner greetings and ordinary advice stay Advanced Ari on the Terra default", () => {
+test("owner greetings and ordinary advice stay Advanced Ari on the Sol default", () => {
   withEnv({
     OPENAI_ARI_OWNER_MODEL: "gpt-5.6",
     OPENAI_ARI_OWNER_FAST_MODEL: "gpt-4o-mini"
@@ -106,7 +106,7 @@ test("owner greetings and ordinary advice stay Advanced Ari on the Terra default
       context: { intelligenceEntitlement: entitlement }
     });
     const greetingPolicy = resolveModelPolicy(greetingRoute);
-    assert.equal(greetingPolicy.model, "gpt-5.6-terra");
+    assert.equal(greetingPolicy.model, "gpt-6.1-sol");
     assert.equal(greetingPolicy.reasoningEffort, "low");
     assert.equal(greetingPolicy.ownerModelContinuity, true);
     assert.equal(greetingPolicy.casualConversation, true);
@@ -116,10 +116,10 @@ test("owner greetings and ordinary advice stay Advanced Ari on the Terra default
       context: { intelligenceEntitlement: entitlement }
     });
     const advicePolicy = resolveModelPolicy(adviceRoute);
-    assert.equal(advicePolicy.model, "gpt-5.6-terra");
+    assert.equal(advicePolicy.model, "gpt-6.1-sol");
     assert.equal(advicePolicy.casualConversation, false);
     assert.equal(advicePolicy.intelligenceTier, "owner_experimental");
-    assert.equal(advicePolicy.costTier, "owner_terra_default");
+    assert.equal(advicePolicy.costTier, "owner_sol_default");
   });
 });
 
