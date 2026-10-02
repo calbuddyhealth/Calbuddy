@@ -1,3 +1,4 @@
+import { isBackgroundWorkerEnabled } from "./_lib/background-ai-switch.js";
 import {
   evaluateAdultProfileImage,
   PROFILE_IMAGE_POLICY_VERSION
@@ -263,6 +264,17 @@ export default async function handler(req, res) {
     return res.status(401).json({
       success: false,
       code: "ARI_CIRCLE_MODERATION_WORKER_UNAUTHORIZED"
+    });
+  }
+
+  if (!isBackgroundWorkerEnabled("ARI_CIRCLE_MODERATION_WORKER_ENABLED")) {
+    return res.status(200).json({
+      success: true,
+      claimed: 0,
+      approved: 0,
+      rejected: 0,
+      retried: 0,
+      reason: "circle_moderation_worker_disabled"
     });
   }
 
