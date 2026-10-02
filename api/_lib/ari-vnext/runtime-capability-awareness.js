@@ -12,7 +12,7 @@ import { resolveOwnerInteractiveModel } from "./cost-router.js";
 export const RUNTIME_CAPABILITY_AWARENESS_VERSION = "1.0.0";
 
 const CAPABILITY_INQUIRY =
-  /\b(?:what (?:can|could) you do|what are you capable of|your (?:capabilities|resources|tools|potential)|what (?:resources|tools|capabilities) do you have|what do you have access to|what can you access|available (?:resources|tools|capabilities)|how powerful are you|what can you become|what is your potential)\b/i;
+  /(?:\bwhat (?:can|could) you do\b|\bwhat are you capable of\b|\bhow powerful are you\b|\bwhat can you become\b|\bwhat is your potential\b|\byour (?:capabilities|resources|tools|potential)\b|\b(?:what|which|show|explain|tell me)\b.{0,90}\b(?:capabilit(?:y|ies)|resources?|tools?|potential|access)\b)/i;
 
 export function deriveRuntimeCapabilityAwareness({
   turn = {},
