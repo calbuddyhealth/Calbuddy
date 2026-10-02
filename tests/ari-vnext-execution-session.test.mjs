@@ -408,6 +408,7 @@ test("execution runtime modules remain syntactically valid", () => {
     "api/_lib/ari-vnext/background-agent-runtime.js",
     "api/_lib/ari-vnext/developer-workspace.js",
     "api/_lib/ari-vnext/model-policy.js",
+    "api/_lib/ari-vnext/runtime-model-awareness.js",
     "api/_lib/ari-vnext/reward-core.js",
     "api/_lib/ari-vnext/context-router.js",
     "api/_lib/ari-vnext/cognitive-loop.js",
