@@ -10,7 +10,7 @@ import { dreamingContextToInstruction } from "./dreaming-core.js";
 import { experienceContextToInstruction } from "./experience-core.js";
 import { contextBudgetChars } from "./cost-router.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.25.0";
+export const CONTEXT_ROUTER_VERSION = "1.26.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -24,6 +24,9 @@ const PATTERNS = {
   changingReference: /\b(research|study|studies|guideline|guidelines|recommendation|recommendations|evidence|software|version|release)\b/i,
   recommendation: /\b(?:recommend(?: me)?|recommendation|best (?:option|choice|restaurant|bar|cafe|hotel|product|car|suv|vehicle|phone|laptop|place)|what should i (?:buy|get|choose|pick|order|eat|watch|use)|where should i (?:eat|go|stay|shop)|which (?:one|option|product|car|suv|vehicle|phone|laptop) should i)\b/i,
   recommendationDynamic: /\b(?:restaurant|bar|cafe|hotel|store|shop|buy|purchase|product|car|suv|vehicle|phone|laptop|computer|headphones|shoes|service|near me|nearby|price|prices|available|availability)\b/i,
+  modelIdentity: /\b(?:what|which)\s+(?:exact\s+)?model\s+(?:are\s+you|you(?:'re| are))\s+(?:using|running|on)|\bwhat model are you\b|\bwhich model are you\b|\bwhat(?:'s| is) your (?:active )?model\b|\bare you (?:using|running) (?:astra|sol|luna)\b/i,
+  ownerAstraRequest: /\b(?:use|run|switch(?: this| me)? to|route(?: this)? to|answer with|do this with)\s+(?:gpt[- ]?6\s+)?astra\b|\bastra mode\b/i,
+  ownerSolRequest: /\b(?:use|run|switch(?: this| me)? to|route(?: this)? to|answer with|do this with)\s+(?:gpt[- ]?6(?:\.1)?\s+)?sol\b|\bsol mode\b/i,
   developer: /\b(github|repo|repository|branch|commit|deploy|vercel|supabase|pipeline|runtime|debug|code|javascript|html|css|sql|api|ari(?:'s|\s+(?:xp|rebirth))|reasoning|autonom(?:y|ous)|sentien(?:ce|t)|conviction|learning loop|independent intelligence)\b/i
 };
 
@@ -34,6 +37,7 @@ export function routeContext(turn = {}) {
   const semanticText = followUp ? `${recent}\n${message}` : message;
   const account = turn?.context?.accountEntitlements || {};
   const intelligenceEntitlement = turn?.context?.intelligenceEntitlement || null;
+  const ownerEligible = intelligenceEntitlement?.ownerEligible === true || intelligenceEntitlement?.accessClass === "owner";
   const teenMode = account?.teenMode === true || String(account?.ageBand || "").toLowerCase() === "teen";
 
   const nutrition = PATTERNS.nutrition.test(semanticText);
@@ -44,6 +48,14 @@ export function routeContext(turn = {}) {
   const memory = PATTERNS.memory.test(semanticText) || followUp;
   const health = PATTERNS.health.test(semanticText);
   const recommendationIntent = PATTERNS.recommendation.test(semanticText);
+  const modelIdentityRequested = ownerEligible && PATTERNS.modelIdentity.test(semanticText);
+  const ownerModelRequest = ownerEligible
+    ? PATTERNS.ownerAstraRequest.test(message)
+      ? "astra"
+      : PATTERNS.ownerSolRequest.test(message)
+        ? "sol"
+        : null
+    : null;
   const currentInfo = needsCurrentInfo(semanticText);
   const developer =
     PATTERNS.developer.test(semanticText) ||
@@ -84,6 +96,8 @@ export function routeContext(turn = {}) {
     developer,
     recommendationIntent,
     solEscalationEligible,
+    modelIdentityRequested,
+    ownerModelRequest,
     teenMode,
     circleAllowed: account?.circleAllowed === true,
     intelligenceEntitlement,
