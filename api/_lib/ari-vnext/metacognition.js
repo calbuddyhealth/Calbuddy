@@ -4,6 +4,7 @@
 // signals; Ari Executive alone converts those signals into model instructions.
 
 import { deriveAriExecutivePolicy, executivePolicyToInstruction } from "./ari-executive.js";
+import { deriveCognitiveSignals } from "./cognitive-signals.js";
 import { deriveAriCortexPlan } from "./cortex.js";
 import { deriveCuriosityState } from "./curiosity-core.js";
 import { applyRewardLearningToCuriosity } from "./curiosity-reward-loop.js";
@@ -21,6 +22,7 @@ export const ARI_METACOGNITION_VERSION = "1.7.0";
 export const ARI_INSTRUCTION_ACTIVATION_VERSION = "1.0.0";
 
 export function deriveMetacognition({
+  turn = {},
   route = {},
   context = {},
   safety = {},
@@ -242,6 +244,10 @@ export function deriveMetacognition({
     cortex,
     omegaRCT
   });
+  const cognitiveSignals = deriveCognitiveSignals({
+    turn, route, safety, context, missingEvidence: missing,
+    emotionDynamics, curiosity, imagination, instinctKernel
+  });
   const attention = requestedDomains.length ? requestedDomains : ["conversation"];
   const executivePolicy = deriveAriExecutivePolicy({
     route,
@@ -263,7 +269,8 @@ export function deriveMetacognition({
     omegaRCT,
     executionSession,
     instructionActivation,
-    instinctKernel
+    instinctKernel,
+    cognitiveSignals
   });
 
   return {
@@ -287,6 +294,7 @@ export function deriveMetacognition({
     instructionActivation,
     executivePolicy,
     instinctKernel,
+    cognitiveSignals,
     exploration: {
       consequenceTier,
       uncertaintyIsInformationNotParalysis: true,
@@ -401,6 +409,7 @@ export function metacognitionToInstruction(state = null) {
     omegaRCT: state?.omegaRCT || null,
     instructionActivation: state?.instructionActivation || legacyInstructionActivation(state),
     instinctKernel: state?.instinctKernel || null,
+    cognitiveSignals: state?.cognitiveSignals || null,
     safety: { highStakes: state?.exploration?.consequenceTier === "high" }
   });
   return executivePolicyToInstruction(policy);

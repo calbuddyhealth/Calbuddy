@@ -102,6 +102,7 @@ import { loadDreamingContext } from "./_lib/ari-vnext/dreaming-store.js";
 import { loadExperienceContext } from "./_lib/ari-vnext/experience-store.js";
 import { syncAgentTaskSessionWithExecution } from "./_lib/ari-vnext/agent-task-store.js";
 import { publicRuntimeModel } from "./_lib/ari-vnext/runtime-model-awareness.js";
+import { publicCognitiveSignals } from "./_lib/ari-vnext/cognitive-signals.js";
 import {
   openReasoningContinuityToken,
   publicReasoningContinuity,
@@ -1319,6 +1320,9 @@ export default async function handler(req, res) {
         : null,
       turnCompute: intelligenceEntitlement?.ownerEligible === true
         ? publicTurnComputeGovernor(turn?.context?.turnComputeGovernor)
+        : null,
+      cognitiveSignals: intelligenceEntitlement?.ownerEligible === true && result?.metacognition?.cognitiveSignals
+        ? { ...publicCognitiveSignals(result?.metacognition?.cognitiveSignals), stateStored: cognitiveStateStored }
         : null,
       reasoningContinuity: intelligenceEntitlement?.ownerEligible === true
         ? publicReasoningContinuity({

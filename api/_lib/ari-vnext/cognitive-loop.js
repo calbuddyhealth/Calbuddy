@@ -35,6 +35,7 @@ import {
   deriveExecutionWorkspace
 } from "./execution-session.js";
 import { advanceRewardState, deriveRewardState, normalizeRewardState } from "./reward-core.js";
+import { advanceCognitiveSignalState, normalizeCognitiveSignalState, runCognitiveSignalNetwork } from "./cognitive-signal-network.js";
 import {
   buildMotivationalOutcomeReflection,
   normalizeMotivationalHistory,
@@ -46,7 +47,7 @@ import {
 } from "./personality-evaluation.js";
 
 export const ARI_COGNITIVE_LOOP_VERSION = "1.0.0";
-export const ARI_COGNITIVE_STATE_VERSION = "0.9.0";
+export const ARI_COGNITIVE_STATE_VERSION = "0.10.0";
 export const ARI_JUDGMENT_CONSTITUTION_VERSION = "1.0.0";
 
 const CORE_VALUES = Object.freeze([
@@ -170,6 +171,8 @@ export function deriveCognitiveWorkspace({
     conscience,
     rewardCore,
     affectState: prior.affectState || null,
+    cognitiveSignalState: prior.cognitiveSignalState?.conversationId === turn.conversationId
+      ? prior.cognitiveSignalState : null,
     emotionDynamicsState: prior.emotionDynamicsState || null,
     feltState: prior.feltState || null,
     affectivePreferenceState: prior.affectivePreferenceState || null,
@@ -373,6 +376,14 @@ export function advanceCognitiveState({
     judgmentRecorded: judgmentRecordedThisTurn
   });
   const nextPersonalityEvaluation = personalityEvaluationResult.nextState;
+  // A provider failure may occur before metacognition is returned. Preserve its
+  // outcome as bounded feedback without requiring another model call.
+  const signalForOutcome = metacognition?.cognitiveSignals || (
+    result?.success === false && workspace?.ownerOnly === true && process.env.ARI_COGNITIVE_SIGNALS_ENABLED !== "false"
+      ? runCognitiveSignalNetwork({ previous: prior.cognitiveSignalState,
+          conversationId: turn.conversationId, turnId: turn.turnId })
+      : null
+  );
 
   return {
     version: ARI_COGNITIVE_STATE_VERSION,
@@ -403,6 +414,8 @@ export function advanceCognitiveState({
     judgments: nextJudgments,
     rewardState: nextRewardState,
     affectState: nextAffectState,
+    cognitiveSignalState: advanceCognitiveSignalState({ current: signalForOutcome, result }) ||
+      (prior.cognitiveSignalState?.conversationId === turn.conversationId ? prior.cognitiveSignalState : null),
     emotionDynamicsState: nextEmotionDynamicsState,
     feltState: nextFeltState,
     affectivePreferenceState: nextAffectivePreferenceState,
@@ -510,6 +523,13 @@ function meaningfulCognitiveSignature(state = {}) {
   const personalityEvaluation = normalizePersonalityEvaluationState(state?.personalityEvaluation);
 
   return {
+    cognitiveSignals: state.cognitiveSignalState ? {
+      conversationId: state.cognitiveSignalState.conversationId,
+      failureStreak: state.cognitiveSignalState.feedback?.failureStreak || 0,
+      lastOutcome: state.cognitiveSignalState.feedback?.lastOutcome || "unknown",
+      activation: Object.fromEntries(Object.entries(state.cognitiveSignalState.nodes || {}).map(([id, node]) =>
+        [id, Math.round(Number(node?.activation || 0) * 10) / 10]))
+    } : null,
     openLoops: (Array.isArray(state?.openLoops) ? state.openLoops : []).slice(0, 8).map((item) => ({
       id: clean(item?.id, 180),
       type: clean(item?.type, 80),
@@ -955,6 +975,7 @@ function normalizeState(value = null) {
     judgments: (Array.isArray(value?.judgments) ? value.judgments : []).map((item) => normalizeJudgment(item)).filter(Boolean).slice(0, 10),
     rewardState: normalizeRewardState(value?.rewardState),
     affectState: normalizePersistedFunctionalAffectState(value?.affectState),
+    cognitiveSignalState: normalizeCognitiveSignalState(value?.cognitiveSignalState),
     emotionDynamicsState: normalizePersistedEmotionDynamicsState(value?.emotionDynamicsState),
     feltState: normalizePersistedFeltState(value?.feltState),
     affectivePreferenceState: normalizePersistedAffectivePreferenceState(value?.affectivePreferenceState),
