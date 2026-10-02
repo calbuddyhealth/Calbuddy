@@ -33,7 +33,7 @@ test("free Ari remains GPT-4o mini even for deep developer work", () => {
   assert.equal(policy.accessClass, "casual");
   assert.equal(policy.model, process.env.OPENAI_ARI_FREE_MODEL || "gpt-4o-mini");
   assert.equal(policy.escalated, false);
-  assert.equal(policy.costTier, "free_direct");
+  assert.equal(policy.costTier, "economy");
 });
 
 test("premium Ari defaults to Luna", () => {
