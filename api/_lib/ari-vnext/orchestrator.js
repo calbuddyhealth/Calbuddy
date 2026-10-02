@@ -1933,7 +1933,7 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
       model,
       instructions: withRuntimeModelIdentity({
         instructions,
-        policy: { ...policy, model },
+        policy,
         activeModel: model,
         fallbackFrom
       }),
