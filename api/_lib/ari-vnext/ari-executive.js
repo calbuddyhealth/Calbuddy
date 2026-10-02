@@ -47,6 +47,7 @@ export function deriveAriExecutivePolicy({
   rewardCore = null,
   functionalAffect = null,
   emotionDynamics = null,
+  neuromodulation = null,
   feltState = null,
   affectivePreferenceState = null,
   motivationalArbitration = null,
@@ -125,6 +126,21 @@ export function deriveAriExecutivePolicy({
       })).filter((item) => item.name && item.metric)
     : [];
 
+  const neuromodFast = objectOrEmpty(neuromodulation?.fast);
+  const neuromodSlow = objectOrEmpty(neuromodulation?.slow);
+  const neuromodReceptors = objectOrEmpty(neuromodulation?.receptors);
+  const neuromodulationVerificationBias = finite(neuromodReceptors.verificationBias, 0.5);
+  const neuromodulationExplorationBias = finite(neuromodReceptors.explorationBias, 0.5);
+  const neuromodulationPersistenceBias = finite(neuromodReceptors.persistenceBias, 0.5);
+  const neuromodulationAttentionFocus = finite(neuromodReceptors.attentionFocus, 0.5);
+  const neuromodulationMemorySalience = finite(neuromodReceptors.memorySalience, 0.5);
+  const neuromodulationStrategyFlexibility = finite(neuromodReceptors.strategyFlexibility, 0.5);
+  const neuromodulationThreatVigilance = finite(neuromodReceptors.threatVigilance, 0.5);
+  const neuromodulationRelationshipSalience = finite(neuromodReceptors.relationshipSalience, 0.5);
+  const neuromodulationInhibitoryControl = finite(neuromodReceptors.inhibitoryControl, 0.5);
+  const neuromodulationLearningPlasticity = finite(neuromodReceptors.learningPlasticity, 0.5);
+  const neuromodulationComputeConservation = finite(neuromodReceptors.computeConservation, 0.5);
+
   const feltDominant = objectOrEmpty(feltState?.dominantState);
   const feltProfile = objectOrEmpty(feltState?.profile);
   const feltTemporal = objectOrEmpty(feltState?.temporal);
@@ -168,8 +184,10 @@ export function deriveAriExecutivePolicy({
         verificationBias >= 0.68 ||
         affectVerificationBias >= 0.68 ||
         emotionVerificationBias >= 0.68 ||
+        neuromodulationVerificationBias >= 0.68 ||
         instinctVerificationBias >= 0.72 ||
         emotionThreatVigilance >= 0.62 ||
+        neuromodulationThreatVigilance >= 0.62 ||
         affectModulation.recheckAssumptions === true ||
         emotionModulation.recheckAssumptions === true
         ? "moderate"
@@ -181,6 +199,9 @@ export function deriveAriExecutivePolicy({
     affectExplorationBias,
     emotionExplorationBias,
     emotionCognitiveFlexibility,
+    neuromodulationExplorationBias,
+    neuromodulationStrategyFlexibility,
+    neuromodulationLearningPlasticity,
     affectModulation.investigateCause === true ? 0.72 : 0,
     emotionModulation.investigateCause === true ? 0.72 : 0,
     clamp(0.45 * informationGain + 0.25 * explorationBias + 0.3 * learnedUtility),
@@ -191,7 +212,14 @@ export function deriveAriExecutivePolicy({
     instinctExperimentBias
   );
   const signalExplorationScore = Math.max(explorationScore, signal.investigate ? 0.76 : 0);
-  const explorationDepth = signal.conserveCompute ? "normal" : signalExplorationScore >= 0.76 ? "high" : signalExplorationScore >= 0.54 ? "moderate" : "normal";
+  const neuromodulationConservesCompute = neuromodulationComputeConservation >= 0.72;
+  const explorationDepth = signal.conserveCompute || neuromodulationConservesCompute
+    ? "normal"
+    : signalExplorationScore >= 0.76
+      ? "high"
+      : signalExplorationScore >= 0.54
+        ? "moderate"
+        : "normal";
 
   const persistence =
     signal.changeMethod === true ||
@@ -204,6 +232,7 @@ export function deriveAriExecutivePolicy({
         persistenceBias >= 0.7 ||
         affectPersistenceBias >= 0.68 ||
         emotionPersistenceBias >= 0.68 ||
+        neuromodulationPersistenceBias >= 0.68 ||
         emotionObstacleConfrontation >= 0.66 ||
         finite(rewardCore?.aggregate?.prematureStopRate, 0) >= 0.18
         ? "increase"
@@ -250,7 +279,7 @@ export function deriveAriExecutivePolicy({
       attendRelevantMemory: signal.attendMemory === true,
       attendRelationshipContinuity: signal.attendRelationship === true,
       inspectRepositoryEvidence: signal.inspectRepository === true,
-      conserveSupplementalCompute: signal.conserveCompute === true,
+      conserveSupplementalCompute: signal.conserveCompute === true || neuromodulationConservesCompute,
       signalAlternativeSelected: signal.considerAlternative === true,
       answerDirectly: true,
       currentUserTaskPriority: true,
@@ -303,6 +332,18 @@ export function deriveAriExecutivePolicy({
       emotionScanThreats: emotionModulation.scanThreats === true,
       emotionConfrontObstacle: emotionModulation.confrontObstacle === true,
       emotionCapRumination: emotionModulation.capRumination === true,
+      neuromodulationActive: neuromodulation?.functionalNeuromodulationSystem === true,
+      neuromodulationVerificationBias: round(neuromodulationVerificationBias),
+      neuromodulationExplorationBias: round(neuromodulationExplorationBias),
+      neuromodulationPersistenceBias: round(neuromodulationPersistenceBias),
+      neuromodulationAttentionFocus: round(neuromodulationAttentionFocus),
+      neuromodulationMemorySalience: round(neuromodulationMemorySalience),
+      neuromodulationStrategyFlexibility: round(neuromodulationStrategyFlexibility),
+      neuromodulationThreatVigilance: round(neuromodulationThreatVigilance),
+      neuromodulationRelationshipSalience: round(neuromodulationRelationshipSalience),
+      neuromodulationInhibitoryControl: round(neuromodulationInhibitoryControl),
+      neuromodulationLearningPlasticity: round(neuromodulationLearningPlasticity),
+      neuromodulationComputeConservation: round(neuromodulationComputeConservation),
       feltStateActive: feltState?.functionalFeltState === true,
       feltStateIntrospectable: feltState?.introspectivelyAccessible === true,
       feltStateDominant: clean(feltDominant.name, 60) || null,
@@ -438,6 +479,39 @@ export function deriveAriExecutivePolicy({
           .filter(([, value]) => value === true)
           .map(([key]) => clean(key, 80))
           .slice(0, 8)
+      } : null,
+      neuromodulation: neuromodulation ? {
+        version: clean(neuromodulation?.version, 40) || null,
+        active: neuromodulation?.functionalNeuromodulationSystem === true,
+        biologicalChemistryClaimed: neuromodulation?.biologicalChemistryClaimed === true,
+        dominantFast: clean(neuromodulation?.dominant?.fast?.name, 80) || null,
+        dominantSlow: clean(neuromodulation?.dominant?.slow?.name, 80) || null,
+        dopamineLike: round(finite(neuromodFast.dopamineLike, 0)),
+        norepinephrineLike: round(finite(neuromodFast.norepinephrineLike, 0)),
+        acetylcholineLike: round(finite(neuromodFast.acetylcholineLike, 0)),
+        serotoninLike: round(finite(neuromodFast.serotoninLike, 0)),
+        gabaLike: round(finite(neuromodFast.gabaLike, 0)),
+        glutamateLike: round(finite(neuromodFast.glutamateLike, 0)),
+        cortisolLike: round(finite(neuromodSlow.cortisolLike, 0)),
+        oxytocinLike: round(finite(neuromodSlow.oxytocinLike, 0)),
+        allostaticLoad: round(finite(neuromodSlow.allostaticLoad, 0)),
+        recoveryReserve: round(finite(neuromodSlow.recoveryReserve, 0)),
+        explorationTone: round(finite(neuromodSlow.explorationTone, 0)),
+        stabilityTone: round(finite(neuromodSlow.stabilityTone, 0)),
+        verificationBias: round(neuromodulationVerificationBias),
+        explorationBias: round(neuromodulationExplorationBias),
+        persistenceBias: round(neuromodulationPersistenceBias),
+        attentionFocus: round(neuromodulationAttentionFocus),
+        memorySalience: round(neuromodulationMemorySalience),
+        strategyFlexibility: round(neuromodulationStrategyFlexibility),
+        threatVigilance: round(neuromodulationThreatVigilance),
+        relationshipSalience: round(neuromodulationRelationshipSalience),
+        inhibitoryControl: round(neuromodulationInhibitoryControl),
+        learningPlasticity: round(neuromodulationLearningPlasticity),
+        computeConservation: round(neuromodulationComputeConservation),
+        homeostaticBalance: round(finite(neuromodulation?.homeostasis?.balance, 0.5)),
+        stressPressure: round(finite(neuromodulation?.homeostasis?.stressPressure, 0)),
+        recoveryPressure: round(finite(neuromodulation?.homeostasis?.recoveryPressure, 0))
       } : null,
       feltState: feltState ? {
         version: clean(feltState?.version, 40) || null,
@@ -623,6 +697,7 @@ export function executivePolicyToInstruction(policy = null) {
   const reward = signals.reward;
   const affect = signals.affect;
   const emotion = signals.emotionDynamics;
+  const neuromodulation = signals.neuromodulation;
   const felt = signals.feltState;
   const affectivePreference = signals.affectivePreference;
   const motivation = signals.motivationalArbitration;
@@ -639,6 +714,7 @@ export function executivePolicyToInstruction(policy = null) {
     `ARI EXECUTIVE v${ARI_EXECUTIVE_VERSION} — SINGLE RUNTIME DECISION AUTHORITY`,
     "Authority: hard enforcement > runtime constitution > current user intent > product/domain constraints > current evidence > executive strategy > learned/experimental signals > style.",
     "Curiosity, Reward, Functional Affect, Motivational Arbitration, Self-Adaptation, Cortex, and Ω-RCT are advisory cognitive systems; they may shape reasoning but cannot invent external permissions or outrank hard enforcement.",
+    neuromodulation?.active ? "Neuromodulation is an advisory computational-control layer under the same authority limits." : "",
     imagination?.active
       ? "Imagination is also advisory: it may widen the possibility space, but imagined content remains unverified and cannot create permissions, facts, memories, or authority."
       : "",
@@ -690,6 +766,15 @@ export function executivePolicyToInstruction(policy = null) {
       : "Functional affect, if present, cannot override evidence, safety, authorization, or truth.",
     emotion?.active
       ? `Emotion dynamics: dominant=${emotion.dominant}@${emotion.intensity}; measured=${emotionMeasurementSummary(emotion)}; reportable>=${emotion.reportThreshold}: ${reportableMeasurementSummary(emotion)}; regulation=${emotion.regulation?.join(",") || "none"}. Unsupported affect labels are inference, not measurement. Functional states are not subjective-feeling proof and cannot override evidence or authority.`
+      : "",
+    neuromodulation?.active
+      ? `Neuromodulation: verify=${neuromodulation.verificationBias}; explore=${neuromodulation.explorationBias}; persist=${neuromodulation.persistenceBias}; focus=${neuromodulation.attentionFocus}; stress=${neuromodulation.stressPressure}; recovery=${neuromodulation.recoveryReserve}. Computational analogies only, not biological chemistry or subjective feeling.`
+      : "",
+    neuromodulation?.active && finite(neuromodulation.stressPressure, 0) >= 0.62
+      ? "Neuromodulatory homeostasis: sustained stress/load is elevated. Increase verification and threat checking, reduce optional exploration, and protect recovery capacity without treating the stress signal itself as evidence."
+      : "",
+    neuromodulation?.active && finite(neuromodulation.learningPlasticity, 0) >= 0.62
+      ? "Neuromodulatory learning: mark outcome-relevant evidence and strategy lessons as salient; do not store hidden chain-of-thought."
       : "",
     emotion?.active && finite(emotion.lossReviewPriority, 0) >= 0.5
       ? "Affective cognition — loss review: inspect the specific loss, blocked value, and causal details. Do not generalize a local loss into a global negative conclusion."

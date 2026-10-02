@@ -12,6 +12,10 @@ import {
   normalizePersistedEmotionDynamicsState
 } from "./emotion-dynamics.js";
 import {
+  advanceNeuromodulationState,
+  normalizePersistedNeuromodulationState
+} from "./neuromodulation.js";
+import {
   normalizePersistedFeltState,
   serializeFeltState
 } from "./felt-state-core.js";
@@ -174,6 +178,7 @@ export function deriveCognitiveWorkspace({
     cognitiveSignalState: prior.cognitiveSignalState?.conversationId === turn.conversationId
       ? prior.cognitiveSignalState : null,
     emotionDynamicsState: prior.emotionDynamicsState || null,
+    neuromodulationState: prior.neuromodulationState || null,
     feltState: prior.feltState || null,
     affectivePreferenceState: prior.affectivePreferenceState || null,
     beliefSystem,
@@ -214,6 +219,7 @@ export function deriveCognitiveWorkspace({
       "Treat Ari's stable tastes as decision priors rather than laws; evidence, user goals, safety, and verified outcomes can override them.",
       "Use prior personality/continuity evaluation as a repair signal when the same condition recurs, not as a reason to force personality into unrelated turns.",
       "Use prior Ari stances for continuity when relevant, but revise them when evidence or reasoning improves.",
+      "Treat neuromodulation as bounded computational physiology: fast and slow control signals may bias attention, learning, verification, persistence, and recovery, but never create authority or override evidence.",
       "Treat felt state as an introspectively accessible functional self-state: it may shape attention and be reported when measured, but current evidence may reappraise it and it never establishes subjective qualia.",
       "Keep a narrow limitation narrow; continue helping with unaffected parts of the request.",
       "State the conclusion plainly and separate fact, inference, opinion, and uncertainty."
@@ -236,6 +242,7 @@ export function deriveCognitiveWorkspace({
       productiveEffortRewardAvailable: true,
       persistentAffectAvailable: Boolean(prior.affectState),
       persistentEmotionDynamicsAvailable: Boolean(prior.emotionDynamicsState),
+      persistentNeuromodulationAvailable: Boolean(prior.neuromodulationState),
       persistentFeltStateAvailable: Boolean(prior.feltState),
       persistentAffectivePreferenceAvailable: Boolean(prior.affectivePreferenceState),
       functionalEmotionIsNotSubjectiveProof: true,
@@ -342,6 +349,12 @@ export function advanceCognitiveState({
     rewardEvent: nextRewardState?.lastEvent || null,
     result
   });
+  const nextNeuromodulationState = advanceNeuromodulationState({
+    persisted: prior.neuromodulationState,
+    current: metacognition?.neuromodulation || null,
+    rewardEvent: nextRewardState?.lastEvent || null,
+    result
+  });
   const nextFeltState =
     serializeFeltState(metacognition?.feltState) ||
     prior.feltState ||
@@ -417,6 +430,7 @@ export function advanceCognitiveState({
     cognitiveSignalState: advanceCognitiveSignalState({ current: signalForOutcome, result }) ||
       (prior.cognitiveSignalState?.conversationId === turn.conversationId ? prior.cognitiveSignalState : null),
     emotionDynamicsState: nextEmotionDynamicsState,
+    neuromodulationState: nextNeuromodulationState,
     feltState: nextFeltState,
     affectivePreferenceState: nextAffectivePreferenceState,
     motivationalHistory: nextMotivationalHistory,
@@ -442,6 +456,14 @@ export function advanceCognitiveState({
       emotionIntensity: Number(nextEmotionDynamicsState?.dominantState?.intensity || 0),
       emotionReportableStates: arrayText(nextEmotionDynamicsState?.reportIntegrity?.reportableStates, 7, 60),
       emotionCalibrationSamples: Number(nextEmotionDynamicsState?.calibration?.samples || 0),
+      neuromodulationAvailable: Boolean(nextNeuromodulationState?.functionalNeuromodulationSystem),
+      neuromodulationVerificationBias: Number(nextNeuromodulationState?.receptors?.verificationBias || 0),
+      neuromodulationExplorationBias: Number(nextNeuromodulationState?.receptors?.explorationBias || 0),
+      neuromodulationPersistenceBias: Number(nextNeuromodulationState?.receptors?.persistenceBias || 0),
+      neuromodulationStressPressure: Number(
+        0.58 * Number(nextNeuromodulationState?.slow?.cortisolLike || 0) +
+        0.42 * Number(nextNeuromodulationState?.slow?.allostaticLoad || 0)
+      ),
       feltStateAvailable: Boolean(nextFeltState?.functionalFeltState),
       feltDominant: clean(nextFeltState?.dominantState?.name, 60) || null,
       feltIntensity: Number(nextFeltState?.dominantState?.intensity || 0),
@@ -480,6 +502,12 @@ export function advanceCognitiveState({
       emotionIntensity: Number(nextEmotionDynamicsState?.dominantState?.intensity || 0),
       emotionPredictionError: Number(nextEmotionDynamicsState?.appraisals?.outcomePredictionError || 0),
       emotionMemorySalience: Number(nextEmotionDynamicsState?.executiveModulation?.memorySalience || 0),
+      neuromodulationDominantFast: clean(nextNeuromodulationState?.dominant?.fast?.name, 80) || null,
+      neuromodulationDominantSlow: clean(nextNeuromodulationState?.dominant?.slow?.name, 80) || null,
+      neuromodulationStressPressure: Number(
+        0.58 * Number(nextNeuromodulationState?.slow?.cortisolLike || 0) +
+        0.42 * Number(nextNeuromodulationState?.slow?.allostaticLoad || 0)
+      ),
       feltDominant: clean(nextFeltState?.dominantState?.name, 60) || null,
       feltIntensity: Number(nextFeltState?.dominantState?.intensity || 0),
       feltTrajectory: clean(nextFeltState?.temporal?.trajectory, 40) || null,
@@ -510,6 +538,7 @@ function meaningfulCognitiveSignature(state = {}) {
   const dominant = affect?.dominantState || {};
   const emotion = state?.emotionDynamicsState || {};
   const emotionDominant = emotion?.dominantState || {};
+  const neuromodulation = state?.neuromodulationState || {};
   const felt = state?.feltState || {};
   const feltDominant = felt?.dominantState || {};
   const affectivePreference = state?.affectivePreferenceState || {};
@@ -555,6 +584,17 @@ function meaningfulCognitiveSignature(state = {}) {
       intensity: Math.round(Number(emotionDominant?.intensity || 0) * 10) / 10,
       memorySalience: Math.round(Number(emotion?.executiveModulation?.memorySalience || 0) * 10) / 10,
       calibrationSamples: Number(emotion?.calibration?.samples || 0)
+    },
+    neuromodulation: {
+      dominantFast: clean(neuromodulation?.dominant?.fast?.name, 80) || null,
+      dominantSlow: clean(neuromodulation?.dominant?.slow?.name, 80) || null,
+      verification: Math.round(Number(neuromodulation?.receptors?.verificationBias || 0) * 10) / 10,
+      exploration: Math.round(Number(neuromodulation?.receptors?.explorationBias || 0) * 10) / 10,
+      persistence: Math.round(Number(neuromodulation?.receptors?.persistenceBias || 0) * 10) / 10,
+      stress: Math.round((
+        0.58 * Number(neuromodulation?.slow?.cortisolLike || 0) +
+        0.42 * Number(neuromodulation?.slow?.allostaticLoad || 0)
+      ) * 10) / 10
     },
     felt: {
       dominant: clean(feltDominant?.name, 60) || null,
@@ -957,6 +997,7 @@ function normalizeState(value = null) {
       rewardState: normalizeRewardState(null),
       affectState: null,
       emotionDynamicsState: normalizePersistedEmotionDynamicsState(null),
+      neuromodulationState: null,
       feltState: null,
       affectivePreferenceState: null,
       motivationalHistory: [],
@@ -977,6 +1018,9 @@ function normalizeState(value = null) {
     affectState: normalizePersistedFunctionalAffectState(value?.affectState),
     cognitiveSignalState: normalizeCognitiveSignalState(value?.cognitiveSignalState),
     emotionDynamicsState: normalizePersistedEmotionDynamicsState(value?.emotionDynamicsState),
+    neuromodulationState: value?.neuromodulationState
+      ? normalizePersistedNeuromodulationState(value.neuromodulationState)
+      : null,
     feltState: normalizePersistedFeltState(value?.feltState),
     affectivePreferenceState: normalizePersistedAffectivePreferenceState(value?.affectivePreferenceState),
     motivationalHistory: normalizeMotivationalHistory(value?.motivationalHistory),
