@@ -5,7 +5,8 @@ import fs from "node:fs";
 import {
   capabilityAwarenessToInstruction,
   deriveRuntimeCapabilityAwareness,
-  publicRuntimeCapabilityAwareness
+  publicRuntimeCapabilityAwareness,
+  shouldRecoverCognitiveInspectionDenial
 } from "../api/_lib/ari-vnext/runtime-capability-awareness.js";
 
 const orchestrator = fs.readFileSync("api/_lib/ari-vnext/orchestrator.js", "utf8");
@@ -358,4 +359,73 @@ test("public capability metadata exposes bounded cognitive telemetry without exa
   assert.equal(publicState.resourcesNow.cognitiveSystems.architecture.neuromodulation, true);
   assert.equal(publicState.resourcesNow.cognitiveSystems.live.executive.persistence, "normal");
   assert.equal("callableToolNames" in publicState.resourcesNow, false);
+});
+
+
+test("false owner cognitive inspection denial triggers trusted recovery only when inspection is callable", () => {
+  const state = deriveRuntimeCapabilityAwareness({
+    turn: {
+      message: "Audit the cognitive architecture and inspect the causal trace.",
+      conversationId: "denial-recovery"
+    },
+    route: ownerRoute({ developer: true, cognitiveAudit: true }),
+    policy: ownerPolicy(),
+    tools: [
+      { type: "function", name: "owner_cognitive_trace_read" },
+      { type: "function", name: "owner_repo_search" },
+      { type: "function", name: "owner_repo_read" }
+    ],
+    context: {},
+    metacognition: {
+      executivePolicy: {
+        authority: {
+          singleRuntimeDecisionAuthority: true,
+          experimentalSystemsCannotCreatePermissions: true
+        },
+        directives: {}
+      }
+    }
+  });
+
+  assert.equal(
+    shouldRecoverCognitiveInspectionDenial({
+      state,
+      reply: "I don't have a callable inspection tool for those in this turn."
+    }),
+    true
+  );
+  assert.equal(
+    shouldRecoverCognitiveInspectionDenial({
+      state,
+      reply: "The persisted causal trace shows the verification bias increased after failure."
+    }),
+    false
+  );
+
+  const withoutTools = {
+    ...state,
+    resourcesNow: { ...state.resourcesNow, callableToolNames: [] }
+  };
+  assert.equal(
+    shouldRecoverCognitiveInspectionDenial({
+      state: withoutTools,
+      reply: "I don't have a callable inspection tool for those in this turn."
+    }),
+    false
+  );
+
+  const nonOwner = { ...state, accessClass: "premium" };
+  assert.equal(
+    shouldRecoverCognitiveInspectionDenial({
+      state: nonOwner,
+      reply: "I don't have a callable inspection tool for those in this turn."
+    }),
+    false
+  );
+});
+
+test("orchestrator forces the read-only trace tool when a cognitive audit falsely denies inspection access", () => {
+  assert.match(orchestrator, /shouldRecoverCognitiveInspectionDenial/);
+  assert.match(orchestrator, /OWNER COGNITIVE INSPECTION RECOVERY/);
+  assert.match(orchestrator, /toolChoice: \{ type: "function", name: "owner_cognitive_trace_read" \}/);
 });
