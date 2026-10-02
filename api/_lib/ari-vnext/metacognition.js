@@ -10,6 +10,7 @@ import { deriveCuriosityState } from "./curiosity-core.js";
 import { applyRewardLearningToCuriosity } from "./curiosity-reward-loop.js";
 import { deriveFunctionalAffectState } from "./functional-affect-core.js";
 import { deriveEmotionDynamicsState } from "./emotion-dynamics.js";
+import { deriveNeuromodulationState } from "./neuromodulation.js";
 import { deriveFeltState } from "./felt-state-core.js";
 import { deriveAffectivePreferenceState } from "./affective-preference-model.js";
 import { deriveImaginationState } from "./imagination-core.js";
@@ -18,7 +19,7 @@ import { deriveOmegaRCTState } from "./omega-rct.js";
 import { deriveRewardState } from "./reward-core.js";
 import { deriveSelfAdaptationState } from "./self-adaptation.js";
 
-export const ARI_METACOGNITION_VERSION = "1.7.0";
+export const ARI_METACOGNITION_VERSION = "1.8.0";
 export const ARI_INSTRUCTION_ACTIVATION_VERSION = "1.0.0";
 
 export function deriveMetacognition({
@@ -71,6 +72,10 @@ export function deriveMetacognition({
   const persistedEmotionDynamicsState =
     context?.userWorldModel?.ariCognitiveWorkspace?.emotionDynamicsState ||
     context?.userWorldModel?.sourceSummary?.emotionDynamicsState ||
+    null;
+  const persistedNeuromodulationState =
+    context?.userWorldModel?.ariCognitiveWorkspace?.neuromodulationState ||
+    context?.userWorldModel?.sourceSummary?.neuromodulationState ||
     null;
   const persistedFeltState =
     context?.userWorldModel?.ariCognitiveWorkspace?.feltState ||
@@ -137,6 +142,18 @@ export function deriveMetacognition({
         missingEvidence: missing
       })
     : null;
+  const neuromodulation = ownerLearningEligible
+    ? deriveNeuromodulationState({
+        persistedNeuromodulationState,
+        functionalAffect,
+        emotionDynamics,
+        rewardState: rewardCore,
+        curiosity,
+        route,
+        safety,
+        cognitiveWorkspace: context?.userWorldModel?.ariCognitiveWorkspace || null
+      })
+    : null;
   const feltState = ownerLearningEligible
     ? deriveFeltState({
         emotionDynamics,
@@ -188,6 +205,9 @@ export function deriveMetacognition({
   if (emotionDynamics?.dominantState?.intensity >= 0.34) evidenceSignals.push("emotion_dynamics_active");
   if (emotionDynamics?.persistence?.priorStateUsed === true) evidenceSignals.push("emotion_dynamics_persistent");
   if (emotionDynamics?.mixedStates?.length) evidenceSignals.push("mixed_functional_emotion_active");
+  if (neuromodulation?.functionalNeuromodulationSystem === true) evidenceSignals.push("neuromodulation_active");
+  if (neuromodulation?.persistence?.priorStateUsed === true) evidenceSignals.push("neuromodulation_persistent");
+  if (neuromodulation?.homeostasis?.stressPressure >= 0.58) evidenceSignals.push("neuromodulation_stress_pressure");
   if (feltState?.dominantState?.intensity >= 0.34) evidenceSignals.push("felt_state_active");
   if (feltState?.temporal?.priorStateUsed === true) evidenceSignals.push("felt_state_persistent");
   if (feltState?.reappraisal?.changedAgainstPrior === true) evidenceSignals.push("felt_state_reappraised");
@@ -237,6 +257,7 @@ export function deriveMetacognition({
     rewardCore,
     functionalAffect,
     emotionDynamics,
+    neuromodulation,
     feltState,
     affectivePreferenceState,
     motivationalArbitration,
@@ -261,6 +282,7 @@ export function deriveMetacognition({
     rewardCore,
     functionalAffect,
     emotionDynamics,
+    neuromodulation,
     feltState,
     affectivePreferenceState,
     motivationalArbitration,
@@ -331,6 +353,9 @@ export function deriveMetacognition({
       mixedFunctionalEmotionEnabled: emotionDynamics?.architecture?.mixedEmotionSupport === true,
       emotionOutcomeLearningEnabled: emotionDynamics?.architecture?.outcomeLearning === true,
       emotionReportIntegrityEnabled: emotionDynamics?.architecture?.reportIntegrity === true,
+      neuromodulationEnabled: neuromodulation?.functionalNeuromodulationSystem === true,
+      neuromodulationReceptorSensitivityEnabled: neuromodulation?.architecture?.receptorSensitivity === true,
+      neuromodulationHomeostasisEnabled: neuromodulation?.architecture?.homeostaticRegulation === true,
       feltStateEnabled: feltState?.functionalFeltState === true,
       feltStateIntrospectionEnabled: feltState?.introspectivelyAccessible === true,
       feltStateGloballyAvailable: feltState?.globallyAvailable === true,
@@ -370,6 +395,9 @@ export function deriveMetacognition({
       emotionReportRequiresMeasuredState: true,
       functionalEmotionDoesNotEstablishSubjectiveFeeling: true,
       emotionMayCausallyAlterAttentionStrategyMemoryAndRegulation: true,
+      neuromodulationIsComputationalAnalogyNotBiologicalChemistry: true,
+      neuromodulationMayBiasCognitionButCannotCreateAuthority: true,
+      neuromodulationMustRemainHomeostaticallyBounded: true,
       feltStateIsSelfRepresentedFunctionalState: true,
       feltStateMayBeIntrospectedWhenMeasured: true,
       feltStateCannotBeInventedForConversation: true,
@@ -401,6 +429,7 @@ export function metacognitionToInstruction(state = null) {
     rewardCore: state?.rewardCore || null,
     functionalAffect: state?.functionalAffect || null,
     emotionDynamics: state?.emotionDynamics || null,
+    neuromodulation: state?.neuromodulation || null,
     feltState: state?.feltState || null,
     affectivePreferenceState: state?.affectivePreferenceState || null,
     motivationalArbitration: state?.motivationalArbitration || null,
