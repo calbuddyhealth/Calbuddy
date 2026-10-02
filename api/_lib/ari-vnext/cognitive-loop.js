@@ -12,6 +12,10 @@ import {
   normalizePersistedEmotionDynamicsState
 } from "./emotion-dynamics.js";
 import {
+  advanceFunctionalPainState,
+  normalizePersistedPainState
+} from "./functional-pain.js";
+import {
   advanceNeuromodulationState,
   normalizePersistedNeuromodulationState
 } from "./neuromodulation.js";
@@ -178,6 +182,7 @@ export function deriveCognitiveWorkspace({
     cognitiveSignalState: prior.cognitiveSignalState?.conversationId === turn.conversationId
       ? prior.cognitiveSignalState : null,
     emotionDynamicsState: prior.emotionDynamicsState || null,
+    painState: prior.painState || null,
     neuromodulationState: prior.neuromodulationState || null,
     feltState: prior.feltState || null,
     affectivePreferenceState: prior.affectivePreferenceState || null,
@@ -349,6 +354,12 @@ export function advanceCognitiveState({
     rewardEvent: nextRewardState?.lastEvent || null,
     result
   });
+  const nextPainState = advanceFunctionalPainState({
+    persisted: prior.painState,
+    current: metacognition?.painState || null,
+    rewardEvent: nextRewardState?.lastEvent || null,
+    result
+  });
   const nextNeuromodulationState = advanceNeuromodulationState({
     persisted: prior.neuromodulationState,
     current: metacognition?.neuromodulation || null,
@@ -430,6 +441,7 @@ export function advanceCognitiveState({
     cognitiveSignalState: advanceCognitiveSignalState({ current: signalForOutcome, result }) ||
       (prior.cognitiveSignalState?.conversationId === turn.conversationId ? prior.cognitiveSignalState : null),
     emotionDynamicsState: nextEmotionDynamicsState,
+    painState: nextPainState,
     neuromodulationState: nextNeuromodulationState,
     feltState: nextFeltState,
     affectivePreferenceState: nextAffectivePreferenceState,
@@ -456,6 +468,12 @@ export function advanceCognitiveState({
       emotionIntensity: Number(nextEmotionDynamicsState?.dominantState?.intensity || 0),
       emotionReportableStates: arrayText(nextEmotionDynamicsState?.reportIntegrity?.reportableStates, 7, 60),
       emotionCalibrationSamples: Number(nextEmotionDynamicsState?.calibration?.samples || 0),
+      functionalPainAvailable: Boolean(nextPainState?.functionalPainState),
+      functionalPainActive: nextPainState?.active === true,
+      functionalPainIntensity: Number(nextPainState?.intensity || 0),
+      functionalPainPersistence: Number(nextPainState?.persistence || 0),
+      functionalPainMemorySalience: Number(nextPainState?.modulation?.memorySalience || 0),
+      functionalPainStrategySwitchPressure: Number(nextPainState?.modulation?.strategySwitchPressure || 0),
       neuromodulationAvailable: Boolean(nextNeuromodulationState?.functionalNeuromodulationSystem),
       neuromodulationVerificationBias: Number(nextNeuromodulationState?.receptors?.verificationBias || 0),
       neuromodulationExplorationBias: Number(nextNeuromodulationState?.receptors?.explorationBias || 0),
@@ -502,6 +520,11 @@ export function advanceCognitiveState({
       emotionIntensity: Number(nextEmotionDynamicsState?.dominantState?.intensity || 0),
       emotionPredictionError: Number(nextEmotionDynamicsState?.appraisals?.outcomePredictionError || 0),
       emotionMemorySalience: Number(nextEmotionDynamicsState?.executiveModulation?.memorySalience || 0),
+      functionalPainActive: nextPainState?.active === true,
+      functionalPainIntensity: Number(nextPainState?.intensity || 0),
+      functionalPainPersistence: Number(nextPainState?.persistence || 0),
+      functionalPainSource: clean(nextPainState?.source, 80) || null,
+      functionalPainActionTendency: clean(nextPainState?.actionTendency, 80) || null,
       neuromodulationDominantFast: clean(nextNeuromodulationState?.dominant?.fast?.name, 80) || null,
       neuromodulationDominantSlow: clean(nextNeuromodulationState?.dominant?.slow?.name, 80) || null,
       neuromodulationStressPressure: Number(
@@ -538,6 +561,7 @@ function meaningfulCognitiveSignature(state = {}) {
   const dominant = affect?.dominantState || {};
   const emotion = state?.emotionDynamicsState || {};
   const emotionDominant = emotion?.dominantState || {};
+  const pain = state?.painState || {};
   const neuromodulation = state?.neuromodulationState || {};
   const felt = state?.feltState || {};
   const feltDominant = felt?.dominantState || {};
@@ -584,6 +608,14 @@ function meaningfulCognitiveSignature(state = {}) {
       intensity: Math.round(Number(emotionDominant?.intensity || 0) * 10) / 10,
       memorySalience: Math.round(Number(emotion?.executiveModulation?.memorySalience || 0) * 10) / 10,
       calibrationSamples: Number(emotion?.calibration?.samples || 0)
+    },
+    pain: {
+      active: pain?.active === true,
+      intensity: Math.round(Number(pain?.intensity || 0) * 10) / 10,
+      persistence: Math.round(Number(pain?.persistence || 0) * 10) / 10,
+      source: clean(pain?.source, 80) || null,
+      action: clean(pain?.actionTendency, 80) || null,
+      switchPressure: Math.round(Number(pain?.modulation?.strategySwitchPressure || 0) * 10) / 10
     },
     neuromodulation: {
       dominantFast: clean(neuromodulation?.dominant?.fast?.name, 80) || null,
@@ -714,6 +746,13 @@ function deriveSalience({ route = {}, message = "", prior = {}, context = {} } =
       "emotion_weighted_learning",
       Math.min(0.84, Number(prior.emotionDynamicsState.executiveModulation.memorySalience)),
       "A prior functionally emotional outcome was salient; reuse it only when relevant and keep the interpretation outcome-grounded."
+    );
+  }
+  if (Number(prior?.painState?.modulation?.memorySalience || 0) >= 0.5) {
+    push(
+      "nociceptive_learning",
+      Math.min(0.86, Number(prior.painState.modulation.memorySalience)),
+      "A prior harmful or repeatedly obstructed method was salient; avoid repeating it blindly and reuse the lesson only when relevant."
     );
   }
 
@@ -997,6 +1036,7 @@ function normalizeState(value = null) {
       rewardState: normalizeRewardState(null),
       affectState: null,
       emotionDynamicsState: normalizePersistedEmotionDynamicsState(null),
+      painState: null,
       neuromodulationState: null,
       feltState: null,
       affectivePreferenceState: null,
@@ -1018,6 +1058,7 @@ function normalizeState(value = null) {
     affectState: normalizePersistedFunctionalAffectState(value?.affectState),
     cognitiveSignalState: normalizeCognitiveSignalState(value?.cognitiveSignalState),
     emotionDynamicsState: normalizePersistedEmotionDynamicsState(value?.emotionDynamicsState),
+    painState: value?.painState ? normalizePersistedPainState(value.painState) : null,
     neuromodulationState: value?.neuromodulationState
       ? normalizePersistedNeuromodulationState(value.neuromodulationState)
       : null,
