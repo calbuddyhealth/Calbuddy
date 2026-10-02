@@ -17,7 +17,7 @@ import { deriveOmegaRCTState } from "./omega-rct.js";
 import { deriveRewardState } from "./reward-core.js";
 import { deriveSelfAdaptationState } from "./self-adaptation.js";
 
-export const ARI_METACOGNITION_VERSION = "1.6.0";
+export const ARI_METACOGNITION_VERSION = "1.7.0";
 export const ARI_INSTRUCTION_ACTIVATION_VERSION = "1.0.0";
 
 export function deriveMetacognition({
@@ -26,7 +26,8 @@ export function deriveMetacognition({
   safety = {},
   coachingState = null,
   longitudinalState = null,
-  modelPolicy = null
+  modelPolicy = null,
+  instinctKernel = null
 } = {}) {
   const requestedDomains = [];
   if (route?.training) requestedDomains.push("training");
@@ -261,7 +262,8 @@ export function deriveMetacognition({
     cortex,
     omegaRCT,
     executionSession,
-    instructionActivation
+    instructionActivation,
+    instinctKernel
   });
 
   return {
@@ -284,6 +286,7 @@ export function deriveMetacognition({
     omegaRCT,
     instructionActivation,
     executivePolicy,
+    instinctKernel,
     exploration: {
       consequenceTier,
       uncertaintyIsInformationNotParalysis: true,
@@ -397,6 +400,7 @@ export function metacognitionToInstruction(state = null) {
     cortex: state?.cortex || null,
     omegaRCT: state?.omegaRCT || null,
     instructionActivation: state?.instructionActivation || legacyInstructionActivation(state),
+    instinctKernel: state?.instinctKernel || null,
     safety: { highStakes: state?.exploration?.consequenceTier === "high" }
   });
   return executivePolicyToInstruction(policy);

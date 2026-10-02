@@ -902,6 +902,20 @@ export default async function handler(req, res) {
             reasoningDemandScore: result?.modelPolicy?.reasoningDemand?.score ?? null,
             reasoningDemandBand: result?.modelPolicy?.reasoningDemand?.band || null,
             deliberationTier: result?.deliberationHarness?.tier || null,
+            instinctDominant:
+              result?.instinctKernel?.dominant?.id ||
+              result?.metacognition?.instinctKernel?.dominant?.id ||
+              null,
+            instinctReflexCount: Array.isArray(
+              result?.instinctKernel?.reflexes || result?.metacognition?.instinctKernel?.reflexes
+            )
+              ? (result?.instinctKernel?.reflexes || result?.metacognition?.instinctKernel?.reflexes).length
+              : 0,
+            instinctDriveCount: Array.isArray(
+              result?.instinctKernel?.drives || result?.metacognition?.instinctKernel?.drives
+            )
+              ? (result?.instinctKernel?.drives || result?.metacognition?.instinctKernel?.drives).length
+              : 0,
             turnCompute: publicTurnComputeGovernor(turn?.context?.turnComputeGovernor),
             reasoningChainDepth: nextChainDepth,
             reasoningChainBilledInputTokens: nextBilledInputTokens,

@@ -22,7 +22,7 @@ test("casual turns stay direct and do not manufacture deliberation", () => {
     }
   });
 
-  assert.equal(ARI_DELIBERATION_HARNESS_VERSION, "1.0.0");
+  assert.equal(ARI_DELIBERATION_HARNESS_VERSION, "1.1.0");
   assert.equal(state.tier, "direct");
   assert.equal(state.deliberation.candidatePasses, 1);
   assert.equal(state.deliberation.verificationGate, false);

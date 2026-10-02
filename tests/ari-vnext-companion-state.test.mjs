@@ -30,7 +30,7 @@ function establishedRelationship(overrides = {}) {
 }
 
 test("Companion Core is deterministic and introduces no provider call", () => {
-  assert.equal(ARI_COMPANION_STATE_VERSION, "2.0.0");
+  assert.equal(ARI_COMPANION_STATE_VERSION, "2.1.0");
   assert.doesNotMatch(companionSource, /fetch\s*\(/);
   assert.doesNotMatch(companionSource, /OPENAI_|api\.openai\.com|\/v1\/responses/i);
 });
@@ -236,5 +236,8 @@ test("relationship continuity incorporates cognitive open loops and active commu
 test("live orchestrator derives Companion Core and injects its instruction before the model call", () => {
   assert.match(orchestratorSource, /deriveCompanionState\(\{/);
   assert.match(orchestratorSource, /companionStateToInstruction\(companionState\)/);
-  assert.match(orchestratorSource, /relationshipContinuity,\s*companionState,\s*cognitionCoordinator,\s*deliberationHarness,\s*goalHierarchy/);
+  assert.match(orchestratorSource, /deriveInstinctKernel\(\{/);
+  assert.match(orchestratorSource, /instinctKernel/);
+  assert.match(orchestratorSource, /cognitionCoordinator/);
+  assert.match(orchestratorSource, /deliberationHarness/);
 });

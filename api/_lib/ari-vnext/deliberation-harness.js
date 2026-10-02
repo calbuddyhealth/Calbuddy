@@ -2,7 +2,7 @@
 // Coordinates existing reasoning, Cortex, council, continuity, and verification
 // signals without making an additional model call.
 
-export const ARI_DELIBERATION_HARNESS_VERSION = "1.0.0";
+export const ARI_DELIBERATION_HARNESS_VERSION = "1.1.0";
 
 export function deriveDeliberationHarness({
   turn = {},
@@ -11,7 +11,8 @@ export function deriveDeliberationHarness({
   modelPolicy = null,
   companionState = null,
   metacognition = null,
-  relationshipContinuity = null
+  relationshipContinuity = null,
+  instinctKernel = null
 } = {}) {
   const message = clean(turn?.message, 8000);
   const demandBand = clean(modelPolicy?.reasoningDemand?.band, 30) || fallbackBand(route);
@@ -22,6 +23,9 @@ export function deriveDeliberationHarness({
   const ambiguous = detectsMaterialAmbiguity(message);
   const priorFailure = hasPriorFailure(modelPolicy?.reasoningDemand?.reasons);
   const cortexNeeds = metacognition?.cortex?.needs || {};
+  const instinct = instinctKernel?.modulation?.deliberation || {};
+  const simplicityPressure = Number(instinct?.simplicityPressure || 0);
+  const explorationPressure = Number(instinct?.explorationPressure || 0);
 
   const tier = casual
     ? "direct"
@@ -33,9 +37,15 @@ export function deriveDeliberationHarness({
           ? "focused"
           : "direct";
 
-  const candidatePasses =
+  const baseCandidatePasses =
     tier === "adversarial_verify" ? 3 :
     tier === "structured" ? 2 : 1;
+  const candidatePasses =
+    tier !== "adversarial_verify" &&
+    simplicityPressure >= 0.78 &&
+    explorationPressure < 0.72
+      ? 1
+      : baseCandidatePasses;
 
   const countercase = Boolean(
     tier === "adversarial_verify" ||
@@ -47,12 +57,14 @@ export function deriveDeliberationHarness({
     tier === "adversarial_verify" ||
     (route?.developer === true && route?.complexity === "deep") ||
     route?.currentInfo === true ||
-    cortexNeeds?.verification === true
+    cortexNeeds?.verification === true ||
+    instinct?.verificationGate === true
   );
   const failureModeReview = Boolean(
     highStakes ||
     route?.developer === true ||
-    tier === "adversarial_verify"
+    tier === "adversarial_verify" ||
+    instinct?.verificationGate === true
   );
 
   return {
@@ -84,9 +96,16 @@ export function deriveDeliberationHarness({
       failureModeReview,
       reconcileToolEvidenceBeforeClaimingSuccess: true,
       distinguishObservedFromInferred: true,
-      changeMethodAfterRepeatedFailure: priorFailure,
+      changeMethodAfterRepeatedFailure: priorFailure || instinct?.changeMethod === true,
       preserveUsefulPartialWorkAcrossCorrections: true,
       stopRule: verificationGate ? "verified_or_materially_blocked" : "sufficiently_supported"
+    },
+    instinctPressure: {
+      dominant: clean(instinctKernel?.dominant?.id, 80) || null,
+      verificationGate: instinct?.verificationGate === true,
+      changeMethod: instinct?.changeMethod === true,
+      simplicityPressure: Number(simplicityPressure.toFixed(3)),
+      explorationPressure: Number(explorationPressure.toFixed(3))
     },
     continuity: {
       relevantUnfinishedThread: companionState?.continuity?.relevantThread || null,
@@ -125,6 +144,9 @@ export function deliberationHarnessToInstruction(state = null) {
   return [
     "ARI DELIBERATION HARNESS v1",
     `Tier: ${state.tier || "direct"}; demand=${state.demandBand || "low"}; provider reasoning=${provider.reasoningMode || "standard"}/${provider.reasoningEffort || "default"}; context=${provider.reasoningContext || "current_turn"}.`,
+    state?.instinctPressure?.dominant
+      ? `Pre-deliberative pressure: dominant=${state.instinctPressure.dominant}; verification=${state.instinctPressure.verificationGate ? "on" : "normal"}; simplicity=${state.instinctPressure.simplicityPressure}; exploration=${state.instinctPressure.explorationPressure}.`
+      : "",
     "Maintain a compact task contract: primary objective, explicit constraints, success criteria, and unresolved blockers. New requirements update only the affected parts unless the user clearly replaces the task.",
     contract.requirementUpdateDetected
       ? "A requirement update is present. Apply it explicitly and preserve all non-conflicting earlier requirements."

@@ -2,7 +2,7 @@
 // Unifies existing relationship, communication, affect, and cognitive-loop
 // signals for the current conversation. This module performs no model call.
 
-export const ARI_COMPANION_STATE_VERSION = "2.0.0";
+export const ARI_COMPANION_STATE_VERSION = "2.1.0";
 
 const STOPWORDS = new Set([
   "a","an","and","are","as","at","be","been","but","by","do","for","from","had","has","have",
@@ -17,7 +17,8 @@ export function deriveCompanionState({
   safety = {},
   relationshipContinuity = null,
   metacognition = null,
-  relevantContext = null
+  relevantContext = null,
+  instinctKernel = null
 } = {}) {
   const message = clean(turn?.message, 5000);
   const relationship = relationshipContinuity && typeof relationshipContinuity === "object"
@@ -25,8 +26,14 @@ export function deriveCompanionState({
     : {};
   const familiarity = clean(relationship?.familiarity, 40) || "new";
   const conversationSignal = communication?.personalization?.currentTurnSignal || null;
-  const repairActive = conversationSignal?.source === "conversation_repair_friction";
+  const companionInstinct = instinctKernel?.modulation?.companion || {};
+  const repairActive =
+    conversationSignal?.source === "conversation_repair_friction" ||
+    companionInstinct?.repairFirst === true;
   const highStakes = safety?.highStakes === true;
+  const blockInitiative = companionInstinct?.suppressUnrelatedInitiative === true;
+  const continuityPressure = clamp01(Number(companionInstinct?.continuityPressure || 0));
+  const questionRestraint = clamp01(Number(companionInstinct?.questionRestraint || 0));
   const greeting = isSimpleGreeting(message);
   const continuityCue = explicitContinuityCue(message);
 
@@ -77,11 +84,14 @@ export function deriveCompanionState({
     familiarity,
     relevantThread,
     shouldReferencePast,
-    userInvokedSignal
+    userInvokedSignal,
+    blockInitiative
   });
 
   const personalization = communication?.personalization || {};
-  const questionBurden = clean(personalization?.questionBurden, 40) || "adaptive";
+  const questionBurden =
+    clean(personalization?.questionBurden, 40) ||
+    (questionRestraint >= 0.72 ? "light" : "adaptive");
   const humor = highStakes || repairActive
     ? "off"
     : clean(communication?.humor, 40) || "adaptive";
@@ -118,6 +128,13 @@ export function deriveCompanionState({
       forcedCallbackAllowed: false
     },
     initiative,
+    instinctPressure: {
+      dominant: clean(instinctKernel?.dominant?.id, 80) || null,
+      continuity: continuityPressure,
+      questionRestraint,
+      repairFirst: repairActive,
+      initiativeBlocked: blockInitiative
+    },
     interaction: {
       tempo: interactionTempo(message),
       correctionActive: repairActive,
@@ -167,6 +184,9 @@ export function companionStateToInstruction(state = null) {
     "Do not optimize for engagement, dependency, session length, guilt, pressure, or emotional exclusivity.",
     state?.repair?.active
       ? "REPAIR MODE: identify the specific misunderstanding briefly, replace the affected interpretation, invalidate conclusions that depended on it, preserve unaffected useful work, and continue. Do not defend the previous answer."
+      : "",
+    state?.instinctPressure?.dominant
+      ? `BEHAVIORAL TENDENCY: pre-deliberative pressure is active (${state.instinctPressure.dominant}). Express it through the current relationship posture without narrating the mechanism.`
       : "",
     state?.continuity?.shouldReferencePast
       ? `CONTINUITY: one natural callback is allowed when it directly helps this turn. Continuity strength: ${state.continuity.strength || "limited"}. Do not recite biography or stack multiple callbacks.`
@@ -221,10 +241,12 @@ function deriveConversationalInitiative({
   familiarity = "new",
   relevantThread = null,
   shouldReferencePast = false,
-  userInvokedSignal = false
+  userInvokedSignal = false,
+  blockInitiative = false
 } = {}) {
   if (highStakes) return noInitiative("high_stakes");
   if (repairActive) return noInitiative("repair_first");
+  if (blockInitiative) return noInitiative("instinct_control");
   if (userInvokedSignal) {
     return {
       allowed: false,
