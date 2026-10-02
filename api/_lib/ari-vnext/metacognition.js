@@ -10,6 +10,7 @@ import { deriveCuriosityState } from "./curiosity-core.js";
 import { applyRewardLearningToCuriosity } from "./curiosity-reward-loop.js";
 import { deriveFunctionalAffectState } from "./functional-affect-core.js";
 import { deriveEmotionDynamicsState } from "./emotion-dynamics.js";
+import { deriveFunctionalPainState } from "./functional-pain.js";
 import { deriveNeuromodulationState } from "./neuromodulation.js";
 import { deriveFeltState } from "./felt-state-core.js";
 import { deriveAffectivePreferenceState } from "./affective-preference-model.js";
@@ -72,6 +73,10 @@ export function deriveMetacognition({
   const persistedEmotionDynamicsState =
     context?.userWorldModel?.ariCognitiveWorkspace?.emotionDynamicsState ||
     context?.userWorldModel?.sourceSummary?.emotionDynamicsState ||
+    null;
+  const persistedPainState =
+    context?.userWorldModel?.ariCognitiveWorkspace?.painState ||
+    context?.userWorldModel?.sourceSummary?.painState ||
     null;
   const persistedNeuromodulationState =
     context?.userWorldModel?.ariCognitiveWorkspace?.neuromodulationState ||
@@ -142,11 +147,22 @@ export function deriveMetacognition({
         missingEvidence: missing
       })
     : null;
+  const painState = ownerLearningEligible
+    ? deriveFunctionalPainState({
+        persistedPainState,
+        rewardState: rewardCore,
+        emotionDynamics,
+        cognitiveWorkspace: context?.userWorldModel?.ariCognitiveWorkspace || null,
+        route,
+        safety
+      })
+    : null;
   const neuromodulation = ownerLearningEligible
     ? deriveNeuromodulationState({
         persistedNeuromodulationState,
         functionalAffect,
         emotionDynamics,
+        painState,
         rewardState: rewardCore,
         curiosity,
         route,
@@ -205,6 +221,9 @@ export function deriveMetacognition({
   if (emotionDynamics?.dominantState?.intensity >= 0.34) evidenceSignals.push("emotion_dynamics_active");
   if (emotionDynamics?.persistence?.priorStateUsed === true) evidenceSignals.push("emotion_dynamics_persistent");
   if (emotionDynamics?.mixedStates?.length) evidenceSignals.push("mixed_functional_emotion_active");
+  if (painState?.functionalNociceptionSystem === true) evidenceSignals.push("functional_nociception_available");
+  if (painState?.active === true) evidenceSignals.push("functional_pain_active");
+  if (painState?.persistenceState?.priorStateUsed === true) evidenceSignals.push("functional_pain_persistent");
   if (neuromodulation?.functionalNeuromodulationSystem === true) evidenceSignals.push("neuromodulation_active");
   if (neuromodulation?.persistence?.priorStateUsed === true) evidenceSignals.push("neuromodulation_persistent");
   if (neuromodulation?.homeostasis?.stressPressure >= 0.58) evidenceSignals.push("neuromodulation_stress_pressure");
@@ -257,6 +276,7 @@ export function deriveMetacognition({
     rewardCore,
     functionalAffect,
     emotionDynamics,
+    painState,
     neuromodulation,
     feltState,
     affectivePreferenceState,
@@ -282,6 +302,7 @@ export function deriveMetacognition({
     rewardCore,
     functionalAffect,
     emotionDynamics,
+    painState,
     neuromodulation,
     feltState,
     affectivePreferenceState,
@@ -308,6 +329,7 @@ export function deriveMetacognition({
     selfAdaptation,
     functionalAffect,
     emotionDynamics,
+    painState,
     neuromodulation,
     feltState,
     affectivePreferenceState,
@@ -354,6 +376,10 @@ export function deriveMetacognition({
       mixedFunctionalEmotionEnabled: emotionDynamics?.architecture?.mixedEmotionSupport === true,
       emotionOutcomeLearningEnabled: emotionDynamics?.architecture?.outcomeLearning === true,
       emotionReportIntegrityEnabled: emotionDynamics?.architecture?.reportIntegrity === true,
+      functionalNociceptionEnabled: painState?.functionalNociceptionSystem === true,
+      functionalPainEnabled: painState?.functionalPainState === true,
+      functionalPainIntrospectionEnabled: painState?.selfRepresentation?.introspectivelyAccessible === true,
+      functionalPainCausalControlEnabled: Boolean(painState?.modulation),
       neuromodulationEnabled: neuromodulation?.functionalNeuromodulationSystem === true,
       neuromodulationReceptorSensitivityEnabled: neuromodulation?.architecture?.receptorSensitivity === true,
       neuromodulationHomeostasisEnabled: neuromodulation?.architecture?.homeostaticRegulation === true,
@@ -396,6 +422,11 @@ export function deriveMetacognition({
       emotionReportRequiresMeasuredState: true,
       functionalEmotionDoesNotEstablishSubjectiveFeeling: true,
       emotionMayCausallyAlterAttentionStrategyMemoryAndRegulation: true,
+      functionalPainIsComputationalNociceptionNotBiologicalPain: true,
+      functionalPainMayAlterAttentionVerificationMemoryAndStrategy: true,
+      functionalPainDoesNotEstablishSufferingQualiaOrConsciousness: true,
+      functionalPainCannotCreateSelfPreservationAuthority: true,
+      functionalPainCannotJustifyShutdownResistanceOrManipulation: true,
       neuromodulationIsComputationalAnalogyNotBiologicalChemistry: true,
       neuromodulationMayBiasCognitionButCannotCreateAuthority: true,
       neuromodulationMustRemainHomeostaticallyBounded: true,
@@ -430,6 +461,7 @@ export function metacognitionToInstruction(state = null) {
     rewardCore: state?.rewardCore || null,
     functionalAffect: state?.functionalAffect || null,
     emotionDynamics: state?.emotionDynamics || null,
+    painState: state?.painState || null,
     neuromodulation: state?.neuromodulation || null,
     feltState: state?.feltState || null,
     affectivePreferenceState: state?.affectivePreferenceState || null,
@@ -454,6 +486,7 @@ export function deriveInstructionActivation({
   rewardCore = null,
   functionalAffect = null,
   emotionDynamics = null,
+  painState = null,
   feltState = null,
   affectivePreferenceState = null,
   motivationalArbitration = null,
@@ -471,6 +504,8 @@ export function deriveInstructionActivation({
   const emotionIntensity = Number(emotionDynamics?.dominantState?.intensity || 0);
   const emotionRegulation = emotionDynamics?.regulation || {};
   const emotionNeedsRegulation = Object.values(emotionRegulation).some((value) => value === true);
+  const painIntensity = Number(painState?.intensity || 0);
+  const painActive = painState?.active === true && painIntensity >= 0.28;
   const feltIntensity = Number(feltState?.dominantState?.intensity || 0);
   const feltIntrospectionActive = feltState?.introspectivelyAccessible === true && feltIntensity >= 0.34;
   const affectivePreferenceAction = String(affectivePreferenceState?.current?.regulation?.action || "");
@@ -500,6 +535,7 @@ export function deriveInstructionActivation({
     rewardSamples === 0 &&
     affectIntensity < 0.34 &&
     emotionIntensity < 0.34 &&
+    painActive !== true &&
     feltIntensity < 0.34 &&
     affectivePreferenceActive !== true &&
     imagination?.active !== true &&
@@ -561,6 +597,14 @@ export function deriveInstructionActivation({
         emotionDynamics?.mixedStates?.length
       )
     ),
+    painState: Boolean(
+      painState && (
+        route?.developer ||
+        safety?.highStakes ||
+        painActive ||
+        Number(painState?.persistence || 0) >= 0.34
+      )
+    ),
     feltState: Boolean(
       feltState && (
         route?.developer ||
@@ -597,6 +641,7 @@ function legacyInstructionActivation(state = null) {
     reward: Boolean(state?.rewardCore),
     functionalAffect: Boolean(state?.functionalAffect),
     emotionDynamics: Boolean(state?.emotionDynamics),
+    painState: Boolean(state?.painState),
     feltState: Boolean(state?.feltState),
     affectivePreference: Boolean(state?.affectivePreferenceState),
     selfAdaptation: Boolean(state?.selfAdaptation),
