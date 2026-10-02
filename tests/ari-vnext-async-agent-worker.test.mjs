@@ -331,12 +331,11 @@ test("background worker uses a 120 second envelope with a shorter internal deadl
   assert.match(runtimeSource, /Math\.min\(Number\(limit\) \|\| 1, 1\)/);
 });
 
-test("Vercel schedules the background agent worker every minute", async () => {
+test("Vercel does not schedule the background agent worker while automation is frozen", async () => {
   const config = JSON.parse(await readFile(
     new URL("../vercel.json", import.meta.url),
     "utf8"
   ));
-  const cron = config.crons.find(item => item.path === "/api/ari-agent-worker");
-  assert.ok(cron);
-  assert.equal(cron.schedule, "* * * * *");
+  const cron = (config.crons || []).find(item => item.path === "/api/ari-agent-worker");
+  assert.equal(cron, undefined);
 });
