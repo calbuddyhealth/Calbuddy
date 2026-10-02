@@ -101,32 +101,42 @@ function closureEvidence(value = null, route = {}) {
 
 function beliefEvidence(value = null, route = {}) {
   if (!value || typeof value !== "object") return null;
-  const items = Array.isArray(value?.beliefs)
-    ? value.beliefs
-    : Array.isArray(value?.items)
-      ? value.items
-      : [];
-  const current = items.find((item) => item?.active !== false) || null;
-  const statement = clean(current?.statement || current?.summary || current?.belief, 420);
+  const goal = value?.activeGoal || null;
+  const posture = value?.posture || null;
+  const principle = (Array.isArray(value?.principles) ? value.principles : [])
+    .find((item) => item?.id === "reality_final_vote") ||
+    (Array.isArray(value?.principles) ? value.principles[0] : null);
+  const statement = clean(
+    goal?.purpose ||
+    posture?.mode ||
+    principle?.principle ||
+    principle?.label,
+    420
+  );
   if (!statement) return null;
   return {
     kind: "belief",
     priority: route?.developer || route?.goals ? 0.68 : 0.42,
-    summary: statement
+    summary: goal?.purpose
+      ? `${statement} [posture=${clean(posture?.mode, 80) || "unknown"}]`
+      : statement
   };
 }
 
 function identityEvidence(value = null, route = {}, companionState = null) {
   if (!value || typeof value !== "object") return null;
-  const traits = [
-    ...(Array.isArray(value?.stableTraits) ? value.stableTraits : []),
-    ...(Array.isArray(value?.behavioralTraits) ? value.behavioralTraits : [])
-  ].map((item) => clean(item?.summary || item?.label || item, 180)).filter(Boolean);
-  if (!traits.length) return null;
+  const behaviors = (Array.isArray(value?.activeBehaviors) ? value.activeBehaviors : [])
+    .map((item) => clean(item?.instruction || item?.reason || item?.id, 220))
+    .filter(Boolean);
+  const invariants = (Array.isArray(value?.invariants) ? value.invariants : [])
+    .map((item) => clean(item?.rule || item?.label || item?.id, 220))
+    .filter(Boolean);
+  const signals = [...behaviors, ...invariants];
+  if (!signals.length) return null;
   return {
     kind: "behavioral_identity",
     priority: companionState?.conversationalMode === "reflective" ? 0.78 : route?.casualConversation ? 0.54 : 0.32,
-    summary: traits.slice(0, 2).join("; ")
+    summary: signals.slice(0, 2).join("; ")
   };
 }
 
