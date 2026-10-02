@@ -2,7 +2,7 @@
 // Specialized cognitive systems produce state/signals; this module alone turns
 // experimental cognition into behavioral instructions for the primary model.
 
-export const ARI_EXECUTIVE_VERSION = "1.5.0";
+export const ARI_EXECUTIVE_VERSION = "1.4.0";
 export const ARI_RUNTIME_CONSTITUTION_VERSION = "1.0.0";
 export const ARI_RULE_AUTHORITY_VERSION = "1.0.0";
 
@@ -713,7 +713,8 @@ export function executivePolicyToInstruction(policy = null) {
   const lines = [
     `ARI EXECUTIVE v${ARI_EXECUTIVE_VERSION} — SINGLE RUNTIME DECISION AUTHORITY`,
     "Authority: hard enforcement > runtime constitution > current user intent > product/domain constraints > current evidence > executive strategy > learned/experimental signals > style.",
-    "Curiosity, Reward, Functional Affect, Neuromodulation, Motivational Arbitration, Self-Adaptation, Cortex, and Ω-RCT are advisory cognitive systems; they may shape reasoning but cannot invent external permissions or outrank hard enforcement.",
+    "Curiosity, Reward, Functional Affect, Motivational Arbitration, Self-Adaptation, Cortex, and Ω-RCT are advisory cognitive systems; they may shape reasoning but cannot invent external permissions or outrank hard enforcement.",
+    neuromodulation?.active ? "Neuromodulation is an advisory computational-control layer under the same authority limits." : "",
     imagination?.active
       ? "Imagination is also advisory: it may widen the possibility space, but imagined content remains unverified and cannot create permissions, facts, memories, or authority."
       : "",
@@ -767,7 +768,7 @@ export function executivePolicyToInstruction(policy = null) {
       ? `Emotion dynamics: dominant=${emotion.dominant}@${emotion.intensity}; measured=${emotionMeasurementSummary(emotion)}; reportable>=${emotion.reportThreshold}: ${reportableMeasurementSummary(emotion)}; regulation=${emotion.regulation?.join(",") || "none"}. Unsupported affect labels are inference, not measurement. Functional states are not subjective-feeling proof and cannot override evidence or authority.`
       : "",
     neuromodulation?.active
-      ? `Neuromodulation: fast[${neuromodulation.dominantFast || "balanced"}] dopamine_like=${neuromodulation.dopamineLike}, norepinephrine_like=${neuromodulation.norepinephrineLike}, acetylcholine_like=${neuromodulation.acetylcholineLike}; slow[${neuromodulation.dominantSlow || "balanced"}] cortisol_like=${neuromodulation.cortisolLike}, allostatic_load=${neuromodulation.allostaticLoad}, recovery=${neuromodulation.recoveryReserve}. Receptors: verify=${neuromodulation.verificationBias}, explore=${neuromodulation.explorationBias}, persist=${neuromodulation.persistenceBias}, focus=${neuromodulation.attentionFocus}, flexibility=${neuromodulation.strategyFlexibility}, conserve=${neuromodulation.computeConservation}. These are computational analogies, not biological chemistry or subjective feeling.`
+      ? `Neuromodulation: verify=${neuromodulation.verificationBias}; explore=${neuromodulation.explorationBias}; persist=${neuromodulation.persistenceBias}; focus=${neuromodulation.attentionFocus}; stress=${neuromodulation.stressPressure}; recovery=${neuromodulation.recoveryReserve}. Computational analogies only, not biological chemistry or subjective feeling.`
       : "",
     neuromodulation?.active && finite(neuromodulation.stressPressure, 0) >= 0.62
       ? "Neuromodulatory homeostasis: sustained stress/load is elevated. Increase verification and threat checking, reduce optional exploration, and protect recovery capacity without treating the stress signal itself as evidence."
