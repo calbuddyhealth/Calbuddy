@@ -176,8 +176,10 @@ export function deriveInstinctKernel({
       .flatMap((item) => item.forces)
   );
 
-  const dominant = active[0] || null;
-  const secondary = active[1] || null;
+  const situational = active.filter((item) => !item.trigger.startsWith("always_on_"));
+  const dominancePool = situational.length ? situational : active;
+  const dominant = dominancePool[0] || null;
+  const secondary = dominancePool[1] || null;
 
   return {
     version: ARI_INSTINCT_KERNEL_VERSION,
