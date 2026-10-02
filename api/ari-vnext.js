@@ -103,6 +103,7 @@ import { loadExperienceContext } from "./_lib/ari-vnext/experience-store.js";
 import { syncAgentTaskSessionWithExecution } from "./_lib/ari-vnext/agent-task-store.js";
 import { publicRuntimeModel } from "./_lib/ari-vnext/runtime-model-awareness.js";
 import { publicCognitiveSignals } from "./_lib/ari-vnext/cognitive-signals.js";
+import { publicCognitiveCausalTrace } from "./_lib/ari-vnext/cognitive-causal-trace.js";
 import {
   openReasoningContinuityToken,
   publicReasoningContinuity,
@@ -932,6 +933,9 @@ export default async function handler(req, res) {
             cognitiveMode,
             deepCognitionActive: deepCognitionEnabled,
             cognitiveTurnCount,
+            cognitiveCausalTraceActive: Boolean(nextCognitiveState?.causalTrace),
+            cognitiveCausalAblationEffectCount: Number(nextCognitiveState?.causalTrace?.summary?.ablationEffectCount || 0),
+            cognitiveCausalVerificationStatus: nextCognitiveState?.causalTrace?.verification?.status || null,
             adaptiveStrategyActive: deepCognitionEnabled,
             adaptiveStrategyCount: adaptiveStrategyState?.activeCount || 0,
             adaptiveStrategyReflection: Boolean(adaptiveStrategyReflection?.attempted),
@@ -1323,6 +1327,9 @@ export default async function handler(req, res) {
         : null,
       cognitiveSignals: intelligenceEntitlement?.ownerEligible === true && result?.metacognition?.cognitiveSignals
         ? { ...publicCognitiveSignals(result?.metacognition?.cognitiveSignals), stateStored: cognitiveStateStored }
+        : null,
+      cognitiveCausalTrace: intelligenceEntitlement?.ownerEligible === true && nextCognitiveState?.causalTrace
+        ? { ...publicCognitiveCausalTrace(nextCognitiveState.causalTrace), stateStored: cognitiveStateStored }
         : null,
       reasoningContinuity: intelligenceEntitlement?.ownerEligible === true
         ? publicReasoningContinuity({
