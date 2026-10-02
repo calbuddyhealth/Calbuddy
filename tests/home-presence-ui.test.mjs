@@ -13,7 +13,7 @@ test("home exposes cinematic thinking without segmented-thread controls", () => 
   assert.match(html, /id="ariThinkingStatus"/);
   assert.match(html, /id="ariPresenceHint"/);
   assert.match(html, /assets\/css\/home\.css\?v=2\.8\.0/);
-  assert.match(html, /js\/home\.js\?v=3\.4\.2/);
+  assert.match(html, /js\/home\.js\?v=3\.5\.0/);
   assert.doesNotMatch(html, /id="ariThreadToggle"/);
   assert.doesNotMatch(html, /CONTINUE READING/);
 });

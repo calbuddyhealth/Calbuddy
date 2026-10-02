@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&amp;family=Inter:wght@400;500;600;700;800&amp;family=Orbitron:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/account.css?v=3.0.0">
+  <link rel="stylesheet" href="assets/css/ari-avatar-choice.css?v=1.0.0">
 </head>
 
 <body>
@@ -84,6 +85,24 @@
           <p class="ari-section-kicker">CONTROL</p>
           <h2 id="controlTitle">Your experience</h2>
         </div>
+
+        <fieldset class="ari-avatar-choice">
+          <legend>Ari appearance</legend>
+          <p>Choose your Ari. Your choice is saved on this device.</p>
+          <div class="ari-avatar-options">
+            <label class="ari-avatar-option">
+              <input type="radio" name="ariAppearance" value="female" data-ari-avatar-choice checked disabled>
+              <img src="assets/ari/ari-idle-open.png" alt="" loading="lazy">
+              <span>Ari female</span>
+            </label>
+            <label class="ari-avatar-option">
+              <input type="radio" name="ariAppearance" value="male" data-ari-avatar-choice disabled>
+              <img src="assets/ari/male/idle.jpeg" alt="" loading="lazy">
+              <span>Ari male</span>
+            </label>
+          </div>
+          <p data-ari-avatar-status role="status" aria-live="polite"></p>
+        </fieldset>
 
         <div class="ari-action-list">
           <a class="ari-action-card" href="privacy-memory.html">
@@ -254,6 +273,7 @@
   <script src="supabase-config.js?v=1.1.0"></script>
   <script src="js/support-ari-config.js?v=3.1.0"></script>
   <script src="js/settings-shared.js?v=1.0.0"></script>
+  <script src="js/ari-avatar-choice.js?v=1.0.0"></script>
   <script src="js/account.js?v=3.5.3"></script>
 </body>
 </html>
