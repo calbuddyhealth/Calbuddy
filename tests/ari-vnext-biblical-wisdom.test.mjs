@@ -78,6 +78,22 @@ test("consultative mode does not force Scripture into a purely technical develop
     safety: {}
   });
   assert.equal(state.active, false);
+
+  const broadShouldQuestion = deriveBiblicalWisdomLayer({
+    turn: { message: "What should this function return when the array is empty?" },
+    route: route("consultative", { developer: true, reasoningDemand: "high" }),
+    safety: {}
+  });
+  assert.equal(broadShouldQuestion.active, false);
+});
+
+test("primary mode stays out of ordinary factual questions without a moral or spiritual signal", () => {
+  const state = deriveBiblicalWisdomLayer({
+    turn: { message: "What is the boiling point of water at sea level?" },
+    route: route("primary"),
+    safety: {}
+  });
+  assert.equal(state.active, false);
 });
 
 test("mode normalization fails closed", () => {
