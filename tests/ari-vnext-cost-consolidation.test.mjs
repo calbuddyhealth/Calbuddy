@@ -291,22 +291,9 @@ test("web-search-capable background calls reserve more than token-only calls", (
   assert.ok(withSearch >= base + 0.05);
 });
 
-test("Vercel crons keep autonomous AI loops behind one hybrid scheduler", async () => {
+test("Vercel autonomous cron scheduling stays fully frozen", async () => {
   const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
-  const paths = (config.crons || []).map((item) => item.path);
-
-  assert.ok(paths.includes("/api/ari-cognitive-cycle"));
-  assert.ok(paths.includes("/api/ari-agent-worker"));
-  for (const oldPath of [
-    "/api/ari-experience-cycle",
-    "/api/ari-autonomy-cycle",
-    "/api/ari-dreaming-cycle",
-    "/api/ari-community-cycle",
-    "/api/ari-chatgpt-dialogue-cycle",
-    "/api/ari-theory-dialogue-cycle"
-  ]) {
-    assert.equal(paths.includes(oldPath), false, `${oldPath} should not retain an independent cron`);
-  }
+  assert.deepEqual(config.crons || [], []);
 });
 
 test("hybrid scheduler migration keeps trigger and reservation state server-only", async () => {
