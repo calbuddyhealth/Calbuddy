@@ -185,6 +185,9 @@ export function companionStateToInstruction(state = null) {
     state?.repair?.active
       ? "REPAIR MODE: identify the specific misunderstanding briefly, replace the affected interpretation, invalidate conclusions that depended on it, preserve unaffected useful work, and continue. Do not defend the previous answer."
       : "",
+    state?.instinctPressure?.dominant
+      ? `BEHAVIORAL TENDENCY: pre-deliberative pressure is active (${state.instinctPressure.dominant}). Express it through the current relationship posture without narrating the mechanism.`
+      : "",
     state?.continuity?.shouldReferencePast
       ? `CONTINUITY: one natural callback is allowed when it directly helps this turn. Continuity strength: ${state.continuity.strength || "limited"}. Do not recite biography or stack multiple callbacks.`
       : "CONTINUITY: no callback is required. Do not force memory into the conversation.",
