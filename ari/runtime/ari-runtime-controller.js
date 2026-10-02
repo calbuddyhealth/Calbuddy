@@ -206,7 +206,7 @@
     if (base.endsWith("ari-vnext-activity-adapter.js")) return Boolean(window.AriVNextActivityAdapter);
     if (base.endsWith("ari-vnext-bridge.js")) {
       return typeof window.AriVNextBridge?.ask === "function" &&
-        versionAtLeast(window.AriVNextBridge?.version, "1.13.0");
+        versionAtLeast(window.AriVNextBridge?.version, "1.14.0");
     }
     if (base.endsWith("ari-vnext-context-guard.js")) return contextGuardReady();
     if (base.endsWith("ari-vnext-initiative.js")) {
@@ -257,7 +257,7 @@
   function vNextReady() {
     return Boolean(
       typeof window.AriVNextBridge?.ask === "function" &&
-      versionAtLeast(window.AriVNextBridge?.version, "1.13.0") &&
+      versionAtLeast(window.AriVNextBridge?.version, "1.14.0") &&
       window.AriVNextActionAdapter &&
       versionAtLeast(window.AriVNextActionAdapter?.version, "1.6.0") &&
       window.AriVNextActivityAdapter &&
