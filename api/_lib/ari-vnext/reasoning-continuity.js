@@ -10,7 +10,7 @@ import {
   timingSafeEqual
 } from "node:crypto";
 
-export const ARI_REASONING_CONTINUITY_VERSION = "1.0.0";
+export const ARI_REASONING_CONTINUITY_VERSION = "1.1.0";
 
 const TOKEN_PREFIX = "arc1";
 const DEFAULT_TTL_MINUTES = 120;
@@ -24,7 +24,9 @@ export function sealReasoningContinuityToken({
   baselineEffort = "",
   effectiveEffort = "",
   reasoningMode = "standard",
-  reasoningContext = "all_turns"
+  reasoningContext = "all_turns",
+  chainDepth = 1,
+  billedInputTokens = 0
 } = {}) {
   const uid = clean(userId, 240);
   const cid = clean(conversationId, 240);
@@ -52,6 +54,8 @@ export function sealReasoningContinuityToken({
     effectiveEffort: normalizeEffort(effectiveEffort || baselineEffort),
     reasoningMode: normalizeMode(reasoningMode),
     reasoningContext: normalizeContext(reasoningContext),
+    chainDepth: boundedInt(chainDepth, 1, 1, 1000),
+    billedInputTokens: boundedInt(billedInputTokens, 0, 0, 1000000000),
     iat: now,
     exp: now + ttlMs
   };
@@ -126,6 +130,8 @@ export function openReasoningContinuityToken({
         effectiveEffort: normalizeEffort(parsed?.effectiveEffort || parsed?.baselineEffort),
         reasoningMode: normalizeMode(parsed?.reasoningMode),
         reasoningContext: normalizeContext(parsed?.reasoningContext),
+        chainDepth: boundedInt(parsed?.chainDepth, 1, 1, 1000),
+        billedInputTokens: boundedInt(parsed?.billedInputTokens, 0, 0, 1000000000),
         expiresAt: new Date(exp).toISOString()
       }
     };
@@ -149,15 +155,19 @@ export function publicReasoningContinuity({
     reasoningMode: normalizeMode(policy?.reasoningMode),
     reasoningContext: normalizeContext(policy?.reasoningContext),
     effectiveEffort: normalizeEffort(policy?.reasoningEffort),
+    chainDepth: Math.max(0, Number(provider?.reasoningContinuity?.chainDepth || 0)),
+    billedInputTokens: Math.max(0, Number(provider?.reasoningContinuity?.billedInputTokens || 0)),
+    resetReason: provider?.reasoningContinuity?.resetReason || null,
     hiddenReasoningExposed: false
   };
 }
 
 function continuitySecret() {
+  // Prefer a dedicated continuity secret. CRON_SECRET is an existing server-only
+  // fallback so continuity never derives encryption material from an OpenAI key.
   return clean(
     process.env.ARI_REASONING_CONTINUITY_SECRET ||
-    process.env.ARI_PROVIDER_API_KEY ||
-    process.env.OPENAI_API_KEY,
+    process.env.CRON_SECRET,
     10000
   );
 }

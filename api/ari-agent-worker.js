@@ -1,3 +1,4 @@
+import { isBackgroundWorkerEnabled } from "./_lib/background-ai-switch.js";
 import { runBackgroundAgentBatch } from "./_lib/ari-vnext/background-agent-runtime.js";
 import { runNextUrgentCognitiveTrigger } from "./_lib/ari-vnext/cognitive-trigger-runner.js";
 
@@ -20,13 +21,13 @@ export default async function handler(req, res) {
     });
   }
 
-  if (String(process.env.ARI_DURABLE_AGENT_ASYNC_ENABLED || "true").trim().toLowerCase() === "false") {
+  if (!isBackgroundWorkerEnabled("ARI_DURABLE_AGENT_ASYNC_ENABLED")) {
     return res.status(200).json({
       success: true,
-      version: "1.0.0",
+      version: "1.1.0",
       claimed: 0,
       completed: 0,
-      reason: "async_agent_worker_disabled"
+      reason: "background_agent_worker_disabled"
     });
   }
 

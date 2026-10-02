@@ -262,6 +262,7 @@ test("developer councils enqueue background jobs while ordinary council path rem
   );
 
   assert.match(source, /shouldQueueBackgroundCouncil/);
+  assert.match(source, /isBackgroundWorkerEnabled\("ARI_DURABLE_AGENT_ASYNC_ENABLED"\)/);
   assert.match(source, /route\?\.developer === true/);
   assert.match(source, /enqueueAgentJob\(/);
   assert.match(source, /toolScope: "developer_read"/);
@@ -275,6 +276,7 @@ test("background worker endpoint requires CRON_SECRET and can safely drain an em
   try {
     configureQueue();
     process.env.CRON_SECRET = "cron-test-secret";
+    process.env.ARI_BACKGROUND_AI_ENABLED = "true";
     process.env.ARI_DURABLE_AGENT_ASYNC_ENABLED = "true";
 
     const unauthorized = mockRes();

@@ -3,6 +3,7 @@ import {
   extractOpenAIUsage,
   recordOpenAIUsage
 } from "./ai-provider-usage.js";
+import { isBackgroundAiEnabled } from "./background-ai-switch.js";
 
 const DEFAULT_DAILY_BUDGET_USD = 1.00;
 const DEFAULT_MONTHLY_BUDGET_USD = 20.00;
@@ -318,6 +319,17 @@ export async function executeBackgroundOpenAIRequest({
   extraHeaders = {},
   costMultiplier = 1
 } = {}) {
+  if (!isBackgroundAiEnabled()) {
+    const error = budgetError("background_ai_master_disabled", {
+      allowed: false,
+      reason: "background_ai_master_disabled",
+      dailySpendUsd: 0,
+      monthlySpendUsd: 0
+    });
+    error.code = "ARI_BACKGROUND_AI_DISABLED";
+    throw error;
+  }
+
   const reservation = await reserveBackgroundAiBudget({
     userId,
     requestCategory,

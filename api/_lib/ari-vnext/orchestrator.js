@@ -1956,11 +1956,12 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
   const timeoutId = setTimeout(() => controller.abort(), policy?.timeoutMs || 25000);
   const normalizedTools = Array.isArray(tools) ? tools : [];
 
-  const buildBody = (model, fallbackFrom = null) => {
+  const buildBody = (model, fallbackFrom = null, { forceFreshReasoning = false } = {}) => {
     const continuity = resolveProviderReasoningContinuity({
       turn,
       policy,
-      model
+      model,
+      forceFreshReasoning
     });
     const body = {
       model,
@@ -2006,7 +2007,14 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
       configurationUpdateUsed: continuity.configurationUpdateUsed === true,
       mode: policy?.reasoningMode || null,
       context: policy?.reasoningContext || null,
-      persisted: body.store === true
+      persisted: body.store === true,
+      chainDepth: continuity.previousResponseId
+        ? Math.max(1, Number(continuity.chainDepth || 1) + 1)
+        : 1,
+      billedInputTokens: continuity.previousResponseId
+        ? Math.max(0, Number(continuity.billedInputTokens || 0))
+        : 0,
+      resetReason: continuity.resetReason || null
     };
     return body;
   };
@@ -2030,6 +2038,24 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
   try {
     const selectedModel = String(policy?.model || "").trim();
     let attempt = await send(buildBody(selectedModel));
+
+    if (
+      !attempt.response.ok &&
+      attempt.body?.previous_response_id &&
+      shouldRetryFreshReasoningThread({ response: attempt.response, data: attempt.data })
+    ) {
+      const originalStatus = attempt.response.status;
+      const originalMessage = String(attempt.data?.error?.message || "").slice(0, 500);
+      attempt = await send(buildBody(selectedModel, null, { forceFreshReasoning: true }));
+      attempt.data._ariReasoningThreadReset = {
+        reason: "provider_rejected_continuation",
+        originalStatus,
+        originalMessage
+      };
+      if (attempt.body?._ariReasoningContinuity) {
+        attempt.body._ariReasoningContinuity.resetReason = "provider_rejected_continuation";
+      }
+    }
 
     if (shouldTryProviderModelFallback({
       response: attempt.response,
@@ -2079,20 +2105,47 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
   }
 }
 
-function resolveProviderReasoningContinuity({ turn = {}, policy = {}, model = "" } = {}) {
+function resolveProviderReasoningContinuity({
+  turn = {},
+  policy = {},
+  model = "",
+  forceFreshReasoning = false
+} = {}) {
   const persisted = policy?.persistReasoning === true;
   const state = turn?.context?.reasoningContinuity || null;
   const selectedModel = String(model || "").trim();
   const sameModel =
     persisted &&
+    !forceFreshReasoning &&
     state?.previousResponseId &&
     String(state?.model || "").trim().toLowerCase() === selectedModel.toLowerCase();
 
-  if (!sameModel) {
+  const maxChainDepth = boundedInt(process.env.ARI_REASONING_CONTINUITY_MAX_CHAIN_DEPTH, 8, 1, 50);
+  const maxBilledInputTokens = boundedInt(
+    process.env.ARI_REASONING_CONTINUITY_MAX_BILLED_INPUT_TOKENS,
+    120000,
+    1000,
+    5000000
+  );
+  const chainDepth = Math.max(1, Number(state?.chainDepth || 1));
+  const billedInputTokens = Math.max(0, Number(state?.billedInputTokens || 0));
+  const thresholdReason =
+    chainDepth >= maxChainDepth
+      ? "chain_depth_limit"
+      : billedInputTokens >= maxBilledInputTokens
+        ? "chain_input_token_limit"
+        : null;
+
+  if (!sameModel || thresholdReason) {
     return {
       previousResponseId: null,
       baselineEffort: policy?.reasoningEffort || null,
       configurationUpdateUsed: false,
+      chainDepth: 0,
+      billedInputTokens: 0,
+      resetReason: forceFreshReasoning
+        ? "forced_fresh_thread"
+        : thresholdReason || (!sameModel && state?.previousResponseId ? "model_or_policy_changed" : null),
       input: null
     };
   }
@@ -2123,8 +2176,18 @@ function resolveProviderReasoningContinuity({ turn = {}, policy = {}, model = ""
     previousResponseId: state.previousResponseId,
     baselineEffort,
     configurationUpdateUsed: shouldUpdateEffort,
+    chainDepth,
+    billedInputTokens,
+    resetReason: null,
     input: continuationInput
   };
+}
+
+function shouldRetryFreshReasoningThread({ response, data = {} } = {}) {
+  const status = Number(response?.status || 0);
+  if (![400, 404, 409, 410, 422].includes(status)) return false;
+  const message = String(data?.error?.message || data?.error || "").toLowerCase();
+  return /previous[_ ]?response|response id|conversation|continuation|not found|expired|invalid.*response|unknown response/.test(message);
 }
 
 function shouldTryProviderModelFallback({ response, data = {}, policy = {} } = {}) {
@@ -2611,6 +2674,12 @@ function withInternalCouncil(payload = {}, council = null) {
     writable: false
   });
   return payload;
+}
+
+function boundedInt(value, fallback, min, max) {
+  const number = Math.floor(Number(value));
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(min, Math.min(max, number));
 }
 
 function providerSummary(data = {}) {

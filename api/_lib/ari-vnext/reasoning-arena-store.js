@@ -41,7 +41,9 @@ export async function persistBlindReasoningArenaResult({ userId, record } = {}) 
     challenger_answer_hash: clean(record?.challengerAnswerHash, 80) || null,
     metadata: {
       rawCandidatesStored: false,
-      hiddenChainOfThoughtStored: false
+      hiddenChainOfThoughtStored: false,
+      benchmarkKind: clean(record?.benchmarkKind, 80) || null,
+      metrics: normalizeObject(record?.metrics)
     }
   };
 
@@ -69,7 +71,7 @@ export async function loadRecentBlindReasoningArenaResults({ userId, limit = 80 
 
   const params = new URLSearchParams({
     user_id: `eq.${id}`,
-    select: "turn_id,arena_version,domains,ari_model,challenger_model,judge_model,winner,confidence,evidence_weight,judge_independent,scores,decisive_reasons,uncertainty,created_at",
+    select: "turn_id,arena_version,domains,ari_model,challenger_model,judge_model,winner,confidence,evidence_weight,judge_independent,scores,decisive_reasons,uncertainty,metadata,created_at",
     order: "created_at.desc",
     limit: String(Math.max(1, Math.min(120, Number(limit || 80))))
   });
@@ -105,6 +107,8 @@ function normalizeRow(row = {}) {
     scores: normalizeObject(row?.scores),
     decisiveReasons: compactArray(row?.decisive_reasons ?? row?.decisiveReasons, 3, 220),
     uncertainty: clean(row?.uncertainty, 320) || null,
+    benchmarkKind: clean(row?.metadata?.benchmarkKind, 80) || null,
+    metrics: normalizeObject(row?.metadata?.metrics),
     createdAt: row?.created_at ?? row?.createdAt ?? null
   };
 }

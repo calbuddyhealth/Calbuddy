@@ -29,7 +29,9 @@ test("reasoning continuity tokens are encrypted and bound to user plus conversat
     baselineEffort: "medium",
     effectiveEffort: "high",
     reasoningMode: "standard",
-    reasoningContext: "all_turns"
+    reasoningContext: "all_turns",
+    chainDepth: 4,
+    billedInputTokens: 42000
   });
 
   assert.ok(token?.startsWith("arc1."));
@@ -47,6 +49,8 @@ test("reasoning continuity tokens are encrypted and bound to user plus conversat
   assert.equal(opened.state.model, "gpt-6.1-sol");
   assert.equal(opened.state.baselineEffort, "medium");
   assert.equal(opened.state.effectiveEffort, "high");
+  assert.equal(opened.state.chainDepth, 4);
+  assert.equal(opened.state.billedInputTokens, 42000);
 
   assert.equal(openReasoningContinuityToken({
     token,
@@ -120,8 +124,16 @@ test("live provider path uses stored response chaining and effort configuration 
   assert.match(orchestrator, /type:\s*"configuration_update"/);
   assert.match(orchestrator, /store:\s*policy\?\.persistReasoning === true/);
   assert.match(orchestrator, /context:\s*policy\.reasoningContext/);
+  assert.match(orchestrator, /ARI_REASONING_CONTINUITY_MAX_CHAIN_DEPTH/);
+  assert.match(orchestrator, /ARI_REASONING_CONTINUITY_MAX_BILLED_INPUT_TOKENS/);
+  assert.match(orchestrator, /provider_rejected_continuation/);
   assert.match(api, /openReasoningContinuityToken/);
   assert.match(api, /sealReasoningContinuityToken/);
+  const continuity = await readFile(
+    new URL("../api/_lib/ari-vnext/reasoning-continuity.js", import.meta.url),
+    "utf8"
+  );
+  assert.doesNotMatch(continuity, /ARI_PROVIDER_API_KEY|OPENAI_API_KEY/);
   assert.match(bridge, /sessionStorage\.setItem/);
   assert.match(bridge, /reasoningContinuityToken/);
 });

@@ -5,6 +5,7 @@ import {
   ARI_BLIND_REASONING_ARENA_VERSION,
   deriveBlindArenaDomains,
   deterministicCandidateOrder,
+  isExplicitAstraBenchmark,
   normalizeBlindArenaJudgment,
   shouldRunBlindReasoningArena
 } from "../api/_lib/ari-vnext/blind-reasoning-arena.js";
@@ -19,7 +20,13 @@ test("blind arena randomizes labels deterministically without exposing source id
 
   assert.deepEqual(first, second);
   assert.deepEqual(new Set([first.A, first.B]), new Set(["ari", "challenger"]));
-  assert.equal(ARI_BLIND_REASONING_ARENA_VERSION, "1.0.0");
+  assert.equal(ARI_BLIND_REASONING_ARENA_VERSION, "1.1.0");
+});
+
+test("Astra benchmark detector is explicit and does not hijack ordinary Astra discussion", () => {
+  assert.equal(isExplicitAstraBenchmark("Run a blind benchmark comparing Sol harness vs Astra."), true);
+  assert.equal(isExplicitAstraBenchmark("Compare Ari against Astra on this architecture."), true);
+  assert.equal(isExplicitAstraBenchmark("What is Astra?"), false);
 });
 
 test("blind judge result maps randomized labels back to Ari or challenger", () => {

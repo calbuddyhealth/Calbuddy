@@ -1,4 +1,4 @@
-import { recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
+import { extractOpenAIUsage, recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
 import { loadAccountEntitlements } from "./_lib/ari-vnext/account-entitlements.js";
 import {
   ARI_ADAPTIVE_STRATEGY_VERSION,
@@ -107,6 +107,11 @@ import {
   publicReasoningContinuity,
   sealReasoningContinuityToken
 } from "./_lib/ari-vnext/reasoning-continuity.js";
+import {
+  createTurnComputeGovernor,
+  publicTurnComputeGovernor,
+  reserveTurnCompute
+} from "./_lib/ari-vnext/turn-compute-governor.js";
 
 const AUTH_TIMEOUT_MS = Number(process.env.ARI_AUTH_TIMEOUT_MS) > 0
   ? Number(process.env.ARI_AUTH_TIMEOUT_MS)
@@ -227,6 +232,11 @@ export default async function handler(req, res) {
 
     const cognitiveLoopEligible = isOwnerCognitiveLoopEnabled(intelligenceEntitlement);
     const routePreview = routeContext(turn);
+    turn.context.turnComputeGovernor = createTurnComputeGovernor({
+      route: routePreview,
+      intelligenceEntitlement,
+      message: turn.message
+    });
     const cognitiveMode = resolveOwnerCognitionMode({
       entitlement: intelligenceEntitlement,
       route: routePreview
@@ -661,6 +671,13 @@ export default async function handler(req, res) {
     });
 
     const providerReasoningContinuity = result?.provider?.reasoningContinuity || null;
+    const currentProviderUsage = extractOpenAIUsage({ usage: result?.provider?.usage || {} });
+    const nextChainDepth = Math.max(1, Number(providerReasoningContinuity?.chainDepth || 1));
+    const priorBilledInputTokens =
+      providerReasoningContinuity?.resumed === true && !providerReasoningContinuity?.resetReason
+        ? Math.max(0, Number(providerReasoningContinuity?.billedInputTokens || 0))
+        : 0;
+    const nextBilledInputTokens = priorBilledInputTokens + Math.max(0, Number(currentProviderUsage.inputTokens || 0));
     const nextReasoningContinuityToken =
       result?.modelPolicy?.persistReasoning === true &&
       result?.provider?.id &&
@@ -677,7 +694,9 @@ export default async function handler(req, res) {
               providerReasoningContinuity?.effectiveEffort ||
               result?.modelPolicy?.reasoningEffort,
             reasoningMode: result?.modelPolicy?.reasoningMode,
-            reasoningContext: result?.modelPolicy?.reasoningContext
+            reasoningContext: result?.modelPolicy?.reasoningContext,
+            chainDepth: nextChainDepth,
+            billedInputTokens: nextBilledInputTokens
           })
         : null;
 
@@ -748,6 +767,13 @@ export default async function handler(req, res) {
     }
     const modelMs = Date.now() - modelStartedAt;
     const serverHydrationMs = modelStartedAt - hydrationStartedAt;
+    if (result && typeof result === "object") {
+      Object.defineProperty(result, "runtimeTiming", {
+        value: { modelMs, serverHydrationMs },
+        enumerable: false,
+        configurable: true
+      });
+    }
 
     const runtimeWorldModel = casualConversation
       ? persistedWorldModel
@@ -876,6 +902,10 @@ export default async function handler(req, res) {
             reasoningDemandScore: result?.modelPolicy?.reasoningDemand?.score ?? null,
             reasoningDemandBand: result?.modelPolicy?.reasoningDemand?.band || null,
             deliberationTier: result?.deliberationHarness?.tier || null,
+            turnCompute: publicTurnComputeGovernor(turn?.context?.turnComputeGovernor),
+            reasoningChainDepth: nextChainDepth,
+            reasoningChainBilledInputTokens: nextBilledInputTokens,
+            reasoningChainResetReason: providerReasoningContinuity?.resetReason || null,
             costTier: result?.modelPolicy?.costTier || null,
             routingReason: result?.modelPolicy?.routingReason || null,
             costGuard: result?.modelPolicy?.costGuard || null,
@@ -966,7 +996,21 @@ export default async function handler(req, res) {
         })
       : Promise.resolve(null);
 
+    const institutionalLearningReservation =
+      result?.multiAgent?.active === true &&
+      result?.multiAgent?.verifiedSynthesisAvailable === true &&
+      result?._multiAgentCouncil
+        ? reserveTurnCompute({
+            turn,
+            category: "institutional_memory_learning",
+            model: process.env.OPENAI_ARI_INSTITUTIONAL_MEMORY_MODEL || process.env.OPENAI_ARI_BACKGROUND_MODEL || "gpt-6-luna",
+            inputChars: 9000,
+            maxOutputTokens: 900
+          })
+        : { allowed: false, reason: "council_inactive" };
+
     const institutionalLearningTask =
+      institutionalLearningReservation.allowed === true &&
       result?.multiAgent?.active === true &&
       result?.multiAgent?.verifiedSynthesisAvailable === true &&
       result?._multiAgentCouncil
@@ -1004,7 +1048,9 @@ export default async function handler(req, res) {
         })
       : Promise.resolve({
           attempted: false,
-          reason: result?.multiAgent?.active ? "council_not_verified" : "council_inactive",
+          reason: institutionalLearningReservation.allowed === false
+            ? institutionalLearningReservation.reason || "turn_compute_blocked"
+            : result?.multiAgent?.active ? "council_not_verified" : "council_inactive",
           candidateCount: 0,
           savedCount: 0,
           reinforcedCount: 0,
@@ -1012,7 +1058,21 @@ export default async function handler(req, res) {
           hiddenChainOfThoughtStored: false
         });
 
+    const agentPerformanceLearningReservation =
+      result?.multiAgent?.active === true &&
+      result?.multiAgent?.verifiedSynthesisAvailable === true &&
+      result?._multiAgentCouncil
+        ? reserveTurnCompute({
+            turn,
+            category: "agent_performance_learning",
+            model: process.env.OPENAI_ARI_COUNCIL_PERFORMANCE_MODEL || process.env.OPENAI_ARI_BACKGROUND_MODEL || "gpt-6-luna",
+            inputChars: 9000,
+            maxOutputTokens: 850
+          })
+        : { allowed: false, reason: "council_inactive" };
+
     const agentPerformanceLearningTask =
+      agentPerformanceLearningReservation.allowed === true &&
       result?.multiAgent?.active === true &&
       result?.multiAgent?.verifiedSynthesisAvailable === true &&
       result?._multiAgentCouncil
@@ -1052,7 +1112,9 @@ export default async function handler(req, res) {
         })
       : Promise.resolve({
           attempted: false,
-          reason: result?.multiAgent?.active ? "council_not_verified" : "council_inactive",
+          reason: agentPerformanceLearningReservation.allowed === false
+            ? agentPerformanceLearningReservation.reason || "turn_compute_blocked"
+            : result?.multiAgent?.active ? "council_not_verified" : "council_inactive",
           stored: false,
           duplicate: false,
           agentProfilesUpdated: 0,
@@ -1240,6 +1302,9 @@ export default async function handler(req, res) {
             policy: result?.modelPolicy || {},
             provider: result?.provider || null
           })
+        : null,
+      turnCompute: intelligenceEntitlement?.ownerEligible === true
+        ? publicTurnComputeGovernor(turn?.context?.turnComputeGovernor)
         : null,
       reasoningContinuity: intelligenceEntitlement?.ownerEligible === true
         ? publicReasoningContinuity({

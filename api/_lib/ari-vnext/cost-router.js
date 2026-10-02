@@ -127,7 +127,9 @@ export function resolveOwnerInteractiveModel({
     route?.retryAfterFailure === true ||
     route?.toolFailure === true
   );
+  const benchmarkSolFirst = route?.astraBenchmarkIntent === true;
   const forceSol =
+    benchmarkSolFirst ||
     String(process.env.ARI_OWNER_FORCE_SOL || "").trim().toLowerCase() === "true";
 
   const escalateToAstra = explicitRequest === "astra" || (
@@ -151,7 +153,9 @@ export function resolveOwnerInteractiveModel({
       : explicitRequest === "sol"
         ? "explicit_sol_request"
         : forceSol
-          ? "owner_force_sol"
+          ? benchmarkSolFirst
+            ? "sol_benchmark_primary"
+            : "owner_force_sol"
           : hardProblem || explicitDeepProfile
             ? "sol_pro_first"
             : "sol_default"
