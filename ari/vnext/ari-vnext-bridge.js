@@ -4,7 +4,7 @@
 window.Ari = window.Ari || {};
 
 window.AriVNextBridge = {
-  version: "1.12.0",
+  version: "1.13.0",
   source: "ari-vnext-bridge",
   pendingStorageKey: "ari_vnext_pending_action",
   peerReflectionStorageKey: "ari_vnext_peer_reflection_last",
@@ -104,6 +104,7 @@ window.AriVNextBridge = {
     }
 
     if (data?.quota) this.publishDailyQuota(data.quota);
+    if (data?.runtimeModel) window.dispatchEvent(new CustomEvent("ari:runtimeModel", { detail: { runtimeModel: data.runtimeModel } }));
 
     if (!response.ok) {
       if (["ARI_DAILY_CHAT_LIMIT", "ARI_QUOTA_UNAVAILABLE"].includes(String(data?.code || ""))) {
