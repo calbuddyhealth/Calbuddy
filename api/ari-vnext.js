@@ -102,6 +102,11 @@ import { loadDreamingContext } from "./_lib/ari-vnext/dreaming-store.js";
 import { loadExperienceContext } from "./_lib/ari-vnext/experience-store.js";
 import { syncAgentTaskSessionWithExecution } from "./_lib/ari-vnext/agent-task-store.js";
 import { publicRuntimeModel } from "./_lib/ari-vnext/runtime-model-awareness.js";
+import {
+  openReasoningContinuityToken,
+  publicReasoningContinuity,
+  sealReasoningContinuityToken
+} from "./_lib/ari-vnext/reasoning-continuity.js";
 
 const AUTH_TIMEOUT_MS = Number(process.env.ARI_AUTH_TIMEOUT_MS) > 0
   ? Number(process.env.ARI_AUTH_TIMEOUT_MS)
@@ -207,6 +212,18 @@ export default async function handler(req, res) {
       ...(turn.context || {}),
       intelligenceEntitlement
     };
+
+    const incomingReasoningContinuity =
+      intelligenceEntitlement?.ownerEligible === true && turn.conversationId
+        ? openReasoningContinuityToken({
+            token: body?.reasoningContinuityToken,
+            userId: auth.userId,
+            conversationId: turn.conversationId
+          })
+        : { valid: false, reason: "not_owner_or_no_conversation", state: null };
+    if (incomingReasoningContinuity.valid && incomingReasoningContinuity.state) {
+      turn.context.reasoningContinuity = incomingReasoningContinuity.state;
+    }
 
     const cognitiveLoopEligible = isOwnerCognitiveLoopEnabled(intelligenceEntitlement);
     const routePreview = routeContext(turn);
@@ -643,6 +660,27 @@ export default async function handler(req, res) {
       throw error;
     });
 
+    const providerReasoningContinuity = result?.provider?.reasoningContinuity || null;
+    const nextReasoningContinuityToken =
+      result?.modelPolicy?.persistReasoning === true &&
+      result?.provider?.id &&
+      turn.conversationId
+        ? sealReasoningContinuityToken({
+            userId: auth.userId,
+            conversationId: turn.conversationId,
+            responseId: result.provider.id,
+            model: result?.provider?.model || result?.modelPolicy?.model,
+            baselineEffort:
+              providerReasoningContinuity?.baselineEffort ||
+              result?.modelPolicy?.reasoningEffort,
+            effectiveEffort:
+              providerReasoningContinuity?.effectiveEffort ||
+              result?.modelPolicy?.reasoningEffort,
+            reasoningMode: result?.modelPolicy?.reasoningMode,
+            reasoningContext: result?.modelPolicy?.reasoningContext
+          })
+        : null;
+
     const actionLedgerProposal =
       result?.action?.type === "proposed_action" && result?.pendingAction?.id
         ? await persistAriActionProposal({
@@ -830,6 +868,14 @@ export default async function handler(req, res) {
             intelligenceSource: intelligenceEntitlement.source,
             reasoningProfile: intelligenceEntitlement.reasoningProfile,
             reasoningEffort: result?.modelPolicy?.reasoningEffort || null,
+            reasoningMode: result?.modelPolicy?.reasoningMode || null,
+            reasoningContext: result?.modelPolicy?.reasoningContext || null,
+            persistedReasoningEnabled: result?.modelPolicy?.persistReasoning === true,
+            reasoningContinuityResumed: providerReasoningContinuity?.resumed === true,
+            reasoningConfigurationUpdateUsed: providerReasoningContinuity?.configurationUpdateUsed === true,
+            reasoningDemandScore: result?.modelPolicy?.reasoningDemand?.score ?? null,
+            reasoningDemandBand: result?.modelPolicy?.reasoningDemand?.band || null,
+            deliberationTier: result?.deliberationHarness?.tier || null,
             costTier: result?.modelPolicy?.costTier || null,
             routingReason: result?.modelPolicy?.routingReason || null,
             costGuard: result?.modelPolicy?.costGuard || null,
@@ -1192,6 +1238,14 @@ export default async function handler(req, res) {
       runtimeModel: intelligenceEntitlement?.ownerEligible === true
         ? publicRuntimeModel({
             policy: result?.modelPolicy || {},
+            provider: result?.provider || null
+          })
+        : null,
+      reasoningContinuity: intelligenceEntitlement?.ownerEligible === true
+        ? publicReasoningContinuity({
+            token: nextReasoningContinuityToken,
+            resumed: providerReasoningContinuity?.resumed === true,
+            policy: result?.modelPolicy || null,
             provider: result?.provider || null
           })
         : null,

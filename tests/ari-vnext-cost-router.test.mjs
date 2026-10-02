@@ -35,10 +35,11 @@ test.afterEach(() => {
   }
 });
 
-test("owner routing defaults to Sol and escalates only hard or explicit work to Astra", () => {
+test("owner routing tries Sol first and reserves Astra for explicit or extreme work", () => {
   delete process.env.OPENAI_ARI_OWNER_SOL_MODEL;
   delete process.env.OPENAI_ARI_OWNER_ASTRA_MODEL;
   delete process.env.ARI_OWNER_FORCE_SOL;
+  delete process.env.ARI_OWNER_ASTRA_ESCALATION_SCORE;
 
   const ordinary = resolveOwnerInteractiveModel({
     mode: "standard",
@@ -51,12 +52,29 @@ test("owner routing defaults to Sol and escalates only hard or explicit work to 
 
   const hard = resolveOwnerInteractiveModel({
     mode: "deep",
-    route: { complexity: "deep", solEscalationEligible: true },
+    route: { complexity: "deep", developer: true, solEscalationEligible: true },
     reasoningProfile: "adaptive"
   });
-  assert.equal(hard.model, "gpt-6-astra");
-  assert.equal(hard.fallbackModel, "gpt-6.1-sol");
-  assert.equal(hard.escalated, true);
+  assert.equal(hard.reasoningDemand.score, 9);
+  assert.equal(hard.reasoningDemand.band, "critical");
+  assert.equal(hard.model, "gpt-6.1-sol");
+  assert.equal(hard.escalated, false);
+  assert.equal(hard.reason, "sol_pro_first");
+
+  const extreme = resolveOwnerInteractiveModel({
+    mode: "deep",
+    route: {
+      complexity: "deep",
+      developer: true,
+      solEscalationEligible: true,
+      messageLength: 2200
+    },
+    reasoningProfile: "adaptive"
+  });
+  assert.equal(extreme.reasoningDemand.score, 11);
+  assert.equal(extreme.model, "gpt-6-astra");
+  assert.equal(extreme.escalated, true);
+  assert.equal(extreme.reason, "extreme_hard_problem");
 
   const manual = resolveOwnerInteractiveModel({
     mode: "fast",
@@ -139,6 +157,9 @@ test("oversized owner Sol calls downgrade to Luna before the provider call", () 
   assert.equal(guarded.costTier, "owner_luna_budget_guard");
   assert.equal(guarded.costGuard.downgraded, true);
   assert.equal(guarded.routingReason, "sol_per_call_budget_guard");
+  assert.equal(guarded.reasoningMode, "standard");
+  assert.equal(guarded.reasoningContext, "current_turn");
+  assert.equal(guarded.persistReasoning, false);
 });
 
 test("oversized Astra calls downgrade to Sol before the provider call", () => {

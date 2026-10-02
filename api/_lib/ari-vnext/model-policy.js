@@ -1,8 +1,8 @@
-import { deriveReasoningDemand, resolveOwnerInteractiveModel } from "./cost-router.js";
+import { deriveReasoningDemand, isSolClassModel, resolveOwnerInteractiveModel } from "./cost-router.js";
 
 // ARI vNext model routing.
 
-export const MODEL_POLICY_VERSION = "4.2.0";
+export const MODEL_POLICY_VERSION = "4.3.0";
 
 export function resolveModelPolicy(route = {}) {
   const intelligence = route?.intelligenceEntitlement || null;
@@ -26,6 +26,9 @@ export function resolveModelPolicy(route = {}) {
     model,
     supportsReasoning,
     reasoningEffort: supportsReasoning ? "low" : null,
+    reasoningMode: supportsReasoning ? "standard" : null,
+    reasoningContext: supportsReasoning ? "current_turn" : null,
+    persistReasoning: false,
     maxOutputTokens: mode === "deep" ? 900 : mode === "standard" ? 700 : 450,
     timeoutMs: mode === "deep" ? 22000 : mode === "standard" ? 18000 : 12000,
     costTier: freshness === "live"
@@ -54,10 +57,13 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
   const mode = resolveWorkMode(route);
   const freshness = resolveFreshness(route);
   const reasoningProfile = normalizeAdvancedReasoningProfile(intelligence?.reasoningProfile);
-  const baseReasoningDemand = deriveReasoningDemand({
-    ...route,
-    complexity: mode
-  });
+  const baseReasoningDemand =
+    route?.reasoningDemand?.version && route?.reasoningDemand?.band
+      ? route.reasoningDemand
+      : deriveReasoningDemand({
+          ...route,
+          complexity: mode
+        });
 
   const ariUnlimitedAdvancedModel =
     process.env.OPENAI_ARI_OWNER_MODEL ||
@@ -96,6 +102,24 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
       })
     : null;
   const premiumEscalated = premiumRouting?.escalated === true;
+  const reasoningMode = supportsReasoning
+    ? resolveAdvancedReasoningMode({
+        model,
+        mode,
+        reasoningProfile,
+        owner,
+        casualConversation,
+        reasoningDemand
+      })
+    : null;
+  const persistReasoning = Boolean(
+    supportsReasoning &&
+    owner &&
+    !casualConversation &&
+    isGpt6ClassModel(model) &&
+    String(process.env.ARI_OWNER_PERSISTED_REASONING || "true").toLowerCase() !== "false"
+  );
+  const reasoningContext = persistReasoning ? "all_turns" : "current_turn";
 
   return {
     version: MODEL_POLICY_VERSION,
@@ -108,6 +132,9 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
     supportsReasoning,
     reasoningProfile,
     reasoningEffort,
+    reasoningMode,
+    reasoningContext,
+    persistReasoning,
     reasoningDemand,
     maxOutputTokens: casualConversation
       ? owner
@@ -120,13 +147,15 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
           : 1800,
     timeoutMs: casualConversation
       ? 16000
-      : reasoningEffort === "xhigh" || reasoningEffort === "max"
+      : reasoningMode === "pro"
         ? 60000
-        : mode === "deep"
-          ? 50000
-          : mode === "fast"
-            ? 24000
-            : 34000,
+        : reasoningEffort === "xhigh" || reasoningEffort === "max"
+          ? 60000
+          : mode === "deep"
+            ? 50000
+            : mode === "fast"
+              ? 24000
+              : 34000,
     costTier: owner
       ? ownerRouting?.escalated
         ? "owner_astra_escalation"
@@ -250,6 +279,22 @@ function resolveAdvancedReasoningEffort({
   return "high";
 }
 
+function resolveAdvancedReasoningMode({
+  model = "",
+  mode = "standard",
+  reasoningProfile = "adaptive",
+  owner = false,
+  casualConversation = false,
+  reasoningDemand = null
+} = {}) {
+  if (!owner || casualConversation || !isSolClassModel(model)) return "standard";
+  if (String(process.env.ARI_OWNER_SOL_PRO_MODE || "true").toLowerCase() === "false") return "standard";
+
+  const critical = reasoningDemand?.band === "critical";
+  const explicitDeep = reasoningProfile === "deep" && mode === "deep";
+  return critical || explicitDeep ? "pro" : "standard";
+}
+
 function normalizeAdvancedReasoningProfile(value = "adaptive") {
   const candidate = String(value || "").trim().toLowerCase();
   return ["adaptive", "economy", "balanced", "deep"].includes(candidate)
@@ -259,4 +304,7 @@ function normalizeAdvancedReasoningProfile(value = "adaptive") {
 
 function isReasoningModel(value = "") {
   return /^gpt-(?:5|6)|^o[0-9]/i.test(String(value || ""));
+}
+function isGpt6ClassModel(value = "") {
+  return /^gpt-6(?:\.|-|$)/i.test(String(value || ""));
 }

@@ -279,7 +279,8 @@ test("vNext bridge, API, and continuity writer share the conversation id", async
   const continuity = await readFile(new URL("../api/_lib/ari-vnext/continuity-service.js", import.meta.url), "utf8");
   const homePersistence = await readFile(new URL("../js/home-conversation-persistence.js", import.meta.url), "utf8");
 
-  assert.match(bridge, /conversationId:\s*normalizeTurnId\(options\?\.conversationId \|\| window\.CalBuddy\?\.getConversationId\?\.\(\)\)/);
+  assert.match(bridge, /const conversationId = normalizeTurnId\([\s\S]*?options\?\.conversationId \|\| window\.CalBuddy\?\.getConversationId\?\.\(\)[\s\S]*?\) \|\| null/);
+  assert.match(bridge, /conversationId,\s*reasoningContinuityToken,/);
   assert.match(api, /conversationId:\s*turn\.conversationId/);
   assert.match(continuity, /conversation_id/);
   assert.match(continuity, /ari_chat_sessions/);

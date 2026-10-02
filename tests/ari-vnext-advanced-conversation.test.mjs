@@ -47,16 +47,18 @@ test("Advanced owner conversation uses Sol by default for short meaningful conve
   assert.equal(policy.conversationBeta, true);
 });
 
-test("Advanced Ari deep owner profile escalates from Sol to Astra", () => {
+test("Advanced Ari deep owner profile stays Sol-first unless the task itself earns Astra", () => {
   const policy = resolveModelPolicy({
     complexity: "standard",
     intelligenceEntitlement: advancedEntitlement("deep")
   });
 
-  assert.equal(policy.model, process.env.OPENAI_ARI_OWNER_ASTRA_MODEL || "gpt-6-astra");
+  assert.equal(policy.model, process.env.OPENAI_ARI_OWNER_SOL_MODEL || "gpt-6.1-sol");
   assert.equal(policy.reasoningEffort, "xhigh");
-  assert.equal(policy.costTier, "owner_astra_escalation");
-  assert.equal(policy.escalated, true);
+  assert.equal(policy.reasoningMode, "standard");
+  assert.equal(policy.costTier, "owner_sol_default");
+  assert.equal(policy.routingReason, "sol_pro_first");
+  assert.equal(policy.escalated, false);
 });
 
 test("Standard Ari stays on the existing economical model policy", () => {

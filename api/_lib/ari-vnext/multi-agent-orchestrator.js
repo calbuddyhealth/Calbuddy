@@ -22,7 +22,7 @@ import {
 
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 
-export const ARI_MULTI_AGENT_VERSION = "2.1.0";
+export const ARI_MULTI_AGENT_VERSION = "2.2.0";
 
 const DEFAULT_MAX_WORKERS = 3;
 const HARD_MAX_WORKERS = 4;
@@ -34,7 +34,8 @@ export function deriveMultiAgentPlan({
   turn = {},
   route = {},
   safety = {},
-  metacognition = null
+  metacognition = null,
+  modelPolicy = null
 } = {}) {
   const owner = route?.intelligenceEntitlement?.ownerEligible === true;
   const ownerOnly = process.env.ARI_MULTI_AGENT_OWNER_ONLY !== "false";
@@ -47,6 +48,8 @@ export function deriveMultiAgentPlan({
   const highStakes = safety?.highStakes === true;
   const judgment = cortex?.needs?.hypotheses === true || cortex?.needs?.countercase === true;
   const performance = turn?.context?.agentPerformance || null;
+  const primaryProMode = modelPolicy?.reasoningMode === "pro";
+  const reasoningDemandBand = clean(modelPolicy?.reasoningDemand?.band, 30) || null;
   const performanceReady =
     performance?.active === true &&
     Number(performance?.teamTrialCount || 0) >= 5 &&
@@ -104,7 +107,13 @@ export function deriveMultiAgentPlan({
   );
   const defaultTargetWorkers = Math.min(
     maxWorkers,
-    explicit || deep || developer || highStakes ? 3 : 2
+    explicit || highStakes
+      ? 3
+      : primaryProMode
+        ? 2
+        : deep || developer
+          ? 3
+          : 2
   );
   const performanceTeamReady =
     performance?.active === true &&
@@ -139,7 +148,9 @@ export function deriveMultiAgentPlan({
       developer,
       freshness,
       highStakes,
-      judgment
+      judgment,
+      primaryProMode,
+      reasoningDemandBand
     },
     authority: {
       finalSynthesis: "ari",
@@ -159,7 +170,7 @@ export async function runAriMultiAgentCouncil({
   modelPolicy = null
 } = {}) {
   const startedAt = Date.now();
-  const plan = deriveMultiAgentPlan({ turn, route, safety, metacognition });
+  const plan = deriveMultiAgentPlan({ turn, route, safety, metacognition, modelPolicy });
   if (!plan.active) {
     return {
       version: ARI_MULTI_AGENT_VERSION,
@@ -173,12 +184,14 @@ export async function runAriMultiAgentCouncil({
 
   const workerModel =
     clean(process.env.OPENAI_ARI_MULTI_AGENT_MODEL, 120) ||
-    clean(modelPolicy?.model, 120) ||
-    "gpt-4o-mini";
+    clean(process.env.OPENAI_ARI_OWNER_FAST_MODEL, 120) ||
+    clean(process.env.OPENAI_ARI_PREMIUM_LUNA_MODEL, 120) ||
+    "gpt-6-luna";
   const verifierModel =
     clean(process.env.OPENAI_ARI_MULTI_AGENT_VERIFIER_MODEL, 120) ||
-    clean(modelPolicy?.model, 120) ||
-    workerModel;
+    clean(process.env.OPENAI_ARI_OWNER_SOL_MODEL, 120) ||
+    clean(process.env.OPENAI_ARI_PREMIUM_SOL_MODEL, 120) ||
+    "gpt-6.1-sol";
 
   const anchor = durableExecutionAnchor(turn);
   let taskSession = anchor
