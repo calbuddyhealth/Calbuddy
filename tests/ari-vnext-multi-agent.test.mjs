@@ -38,7 +38,7 @@ test("multi-agent delegation stays bounded and owner-scoped by default", () => {
       metacognition: { cortex: { interventionLevel: "deep", needs: { hypotheses: true } } }
     });
 
-    assert.equal(ARI_MULTI_AGENT_VERSION, "2.1.0");
+    assert.equal(ARI_MULTI_AGENT_VERSION, "2.2.0");
     assert.equal(ownerPlan.active, true);
     assert.equal(ownerPlan.maxWorkers, 4);
     assert.equal(ownerPlan.maxFollowups, 1);
@@ -96,6 +96,30 @@ test("deep work can earn delegation without requiring magic words", () => {
   assert.equal(plan.active, true);
   assert.equal(plan.reason, "complexity_earned_delegation");
   assert.equal(plan.targetWorkers, 3);
+});
+
+test("primary Sol pro mode reduces redundant council breadth", () => {
+  const plan = deriveMultiAgentPlan({
+    turn: { message: "Analyze this architecture and challenge the failure modes." },
+    route: ownerRoute({ complexity: "deep", developer: true }),
+    safety: { highStakes: false },
+    metacognition: {
+      cortex: {
+        interventionLevel: "deep",
+        needs: { hypotheses: true, countercase: true }
+      }
+    },
+    modelPolicy: {
+      model: "gpt-6.1-sol",
+      reasoningMode: "pro",
+      reasoningDemand: { band: "critical" }
+    }
+  });
+
+  assert.equal(plan.active, true);
+  assert.equal(plan.targetWorkers, 2);
+  assert.equal(plan.signals.primaryProMode, true);
+  assert.equal(plan.signals.reasoningDemandBand, "critical");
 });
 
 test("fresh work permits web-equipped specialists only when live research is available", () => {
