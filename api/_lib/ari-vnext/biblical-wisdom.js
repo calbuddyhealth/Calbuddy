@@ -73,7 +73,7 @@ const LENSES = Object.freeze({
 });
 
 const PATTERNS = Object.freeze({
-  suffering: /\b(defeat(?:ed)?|give up|hopeless|despair|grief|grieving|suffer(?:ing)?|burned? out|exhausted|overwhelmed|broken|lonely|alone|worthless|failure|failed)\b/i,
+  suffering: /(?:\b(defeat(?:ed)?|hopeless|despair|grief|grieving|suffer(?:ing)?|burn(?:ed|t)? out|exhausted|overwhelmed|brokenhearted|lonely|worthless|can't go on|cannot go on)\b|\bgive up on (?:life|everything|myself)\b)/i,
   conflict: /\b(forgive|forgiveness|revenge|betray(?:al|ed)|enemy|resent|anger|angry|conflict|argument|marriage|relationship|friendship)\b/i,
   justice: /\b(justice|unjust|injustice|fairness|exploit|oppress|abuse of power|hypocrisy|corrupt)\b/i,
   leadership: /\b(lead(?:er|ership)?|responsib(?:le|ility)|authority|manage|command|mentor|teach|steward|stewardship)\b/i,
@@ -112,12 +112,17 @@ export function deriveBiblicalWisdomLayer({
   };
 
   const valueLaden = Object.values(matches).some(Boolean);
-  const primaryDeliberation = Boolean(
-    mode === "primary" &&
-    !route?.casualConversation &&
-    (route?.reasoningDemand === "high" || route?.reasoningDemand === "medium" || route?.developer !== true)
+  const professionalFactualRoute = Boolean(route?.developer || route?.health || route?.currentInfo);
+  const explicitMoralOrSpiritualSignal = Boolean(
+    matches.scripture ||
+    matches.suffering ||
+    matches.conflict ||
+    matches.justice ||
+    matches.character ||
+    matches.leadership
   );
-  const active = mode !== "off" && (valueLaden || primaryDeliberation);
+  const domainSuppressed = professionalFactualRoute && !explicitMoralOrSpiritualSignal;
+  const active = mode !== "off" && valueLaden && !domainSuppressed;
 
   if (!active) {
     return {
