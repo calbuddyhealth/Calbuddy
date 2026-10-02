@@ -178,6 +178,35 @@ export function capabilityAwarenessToInstruction(state = null) {
   return lines.join("\n").slice(0, (state.explicitInquiry || state.cognitiveAuditInquiry || state.detailedSelfModel) ? 7000 : 4200);
 }
 
+export function shouldRecoverCognitiveInspectionDenial({ state = null, reply = "" } = {}) {
+  if (!state || typeof state !== "object") return false;
+  if (state?.cognitiveAuditInquiry !== true) return false;
+  if (String(state?.accessClass || "").toLowerCase() !== "owner") return false;
+
+  const names = Array.isArray(state?.resourcesNow?.callableToolNames)
+    ? state.resourcesNow.callableToolNames.map((value) => String(value || "").trim())
+    : [];
+  const inspectionAvailable =
+    names.includes("owner_cognitive_trace_read") ||
+    names.includes("owner_repo_read") ||
+    names.includes("owner_repo_search");
+  if (!inspectionAvailable) return false;
+
+  const text = String(reply || "")
+    .replace(/[’‘]/g, "'")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+  if (!text) return false;
+
+  return (
+    /\bi (?:do not|don't|cannot|can't|am unable to) (?:currently )?(?:have|access|use|call)\b.{0,120}\b(?:inspection|repository|repo|source(?: code)?|causal trace|trace|tool|tools)\b/.test(text) ||
+    /\bi (?:do not|don't|cannot|can't|am unable to)\b.{0,140}\b(?:inspect|read|access)\b.{0,100}\b(?:repository|repo|source(?: code)?|causal trace|trace)\b/.test(text) ||
+    /\bno callable (?:inspection )?tool\b/.test(text) ||
+    /\b(?:inspection|repository|repo|trace) (?:tool|access) (?:is|isn't|is not|was not) (?:available|exposed|callable)\b/.test(text)
+  );
+}
+
 export function publicRuntimeCapabilityAwareness(state = null) {
   if (!state || typeof state !== "object") return null;
   return {

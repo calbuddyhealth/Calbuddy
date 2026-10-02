@@ -38,7 +38,11 @@ import {
 import { applyOutcomeLearning } from "./outcome-learning.js";
 import { deriveRelationshipContinuity } from "./relationship-continuity.js";
 import { withRuntimeModelIdentity } from "./runtime-model-awareness.js";
-import { capabilityAwarenessToInstruction, deriveRuntimeCapabilityAwareness } from "./runtime-capability-awareness.js";
+import {
+  capabilityAwarenessToInstruction,
+  deriveRuntimeCapabilityAwareness,
+  shouldRecoverCognitiveInspectionDenial
+} from "./runtime-capability-awareness.js";
 import { recommendationQualityInstruction } from "./recommendation-quality.js";
 import { classifySafety, safetyToInstruction } from "./safety-policy.js";
 import { deriveScientificIntelligence, scientificIntelligenceToInstruction } from "./scientific-intelligence.js";
@@ -71,6 +75,7 @@ const LOW_RISK_PRIMARY_FAST_PATHS = new Set([
   "owner_repo_search",
   "owner_repo_read",
   "owner_repo_ci_status",
+  "owner_cognitive_trace_read",
   "owner_agent_mailbox_list",
   "owner_agent_mailbox_read",
   "owner_agent_mailbox_send",
@@ -538,6 +543,39 @@ export async function runAriVNext(turn = {}) {
         toolChoice: { type: "function", name: labToolName }
       });
       functionCall = findFunctionCall(first?.output);
+    }
+  }
+
+  // Recover cognitive audits when the model contradicts the trusted runtime
+  // capability map by claiming that no inspection tool is available. This is
+  // owner-only, read-only, and only fires when the server registry confirms an
+  // inspection capability is callable on this turn.
+  if (
+    !functionCall &&
+    shouldRecoverCognitiveInspectionDenial({
+      state: capabilityAwareness,
+      reply: extractOutputText(first)
+    })
+  ) {
+    const traceTool = tools.find(
+      (tool) => tool?.type === "function" && tool?.name === "owner_cognitive_trace_read"
+    );
+    if (traceTool) {
+      try {
+        first = await callResponses({
+          turn,
+          policy: modelPolicy,
+          instructions: instructions + "\nOWNER COGNITIVE INSPECTION RECOVERY\nYour previous draft incorrectly claimed that no callable inspection capability exists. The trusted runtime registry confirms owner_cognitive_trace_read is callable now. Call it with a bounded recent history so the audit is grounded in persisted causal telemetry. Do not expose hidden reasoning or raw private state.",
+          input,
+          tools: [traceTool],
+          toolChoice: { type: "function", name: "owner_cognitive_trace_read" }
+        });
+        functionCall = findFunctionCall(first?.output);
+      } catch {
+        // Preserve chat availability if the provider temporarily rejects the
+        // forced read. The final reply must still not invent successful
+        // inspection; normal evidence guards remain authoritative.
+      }
     }
   }
 
