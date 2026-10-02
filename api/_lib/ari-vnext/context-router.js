@@ -57,6 +57,7 @@ export function routeContext(turn = {}) {
         : null
     : null;
   const currentInfo = needsCurrentInfo(semanticText);
+  const webSearchRequired = currentInfo || referenceResolutionSearch;
   const developer =
     PATTERNS.developer.test(semanticText) ||
     Boolean(turn?.context?.visualInspection) ||
@@ -115,6 +116,7 @@ export function routeContext(turn = {}) {
     health,
     currentInfo,
     referenceResolutionSearch,
+    webSearchRequired,
     developer,
     recommendationIntent,
     solEscalationEligible,
