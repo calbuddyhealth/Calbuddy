@@ -26,8 +26,14 @@ export function deriveCompanionState({
     : {};
   const familiarity = clean(relationship?.familiarity, 40) || "new";
   const conversationSignal = communication?.personalization?.currentTurnSignal || null;
-  const repairActive = conversationSignal?.source === "conversation_repair_friction";
+  const companionInstinct = instinctKernel?.modulation?.companion || {};
+  const repairActive =
+    conversationSignal?.source === "conversation_repair_friction" ||
+    companionInstinct?.repairFirst === true;
   const highStakes = safety?.highStakes === true;
+  const blockInitiative = companionInstinct?.suppressUnrelatedInitiative === true;
+  const continuityPressure = clamp01(Number(companionInstinct?.continuityPressure || 0));
+  const questionRestraint = clamp01(Number(companionInstinct?.questionRestraint || 0));
   const greeting = isSimpleGreeting(message);
   const continuityCue = explicitContinuityCue(message);
 
