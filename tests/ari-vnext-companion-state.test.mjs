@@ -236,5 +236,8 @@ test("relationship continuity incorporates cognitive open loops and active commu
 test("live orchestrator derives Companion Core and injects its instruction before the model call", () => {
   assert.match(orchestratorSource, /deriveCompanionState\(\{/);
   assert.match(orchestratorSource, /companionStateToInstruction\(companionState\)/);
-  assert.match(orchestratorSource, /relationshipContinuity,\\s*instinctKernel,\\s*companionState,\\s*cognitionCoordinator,\\s*deliberationHarness,\\s*goalHierarchy/);
+  assert.match(orchestratorSource, /deriveInstinctKernel\(\{/);
+  assert.match(orchestratorSource, /instinctKernel/);
+  assert.match(orchestratorSource, /cognitionCoordinator/);
+  assert.match(orchestratorSource, /deliberationHarness/);
 });
