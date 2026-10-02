@@ -10,7 +10,7 @@ import { dreamingContextToInstruction } from "./dreaming-core.js";
 import { experienceContextToInstruction } from "./experience-core.js";
 import { contextBudgetChars } from "./cost-router.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.24.0";
+export const CONTEXT_ROUTER_VERSION = "1.25.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -41,12 +41,12 @@ export function routeContext(turn = {}) {
   const social = PATTERNS.social.test(semanticText) || actionNetworkAvailable;
   const memory = PATTERNS.memory.test(semanticText) || followUp;
   const health = PATTERNS.health.test(semanticText);
-  const currentInfo = needsCurrentInfo(semanticText);
+  const recommendationIntent = PATTERNS.recommendation.test(semanticText);\n  const currentInfo = needsCurrentInfo(semanticText);
   const developer =
     PATTERNS.developer.test(semanticText) ||
     Boolean(turn?.context?.visualInspection) ||
     Boolean(turn?.context?.executionEvidence);
-  const casualConversation = isCasualConversation({
+  const solEscalationEligible = shouldEscalateToSol({\n    message,\n    semanticText,\n    developer,\n    health,\n    recommendationIntent\n  });\n  const casualConversation = isCasualConversation({
     message,
     followUp,
     nutrition,
@@ -575,6 +575,7 @@ function isFollowUp(message = "") {
 function needsCurrentInfo(text = "") {
   const value = String(text || "");
   if (PATTERNS.liveInfo.test(value)) return true;
+  if (PATTERNS.recommendation.test(value) && PATTERNS.recommendationDynamic.test(value)) return true;
   return PATTERNS.recency.test(value) && PATTERNS.changingReference.test(value);
 }
 
@@ -595,6 +596,30 @@ function isCasualConversation({
   if (nutrition || training || goals || social || memory || health || currentInfo || developer) return false;
 
   return /^(?:(?:hey|hi|hello|yo)(?:\s+ari)?|(?:hey|hi|hello|yo)\s+there|what(?:'s| is)\s+up(?:\s+ari)?|sup(?:\s+ari)?|good\s+(?:morning|afternoon|evening)(?:\s+ari)?|how\s+are\s+you(?:\s+doing)?(?:\s+ari)?|thanks(?:\s+ari)?|thank\s+you(?:\s+ari)?)[!.?\s]*$/i.test(text);
+}
+
+function shouldEscalateToSol({
+  message = "",
+  semanticText = "",
+  developer = false,
+  health = false,
+  recommendationIntent = false
+} = {}) {
+  // Recommendation quality is Luna-first by product contract.
+  if (recommendationIntent) return false;
+
+  const text = String(semanticText || message || "");
+  if (text.length > 1800) return true;
+
+  if (developer && /\b(?:root cause|debug|architecture|architect|security review|threat model|race condition|distributed|concurrency|migration strategy|failure mode|prove|formal|complex)\b/i.test(text)) {
+    return true;
+  }
+
+  if (health && /\b(?:differential|interaction|contraindication|multiple medications|complex case|conflicting symptoms|risk-benefit|high risk|high-risk)\b/i.test(text)) {
+    return true;
+  }
+
+  return /\b(?:deeply analyze|rigorous analysis|multi-step reasoning|formal proof|exhaustive analysis|complex reasoning)\b/i.test(text);
 }
 
 function estimateComplexity(message = "") {
