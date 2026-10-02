@@ -108,13 +108,27 @@ export function resolveOwnerInteractiveModel({
   const hardProblem =
     route?.solEscalationEligible === true &&
     reasoningDemand.band === "critical";
+  const astraEscalationScore = boundedInt(
+    process.env.ARI_OWNER_ASTRA_ESCALATION_SCORE,
+    11,
+    8,
+    12
+  );
+  const extremeHardProblem =
+    hardProblem &&
+    reasoningDemand.score >= astraEscalationScore;
+  const retryAfterFailure = Boolean(
+    route?.previousAttemptFailed === true ||
+    route?.retryAfterFailure === true ||
+    route?.toolFailure === true
+  );
   const forceSol =
     String(process.env.ARI_OWNER_FORCE_SOL || "").trim().toLowerCase() === "true";
 
   const escalateToAstra = explicitRequest === "astra" || (
     explicitRequest !== "sol" &&
     !forceSol &&
-    (hardProblem || explicitDeepProfile)
+    (extremeHardProblem || (hardProblem && retryAfterFailure))
   );
 
   return {
@@ -126,14 +140,16 @@ export function resolveOwnerInteractiveModel({
     reason: escalateToAstra
       ? explicitRequest === "astra"
         ? "explicit_astra_request"
-        : explicitDeepProfile
-          ? "explicit_deep_profile"
-          : "hard_problem"
+        : retryAfterFailure
+          ? "critical_retry_astra"
+          : "extreme_hard_problem"
       : explicitRequest === "sol"
         ? "explicit_sol_request"
         : forceSol
           ? "owner_force_sol"
-          : "sol_default"
+          : hardProblem || explicitDeepProfile
+            ? "sol_pro_first"
+            : "sol_default"
   };
 }
 
