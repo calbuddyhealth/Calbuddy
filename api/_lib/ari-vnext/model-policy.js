@@ -2,7 +2,7 @@ import { resolveOwnerInteractiveModel } from "./cost-router.js";
 
 // ARI vNext model routing.
 
-export const MODEL_POLICY_VERSION = "4.0.0";
+export const MODEL_POLICY_VERSION = "4.1.0";
 
 export function resolveModelPolicy(route = {}) {
   const intelligence = route?.intelligenceEntitlement || null;
@@ -54,13 +54,11 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
   const reasoningProfile = normalizeAdvancedReasoningProfile(intelligence?.reasoningProfile);
 
   const ariUnlimitedAdvancedModel =
-    process.env.OPENAI_ARI_OWNER_MODEL ||
-    process.env.OPENAI_ARI_ADVANCED_MODEL ||
-    "gpt-5.6-sol";
+    process.env.OPENAI_ARI_UNLIMITED_SOL_MODEL ||
+    "gpt-6.1-sol";
   const ariUnlimitedFastModel =
-    process.env.OPENAI_ARI_OWNER_FAST_MODEL ||
-    process.env.OPENAI_ARI_VNEXT_FAST_MODEL ||
-    "gpt-5.6-luna";
+    process.env.OPENAI_ARI_UNLIMITED_LUNA_MODEL ||
+    "gpt-6-luna";
 
   const ownerRouting = owner
     ? resolveOwnerInteractiveModel({ mode, route, reasoningProfile })
@@ -75,7 +73,7 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
       ? casualConversation
         ? ariUnlimitedFastModel
         : ariUnlimitedAdvancedModel
-      : premiumRouting?.model || "gpt-5.6-luna";
+      : premiumRouting?.model || "gpt-6-luna";
 
   const supportsReasoning = isReasoningModel(model);
   const reasoningEffort = supportsReasoning
@@ -90,6 +88,7 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
     mode,
     freshness,
     model,
+    fallbackModel: owner ? ownerRouting?.fallbackModel || null : null,
     supportsReasoning,
     reasoningProfile,
     reasoningEffort,
@@ -113,8 +112,8 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
             : 34000,
     costTier: owner
       ? ownerRouting?.escalated
-        ? "owner_sol_escalation"
-        : "owner_terra_default"
+        ? "owner_astra_escalation"
+        : "owner_sol_default"
       : ariUnlimited
         ? casualConversation
           ? "ari_unlimited_fast"
@@ -144,10 +143,10 @@ function resolvePremiumInteractiveModel({
 } = {}) {
   const lunaModel =
     process.env.OPENAI_ARI_PREMIUM_LUNA_MODEL ||
-    "gpt-5.6-luna";
+    "gpt-6-luna";
   const solModel =
     process.env.OPENAI_ARI_PREMIUM_SOL_MODEL ||
-    "gpt-5.6-sol";
+    "gpt-6.1-sol";
 
   // Recommendations are intentionally Luna-first. Better evidence, constraints,
   // and ranking should improve recommendation quality before model escalation.
@@ -212,6 +211,7 @@ function resolveAdvancedReasoningEffort({
   owner = false
 } = {}) {
   if (casualConversation) return "low";
+  if (owner && route?.ownerModelRequest === "astra") return reasoningProfile === "deep" ? "xhigh" : "high";
   if (reasoningProfile === "economy") return "low";
   if (reasoningProfile === "balanced") return mode === "fast" ? "low" : "medium";
   if (reasoningProfile === "deep") return "xhigh";
@@ -228,5 +228,5 @@ function normalizeAdvancedReasoningProfile(value = "adaptive") {
 }
 
 function isReasoningModel(value = "") {
-  return /^gpt-5|^o[0-9]/i.test(String(value || ""));
+  return /^gpt-(?:5|6)|^o[0-9]/i.test(String(value || ""));
 }
