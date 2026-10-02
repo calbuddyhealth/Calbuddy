@@ -17,6 +17,25 @@ import {
 
 const OWNER_ID = "11111111-1111-4111-8111-111111111111";
 
+const BACKGROUND_TEST_ENV = [
+  "ARI_BACKGROUND_AI_ENABLED",
+  "ARI_CHATGPT_REPAIR_DIALOGUE_ENABLED",
+  "ARI_AUTONOMY_RUNTIME_ENABLED",
+  "ARI_EXPERIENCE_ENGINE_ENABLED",
+  "ARI_AGENT_COMMUNITY_AUTONOMY_ENABLED",
+  "ARI_DREAMING_ENABLED",
+  "ARI_CHATGPT_THEORY_DIALOGUE_ENABLED"
+];
+const ORIGINAL_BACKGROUND_TEST_ENV = Object.fromEntries(
+  BACKGROUND_TEST_ENV.map((key) => [key, process.env[key]])
+);
+test.before(() => {
+  for (const key of BACKGROUND_TEST_ENV) process.env[key] = "true";
+});
+test.after(() => {
+  restoreEnv(ORIGINAL_BACKGROUND_TEST_ENV);
+});
+
 test("GPT-5.6 family pricing is recorded correctly", () => {
   const usage = { inputTokens: 1_000_000, cachedInputTokens: 200_000, outputTokens: 100_000 };
 
