@@ -2,7 +2,7 @@
 // Specialized cognitive systems produce state/signals; this module alone turns
 // experimental cognition into behavioral instructions for the primary model.
 
-export const ARI_EXECUTIVE_VERSION = "1.3.0";
+export const ARI_EXECUTIVE_VERSION = "1.4.0";
 export const ARI_RUNTIME_CONSTITUTION_VERSION = "1.0.0";
 export const ARI_RULE_AUTHORITY_VERSION = "1.0.0";
 
@@ -54,7 +54,8 @@ export function deriveAriExecutivePolicy({
   cortex = null,
   omegaRCT = null,
   executionSession = null,
-  instructionActivation = null
+  instructionActivation = null,
+  instinctKernel = null
 } = {}) {
   const consequenceTier = safety?.highStakes === true ? "high" : "ordinary";
   const activeQuestion = curiosity?.activeQuestion || null;
@@ -139,16 +140,37 @@ export function deriveAriExecutivePolicy({
   const motivationArbitrationState = objectOrEmpty(motivation.arbitration);
   const motivationPolicy = objectOrEmpty(motivation.policy);
 
+  const instinctModulation = objectOrEmpty(instinctKernel?.modulation?.executive);
+  const instinctVerificationBias = finite(instinctModulation.verificationBias, 0);
+  const instinctExplorationBias = finite(instinctModulation.explorationBias, 0);
+  const instinctPersistenceBias = finite(instinctModulation.persistenceBias, 0);
+  const instinctSimplicityBias = finite(instinctModulation.simplicityBias, 0);
+  const instinctAgencyBias = finite(instinctModulation.agencyBias, 0);
+  const instinctChallengeBias = finite(instinctModulation.challengeBias, 0);
+  const instinctExperimentBias = finite(instinctModulation.reversibleExperimentBias, 0);
+  const instinctCostBias = finite(instinctModulation.costConservationBias, 0);
+
   const cortexNeeds = objectOrEmpty(cortex?.needs);
   const cortexCapabilities = Array.isArray(cortex?.selectedCapabilities)
     ? cortex.selectedCapabilities.slice(0, 8).map((item) => clean(item, 80)).filter(Boolean)
     : [];
 
-  const verificationDepth = safety?.highStakes === true || route?.currentInfo === true || cortexNeeds.verification === true
-    ? "high"
-    : missingEvidence.length > 0 || verificationBias >= 0.68 || affectVerificationBias >= 0.68 || emotionVerificationBias >= 0.68 || emotionThreatVigilance >= 0.62 || affectModulation.recheckAssumptions === true || emotionModulation.recheckAssumptions === true
-      ? "moderate"
-      : "normal";
+  const verificationDepth =
+    instinctVerificationBias >= 0.9 ||
+    safety?.highStakes === true ||
+    route?.currentInfo === true ||
+    cortexNeeds.verification === true
+      ? "high"
+      : missingEvidence.length > 0 ||
+        verificationBias >= 0.68 ||
+        affectVerificationBias >= 0.68 ||
+        emotionVerificationBias >= 0.68 ||
+        instinctVerificationBias >= 0.72 ||
+        emotionThreatVigilance >= 0.62 ||
+        affectModulation.recheckAssumptions === true ||
+        emotionModulation.recheckAssumptions === true
+        ? "moderate"
+        : "normal";
 
   const explorationScore = Math.max(
     curiosityDrive,
@@ -161,18 +183,29 @@ export function deriveAriExecutivePolicy({
     clamp(0.45 * informationGain + 0.25 * explorationBias + 0.3 * learnedUtility),
     explorationBonus > 0 ? 0.45 + explorationBonus : 0,
     expansiveSelected ? Math.max(0.58, expansivePressure) : Math.min(0.5, expansivePressure),
-    imaginationSelected ? Math.max(0.6, imaginationPressure) : Math.min(0.5, imaginationPressure)
+    imaginationSelected ? Math.max(0.6, imaginationPressure) : Math.min(0.5, imaginationPressure),
+    instinctExplorationBias,
+    instinctExperimentBias
   );
   const explorationDepth = explorationScore >= 0.76 ? "high" : explorationScore >= 0.54 ? "moderate" : "normal";
 
-  const persistence = penaltyTotal > 0.3 || affectModulation.strategySwitch === true || emotionModulation.strategySwitch === true
-    ? "change_method"
-    : persistenceBias >= 0.7 || affectPersistenceBias >= 0.68 || emotionPersistenceBias >= 0.68 || emotionObstacleConfrontation >= 0.66 || finite(rewardCore?.aggregate?.prematureStopRate, 0) >= 0.18
-      ? "increase"
-      : "normal";
+  const persistence =
+    instinctKernel?.modulation?.deliberation?.changeMethod === true ||
+    penaltyTotal > 0.3 ||
+    affectModulation.strategySwitch === true ||
+    emotionModulation.strategySwitch === true
+      ? "change_method"
+      : instinctPersistenceBias >= 0.7 ||
+        persistenceBias >= 0.7 ||
+        affectPersistenceBias >= 0.68 ||
+        emotionPersistenceBias >= 0.68 ||
+        emotionObstacleConfrontation >= 0.66 ||
+        finite(rewardCore?.aggregate?.prematureStopRate, 0) >= 0.18
+        ? "increase"
+        : "normal";
 
   const countercase = Boolean(
-    cortexNeeds.countercase === true || countercaseBias >= 0.68 || affectModulation.recheckAssumptions === true || emotionModulation.recheckAssumptions === true ||
+    cortexNeeds.countercase === true || instinctChallengeBias >= 0.68 || countercaseBias >= 0.68 || affectModulation.recheckAssumptions === true || emotionModulation.recheckAssumptions === true ||
     emotionCounterfactualReviewPriority >= 0.58 || emotionModulation.performCounterfactualReview === true ||
     functionalAffect?.regulation?.reduceOverconfidence === true || route?.developer === true || route?.complexity === "deep"
   );
@@ -277,7 +310,14 @@ export function deriveAriExecutivePolicy({
       motivationalSelectedSide: clean(motivationArbitrationState.selectedSide, 40) || "balanced",
       boundedIndulgenceEligible: motivationArbitrationState.boundedIndulgenceEligible === true,
       restraintMustJustifyItself: motivationArbitrationState.restraintMustJustifyItself === true,
-      explorationCanWinMotivationalConflict: motivationArbitrationState.explorationCanWin === true
+      explorationCanWinMotivationalConflict: motivationArbitrationState.explorationCanWin === true,
+      instinctDominant: clean(instinctKernel?.dominant?.id, 80) || null,
+      instinctMandatoryConstraints: compactArray(instinctKernel?.mandatoryConstraints, 10, 120),
+      instinctSuppressions: compactArray(instinctKernel?.suppressions, 10, 120),
+      instinctSimplicityPressure: round(instinctSimplicityBias),
+      instinctAgencyPressure: round(instinctAgencyBias),
+      instinctCostConservationPressure: round(instinctCostBias),
+      instinctReversibleExperimentPressure: round(instinctExperimentBias)
     },
     signals: {
       curiosity: curiosity ? {
@@ -473,6 +513,28 @@ export function deriveAriExecutivePolicy({
         verification: round(verificationBias),
         countercase: round(countercaseBias),
         peerConsultation: round(peerBias)
+      } : null,
+      instincts: instinctKernel ? {
+        version: clean(instinctKernel?.version, 40) || null,
+        dominant: clean(instinctKernel?.dominant?.id, 80) || null,
+        dominantStrength: round(finite(instinctKernel?.dominant?.strength, 0)),
+        secondary: clean(instinctKernel?.secondary?.id, 80) || null,
+        reflexes: Array.isArray(instinctKernel?.reflexes)
+          ? instinctKernel.reflexes.slice(0, 6).map((item) => ({
+              id: clean(item?.id, 80),
+              strength: round(finite(item?.strength, 0)),
+              trigger: clean(item?.trigger, 160)
+            }))
+          : [],
+        drives: Array.isArray(instinctKernel?.drives)
+          ? instinctKernel.drives.slice(0, 6).map((item) => ({
+              id: clean(item?.id, 80),
+              strength: round(finite(item?.strength, 0)),
+              trigger: clean(item?.trigger, 160)
+            }))
+          : [],
+        mandatoryConstraints: compactArray(instinctKernel?.mandatoryConstraints, 10, 120),
+        suppressions: compactArray(instinctKernel?.suppressions, 10, 120)
       } : null,
       execution: execution ? {
         active: true,
