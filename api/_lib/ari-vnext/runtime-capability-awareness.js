@@ -14,6 +14,9 @@ export const RUNTIME_CAPABILITY_AWARENESS_VERSION = "1.0.0";
 const CAPABILITY_INQUIRY =
   /(?:\bwhat (?:can|could) you do\b|\bwhat are you capable of\b|\bhow powerful are you\b|\bwhat can you become\b|\bwhat is your potential\b|\byour (?:capabilities|resources|tools|potential)\b|\b(?:what|which|show|explain|tell me)\b.{0,90}\b(?:capabilit(?:y|ies)|resources?|tools?|potential|access)\b)/i;
 
+const COGNITIVE_AUDIT_INQUIRY =
+  /(?:\b(?:audit|inspect|review|verify|trace|observe|observability|implementation|wiring|architecture)\b.{0,140}\b(?:cognit(?:ion|ive)|signal|emotion|pain|nociception|neuromodulation|hormone|neurotransmitter|imagination|felt state|executive|causal|runtime)\b|\b(?:cognit(?:ion|ive)|signal|emotion|pain|nociception|neuromodulation|hormone|neurotransmitter|imagination|felt state|executive|causal|runtime)\b.{0,140}\b(?:audit|inspect|review|verify|trace|observe|observability|implementation|wiring|architecture)\b)/i;
+
 export function deriveRuntimeCapabilityAwareness({
   turn = {},
   route = {},
@@ -26,7 +29,10 @@ export function deriveRuntimeCapabilityAwareness({
   const owner =
     entitlement?.ownerEligible === true ||
     String(entitlement?.accessClass || "").toLowerCase() === "owner";
-  const explicitInquiry = CAPABILITY_INQUIRY.test(String(turn?.message || ""));
+  const message = String(turn?.message || "");
+  const explicitInquiry = CAPABILITY_INQUIRY.test(message);
+  const cognitiveAuditInquiry = COGNITIVE_AUDIT_INQUIRY.test(message);
+  const detailedSelfModel = owner && (explicitInquiry || cognitiveAuditInquiry || route?.developer === true);
 
   const toolNames = normalizeToolNames(tools);
   const callableFamilies = unique(toolNames.map(toolFamily).filter(Boolean));
@@ -45,6 +51,12 @@ export function deriveRuntimeCapabilityAwareness({
     policy?.persistReasoning === true &&
     conversationContinuity;
   const webResearchNow = toolNames.includes("web_search");
+  const cognitiveSystems = deriveCognitiveSystems({
+    owner,
+    metacognition,
+    context,
+    detailed: detailedSelfModel
+  });
 
   const conditional = deriveConditionalResources({ owner, route, policy });
   const combinations = deriveResourceCombinations({
@@ -58,6 +70,8 @@ export function deriveRuntimeCapabilityAwareness({
     version: RUNTIME_CAPABILITY_AWARENESS_VERSION,
     source: "server_runtime_registry",
     explicitInquiry,
+    cognitiveAuditInquiry,
+    detailedSelfModel,
     accessClass: clean(
       policy?.accessClass ||
       entitlement?.accessClass ||
@@ -76,14 +90,15 @@ export function deriveRuntimeCapabilityAwareness({
     routingReason: clean(policy?.routingReason, 80) || null,
     resourcesNow: {
       callableToolCount: toolNames.length,
-      callableToolNames: explicitInquiry ? toolNames : [],
+      callableToolNames: (explicitInquiry || cognitiveAuditInquiry) ? toolNames : [],
       callableFamilies,
       webResearch: webResearchNow,
       persistentMemory,
       conversationContinuity,
       persistedReasoning,
       selectedCognitiveCapabilities,
-      cognitiveSignalNetwork: metacognition?.cognitiveSignals?.active === true
+      cognitiveSignalNetwork: metacognition?.cognitiveSignals?.active === true,
+      cognitiveSystems
     },
     conditionalResources: conditional,
     usefulCombinations: combinations
@@ -111,7 +126,24 @@ export function capabilityAwarenessToInstruction(state = null) {
   }
   if (now.cognitiveSignalNetwork) lines.push("A bounded cognitive signal network is active: local threshold/decay/inhibition/cooldown control feeds Ari Executive; it does not create permissions or provider calls.");
 
-  if (state.explicitInquiry && Array.isArray(now.callableToolNames) && now.callableToolNames.length) {
+  if (now.cognitiveSystems?.architecture) {
+    const architecture = Object.entries(now.cognitiveSystems.architecture)
+      .filter(([, value]) => value === true)
+      .map(([key]) => key);
+    if (architecture.length) {
+      lines.push("Runtime cognitive architecture enabled: " + architecture.join(", ") + ".");
+    }
+  }
+
+  if (state.detailedSelfModel && now.cognitiveSystems?.live) {
+    lines.push(
+      "MEASURED COGNITIVE STATE",
+      "These are server-derived functional measurements for this turn, not hidden reasoning and not proof of subjective experience.",
+      JSON.stringify(now.cognitiveSystems.live)
+    );
+  }
+
+  if ((state.explicitInquiry || state.cognitiveAuditInquiry) && Array.isArray(now.callableToolNames) && now.callableToolNames.length) {
     lines.push(`Exact callable tools NOW: ${now.callableToolNames.join(", ")}.`);
   }
 
@@ -136,6 +168,7 @@ export function capabilityAwarenessToInstruction(state = null) {
   lines.push(
     "CAPABILITY HONESTY RULES",
     "Before saying a capability is unavailable, distinguish what is callable NOW from what the trusted runtime can activate conditionally when the user's intent, route, entitlement, or confirmation allows it.",
+    "Do not say a cognitive subsystem is absent merely because a prior trace or current activation is missing. Distinguish architecture enabled, current measured activation, persisted prior evidence, and callable inspection tools.",
     "A conditional capability is not permission and is not evidence that an action has happened. Existing authorization, confirmation, privacy, cost, and safety gates remain authoritative.",
     "Use available resources when they materially help instead of defaulting to 'I cannot access that' or acting unaware of registered capabilities.",
     "When asked about your capabilities or potential, answer from this runtime self-model and explain useful combinations of existing resources. Do not invent powers, connections, credentials, secret access, background freedom, or future features that are not represented here.",
@@ -166,6 +199,7 @@ export function publicRuntimeCapabilityAwareness(state = null) {
       conversationContinuity: state?.resourcesNow?.conversationContinuity === true,
       persistedReasoning: state?.resourcesNow?.persistedReasoning === true,
       cognitiveSignalNetwork: state?.resourcesNow?.cognitiveSignalNetwork === true,
+      cognitiveSystems: publicCognitiveSystems(state?.resourcesNow?.cognitiveSystems),
       selectedCognitiveCapabilities: Array.isArray(state?.resourcesNow?.selectedCognitiveCapabilities)
         ? state.resourcesNow.selectedCognitiveCapabilities.slice(0, 20)
         : []
@@ -178,6 +212,146 @@ export function publicRuntimeCapabilityAwareness(state = null) {
         })).slice(0, 20)
       : []
   };
+}
+
+function deriveCognitiveSystems({ owner = false, metacognition = null, context = {}, detailed = false } = {}) {
+  if (!owner || !metacognition || typeof metacognition !== "object") return null;
+  const exploration = metacognition?.exploration || {};
+  const executive = metacognition?.executivePolicy || {};
+  const pain = metacognition?.painState || {};
+  const neuromodulation = metacognition?.neuromodulation || {};
+  const emotion = metacognition?.emotionDynamics || {};
+  const felt = metacognition?.feltState || {};
+  const imagination = metacognition?.imagination || {};
+  const workspace =
+    context?.userWorldModel?.ariCognitiveWorkspace ||
+    context?.ariCognitiveWorkspace ||
+    null;
+  const priorCausal = workspace?.causalObservability || null;
+
+  const architecture = {
+    imagination: exploration?.imaginationEnabled === true || Boolean(metacognition?.imagination),
+    functionalAffect: exploration?.functionalAffectRegulationEnabled === true || Boolean(metacognition?.functionalAffect),
+    emotionDynamics: exploration?.emotionDynamicsEnabled === true || Boolean(metacognition?.emotionDynamics),
+    functionalNociception: exploration?.functionalNociceptionEnabled === true || Boolean(metacognition?.painState),
+    functionalPain: exploration?.functionalPainEnabled === true || Boolean(metacognition?.painState),
+    neuromodulation: exploration?.neuromodulationEnabled === true || Boolean(metacognition?.neuromodulation),
+    neuromodulationHomeostasis: exploration?.neuromodulationHomeostasisEnabled === true,
+    feltState: exploration?.feltStateEnabled === true || Boolean(metacognition?.feltState),
+    affectivePreference: exploration?.affectivePreferenceEnabled === true || Boolean(metacognition?.affectivePreferenceState),
+    motivationalArbitration: exploration?.motivationalArbitrationEnabled === true || Boolean(metacognition?.motivationalArbitration),
+    cognitiveSignalNetwork: metacognition?.cognitiveSignals?.active === true,
+    ariExecutive: executive?.authority?.singleRuntimeDecisionAuthority === true,
+    cognitiveCausalTraceRecorder: workspace?.ownerOnly === true
+  };
+
+  const live = {
+    imagination: {
+      enabled: architecture.imagination,
+      active: imagination?.active === true,
+      selectedThisTurn: imagination?.selectedThisTurn === true,
+      realityBridgeCandidate: imagination?.active === true &&
+        Number(imagination?.activeScenario?.critic?.testability || 0) >= 0.68
+    },
+    emotion: {
+      enabled: architecture.emotionDynamics,
+      dominant: clean(emotion?.dominantState?.name, 60) || null,
+      intensity: round01(emotion?.dominantState?.intensity),
+      memorySalience: round01(emotion?.executiveModulation?.memorySalience)
+    },
+    pain: {
+      enabled: architecture.functionalPain,
+      active: pain?.active === true,
+      intensity: round01(pain?.intensity),
+      persistence: round01(pain?.persistence),
+      source: clean(pain?.source, 80) || null,
+      actionTendency: clean(pain?.actionTendency, 80) || null
+    },
+    neuromodulation: {
+      enabled: architecture.neuromodulation,
+      dominantFast: clean(neuromodulation?.dominant?.fast?.name, 80) || null,
+      dominantSlow: clean(neuromodulation?.dominant?.slow?.name, 80) || null,
+      verificationBias: round01(neuromodulation?.receptors?.verificationBias),
+      explorationBias: round01(neuromodulation?.receptors?.explorationBias),
+      persistenceBias: round01(neuromodulation?.receptors?.persistenceBias),
+      stressPressure: round01(
+        0.58 * Number(neuromodulation?.slow?.cortisolLike || 0) +
+        0.42 * Number(neuromodulation?.slow?.allostaticLoad || 0)
+      ),
+      recoveryReserve: round01(neuromodulation?.slow?.recoveryReserve)
+    },
+    feltState: {
+      enabled: architecture.feltState,
+      dominant: clean(felt?.dominantState?.name, 60) || null,
+      intensity: round01(felt?.dominantState?.intensity),
+      trajectory: clean(felt?.temporal?.trajectory, 40) || null
+    },
+    cognitiveSignals: {
+      active: metacognition?.cognitiveSignals?.active === true,
+      actions: Array.isArray(metacognition?.cognitiveSignals?.actions)
+        ? metacognition.cognitiveSignals.actions.map((item) => clean(item?.action, 80)).filter(Boolean).slice(0, 9)
+        : []
+    },
+    executive: {
+      verificationDepth: clean(executive?.directives?.verificationDepth, 40) || null,
+      explorationDepth: clean(executive?.directives?.explorationDepth, 40) || null,
+      persistence: clean(executive?.directives?.persistence, 40) || null,
+      authorityPreserved: executive?.authority?.singleRuntimeDecisionAuthority === true &&
+        executive?.authority?.experimentalSystemsCannotCreatePermissions === true
+    },
+    causalObservability: {
+      recorderEnabled: architecture.cognitiveCausalTraceRecorder,
+      priorTraceAvailable: Boolean(priorCausal?.latest),
+      retainedTraceCount: Math.max(0, Number(priorCausal?.retainedTraceCount || 0)),
+      latest: priorCausal?.latest ? sanitizePriorCausalSummary(priorCausal.latest) : null
+    }
+  };
+
+  return {
+    architecture,
+    live: detailed ? live : {
+      causalObservability: live.causalObservability
+    },
+    boundaries: {
+      functionalMeasurementsNotSubjectiveProof: true,
+      cognitiveSignalsCannotCreatePermissions: true,
+      neuromodulationCannotCreateAuthority: true,
+      functionalPainCannotCreateSelfPreservationAuthority: true,
+      causalTraceDoesNotExposeHiddenReasoning: true
+    }
+  };
+}
+
+function publicCognitiveSystems(value = null) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    architecture: value.architecture && typeof value.architecture === "object"
+      ? { ...value.architecture }
+      : {},
+    live: value.live && typeof value.live === "object"
+      ? JSON.parse(JSON.stringify(value.live))
+      : {},
+    boundaries: value.boundaries && typeof value.boundaries === "object"
+      ? { ...value.boundaries }
+      : {}
+  };
+}
+
+function sanitizePriorCausalSummary(value = null) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    traceId: clean(value?.traceId, 220) || null,
+    verificationStatus: clean(value?.verificationStatus, 40) || null,
+    executivePersistence: clean(value?.executivePersistence, 40) || null,
+    actionType: clean(value?.actionType, 80) || null,
+    ablationEffectCount: Math.max(0, Number(value?.ablationEffectCount || 0))
+  };
+}
+
+function round01(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(Math.max(0, Math.min(1, n)) * 1000) / 1000;
 }
 
 function deriveConditionalResources({ owner = false, route = {}, policy = {} } = {}) {
