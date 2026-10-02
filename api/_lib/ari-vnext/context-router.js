@@ -10,7 +10,7 @@ import { dreamingContextToInstruction } from "./dreaming-core.js";
 import { experienceContextToInstruction } from "./experience-core.js";
 import { contextBudgetChars } from "./cost-router.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.24.0";
+export const CONTEXT_ROUTER_VERSION = "1.25.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -22,6 +22,8 @@ const PATTERNS = {
   liveInfo: /\b(news|weather|forecast|price|prices|score|scores|standings|stock price|market price|exchange rate|release date|availability|president|vice president|prime minister|governor|mayor|senator|representative|congress|supreme court|ceo|cfo|chairman|officeholder|administration|cabinet|election|elections|poll|polls|in office|who is .* president|who's .* president)\b/i,
   recency: /\b(latest|current|currently|today(?:'s)?|tonight|this week|this month|this year|right now|as of now|newest|recent)\b/i,
   changingReference: /\b(research|study|studies|guideline|guidelines|recommendation|recommendations|evidence|software|version|release)\b/i,
+  recommendation: /\b(?:recommend(?: me)?|recommendation|best (?:option|choice|restaurant|bar|cafe|hotel|product|car|suv|vehicle|phone|laptop|place)|what should i (?:buy|get|choose|pick|order|eat|watch|use)|where should i (?:eat|go|stay|shop)|which (?:one|option|product|car|suv|vehicle|phone|laptop) should i)\b/i,
+  recommendationDynamic: /\b(?:restaurant|bar|cafe|hotel|store|shop|buy|purchase|product|car|suv|vehicle|phone|laptop|computer|headphones|shoes|service|near me|nearby|price|prices|available|availability)\b/i,
   developer: /\b(github|repo|repository|branch|commit|deploy|vercel|supabase|pipeline|runtime|debug|code|javascript|html|css|sql|api|ari(?:'s|\s+(?:xp|rebirth))|reasoning|autonom(?:y|ous)|sentien(?:ce|t)|conviction|learning loop|independent intelligence)\b/i
 };
 
@@ -41,11 +43,19 @@ export function routeContext(turn = {}) {
   const social = PATTERNS.social.test(semanticText) || actionNetworkAvailable;
   const memory = PATTERNS.memory.test(semanticText) || followUp;
   const health = PATTERNS.health.test(semanticText);
+  const recommendationIntent = PATTERNS.recommendation.test(semanticText);
   const currentInfo = needsCurrentInfo(semanticText);
   const developer =
     PATTERNS.developer.test(semanticText) ||
     Boolean(turn?.context?.visualInspection) ||
     Boolean(turn?.context?.executionEvidence);
+  const solEscalationEligible = shouldEscalateToSol({
+    message,
+    semanticText,
+    developer,
+    health,
+    recommendationIntent
+  });
   const casualConversation = isCasualConversation({
     message,
     followUp,
@@ -72,6 +82,8 @@ export function routeContext(turn = {}) {
     health,
     currentInfo,
     developer,
+    recommendationIntent,
+    solEscalationEligible,
     teenMode,
     circleAllowed: account?.circleAllowed === true,
     intelligenceEntitlement,
@@ -575,6 +587,7 @@ function isFollowUp(message = "") {
 function needsCurrentInfo(text = "") {
   const value = String(text || "");
   if (PATTERNS.liveInfo.test(value)) return true;
+  if (PATTERNS.recommendation.test(value) && PATTERNS.recommendationDynamic.test(value)) return true;
   return PATTERNS.recency.test(value) && PATTERNS.changingReference.test(value);
 }
 
@@ -595,6 +608,30 @@ function isCasualConversation({
   if (nutrition || training || goals || social || memory || health || currentInfo || developer) return false;
 
   return /^(?:(?:hey|hi|hello|yo)(?:\s+ari)?|(?:hey|hi|hello|yo)\s+there|what(?:'s| is)\s+up(?:\s+ari)?|sup(?:\s+ari)?|good\s+(?:morning|afternoon|evening)(?:\s+ari)?|how\s+are\s+you(?:\s+doing)?(?:\s+ari)?|thanks(?:\s+ari)?|thank\s+you(?:\s+ari)?)[!.?\s]*$/i.test(text);
+}
+
+function shouldEscalateToSol({
+  message = "",
+  semanticText = "",
+  developer = false,
+  health = false,
+  recommendationIntent = false
+} = {}) {
+  // Recommendation quality is Luna-first by product contract.
+  if (recommendationIntent) return false;
+
+  const text = String(semanticText || message || "");
+  if (text.length > 1800) return true;
+
+  if (developer && /\b(?:root cause|debug|architecture|architect|security review|threat model|race condition|distributed|concurrency|migration strategy|failure mode|prove|formal|complex)\b/i.test(text)) {
+    return true;
+  }
+
+  if (health && /\b(?:differential|interaction|contraindication|multiple medications|complex case|conflicting symptoms|risk-benefit|high risk|high-risk)\b/i.test(text)) {
+    return true;
+  }
+
+  return /\b(?:deeply analyze|rigorous analysis|multi-step reasoning|formal proof|exhaustive analysis|complex reasoning)\b/i.test(text);
 }
 
 function estimateComplexity(message = "") {

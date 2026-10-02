@@ -99,19 +99,22 @@ test("current officeholder questions always route to fresh information", () => {
   }
 });
 
-test("freshness is independent from reasoning complexity", () => {
+test("free-tier freshness never escalates the model", () => {
   const fast = resolveModelPolicy({ currentInfo: true, complexity: "fast" });
   assert.equal(fast.mode, "fast");
   assert.equal(fast.freshness, "live");
-  assert.equal(fast.model, process.env.OPENAI_ARI_VNEXT_CURRENT_MODEL || "gpt-5.4-mini");
+  assert.equal(fast.model, process.env.OPENAI_ARI_FREE_MODEL || "gpt-4o-mini");
   assert.equal(fast.costTier, "fast_live_search");
+  assert.equal(fast.escalated, false);
 
   const deep = resolveModelPolicy({ currentInfo: true, complexity: "deep" });
   assert.equal(deep.mode, "deep");
   assert.equal(deep.freshness, "live");
-  assert.equal(deep.reasoningEffort, "high");
+  assert.equal(deep.model, process.env.OPENAI_ARI_FREE_MODEL || "gpt-4o-mini");
+  assert.equal(deep.reasoningEffort, null);
   assert.equal(deep.costTier, "deep_live_search");
   assert.equal(deep.liveSearchRequired, true);
+  assert.equal(deep.escalated, false);
 });
 
 test("every current turn carries a real request timestamp rather than a hard-coded year", () => {
