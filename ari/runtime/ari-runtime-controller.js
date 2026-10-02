@@ -34,7 +34,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.6.5";
+  const VERSION = "1.6.6";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
@@ -42,7 +42,7 @@
     "ari/vnext/ari-vnext-training-context.js?v=1.3.0",
     "ari/vnext/ari-vnext-action-adapter.js?v=1.6.0",
     "ari/vnext/ari-vnext-activity-adapter.js?v=1.1.0",
-    "ari/vnext/ari-vnext-bridge.js?v=1.13.0",
+    "ari/vnext/ari-vnext-bridge.js?v=1.14.0",
     "ari/vnext/ari-vnext-context-guard.js?v=1.2.4",
     "ari/vnext/ari-vnext-initiative.js?v=1.2.1"
   ];
