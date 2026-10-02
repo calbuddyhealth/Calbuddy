@@ -122,7 +122,7 @@ test("established greetings may surface one genuinely high-priority unfinished t
   assert.equal(state.initiative.allowed, true);
   assert.equal(state.initiative.strength, "light");
   assert.equal(state.continuity.oneNaturalCallbackMaximum, true);
-  assert.equal(state.continuity.strength, "strong");
+  assert.equal(state.continuity.strength, "established");
   assert.equal(state.initiative.askFollowUpSolelyForEngagement, false);
 });
 
