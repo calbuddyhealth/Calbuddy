@@ -6,6 +6,7 @@ import {
   applyInteractiveCostGuard,
   compactInstructionText,
   compileConversationInput,
+  deriveReasoningDemand,
   promptBudgetTelemetry,
   resolveBackgroundModel,
   resolveOwnerInteractiveModel
@@ -72,6 +73,39 @@ test("owner routing defaults to Sol and escalates only hard or explicit work to 
   });
   assert.equal(forcedSol.model, "gpt-6.1-sol");
   assert.equal(forcedSol.escalated, false);
+});
+
+test("reasoning governor converts measurable turn signals into deterministic bands", () => {
+  const simple = deriveReasoningDemand({ complexity: "fast" });
+  assert.equal(simple.score, 0);
+  assert.equal(simple.band, "low");
+
+  const ordinary = deriveReasoningDemand({ complexity: "standard" });
+  assert.equal(ordinary.score, 3);
+  assert.equal(ordinary.band, "medium");
+
+  const deep = deriveReasoningDemand({ complexity: "deep" });
+  assert.equal(deep.score, 5);
+  assert.equal(deep.band, "high");
+
+  const critical = deriveReasoningDemand({
+    complexity: "deep",
+    developer: true,
+    solEscalationEligible: true
+  });
+  assert.equal(critical.score, 9);
+  assert.equal(critical.band, "critical");
+  assert.deepEqual(
+    critical.reasons,
+    ["complexity_deep", "developer_context", "hard_problem_signal"]
+  );
+
+  const retry = deriveReasoningDemand({
+    complexity: "standard",
+    previousAttemptFailed: true
+  });
+  assert.equal(retry.score, 6);
+  assert.equal(retry.band, "high");
 });
 
 test("background routing never permits Astra and gates Sol", () => {
