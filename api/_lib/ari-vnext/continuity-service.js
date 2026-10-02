@@ -2,7 +2,7 @@
 // Reuses existing seven-day conversation and durable memory tables.
 // No additional model call is required and storage failures never block Ari.
 
-export const CONTINUITY_SERVICE_VERSION = "1.7.0";
+export const CONTINUITY_SERVICE_VERSION = "1.8.0";
 const READ_TIMEOUT_MS = 900;
 const WRITE_TIMEOUT_MS = 800;
 const SECRET_PATTERN = /\b(password|passcode|pin number|cvv|security code|api[_ -]?key|access token|refresh token|private key|secret key|seed phrase|recovery phrase|social security|ssn\b|credit card|card number)\b/i;
@@ -175,7 +175,7 @@ export async function persistConversationTurn({ userId, turnId = null, conversat
       body: JSON.stringify({
         user_id: safeUserId,
         turn_id: safeTurnId,
-        ...(safeConversationId ? { conversation_id: safeConversationId } : {}),
+        ...(safeConversationId ? { conversation_id: safeConversationId, expires_at: "9999-12-31T23:59:59.999Z" } : {}),
         user_message: userMessage,
         assistant_message: assistantMessage,
         page_path: clean(surface, 200) || "unknown"
