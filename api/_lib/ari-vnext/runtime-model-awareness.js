@@ -8,8 +8,11 @@ export const RUNTIME_MODEL_AWARENESS_VERSION = "1.0.0";
 export function runtimeModelIdentityRequested(route = {}, policy = {}) {
   return policy?.accessClass === "owner" && (
     route?.modelIdentityRequested === true ||
+    policy?.modelIdentityRequested === true ||
     route?.ownerModelRequest === "astra" ||
-    route?.ownerModelRequest === "sol"
+    route?.ownerModelRequest === "sol" ||
+    policy?.ownerModelRequest === "astra" ||
+    policy?.ownerModelRequest === "sol"
   );
 }
 
