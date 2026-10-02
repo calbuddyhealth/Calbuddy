@@ -36,6 +36,7 @@ import {
 import { applyOutcomeLearning } from "./outcome-learning.js";
 import { deriveRelationshipContinuity } from "./relationship-continuity.js";
 import { withRuntimeModelIdentity } from "./runtime-model-awareness.js";
+import { capabilityAwarenessToInstruction, deriveRuntimeCapabilityAwareness } from "./runtime-capability-awareness.js";
 import { recommendationQualityInstruction } from "./recommendation-quality.js";
 import { classifySafety, safetyToInstruction } from "./safety-policy.js";
 import { deriveScientificIntelligence, scientificIntelligenceToInstruction } from "./scientific-intelligence.js";
@@ -352,8 +353,64 @@ export async function runAriVNext(turn = {}) {
         plan: metacognition?.cortex?.adviser || null
       });
   const adviserInstruction = adviserMemoToInstruction(cortexAdviser);
-  const instructions = compactInstructionText([
+
+  // Give Ari a trusted self-model of the resources surrounding this turn.
+  // Rebuild if the final cost guard changes the selected model/reasoning mode so
+  // Ari never receives stale capability metadata.
+  let capabilityAwareness = null;
+  let instructions = "";
+  for (let pass = 0; pass < 3; pass += 1) {
+    capabilityAwareness = deriveRuntimeCapabilityAwareness({
+      turn,
+      route,
+      policy: modelPolicy,
+      tools,
+      context: relevantContext,
+      metacognition
+    });
+
+    instructions = compactInstructionText([
+      baseInstructions,
+      capabilityAwarenessToInstruction(capabilityAwareness),
+      actionContinuationToInstruction(actionContinuation),
+      institutionalMemoryInstruction,
+      adviserInstruction,
+      councilInstruction,
+      "FINAL TRUSTED EXECUTION BOUNDARY\nOnly use an application mutation when the CURRENT user message explicitly authorizes that supported change, except for an already-validated bounded continuation. Never claim that app state, code, credentials, permissions, or external systems changed unless trusted executor evidence in this turn verifies it. If a mutation is not authorized or execution evidence is absent, answer conversationally without implying that a change occurred."
+    ]
+      .filter(Boolean)
+      .join("\n\n"));
+
+    const guardedPolicy = applyInteractiveCostGuard({
+      policy: modelPolicy,
+      instructions,
+      input
+    });
+
+    const stable =
+      guardedPolicy?.model === modelPolicy?.model &&
+      guardedPolicy?.reasoningEffort === modelPolicy?.reasoningEffort &&
+      guardedPolicy?.reasoningMode === modelPolicy?.reasoningMode &&
+      guardedPolicy?.reasoningContext === modelPolicy?.reasoningContext &&
+      guardedPolicy?.persistReasoning === modelPolicy?.persistReasoning;
+
+    modelPolicy = guardedPolicy;
+    if (stable) break;
+  }
+
+  // One final rebuild guarantees the instruction block reflects the policy that
+  // will actually be sent to the provider after any cost-guard downgrade.
+  capabilityAwareness = deriveRuntimeCapabilityAwareness({
+    turn,
+    route,
+    policy: modelPolicy,
+    tools,
+    context: relevantContext,
+    metacognition
+  });
+  instructions = compactInstructionText([
     baseInstructions,
+    capabilityAwarenessToInstruction(capabilityAwareness),
     actionContinuationToInstruction(actionContinuation),
     institutionalMemoryInstruction,
     adviserInstruction,
@@ -362,12 +419,6 @@ export async function runAriVNext(turn = {}) {
   ]
     .filter(Boolean)
     .join("\n\n"));
-
-  modelPolicy = applyInteractiveCostGuard({
-    policy: modelPolicy,
-    instructions,
-    input
-  });
 
   const referenceResolutionTools = route.referenceResolutionSearch
     ? tools.filter((tool) => tool?.type === "web_search")
