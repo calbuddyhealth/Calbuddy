@@ -2,7 +2,7 @@
 // Gives Ari a natural sense of shared history without inventing intimacy,
 // emotions, memories, or subjective consciousness.
 
-export const ARI_RELATIONSHIP_CONTINUITY_VERSION = "1.2.1";
+export const ARI_RELATIONSHIP_CONTINUITY_VERSION = "1.3.0";
 
 export function deriveRelationshipContinuity({
   userWorldModel = null,
@@ -23,6 +23,13 @@ export function deriveRelationshipContinuity({
   const activeExperiments = Array.isArray(experimentLedger?.active) ? experimentLedger.active : [];
   const openDecisions = Array.isArray(decisionState?.recentOpen) ? decisionState.recentOpen : [];
   const timelineEvents = Array.isArray(temporalTimeline?.events) ? temporalTimeline.events : [];
+  const cognitiveWorkspace = model?.ariCognitiveWorkspace && typeof model.ariCognitiveWorkspace === "object"
+    ? model.ariCognitiveWorkspace
+    : null;
+  const cognitiveOpenLoops = Array.isArray(cognitiveWorkspace?.continuity?.openLoops)
+    ? cognitiveWorkspace.continuity.openLoops
+    : [];
+  const communicationClosure = cognitiveWorkspace?.communicationClosure || null;
   const learnedInteractionPatterns = (Array.isArray(dreaming?.insights) ? dreaming.insights : [])
     .filter((item) => ["communication", "relationship"].includes(item?.kind) && Number(item?.confidence || 0) >= 0.68)
     .slice(0, 4)
@@ -46,7 +53,12 @@ export function deriveRelationshipContinuity({
     Number(source?.experimentOutcomes || 0) > 0,
     activeExperiments.length > 0,
     openDecisions.length > 0,
-    Number(recentContinuityPairs || 0) > 0
+    Number(recentContinuityPairs || 0) > 0,
+    Boolean(
+      cognitiveWorkspace?.recurrence?.previousStateLoaded ||
+      cognitiveWorkspace?.continuity?.recognizedPriorState ||
+      cognitiveOpenLoops.length > 0
+    )
   ].filter(Boolean).length;
 
   const familiarity = recognitionSignals >= 6
@@ -57,11 +69,13 @@ export function deriveRelationshipContinuity({
         ? "developing"
         : "new";
 
-  const unfinishedThreads = [
+  const unfinishedThreads = dedupeThreads([
     ...experimentThreads(activeExperiments, now),
     ...decisionThreads(openDecisions, now),
-    ...tensionThreads(model?.tensions)
-  ]
+    ...tensionThreads(model?.tensions),
+    ...cognitiveLoopThreads(cognitiveOpenLoops),
+    ...communicationClosureThreads(communicationClosure)
+  ])
     .sort((a, b) => threadWeight(b.priority) - threadWeight(a.priority) || dueSortValue(a.dueAt) - dueSortValue(b.dueAt))
     .slice(0, 6);
 
@@ -106,7 +120,7 @@ export function relationshipContinuityToInstruction(state = null) {
     "RELATIONSHIP CONTINUITY",
     `Recognition state: ${state.recognizedUser ? "returning user" : "new/insufficient continuity"}. Familiarity: ${state.familiarity || "new"}.`,
     "Demonstrate recognition through relevant judgment and continuity, not by reciting the user's biography or repeatedly saying 'I remember'.",
-    "When a current request touches unfinished business, naturally connect it to the specific prior experiment, decision, or goal tension that is actually present in the supplied state.",
+    "When a current request touches unfinished business, naturally connect it to the specific prior experiment, decision, goal tension, cognitive open loop, or communication-closure thread that is actually present in the supplied state.",
     "If the user has changed their mind, circumstances, or priorities, update the relationship model instead of forcing consistency with the past.",
     "Dream-consolidated interaction patterns are provisional. Use them to improve repair, continuity, and communication only when the current interaction still fits; direct user feedback overrides them.",
     "Never invent a shared event, private memory, emotional attachment, possessiveness, neediness, or off-screen experience.",
@@ -172,6 +186,72 @@ function tensionThreads(tensions = []) {
     dueAt: null,
     referenceId: item?.id || null
   }));
+}
+
+function cognitiveLoopThreads(openLoops = []) {
+  return (Array.isArray(openLoops) ? openLoops : [])
+    .slice(0, 8)
+    .map((item) => {
+      const id = clean(item?.id, 180);
+      const label = clean(item?.label || item?.summary, 420);
+      if (!id || !label) return null;
+      const numericPriority = Number(item?.priority || 0);
+      return {
+        id: `cognitive:${id}`,
+        type: clean(item?.type, 80) || "cognitive_open_loop",
+        domain: clean(item?.domain, 80) || "conversation",
+        priority: numericPriority >= 0.75 ? "high" : numericPriority >= 0.55 ? "medium" : "low",
+        state: "open",
+        summary: label,
+        dueAt: item?.dueAt || null,
+        referenceId: id
+      };
+    })
+    .filter(Boolean);
+}
+
+function communicationClosureThreads(workspace = null) {
+  const closure = workspace?.loop || workspace;
+  if (!closure?.id) return [];
+  const state = clean(closure?.state, 60).toLowerCase();
+  if (["closed", "verified", "failed", "rejected", "superseded"].includes(state)) return [];
+
+  const interpretation = clean(closure?.selectedInterpretation, 420);
+  const request = clean(closure?.userRequest, 420);
+  const expected = clean(closure?.expectedOutcome?.summary || closure?.expectedOutcome, 420);
+  const summary = interpretation || request || expected;
+  if (!summary) return [];
+
+  const level = Number(closure?.level || workspace?.level || 0);
+  const priority = state === "outcome_pending" || level >= 3
+    ? "high"
+    : level >= 2
+      ? "medium"
+      : "low";
+
+  return [{
+    id: `communication_closure:${clean(closure.id, 180)}`,
+    type: "communication_closure",
+    domain: "conversation",
+    priority,
+    state: state || "open",
+    summary,
+    dueAt: closure?.expectedOutcome?.reviewAt || null,
+    referenceId: clean(closure.id, 180)
+  }];
+}
+
+function dedupeThreads(threads = []) {
+  const seen = new Set();
+  const out = [];
+  for (const thread of Array.isArray(threads) ? threads : []) {
+    if (!thread) continue;
+    const key = clean(thread?.id || thread?.referenceId || thread?.summary, 500).toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(thread);
+  }
+  return out;
 }
 
 function hasObservedBehavior(value = {}) {

@@ -8,6 +8,7 @@ import { multiAgentCouncilToInstruction, publicMultiAgentCouncil, runAriMultiAge
 import { institutionalMemoryToInstruction } from "./institutional-memory.js";
 import { ARI_PERSONA } from "./persona.js";
 import { coachingStateToInstruction, deriveCoachingState } from "./coaching-state.js";
+import { companionStateToInstruction, deriveCompanionState } from "./companion-state.js";
 import { communicationProfileToInstruction, resolvePersonalizedCommunicationProfile } from "./communication-profile.js";
 import { communicationLearningToInstruction } from "./communication-outcomes.js";
 import { buildRelevantContext, contextToText, routeContext } from "./context-router.js";
@@ -155,6 +156,15 @@ export async function runAriVNext(turn = {}) {
     longitudinalState,
     modelPolicy
   });
+  const companionState = deriveCompanionState({
+    turn,
+    route,
+    communication,
+    safety,
+    relationshipContinuity,
+    metacognition,
+    relevantContext
+  });
   const rawScientificIntelligence = deriveScientificIntelligence({
     turn,
     route,
@@ -267,6 +277,7 @@ export async function runAriVNext(turn = {}) {
     safety,
     selfModel,
     relationshipContinuity,
+    companionState,
     goalHierarchy,
     metacognition,
     scientificIntelligence,
@@ -434,6 +445,7 @@ export async function runAriVNext(turn = {}) {
       communication,
       selfModel,
       relationshipContinuity,
+      companionState,
       goalHierarchy,
       metacognition,
       cortexAdviser: publicCortexAdviser(cortexAdviser),
@@ -1800,6 +1812,7 @@ function buildInstructions({
   safety,
   selfModel,
   relationshipContinuity,
+  companionState,
   goalHierarchy,
   metacognition,
   scientificIntelligence,
@@ -1814,6 +1827,7 @@ function buildInstructions({
     "\nTEMPORAL GROUNDING\n" + temporalContextToInstruction(temporalContext, route),
     "\nSELF MODEL\n" + selfModelToInstruction(selfModel),
     "\n" + relationshipContinuityToInstruction(relationshipContinuity),
+    "\n" + companionStateToInstruction(companionState),
     "\nMETACOGNITION\n" + metacognitionToInstruction(metacognition),
     "\nCOMMUNICATION PROFILE\n" + communicationProfileToInstruction(communication),
     "\nSAFETY CONTEXT\n" + safetyToInstruction(safety)
