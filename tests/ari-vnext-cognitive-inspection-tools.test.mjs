@@ -234,3 +234,53 @@ test("runtime capability self-model explicitly advertises trace and source inspe
   assert.match(instruction, /Exact callable tools NOW:.*owner_cognitive_trace_read/);
   assert.match(instruction, /persisted cognitive causal trace inspection/);
 });
+
+
+test("terse follow-up preserves explicit cognitive inspection awareness", () => {
+  const turn = {
+    message: "Check again.",
+    history: [{
+      role: "assistant",
+      content: "We need to audit Ari's cognitive architecture, neuromodulation, and causal trace wiring."
+    }],
+    conversationId: "audit-follow-up",
+    turnId: "audit-follow-up-turn",
+    context: {
+      intelligenceEntitlement: ownerEntitlement,
+      accountEntitlements: {}
+    }
+  };
+  const route = routeContext(turn);
+  assert.equal(route.followUp, true);
+  assert.equal(route.cognitiveAudit, true);
+  assert.equal(route.developer, true);
+
+  const tools = getAriTools(route);
+  const state = deriveRuntimeCapabilityAwareness({
+    turn,
+    route,
+    policy: {
+      accessClass: "owner",
+      intelligenceTier: "owner_experimental",
+      model: "gpt-6.1-sol",
+      reasoningEffort: "high",
+      reasoningMode: "pro",
+      persistReasoning: true
+    },
+    tools,
+    context: { memoryCapability: { persistentUserMemory: true } },
+    metacognition: {
+      executivePolicy: {
+        authority: {
+          singleRuntimeDecisionAuthority: true,
+          experimentalSystemsCannotCreatePermissions: true
+        },
+        directives: {}
+      }
+    }
+  });
+
+  assert.equal(state.cognitiveAuditInquiry, true);
+  assert.ok(state.resourcesNow.callableToolNames.includes("owner_repo_read"));
+  assert.ok(state.resourcesNow.callableToolNames.includes("owner_cognitive_trace_read"));
+});
