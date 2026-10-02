@@ -55,15 +55,12 @@ test("controlled worker stops a batch on provider 429 and schedules queue retry"
   assert.match(worker, /break;/);
 });
 
-test("worker remains cron-secret protected", () => {
+test("worker remains cron-secret protected while scheduled polling is frozen", () => {
   assert.match(worker, /process\.env\.CRON_SECRET/);
   assert.match(worker, /authorization !== `Bearer \$\{cronSecret\}`/);
   const config = JSON.parse(vercel);
-  const moderationCron = config.crons.find((item) => item.path === "/api/ari-circle-moderation-worker");
-  assert.deepEqual(moderationCron, {
-    path: "/api/ari-circle-moderation-worker",
-    schedule: "* * * * *"
-  });
+  const moderationCron = (config.crons || []).find((item) => item.path === "/api/ari-circle-moderation-worker");
+  assert.equal(moderationCron, undefined);
 });
 
 
