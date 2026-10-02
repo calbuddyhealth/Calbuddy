@@ -9,6 +9,7 @@ import {
   shouldRunBlindReasoningArena
 } from "./blind-reasoning-arena.js";
 import { persistBlindReasoningArenaResult } from "./reasoning-arena-store.js";
+import { reserveTurnCompute } from "./turn-compute-governor.js";
 
 export const ARI_REASONING_ACADEMY_VERSION = "1.1.1";
 
@@ -208,6 +209,24 @@ export async function reflectOnAdaptiveStrategy({
     }
   };
   if (!body.reasoning) delete body.reasoning;
+
+  const reservation = reserveTurnCompute({
+    turn,
+    category: academyMode ? "reasoning_academy" : "adaptive_strategy_reflection",
+    model,
+    inputChars: JSON.stringify(payload).length + instructions.length,
+    maxOutputTokens: body.max_output_tokens
+  });
+  if (!reservation.allowed) {
+    return {
+      attempted: false,
+      reason: reservation.reason,
+      proposal: null,
+      academy: academySummary({ academyMode, model, reasoningEffort }),
+      arena: { attempted: false, reason: "turn_compute_blocked", stored: false },
+      provider: null
+    };
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
