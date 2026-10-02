@@ -101,6 +101,7 @@ import { ensureGoal, loadGoals, saveGoalEvent } from "./_lib/ari-vnext/goal-stor
 import { loadDreamingContext } from "./_lib/ari-vnext/dreaming-store.js";
 import { loadExperienceContext } from "./_lib/ari-vnext/experience-store.js";
 import { syncAgentTaskSessionWithExecution } from "./_lib/ari-vnext/agent-task-store.js";
+import { publicRuntimeModel } from "./_lib/ari-vnext/runtime-model-awareness.js";
 
 const AUTH_TIMEOUT_MS = Number(process.env.ARI_AUTH_TIMEOUT_MS) > 0
   ? Number(process.env.ARI_AUTH_TIMEOUT_MS)
@@ -1188,6 +1189,10 @@ export default async function handler(req, res) {
       authoritativeContext: turn.context?.authoritativeContext || null,
       accountEntitlements,
       intelligenceEntitlement,
+      runtimeModel: publicRuntimeModel({
+        policy: result?.modelPolicy || {},
+        provider: result?.provider || null
+      }),
       casualConversation,
       memoryUsed: retrievedMemoryCount > 0,
       memoryCount: retrievedMemoryCount,
