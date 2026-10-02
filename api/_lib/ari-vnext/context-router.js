@@ -23,6 +23,7 @@ const PATTERNS = {
   ownerSolRequest: /\b(?:use|run|switch(?: this| me)? to|route(?: this)? to|answer with|do this with)\s+(?:gpt[- ]?6(?:\.1)?\s+)?sol\b|\bsol mode\b/i,
   astraBenchmark: /\b(?:benchmark|compare|versus|vs\.?|against)\b.{0,120}\bastra\b|\bastra\b.{0,120}\b(?:benchmark|compare|versus|vs\.?|against)\b/i,
   developer: /\b(github|repo|repository|branch|commit|deploy|vercel|supabase|pipeline|runtime|debug|code|javascript|html|css|sql|api|ari(?:'s|\s+(?:xp|rebirth))|reasoning|autonom(?:y|ous)|sentien(?:ce|t)|conviction|learning loop|independent intelligence)\b/i,
+  cognitiveSystemAudit: /\b(?:cognitive (?:architecture|system|runtime|signal(?: network)?|trace)|causal trace|neuromodulation|functional (?:pain|nociception|affect)|felt[ -]?state|affective preference|motivational arbitration|ari executive|imagination (?:core|workspace|system)|emotion dynamics)\b/i,
   unresolvedPublicReference: /\b(?:(?:the|that|this)\s+(?:whole\s+)?(?:[a-z0-9'’-]+\s+){0,5}(?:situation|incident|experiment|case|study|report|event|controversy|episode|trial|test)|(?:that|this)\s+(?:one|thing)|the\s+thing\s+(?:they|he|she|it)\s+(?:did|ran|tested|published|reported))\b/i,
   publicReferenceContext: /\b(ai|artificial intelligence|model|models|agent|agents|robot|robots|experiment|experiments|study|studies|research|researchers|lab|labs|company|companies|system|systems|safety|guardrail|guardrails|benchmark|benchmarks|paper|papers|report|reports|public|openai|anthropic|google|deepmind|meta|microsoft)\b/i,
   privateReferenceContext: /\b(my wife|my husband|my mom|my mother|my dad|my father|my brother|my sister|my friend|my patient|my coworker|my co-worker|our relationship|my relationship|at my work|at work)\b/i
@@ -58,8 +59,10 @@ export function routeContext(turn = {}) {
     : null;
   const currentInfo = needsCurrentInfo(semanticText);
   const webSearchRequired = currentInfo || referenceResolutionSearch;
+  const cognitiveAudit = ownerEligible && PATTERNS.cognitiveSystemAudit.test(semanticText);
   const developer =
     PATTERNS.developer.test(semanticText) ||
+    cognitiveAudit ||
     Boolean(turn?.context?.visualInspection) ||
     Boolean(turn?.context?.executionEvidence);
   const solEscalationEligible = shouldEscalateToSol({
@@ -118,6 +121,7 @@ export function routeContext(turn = {}) {
     referenceResolutionSearch,
     webSearchRequired,
     developer,
+    cognitiveAudit,
     recommendationIntent,
     solEscalationEligible,
     reasoningDemand,
