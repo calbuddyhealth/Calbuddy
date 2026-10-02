@@ -60,6 +60,7 @@ const DEVELOPER_TOOL_NAMES = new Set([
   "owner_repo_search",
   "owner_repo_read",
   "owner_repo_ci_status",
+  "owner_cognitive_trace_read",
   "owner_agent_mailbox_list",
   "owner_agent_mailbox_read",
   "owner_agent_mailbox_send",
@@ -295,6 +296,18 @@ function developerTools(route = {}) {
           commitSha: { type: ["string", "null"] }
         },
         required: ["branch", "commitSha"]
+      }
+    ),
+    functionTool(
+      "owner_cognitive_trace_read",
+      "Read Ari's persisted owner-only cognitive causal traces. This is read-only and returns bounded structured telemetry only: measured state snapshots/deltas, Executive directives, observable action identifiers, verification status, reward/prediction error, ablation results, and evidence boundaries. It never returns hidden chain-of-thought, raw user prompts, raw model reasoning, raw tool output, credentials, or unbounded state. Use this when the owner asks to inspect, audit, verify, or explain Ari's cognitive wiring or recent causal behavior.",
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          limit: { type: "integer", minimum: 1, maximum: 8 }
+        },
+        required: ["limit"]
       }
     ),
     functionTool(
@@ -606,6 +619,14 @@ export function validateToolCall(call = {}, route = {}) {
       };
     }
 
+    if (name === "owner_cognitive_trace_read") {
+      const limit = Number(args?.limit);
+      if (!Number.isInteger(limit) || limit < 1 || limit > 8) {
+        return { valid: false, error: "cognitive_trace_limit_invalid" };
+      }
+      return { valid: true, name, arguments: { limit } };
+    }
+
     if (name === "owner_agent_mailbox_list") {
       const limit = Number(args?.limit);
       if (!Number.isInteger(limit) || limit < 1 || limit > 100) return { valid: false, error: "agent_mailbox_limit_invalid" };
@@ -823,6 +844,7 @@ export function toolToApplicationAction(name = "") {
     owner_repo_search: "repo_search",
     owner_repo_read: "repo_read",
     owner_repo_ci_status: "repo_ci_status",
+    owner_cognitive_trace_read: "cognitive_trace_read",
     owner_agent_mailbox_list: "agent_mailbox_list",
     owner_agent_mailbox_read: "agent_mailbox_read",
     owner_agent_mailbox_send: "agent_mailbox_send",

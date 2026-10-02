@@ -8,6 +8,8 @@ import {
   readAgentMailboxMessage,
   sendAgentMailboxMessage
 } from "../../../server/ari-supabase-agent-mailbox.js";
+import { loadAriCognitiveState } from "./cognitive-state-store.js";
+import { publicCognitiveCausalTrace } from "./cognitive-causal-trace.js";
 
 export const ARI_DEVELOPER_WORKSPACE_VERSION = "1.3.0";
 
@@ -52,6 +54,13 @@ export async function executeDeveloperWorkspaceTool({
       userId,
       query: args.query,
       privacyControls
+    });
+  }
+
+  if (applicationAction === "cognitive_trace_read") {
+    return await readOwnerCognitiveTrace({
+      userId,
+      limit: args.limit
     });
   }
 
@@ -187,6 +196,27 @@ export function developerToolResultToExecutionEvidence(result = {}, applicationA
     };
   }
 
+  if (applicationAction === "cognitive_trace_read") {
+    return {
+      observations: [{
+        id: result?.evidenceId || null,
+        kind: "cognitive_causal_trace_read",
+        summary: result?.success
+          ? `Read ${Number(result.traceCount || 0)} persisted cognitive causal trace(s); latest=${result.latestTraceId || "none"}.`
+          : `Cognitive causal trace read failed: ${result?.code || "unknown error"}.`,
+        source: "ari_cognitive_state",
+        verified: result?.success === true
+      }],
+      artifacts: result?.success && result?.latestTraceId ? [{
+        id: result.latestTraceId,
+        kind: "cognitive_causal_trace",
+        label: "Latest cognitive causal trace",
+        ref: result.latestTraceId,
+        verified: true
+      }] : []
+    };
+  }
+
   if (applicationAction === "repo_ci_status") {
     const status = result?.conclusion === "success"
       ? "passed"
@@ -272,6 +302,61 @@ export function developerToolResultToExecutionEvidence(result = {}, applicationA
   }
 
   return null;
+}
+
+async function readOwnerCognitiveTrace({ userId = "", limit = 4 } = {}) {
+  const id = clean(userId, 220);
+  const boundedLimit = Math.max(1, Math.min(8, Number(limit || 4)));
+  if (!id) {
+    return {
+      success: false,
+      code: "COGNITIVE_TRACE_USER_REQUIRED",
+      message: "A signed-in owner identity is required for cognitive trace inspection."
+    };
+  }
+
+  const state = await loadAriCognitiveState({ userId: id });
+  if (!state || typeof state !== "object") {
+    return {
+      success: true,
+      version: ARI_DEVELOPER_WORKSPACE_VERSION,
+      operation: "cognitive_trace_read",
+      evidenceId: "cognitive_trace:none",
+      traceCount: 0,
+      latestTraceId: null,
+      traces: [],
+      stateVersion: null,
+      persistedAt: null,
+      hiddenChainOfThoughtStored: false
+    };
+  }
+
+  const candidates = [
+    ...(state?.causalTrace ? [state.causalTrace] : []),
+    ...(Array.isArray(state?.causalTraceHistory) ? state.causalTraceHistory : [])
+  ];
+  const traces = [];
+  const seen = new Set();
+  for (const candidate of candidates) {
+    const publicTrace = publicCognitiveCausalTrace(candidate);
+    if (!publicTrace?.traceId || seen.has(publicTrace.traceId)) continue;
+    seen.add(publicTrace.traceId);
+    traces.push(publicTrace);
+    if (traces.length >= boundedLimit) break;
+  }
+
+  return {
+    success: true,
+    version: ARI_DEVELOPER_WORKSPACE_VERSION,
+    operation: "cognitive_trace_read",
+    evidenceId: "cognitive_trace:" + (traces[0]?.traceId || "none"),
+    traceCount: traces.length,
+    latestTraceId: traces[0]?.traceId || null,
+    traces,
+    stateVersion: clean(state?.version, 80) || null,
+    persistedAt: clean(state?.persistedAt, 100) || null,
+    hiddenChainOfThoughtStored: false
+  };
 }
 
 async function searchOwnerMemory({

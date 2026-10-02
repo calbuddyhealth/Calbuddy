@@ -110,6 +110,7 @@ const OWNER_DEVELOPER_ACTIONS = new Set([
   "repo_search",
   "repo_read",
   "repo_ci_status",
+  "cognitive_trace_read",
   "agent_mailbox_list",
   "agent_mailbox_read",
   "agent_mailbox_send",
@@ -121,6 +122,7 @@ const OWNER_DEVELOPER_DIRECT_ACTIONS = new Set([
   "repo_search",
   "repo_read",
   "repo_ci_status",
+  "cognitive_trace_read",
   "agent_mailbox_list",
   "agent_mailbox_read",
   "agent_mailbox_send"
@@ -1226,6 +1228,7 @@ async function executeOwnerDeveloperWorkspaceTurn({
       "owner_repo_search",
       "owner_repo_read",
       "owner_repo_ci_status",
+      "owner_cognitive_trace_read",
       "owner_agent_mailbox_list",
       "owner_agent_mailbox_read",
       "owner_agent_mailbox_send",
@@ -1426,7 +1429,7 @@ async function executeOwnerDeveloperWorkspaceTurn({
     response = await callResponses({
       turn,
       policy: modelPolicy,
-      instructions: instructions + "\n" + cognitiveSignalDecisionToInstruction(metacognition.executivePolicy?.directives) + "\nOWNER DEVELOPER EXECUTION WORKSPACE\nThe preceding function output is observed repository/CI/memory/mailbox evidence. Let that evidence determine the next step. You may search owner memory for a prior analogy, search the repository, read another exact file, check CI, inspect the configured Supabase mailbox, send a bounded handoff/finding/question to another authorized Ari/SOL worker, or prepare one exact isolated-branch edit. Supabase is an explicit audited mailbox datastore, never a sandbox escape or arbitrary network proxy. Do not repeat a failed step unchanged. Do not claim a test passed unless repo_ci_status reports conclusion=success.",
+      instructions: instructions + "\n" + cognitiveSignalDecisionToInstruction(metacognition.executivePolicy?.directives) + "\nOWNER DEVELOPER EXECUTION WORKSPACE\nThe preceding function output is observed repository/CI/memory/cognitive-trace/mailbox evidence. Let that evidence determine the next step. You may inspect persisted cognitive causal traces, search owner memory for a prior analogy, search the repository, read another exact file, check CI, inspect the configured Supabase mailbox, send a bounded handoff/finding/question to another authorized Ari/SOL worker, or prepare one exact isolated-branch edit. A causal trace is compact structured telemetry, not hidden reasoning. Supabase is an explicit audited mailbox datastore, never a sandbox escape or arbitrary network proxy. Do not repeat a failed step unchanged. Do not claim a test passed unless repo_ci_status reports conclusion=success.",
       input: continuationInput,
       tools: developerTools
     });
