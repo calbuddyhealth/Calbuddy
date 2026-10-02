@@ -20,6 +20,7 @@ import {
   executeBackgroundOpenAIRequest,
   getBackgroundAiBudgetStatus
 } from "../background-ai-budget.js";
+import { isBackgroundAiEnabled } from "../background-ai-switch.js";
 
 export const ARI_COGNITIVE_SCHEDULER_VERSION = "2.0.0";
 
@@ -84,6 +85,14 @@ export async function runAriCognitiveScheduler({
 } = {}) {
   const id = clean(userId, 200);
   if (!id) return { success: false, acted: false, reason: "owner_id_missing" };
+  if (!isBackgroundAiEnabled()) {
+    return {
+      success: true,
+      acted: false,
+      reason: "background_ai_master_disabled",
+      version: ARI_COGNITIVE_SCHEDULER_VERSION
+    };
+  }
   const clock = validDate(now);
 
   const triggeredLane = normalizeLane(trigger?.lane);
@@ -568,6 +577,7 @@ async function runLane({ lane, userId, now }) {
 }
 
 function laneEnabled(lane) {
+  if (!isBackgroundAiEnabled()) return false;
   const env = {
     repair: process.env.ARI_CHATGPT_REPAIR_DIALOGUE_ENABLED,
     autonomy: process.env.ARI_AUTONOMY_RUNTIME_ENABLED,
@@ -576,7 +586,7 @@ function laneEnabled(lane) {
     dreaming: process.env.ARI_DREAMING_ENABLED,
     theory: process.env.ARI_CHATGPT_THEORY_DIALOGUE_ENABLED
   }[lane];
-  return String(env ?? "").trim().toLowerCase() !== "false";
+  return String(env ?? "").trim().toLowerCase() === "true";
 }
 
 function deterministicChoice(candidate, reason) {
