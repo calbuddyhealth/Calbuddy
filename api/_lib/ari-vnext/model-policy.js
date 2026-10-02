@@ -1,8 +1,8 @@
-import { resolveOwnerInteractiveModel } from "./cost-router.js";
+import { deriveReasoningDemand, resolveOwnerInteractiveModel } from "./cost-router.js";
 
 // ARI vNext model routing.
 
-export const MODEL_POLICY_VERSION = "4.1.0";
+export const MODEL_POLICY_VERSION = "4.2.0";
 
 export function resolveModelPolicy(route = {}) {
   const intelligence = route?.intelligenceEntitlement || null;
@@ -54,6 +54,10 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
   const mode = resolveWorkMode(route);
   const freshness = resolveFreshness(route);
   const reasoningProfile = normalizeAdvancedReasoningProfile(intelligence?.reasoningProfile);
+  const baseReasoningDemand = deriveReasoningDemand({
+    ...route,
+    complexity: mode
+  });
 
   const ariUnlimitedAdvancedModel =
     process.env.OPENAI_ARI_OWNER_MODEL ||
@@ -67,8 +71,9 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
   const ownerRouting = owner
     ? resolveOwnerInteractiveModel({ mode, route, reasoningProfile })
     : null;
+  const reasoningDemand = ownerRouting?.reasoningDemand || baseReasoningDemand;
   const premiumRouting = premium
-    ? resolvePremiumInteractiveModel({ mode, route, reasoningProfile })
+    ? resolvePremiumInteractiveModel({ mode, route, reasoningProfile, reasoningDemand })
     : null;
 
   const model = owner
@@ -81,7 +86,14 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
 
   const supportsReasoning = isReasoningModel(model);
   const reasoningEffort = supportsReasoning
-    ? resolveAdvancedReasoningEffort({ mode, reasoningProfile, route, casualConversation, owner })
+    ? resolveAdvancedReasoningEffort({
+        mode,
+        reasoningProfile,
+        route,
+        casualConversation,
+        owner,
+        reasoningDemand
+      })
     : null;
   const premiumEscalated = premiumRouting?.escalated === true;
 
@@ -96,6 +108,7 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
     supportsReasoning,
     reasoningProfile,
     reasoningEffort,
+    reasoningDemand,
     maxOutputTokens: casualConversation
       ? owner
         ? 700
@@ -145,7 +158,8 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
 function resolvePremiumInteractiveModel({
   mode = "standard",
   route = {},
-  reasoningProfile = "adaptive"
+  reasoningProfile = "adaptive",
+  reasoningDemand = null
 } = {}) {
   const lunaModel =
     process.env.OPENAI_ARI_PREMIUM_LUNA_MODEL ||
@@ -158,7 +172,9 @@ function resolvePremiumInteractiveModel({
   // and ranking should improve recommendation quality before model escalation.
   const recommendationLane = route?.recommendationIntent === true;
   const explicitDeepProfile = cleanReasoningProfile(reasoningProfile) === "deep";
-  const hardProblem = route?.solEscalationEligible === true;
+  const hardProblem =
+    route?.solEscalationEligible === true &&
+    reasoningDemand?.band === "critical";
   const escalate = !recommendationLane && (
     hardProblem ||
     (explicitDeepProfile && mode === "deep")
@@ -214,16 +230,24 @@ function resolveAdvancedReasoningEffort({
   reasoningProfile = "adaptive",
   route = {},
   casualConversation = false,
-  owner = false
+  owner = false,
+  reasoningDemand = null
 } = {}) {
   if (casualConversation) return "low";
   if (owner && route?.ownerModelRequest === "astra") return reasoningProfile === "deep" ? "xhigh" : "high";
   if (reasoningProfile === "economy") return "low";
-  if (reasoningProfile === "balanced") return mode === "fast" ? "low" : "medium";
+  if (reasoningProfile === "balanced") {
+    return reasoningDemand?.band === "low" ? "low" : "medium";
+  }
   if (reasoningProfile === "deep") return "xhigh";
-  if (mode === "fast") return "low";
-  if (mode === "deep" || route?.health || route?.developer) return "high";
-  return "medium";
+
+  const band = reasoningDemand?.band || (
+    mode === "deep" ? "high" : mode === "fast" ? "low" : "medium"
+  );
+  if (band === "low") return "low";
+  if (band === "medium") return "medium";
+  if (band === "critical") return owner ? "xhigh" : "high";
+  return "high";
 }
 
 function normalizeAdvancedReasoningProfile(value = "adaptive") {
