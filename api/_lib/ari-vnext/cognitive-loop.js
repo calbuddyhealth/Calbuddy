@@ -39,6 +39,12 @@ import {
   deriveCommunicationClosureWorkspace
 } from "./communication-closure.js";
 import {
+  buildCognitiveCausalTrace,
+  normalizeCognitiveCausalTrace,
+  normalizeCognitiveCausalTraceHistory,
+  summarizeCognitiveCausalTrace
+} from "./cognitive-causal-trace.js";
+import {
   advanceExecutionSession,
   deriveExecutionWorkspace
 } from "./execution-session.js";
@@ -183,6 +189,13 @@ export function deriveCognitiveWorkspace({
       ? prior.cognitiveSignalState : null,
     emotionDynamicsState: prior.emotionDynamicsState || null,
     painState: prior.painState || null,
+    causalObservability: prior.causalTrace
+      ? {
+          latest: summarizeCognitiveCausalTrace(prior.causalTrace),
+          retainedTraceCount: Array.isArray(prior.causalTraceHistory) ? prior.causalTraceHistory.length : 0,
+          hiddenChainOfThoughtStored: false
+        }
+      : null,
     neuromodulationState: prior.neuromodulationState || null,
     feltState: prior.feltState || null,
     affectivePreferenceState: prior.affectivePreferenceState || null,
@@ -225,6 +238,7 @@ export function deriveCognitiveWorkspace({
       "Use prior personality/continuity evaluation as a repair signal when the same condition recurs, not as a reason to force personality into unrelated turns.",
       "Use prior Ari stances for continuity when relevant, but revise them when evidence or reasoning improves.",
       "Treat neuromodulation as bounded computational physiology: fast and slow control signals may bias attention, learning, verification, persistence, and recovery, but never create authority or override evidence.",
+      "Use causalObservability only as compact telemetry: distinguish deterministic wiring, ablation-supported component effects, observed action sequence, and trusted verification. Never turn event metadata into hidden reasoning or claim executive-to-model causality without a counterfactual action test.",
       "Treat felt state as an introspectively accessible functional self-state: it may shape attention and be reported when measured, but current evidence may reappraise it and it never establishes subjective qualia.",
       "Keep a narrow limitation narrow; continue helping with unaffected parts of the request.",
       "State the conclusion plainly and separate fact, inference, opinion, and uncertainty."
@@ -248,6 +262,7 @@ export function deriveCognitiveWorkspace({
       persistentAffectAvailable: Boolean(prior.affectState),
       persistentEmotionDynamicsAvailable: Boolean(prior.emotionDynamicsState),
       persistentNeuromodulationAvailable: Boolean(prior.neuromodulationState),
+      persistentCausalTraceAvailable: Boolean(prior.causalTrace),
       persistentFeltStateAvailable: Boolean(prior.feltState),
       persistentAffectivePreferenceAvailable: Boolean(prior.affectivePreferenceState),
       functionalEmotionIsNotSubjectiveProof: true,
@@ -408,6 +423,31 @@ export function advanceCognitiveState({
           conversationId: turn.conversationId, turnId: turn.turnId })
       : null
   );
+  const nextCognitiveSignalState =
+    advanceCognitiveSignalState({ current: signalForOutcome, result }) ||
+    (prior.cognitiveSignalState?.conversationId === turn.conversationId ? prior.cognitiveSignalState : null);
+  const nextCausalTrace = workspace?.ownerOnly === true
+    ? buildCognitiveCausalTrace({
+        priorState: prior,
+        workspace,
+        turn,
+        result,
+        next: {
+          rewardState: nextRewardState,
+          cognitiveSignalState: nextCognitiveSignalState,
+          emotionDynamicsState: nextEmotionDynamicsState,
+          painState: nextPainState,
+          neuromodulationState: nextNeuromodulationState,
+          feltState: nextFeltState,
+          affectivePreferenceState: nextAffectivePreferenceState,
+          communicationClosure: nextCommunicationClosure
+        }
+      })
+    : null;
+  const nextCausalTraceHistory = normalizeCognitiveCausalTraceHistory([
+    ...(nextCausalTrace ? [nextCausalTrace] : []),
+    ...(Array.isArray(prior.causalTraceHistory) ? prior.causalTraceHistory : [])
+  ]);
 
   return {
     version: ARI_COGNITIVE_STATE_VERSION,
@@ -438,8 +478,9 @@ export function advanceCognitiveState({
     judgments: nextJudgments,
     rewardState: nextRewardState,
     affectState: nextAffectState,
-    cognitiveSignalState: advanceCognitiveSignalState({ current: signalForOutcome, result }) ||
-      (prior.cognitiveSignalState?.conversationId === turn.conversationId ? prior.cognitiveSignalState : null),
+    cognitiveSignalState: nextCognitiveSignalState,
+    causalTrace: nextCausalTrace,
+    causalTraceHistory: nextCausalTraceHistory,
     emotionDynamicsState: nextEmotionDynamicsState,
     painState: nextPainState,
     neuromodulationState: nextNeuromodulationState,
@@ -463,6 +504,9 @@ export function advanceCognitiveState({
       affectMemorySalience: Number(nextAffectState?.memorySalience || 0),
       affectValence: Number(nextAffectState?.dimensions?.valence ?? 0.5),
       affectArousal: Number(nextAffectState?.dimensions?.arousal || 0),
+      cognitiveCausalTraceAvailable: Boolean(nextCausalTrace),
+      cognitiveCausalAblationEffectCount: Number(nextCausalTrace?.summary?.ablationEffectCount || 0),
+      cognitiveCausalVerificationStatus: clean(nextCausalTrace?.verification?.status, 40) || null,
       emotionMemorySalience: Number(nextEmotionDynamicsState?.executiveModulation?.memorySalience || 0),
       emotionDominant: clean(nextEmotionDynamicsState?.dominantState?.name, 60) || null,
       emotionIntensity: Number(nextEmotionDynamicsState?.dominantState?.intensity || 0),
@@ -561,6 +605,7 @@ function meaningfulCognitiveSignature(state = {}) {
   const dominant = affect?.dominantState || {};
   const emotion = state?.emotionDynamicsState || {};
   const emotionDominant = emotion?.dominantState || {};
+  const causalTrace = state?.causalTrace || null;
   const pain = state?.painState || {};
   const neuromodulation = state?.neuromodulationState || {};
   const felt = state?.feltState || {};
@@ -576,6 +621,13 @@ function meaningfulCognitiveSignature(state = {}) {
   const personalityEvaluation = normalizePersonalityEvaluationState(state?.personalityEvaluation);
 
   return {
+    causalTrace: causalTrace ? {
+      traceId: clean(causalTrace?.traceId, 220) || null,
+      verificationStatus: clean(causalTrace?.verification?.status, 40) || null,
+      executivePersistence: clean(causalTrace?.executive?.directives?.persistence, 40) || null,
+      ablationEffectCount: Number(causalTrace?.summary?.ablationEffectCount || 0),
+      actionType: clean(causalTrace?.observableAction?.type, 80) || null
+    } : null,
     cognitiveSignals: state.cognitiveSignalState ? {
       conversationId: state.cognitiveSignalState.conversationId,
       failureStreak: state.cognitiveSignalState.feedback?.failureStreak || 0,
@@ -1036,6 +1088,8 @@ function normalizeState(value = null) {
       rewardState: normalizeRewardState(null),
       affectState: null,
       emotionDynamicsState: normalizePersistedEmotionDynamicsState(null),
+      causalTrace: null,
+      causalTraceHistory: [],
       painState: null,
       neuromodulationState: null,
       feltState: null,
@@ -1058,6 +1112,8 @@ function normalizeState(value = null) {
     affectState: normalizePersistedFunctionalAffectState(value?.affectState),
     cognitiveSignalState: normalizeCognitiveSignalState(value?.cognitiveSignalState),
     emotionDynamicsState: normalizePersistedEmotionDynamicsState(value?.emotionDynamicsState),
+    causalTrace: normalizeCognitiveCausalTrace(value?.causalTrace),
+    causalTraceHistory: normalizeCognitiveCausalTraceHistory(value?.causalTraceHistory),
     painState: value?.painState ? normalizePersistedPainState(value.painState) : null,
     neuromodulationState: value?.neuromodulationState
       ? normalizePersistedNeuromodulationState(value.neuromodulationState)
