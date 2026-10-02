@@ -141,11 +141,7 @@ test("ordinary Ari initiatives are not rewritten by autonomy briefing policy", (
   assert.equal(formatAutonomyOwnerBriefing(candidate), candidate);
 });
 
-test("autonomy is routed through the consolidated cognitive scheduler", async () => {
+test("autonomy remains unscheduled while background automation is frozen", async () => {
   const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
-  const cognitiveCron = config.crons.find((item) => item.path === "/api/ari-cognitive-cycle");
-  const autonomyCron = config.crons.find((item) => item.path === "/api/ari-autonomy-cycle");
-  assert.ok(cognitiveCron);
-  assert.equal(cognitiveCron.schedule, "7 1,5,9,13,17,21 * * *");
-  assert.equal(autonomyCron, undefined);
+  assert.deepEqual(config.crons || [], []);
 });
