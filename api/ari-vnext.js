@@ -1189,10 +1189,12 @@ export default async function handler(req, res) {
       authoritativeContext: turn.context?.authoritativeContext || null,
       accountEntitlements,
       intelligenceEntitlement,
-      runtimeModel: publicRuntimeModel({
-        policy: result?.modelPolicy || {},
-        provider: result?.provider || null
-      }),
+      runtimeModel: intelligenceEntitlement?.ownerEligible === true
+        ? publicRuntimeModel({
+            policy: result?.modelPolicy || {},
+            provider: result?.provider || null
+          })
+        : null,
       casualConversation,
       memoryUsed: retrievedMemoryCount > 0,
       memoryCount: retrievedMemoryCount,
