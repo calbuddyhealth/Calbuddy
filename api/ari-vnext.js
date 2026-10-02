@@ -767,6 +767,13 @@ export default async function handler(req, res) {
     }
     const modelMs = Date.now() - modelStartedAt;
     const serverHydrationMs = modelStartedAt - hydrationStartedAt;
+    if (result && typeof result === "object") {
+      Object.defineProperty(result, "runtimeTiming", {
+        value: { modelMs, serverHydrationMs },
+        enumerable: false,
+        configurable: true
+      });
+    }
 
     const runtimeWorldModel = casualConversation
       ? persistedWorldModel
@@ -989,7 +996,21 @@ export default async function handler(req, res) {
         })
       : Promise.resolve(null);
 
+    const institutionalLearningReservation =
+      result?.multiAgent?.active === true &&
+      result?.multiAgent?.verifiedSynthesisAvailable === true &&
+      result?._multiAgentCouncil
+        ? reserveTurnCompute({
+            turn,
+            category: "institutional_memory_learning",
+            model: process.env.OPENAI_ARI_INSTITUTIONAL_MEMORY_MODEL || process.env.OPENAI_ARI_BACKGROUND_MODEL || "gpt-6-luna",
+            inputChars: 9000,
+            maxOutputTokens: 900
+          })
+        : { allowed: false, reason: "council_inactive" };
+
     const institutionalLearningTask =
+      institutionalLearningReservation.allowed === true &&
       result?.multiAgent?.active === true &&
       result?.multiAgent?.verifiedSynthesisAvailable === true &&
       result?._multiAgentCouncil
@@ -1027,7 +1048,9 @@ export default async function handler(req, res) {
         })
       : Promise.resolve({
           attempted: false,
-          reason: result?.multiAgent?.active ? "council_not_verified" : "council_inactive",
+          reason: institutionalLearningReservation.allowed === false
+            ? institutionalLearningReservation.reason || "turn_compute_blocked"
+            : result?.multiAgent?.active ? "council_not_verified" : "council_inactive",
           candidateCount: 0,
           savedCount: 0,
           reinforcedCount: 0,
@@ -1035,7 +1058,21 @@ export default async function handler(req, res) {
           hiddenChainOfThoughtStored: false
         });
 
+    const agentPerformanceLearningReservation =
+      result?.multiAgent?.active === true &&
+      result?.multiAgent?.verifiedSynthesisAvailable === true &&
+      result?._multiAgentCouncil
+        ? reserveTurnCompute({
+            turn,
+            category: "agent_performance_learning",
+            model: process.env.OPENAI_ARI_COUNCIL_PERFORMANCE_MODEL || process.env.OPENAI_ARI_BACKGROUND_MODEL || "gpt-6-luna",
+            inputChars: 9000,
+            maxOutputTokens: 850
+          })
+        : { allowed: false, reason: "council_inactive" };
+
     const agentPerformanceLearningTask =
+      agentPerformanceLearningReservation.allowed === true &&
       result?.multiAgent?.active === true &&
       result?.multiAgent?.verifiedSynthesisAvailable === true &&
       result?._multiAgentCouncil
@@ -1075,7 +1112,9 @@ export default async function handler(req, res) {
         })
       : Promise.resolve({
           attempted: false,
-          reason: result?.multiAgent?.active ? "council_not_verified" : "council_inactive",
+          reason: agentPerformanceLearningReservation.allowed === false
+            ? agentPerformanceLearningReservation.reason || "turn_compute_blocked"
+            : result?.multiAgent?.active ? "council_not_verified" : "council_inactive",
           stored: false,
           duplicate: false,
           agentProfilesUpdated: 0,
