@@ -184,7 +184,8 @@ test("community autonomy remains owner-scoped behind the consolidated scheduler 
   assert.match(endpoint, /CRON_SECRET/);
   assert.match(endpoint, /ARI_OWNER_USER_ID/);
   assert.match(endpoint, /runAriCommunityCycle/);
-  assert.match(vercel, /\/api\/ari-cognitive-cycle/);
+  const vercelConfig = JSON.parse(vercel);
+  assert.deepEqual(vercelConfig.crons || [], []);
   assert.doesNotMatch(vercel, /"path": "\/api\/ari-community-cycle"/);
   assert.match(manualApi, /persistCommunityLearningArtifacts/);
   const autonomySource = fs.readFileSync("api/_lib/ari-vnext/community-autonomy.js", "utf8");
