@@ -9,6 +9,7 @@ import {
   selectReasoningTeacherModel,
   shouldUseReasoningAcademy
 } from "../api/_lib/ari-vnext/adaptive-strategy-reflection.js";
+import { createTurnComputeGovernor } from "../api/_lib/ari-vnext/turn-compute-governor.js";
 
 const ORIGINAL_ENV = {
   OPENAI_ARI_REASONING_TEACHER_MODEL: process.env.OPENAI_ARI_REASONING_TEACHER_MODEL,
@@ -201,7 +202,16 @@ test("lightweight reflection uses its own schema and returns a persistable propo
   };
 
   const result = await reflectOnAdaptiveStrategy({
-    turn: { message: "Continue." },
+    turn: {
+      message: "Continue.",
+      context: {
+        turnComputeGovernor: createTurnComputeGovernor({
+          route: { complexity: "standard", reasoningDemand: { band: "medium" } },
+          intelligenceEntitlement: { ownerEligible: true, advancedEnabled: true },
+          message: "Continue."
+        })
+      }
+    },
     result: {
       success: true,
       reply: "Here is the completed response.",
