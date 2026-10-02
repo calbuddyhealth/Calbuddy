@@ -151,7 +151,7 @@ export function capabilityAwarenessToInstruction(state = null) {
     lines.push("CONDITIONALLY ACTIVATABLE RESOURCES");
     for (const item of state.conditionalResources) {
       const details =
-        state.explicitInquiry && Array.isArray(item.resources) && item.resources.length
+        (state.explicitInquiry || state.cognitiveAuditInquiry) && Array.isArray(item.resources) && item.resources.length
           ? ` Resources: ${item.resources.join(", ")}.`
           : "";
       lines.push(
