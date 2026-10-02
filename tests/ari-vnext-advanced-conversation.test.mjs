@@ -62,7 +62,7 @@ test("Advanced Ari deep owner profile escalates from Terra to the Sol tier", () 
 test("Standard Ari stays on the existing economical model policy", () => {
   const policy = resolveModelPolicy({ complexity: "fast" });
   assert.equal(policy.intelligenceTier, "standard");
-  assert.equal(policy.model, process.env.OPENAI_ARI_VNEXT_FAST_MODEL || "gpt-4o-mini");
+  assert.equal(policy.model, process.env.OPENAI_ARI_FREE_MODEL || "gpt-4o-mini");
 });
 
 test("Advanced conversation contract is present only for an entitled turn", () => {
