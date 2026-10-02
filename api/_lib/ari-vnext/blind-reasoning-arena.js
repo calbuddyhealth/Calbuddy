@@ -4,7 +4,8 @@
 // and candidate answers are never persisted by this module.
 
 import { createHash } from "node:crypto";
-import { recordOpenAIUsage } from "../ai-provider-usage.js";
+import { estimateOpenAICost, extractOpenAIUsage, recordOpenAIUsage } from "../ai-provider-usage.js";
+import { reserveTurnCompute } from "./turn-compute-governor.js";
 
 export const ARI_BLIND_REASONING_ARENA_VERSION = "1.0.0";
 
@@ -134,22 +135,41 @@ export async function runBlindReasoningArena({
   const ariAnswer = clean(result?.reply, 9000);
   if (!problem || !ariAnswer) return { attempted: false, reason: "missing_problem_or_ari_answer", record: null };
 
-  const challengerModel = clean(process.env.OPENAI_ARI_REASONING_ARENA_CHALLENGER_MODEL, 120)
-    || clean(teacherModel, 120)
-    || clean(process.env.OPENAI_ARI_REASONING_TEACHER_MODEL, 120)
-    || clean(process.env.OPENAI_ARI_OWNER_MODEL, 120)
-    || clean(result?.provider?.model || result?.modelPolicy?.model, 120)
-    || "gpt-5.6";
+  const astraBenchmark = isExplicitAstraBenchmark(problem);
+  const challengerModel = astraBenchmark
+    ? clean(process.env.OPENAI_ARI_ASTRA_BENCHMARK_MODEL, 120)
+      || clean(process.env.OPENAI_ARI_OWNER_ASTRA_MODEL, 120)
+      || "gpt-6-astra"
+    : clean(process.env.OPENAI_ARI_REASONING_ARENA_CHALLENGER_MODEL, 120)
+      || clean(teacherModel, 120)
+      || clean(process.env.OPENAI_ARI_REASONING_TEACHER_MODEL, 120)
+      || clean(process.env.OPENAI_ARI_OWNER_MODEL, 120)
+      || clean(result?.provider?.model || result?.modelPolicy?.model, 120)
+      || "gpt-5.6";
   const judgeModel = clean(process.env.OPENAI_ARI_REASONING_ARENA_JUDGE_MODEL, 120)
-    || clean(process.env.OPENAI_ARI_OWNER_MODEL, 120)
-    || challengerModel;
+    || (astraBenchmark
+      ? clean(process.env.OPENAI_ARI_OWNER_SOL_MODEL, 120) || "gpt-6.1-sol"
+      : clean(process.env.OPENAI_ARI_OWNER_MODEL, 120) || challengerModel);
   const domains = deriveBlindArenaDomains({ route: result?.route || {}, message: problem });
 
+  const challengerReservation = reserveTurnCompute({
+    turn,
+    category: astraBenchmark ? "benchmark_astra_challenger" : "reasoning_arena_challenger",
+    model: challengerModel,
+    inputChars: problem.length + 900,
+    maxOutputTokens: 1400
+  });
+  if (!challengerReservation.allowed) {
+    return { attempted: false, reason: challengerReservation.reason, record: null };
+  }
+
+  const challengerStartedAt = Date.now();
   const challenger = await generateIndependentChallenger({
     apiKey,
     model: challengerModel,
     problem
   });
+  const challengerLatencyMs = Date.now() - challengerStartedAt;
   if (!challenger?.answer) {
     return {
       attempted: true,
@@ -164,6 +184,25 @@ export async function runBlindReasoningArena({
   const candidateA = order.A === "ari" ? ariAnswer : challenger.answer;
   const candidateB = order.B === "ari" ? ariAnswer : challenger.answer;
 
+  const judgeReservation = reserveTurnCompute({
+    turn,
+    category: astraBenchmark ? "benchmark_blind_judge" : "reasoning_arena_judge",
+    model: judgeModel,
+    inputChars: problem.length + candidateA.length + candidateB.length + 1200,
+    maxOutputTokens: 900
+  });
+  if (!judgeReservation.allowed) {
+    await recordArenaUsage({ turn, challenger, judged: null, challengerModel, judgeModel, domains });
+    return {
+      attempted: true,
+      reason: judgeReservation.reason,
+      record: null,
+      challengerProvider: challenger?.provider || null,
+      judgeProvider: null
+    };
+  }
+
+  const judgeStartedAt = Date.now();
   const judged = await judgeBlindPair({
     apiKey,
     model: judgeModel,
@@ -171,6 +210,7 @@ export async function runBlindReasoningArena({
     candidateA,
     candidateB
   });
+  const judgeLatencyMs = Date.now() - judgeStartedAt;
   const normalized = normalizeBlindArenaJudgment(judged?.judgment, order, {
     challengerModel,
     judgeModel
@@ -206,7 +246,15 @@ export async function runBlindReasoningArena({
     ariAnswerHash: hash(ariAnswer),
     challengerAnswerHash: hash(challenger.answer),
     rawCandidatesStored: false,
-    hiddenChainOfThoughtStored: false
+    hiddenChainOfThoughtStored: false,
+    benchmarkKind: astraBenchmark ? "sol_harness_vs_astra" : "general_blind_arena",
+    metrics: buildArenaMetrics({
+      result,
+      challenger,
+      judged,
+      challengerLatencyMs,
+      judgeLatencyMs
+    })
   };
 
   await recordArenaUsage({ turn, challenger, judged, challengerModel, judgeModel, domains });
@@ -216,6 +264,50 @@ export async function runBlindReasoningArena({
     record,
     challengerProvider: challenger.provider,
     judgeProvider: judged.provider
+  };
+}
+
+function isExplicitAstraBenchmark(problem = "") {
+  const text = clean(problem, 5000);
+  return /\bastra\b/i.test(text) &&
+    /\b(?:benchmark|compare|versus|vs\.?|against)\b/i.test(text);
+}
+
+function buildArenaMetrics({ result = {}, challenger = {}, judged = {}, challengerLatencyMs = 0, judgeLatencyMs = 0 } = {}) {
+  const ariUsage = extractOpenAIUsage({ usage: result?.provider?.usage || {} });
+  const challengerUsage = extractOpenAIUsage({ usage: challenger?.provider?.usage || {} });
+  const judgeUsage = extractOpenAIUsage({ usage: judged?.provider?.usage || {} });
+  return {
+    ari: {
+      model: clean(result?.provider?.model || result?.modelPolicy?.model, 120) || null,
+      latencyMs: Math.max(0, Number(result?.runtimeTiming?.modelMs || 0)),
+      inputTokens: ariUsage.inputTokens,
+      outputTokens: ariUsage.outputTokens,
+      estimatedCostUsd: estimateOpenAICost({
+        model: result?.provider?.model || result?.modelPolicy?.model || "",
+        usage: ariUsage
+      }).estimatedCostUsd
+    },
+    challenger: {
+      model: clean(challenger?.provider?.model, 120) || null,
+      latencyMs: Math.max(0, Number(challengerLatencyMs || 0)),
+      inputTokens: challengerUsage.inputTokens,
+      outputTokens: challengerUsage.outputTokens,
+      estimatedCostUsd: estimateOpenAICost({
+        model: challenger?.provider?.model || "",
+        usage: challengerUsage
+      }).estimatedCostUsd
+    },
+    judge: {
+      model: clean(judged?.provider?.model, 120) || null,
+      latencyMs: Math.max(0, Number(judgeLatencyMs || 0)),
+      inputTokens: judgeUsage.inputTokens,
+      outputTokens: judgeUsage.outputTokens,
+      estimatedCostUsd: estimateOpenAICost({
+        model: judged?.provider?.model || "",
+        usage: judgeUsage
+      }).estimatedCostUsd
+    }
   };
 }
 
