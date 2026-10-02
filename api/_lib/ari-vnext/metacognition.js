@@ -308,6 +308,7 @@ export function deriveMetacognition({
     selfAdaptation,
     functionalAffect,
     emotionDynamics,
+    neuromodulation,
     feltState,
     affectivePreferenceState,
     motivationalArbitration,
