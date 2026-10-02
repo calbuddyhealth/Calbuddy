@@ -1,4 +1,4 @@
-/* ARI XP — Owner ARI Intelligence Controls v1.4.0 */
+/* ARI XP — Owner ARI Intelligence Controls v1.5.0 */
 (() => {
   "use strict";
 
@@ -60,6 +60,7 @@
     $("advancedAriToggle").checked = controls?.enabled === true;
     $("reasoningProfileSelect").value = controls?.reasoningProfile || "adaptive";
     $("reasoningProfileSelect").disabled = controls?.enabled !== true;
+    $("biblicalWisdomModeSelect").value = controls?.biblicalWisdomMode || "off";
 
     $("tierStat").textContent = advanced ? "Advanced" : "Standard";
     $("modelStat").textContent = advanced ? (runtime?.modelFamily || runtime?.advancedModel || "GPT-5.6 Sol") : "Standard policy";
@@ -91,7 +92,8 @@
     try {
       const data = await api("POST", {
         enabled: $("advancedAriToggle").checked,
-        reasoningProfile: $("reasoningProfileSelect").value
+        reasoningProfile: $("reasoningProfileSelect").value,
+        biblicalWisdomMode: $("biblicalWisdomModeSelect").value
       });
       render(data);
       setStatus(data?.message || "Owner controls saved.", "success");
