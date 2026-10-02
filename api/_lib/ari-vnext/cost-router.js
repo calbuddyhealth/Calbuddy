@@ -3,13 +3,81 @@
 
 import { estimateOpenAICost } from "../ai-provider-usage.js";
 
-export const ARI_COST_ROUTER_VERSION = "1.1.0";
+export const ARI_COST_ROUTER_VERSION = "1.2.0";
+export const ARI_REASONING_GOVERNOR_VERSION = "1.0.0";
 
 const DEFAULT_OWNER_MODEL = "gpt-6.1-sol";
 const DEFAULT_OWNER_ASTRA_MODEL = "gpt-6-astra";
 const DEFAULT_OWNER_BUDGET_MODEL = "gpt-6-luna";
 const DEFAULT_BACKGROUND_FAST_MODEL = "gpt-6-luna";
 const DEFAULT_BACKGROUND_REASONING_MODEL = "gpt-6-luna";
+
+export function deriveReasoningDemand(route = {}) {
+  const requestedComplexity = clean(route?.complexity || route?.mode || "standard", 40).toLowerCase();
+  const complexity = ["fast", "standard", "deep"].includes(requestedComplexity)
+    ? requestedComplexity
+    : "standard";
+
+  let score = complexity === "deep" ? 5 : complexity === "standard" ? 3 : 0;
+  const reasons = [`complexity_${complexity}`];
+
+  const add = (points, reason) => {
+    if (!points) return;
+    score += points;
+    reasons.push(reason);
+  };
+
+  add(route?.developer === true ? 1 : 0, "developer_context");
+  add(route?.health === true ? 1 : 0, "health_context");
+  add(route?.coachingState === true ? 1 : 0, "cross_domain_coaching");
+  add(route?.recommendationIntent === true ? 1 : 0, "recommendation_comparison");
+  add(route?.solEscalationEligible === true ? 3 : 0, "hard_problem_signal");
+
+  const messageLength = Math.max(0, Number(route?.messageLength) || 0);
+  if (messageLength > 1800) add(2, "large_input");
+  else if (messageLength > 800) add(1, "moderate_input");
+
+  const domainCount = Number.isFinite(Number(route?.domainCount))
+    ? Math.max(0, Number(route.domainCount))
+    : ["nutrition", "training", "goals", "social", "memory"]
+      .reduce((count, key) => count + (route?.[key] === true ? 1 : 0), 0);
+  if (domainCount >= 3) add(1, "multi_domain_turn");
+
+  if (
+    route?.previousAttemptFailed === true ||
+    route?.retryAfterFailure === true ||
+    route?.toolFailure === true
+  ) {
+    add(3, "runtime_failure_retry");
+  }
+
+  score = Math.max(0, Math.min(12, Math.round(score)));
+  const thresholds = reasoningThresholds();
+  const band = score <= thresholds.lowMax
+    ? "low"
+    : score <= thresholds.mediumMax
+      ? "medium"
+      : score <= thresholds.highMax
+        ? "high"
+        : "critical";
+
+  return {
+    version: ARI_REASONING_GOVERNOR_VERSION,
+    score,
+    band,
+    reasons,
+    thresholds
+  };
+}
+
+function reasoningThresholds() {
+  const lowMax = boundedInt(process.env.ARI_REASONING_LOW_MAX, 2, 0, 10);
+  const mediumCandidate = boundedInt(process.env.ARI_REASONING_MEDIUM_MAX, 4, 1, 11);
+  const mediumMax = Math.max(lowMax + 1, mediumCandidate);
+  const highCandidate = boundedInt(process.env.ARI_REASONING_HIGH_MAX, 7, 2, 12);
+  const highMax = Math.max(mediumMax + 1, highCandidate);
+  return { lowMax, mediumMax, highMax };
+}
 
 export function resolveOwnerInteractiveModel({
   mode = "standard",
@@ -33,7 +101,13 @@ export function resolveOwnerInteractiveModel({
 
   const explicitRequest = clean(route?.ownerModelRequest, 40).toLowerCase();
   const explicitDeepProfile = clean(reasoningProfile, 40).toLowerCase() === "deep";
-  const hardProblem = route?.solEscalationEligible === true;
+  const reasoningDemand = deriveReasoningDemand({
+    ...route,
+    complexity: mode || route?.complexity
+  });
+  const hardProblem =
+    route?.solEscalationEligible === true &&
+    reasoningDemand.band === "critical";
   const forceSol =
     String(process.env.ARI_OWNER_FORCE_SOL || "").trim().toLowerCase() === "true";
 
@@ -47,6 +121,7 @@ export function resolveOwnerInteractiveModel({
     model: escalateToAstra ? astraModel : normalModel,
     fallbackModel: normalModel,
     budgetModel: DEFAULT_OWNER_BUDGET_MODEL,
+    reasoningDemand,
     escalated: escalateToAstra,
     reason: escalateToAstra
       ? explicitRequest === "astra"

@@ -28,6 +28,7 @@ test("free Ari remains GPT-4o mini even for deep developer work", () => {
     context: {}
   });
   assert.equal(route.solEscalationEligible, true);
+  assert.equal(route.reasoningDemand.band, "critical");
 
   const policy = resolveModelPolicy(route);
   assert.equal(policy.accessClass, "casual");
@@ -63,6 +64,8 @@ test("premium Ari escalates hard non-recommendation work to Sol", () => {
   assert.equal(policy.escalated, true);
   assert.equal(policy.costTier, "premium_sol_escalation");
   assert.equal(policy.routingReason, "hard_problem");
+  assert.equal(policy.reasoningDemand.band, "critical");
+  assert.equal(policy.reasoningEffort, "high");
 });
 
 test("premium recommendations stay on Luna even when comparison language is deep", () => {
@@ -74,12 +77,15 @@ test("premium recommendations stay on Luna even when comparison language is deep
   assert.equal(route.currentInfo, true);
   assert.equal(route.complexity, "deep");
   assert.equal(route.solEscalationEligible, false);
+  assert.equal(route.reasoningDemand.band, "high");
 
   const policy = resolveModelPolicy(route);
   assert.equal(policy.model, process.env.OPENAI_ARI_PREMIUM_LUNA_MODEL || "gpt-6-luna");
   assert.equal(policy.escalated, false);
   assert.equal(policy.costTier, "premium_luna");
   assert.equal(policy.routingReason, "luna_recommendation_quality");
+  assert.equal(policy.reasoningDemand.band, "high");
+  assert.equal(policy.reasoningEffort, "high");
 
   const instruction = recommendationQualityInstruction({
     route,
