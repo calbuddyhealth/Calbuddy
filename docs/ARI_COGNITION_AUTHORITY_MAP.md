@@ -11,6 +11,24 @@ Only these systems should emit behavioral/process instructions into the primary 
 3. **Ari Executive** — experimental cognition signals such as curiosity, imagination, reward, functional affect, emotion dynamics, motivational arbitration, and verification/exploration pressure.
 4. **Deliberation Harness** — difficult-task reasoning process, countercases, failure-mode review, task-contract preservation, and verification gates.
 
+## Pre-deliberative control substrate
+
+The **Instinct Kernel** runs before metacognition, Companion Core, and Deliberation Harness. It is not a fifth prompt authority.
+
+It produces three classes of behavioral pressure:
+
+- **Reflexes** — high-priority causal constraints such as correction repair, evidence-first truth, authorization boundaries, and verification before completion claims.
+- **Drives** — persistent tendencies such as curiosity, persistence, simplicity, agency, continuity, and cost conservation. Drives bias strategy but do not override current evidence or hard enforcement.
+- **Tendencies** — softer stable biases such as challenging weak assumptions and preferring reversible discriminating experiments over speculation.
+
+The Instinct Kernel is deterministic and makes no provider call. Its outputs are consumed by the existing authorities:
+
+- Companion Core receives relationship/initiative/repair modulation.
+- Ari Executive receives verification, exploration, persistence, simplicity, agency, challenge, and cost pressure.
+- Deliberation Harness receives verification, method-change, simplicity, and exploration pressure.
+
+Instinct calibration may use already-persisted outcome and personality-evaluation state. It does not gain permissions, weaken safety, create facts, or become evidence merely because a drive is strong.
+
 ## Evidence-producing cognition systems
 
 The following systems remain useful, but they are evidence producers rather than independent prompt authorities:
