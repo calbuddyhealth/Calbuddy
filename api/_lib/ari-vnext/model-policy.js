@@ -57,10 +57,13 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
   const mode = resolveWorkMode(route);
   const freshness = resolveFreshness(route);
   const reasoningProfile = normalizeAdvancedReasoningProfile(intelligence?.reasoningProfile);
-  const baseReasoningDemand = deriveReasoningDemand({
-    ...route,
-    complexity: mode
-  });
+  const baseReasoningDemand =
+    route?.reasoningDemand?.version && route?.reasoningDemand?.band
+      ? route.reasoningDemand
+      : deriveReasoningDemand({
+          ...route,
+          complexity: mode
+        });
 
   const ariUnlimitedAdvancedModel =
     process.env.OPENAI_ARI_OWNER_MODEL ||
