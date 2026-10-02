@@ -14,7 +14,7 @@ const owner = () => ({
   reasoningProfile: "adaptive"
 });
 
-test("owner casual chat stays on the Terra default instead of spending Sol", () => {
+test("owner casual chat stays on the Sol default instead of spending Astra", () => {
   const standard = resolveModelPolicy({ intelligenceEntitlement: owner() });
   const casual = resolveModelPolicy({
     intelligenceEntitlement: owner(),
@@ -25,7 +25,7 @@ test("owner casual chat stays on the Terra default instead of spending Sol", () 
   assert.equal(casual.reasoningEffort, "low");
   assert.equal(casual.ownerModelContinuity, true);
   assert.equal(casual.escalated, false);
-  assert.equal(casual.costTier, "owner_terra_default");
+  assert.equal(casual.costTier, "owner_sol_default");
   assert.ok(casual.maxOutputTokens >= 700);
 });
 
