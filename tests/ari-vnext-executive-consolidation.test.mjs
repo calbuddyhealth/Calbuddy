@@ -78,7 +78,7 @@ function ownerContext() {
 }
 
 test("runtime constitution is short, canonical, and contains the permanent authority set once", () => {
-  assert.equal(ARI_EXECUTIVE_VERSION, "1.3.0");
+  assert.equal(ARI_EXECUTIVE_VERSION, "1.4.0");
   assert.ok(ARI_RUNTIME_CONSTITUTION.length < 3600);
   for (const id of Object.values(ARI_RULE_IDS)) {
     assert.equal(ARI_RUNTIME_CONSTITUTION.split(id).length - 1, 1, `${id} should appear once`);
