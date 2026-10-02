@@ -518,7 +518,7 @@ function likelyContinuation(message = "", prior = null) {
   if (!isOpenSession(prior)) return false;
   const text = clean(message, 4000).toLowerCase();
   if (!text) return true;
-  if (/\b(?:continue|resume|keep going|finish|do it|make it happen|what'?s left|where were we|still working|go ahead)\b/i.test(text)) return true;
+  if (/\b(?:continue|resume|keep going|finish|do it|make it happen|what'?s left|what(?:'s| is) (?:the )?(?:unresolved|next) step|what(?:'s| is) next|what remains|where did you stop|where were we|still working|go ahead)\b/i.test(text)) return true;
   const goalTerms = new Set(tokens(prior.goal));
   const messageTerms = tokens(text);
   if (!goalTerms.size || !messageTerms.length) return false;
