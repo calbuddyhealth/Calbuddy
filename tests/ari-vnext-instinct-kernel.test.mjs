@@ -166,8 +166,8 @@ test("Ari Executive turns instinct state into causal strategy pressure", () => {
   assert.ok(policy.directives.instinctMandatoryConstraints.length > 0);
   assert.equal(policy.signals.instincts.version, ARI_INSTINCT_KERNEL_VERSION);
   const instruction = executivePolicyToInstruction(policy);
-  assert.match(instruction, /Instinct state:/);
-  assert.match(instruction, /Reflex constraints are causal/i);
+  assert.match(instruction, /Instinct:/);
+  assert.match(instruction, /Reflexes constrain/i);
 });
 
 test("Companion Core and Deliberation Harness consume instinct modulation without a fifth prompt authority", () => {
