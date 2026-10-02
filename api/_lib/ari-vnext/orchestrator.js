@@ -29,7 +29,8 @@ import {
   promptBudgetTelemetry
 } from "./cost-router.js";
 import { applyOutcomeLearning } from "./outcome-learning.js";
-import { deriveRelationshipContinuity, relationshipContinuityToInstruction } from "./relationship-continuity.js";\nimport { recommendationQualityInstruction } from "./recommendation-quality.js";
+import { deriveRelationshipContinuity, relationshipContinuityToInstruction } from "./relationship-continuity.js";
+import { recommendationQualityInstruction } from "./recommendation-quality.js";
 import { classifySafety, safetyToInstruction } from "./safety-policy.js";
 import { deriveScientificIntelligence, scientificIntelligenceToInstruction } from "./scientific-intelligence.js";
 import { createPendingAction, resolvePendingActionIntent } from "./pending-action.js";
