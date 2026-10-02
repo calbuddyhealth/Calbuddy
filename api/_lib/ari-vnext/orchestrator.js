@@ -29,7 +29,7 @@ import {
   promptBudgetTelemetry
 } from "./cost-router.js";
 import { applyOutcomeLearning } from "./outcome-learning.js";
-import { deriveRelationshipContinuity, relationshipContinuityToInstruction } from "./relationship-continuity.js";
+import { deriveRelationshipContinuity, relationshipContinuityToInstruction } from "./relationship-continuity.js";\nimport { recommendationQualityInstruction } from "./recommendation-quality.js";
 import { classifySafety, safetyToInstruction } from "./safety-policy.js";
 import { deriveScientificIntelligence, scientificIntelligenceToInstruction } from "./scientific-intelligence.js";
 import { createPendingAction, resolvePendingActionIntent } from "./pending-action.js";
@@ -1819,6 +1819,11 @@ function buildInstructions({
 
   if (shouldUseFitnessIntelligence(route)) {
     sections.push("\nFITNESS INTELLIGENCE\n" + FITNESS_INTELLIGENCE);
+  }
+
+  const recommendationInstruction = recommendationQualityInstruction({ route, relevantContext });
+  if (recommendationInstruction) {
+    sections.push("\nRECOMMENDATION QUALITY\n" + recommendationInstruction);
   }
 
   if (goalHierarchy) sections.push("\n" + goalHierarchyToInstruction(goalHierarchy));
