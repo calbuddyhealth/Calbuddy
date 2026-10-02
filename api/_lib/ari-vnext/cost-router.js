@@ -101,10 +101,15 @@ export function resolveOwnerInteractiveModel({
 
   const explicitRequest = clean(route?.ownerModelRequest, 40).toLowerCase();
   const explicitDeepProfile = clean(reasoningProfile, 40).toLowerCase() === "deep";
-  const reasoningDemand = deriveReasoningDemand({
-    ...route,
-    complexity: mode || route?.complexity
-  });
+  const reasoningDemand =
+    route?.reasoningDemand?.version === ARI_REASONING_GOVERNOR_VERSION &&
+    Number.isFinite(Number(route?.reasoningDemand?.score)) &&
+    route?.reasoningDemand?.band
+      ? route.reasoningDemand
+      : deriveReasoningDemand({
+          ...route,
+          complexity: mode || route?.complexity
+        });
   const hardProblem =
     route?.solEscalationEligible === true &&
     reasoningDemand.band === "critical";
