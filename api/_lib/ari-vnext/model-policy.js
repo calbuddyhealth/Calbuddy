@@ -28,7 +28,7 @@ export function resolveModelPolicy(route = {}) {
     reasoningEffort: supportsReasoning ? "low" : null,
     maxOutputTokens: mode === "deep" ? 900 : mode === "standard" ? 700 : 450,
     timeoutMs: mode === "deep" ? 22000 : mode === "standard" ? 18000 : 12000,
-    costTier: freshness === "live" ? "free_direct_live" : "free_direct",
+    costTier: freshness === "live"\n      ? mode === "deep" ? "deep_live_search" : mode === "standard" ? "standard_live_search" : "fast_live_search"\n      : "economy",
     liveSearchRequired: freshness === "live",
     escalated: false,
     routingReason: "free_direct",
