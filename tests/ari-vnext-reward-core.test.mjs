@@ -329,7 +329,7 @@ test("owner metacognition preserves Reward Core state while Ari Executive owns r
   });
   const instruction = metacognitionToInstruction(owner);
 
-  assert.equal(ARI_METACOGNITION_VERSION, "1.6.0");
+  assert.equal(ARI_METACOGNITION_VERSION, "1.7.0");
   assert.equal(owner.rewardCore.ownerOnly, true);
   assert.equal(owner.exploration.productiveEffortRewardEnabled, true);
   assert.equal(ordinary.rewardCore, null);
