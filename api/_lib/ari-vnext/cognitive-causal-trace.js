@@ -8,6 +8,7 @@
 // stores no raw user prompt, raw model reasoning, or raw tool output.
 
 import { deriveAriExecutivePolicy } from "./ari-executive.js";
+import { deriveNeuromodulationState } from "./neuromodulation.js";
 
 export const ARI_COGNITIVE_CAUSAL_TRACE_VERSION = "1.0.0";
 export const ARI_COGNITIVE_CAUSAL_TRACE_STATE_VERSION = "1.0.0";
@@ -217,6 +218,21 @@ export function runCognitiveCausalAblations({
 
     const args = executiveArgsFromMetacognition({ metacognition, route, safety, workspace });
     args[component] = null;
+    let interventionScope = "direct_executive_input";
+    if (component === "painState") {
+      args.neuromodulation = deriveNeuromodulationState({
+        persistedNeuromodulationState: workspace?.neuromodulationState || null,
+        functionalAffect: metacognition?.functionalAffect || null,
+        emotionDynamics: metacognition?.emotionDynamics || null,
+        painState: null,
+        rewardState: metacognition?.rewardCore || null,
+        curiosity: metacognition?.curiosity || null,
+        route,
+        safety,
+        cognitiveWorkspace: workspace || null
+      });
+      interventionScope = "pain_plus_downstream_neuromodulation";
+    }
     const ablatedPolicy = deriveAriExecutivePolicy(args);
     const ablated = compactBehaviorDirectives(ablatedPolicy?.directives);
     const changed = diffDirectives(baseline, ablated);
@@ -236,6 +252,7 @@ export function runCognitiveCausalAblations({
       interpretation: changed.length
         ? "component_ablation_changed_executive_behavior"
         : "no_executive_behavior_delta_observed",
+      interventionScope,
       authorityChanged: false,
       hiddenChainOfThoughtStored: false
     });
