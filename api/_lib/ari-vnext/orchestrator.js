@@ -305,7 +305,7 @@ export async function runAriVNext(turn = {}) {
   }
 
   const tools = getAriTools(route);
-  if (route.currentInfo && process.env.ARI_VNEXT_WEB_SEARCH_ENABLED !== "false") {
+  if ((route.currentInfo || route.referenceResolutionSearch) && process.env.ARI_VNEXT_WEB_SEARCH_ENABLED !== "false") {
     tools.push({ type: "web_search" });
   }
 
@@ -2406,6 +2406,15 @@ function temporalContextToInstruction(temporal = {}, route = {}) {
       "This request is freshness-sensitive. Use the available web search tool before answering facts that can change over time.",
       "For current officeholders, presidents, elections, company leaders, prices, schedules, scores, news, availability, or similar changing facts, do not answer from model memory alone.",
       "Prefer authoritative/primary sources when available and make clear when current information could not be verified."
+    );
+  }
+
+  if (route?.referenceResolutionSearch) {
+    lines.push(
+      "REFERENCE RESOLUTION: The current turn appears to refer elliptically to a potentially public incident, experiment, study, event, report, or similar external referent from the recent conversation.",
+      "Use recent conversation context to formulate a narrow web search before asking the user to identify the referent.",
+      "If one plausible public match is substantially better supported than alternatives, name it and answer conditionally (for example, 'If you mean X...'). If several plausible matches remain, briefly present the ambiguity and ask one targeted clarification.",
+      "Do not use web search to resolve private-family, patient, coworker, or other non-public personal references, and never invent a match merely to avoid asking a clarification."
     );
   }
 
