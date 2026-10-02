@@ -84,11 +84,14 @@ export function deriveCompanionState({
     familiarity,
     relevantThread,
     shouldReferencePast,
-    userInvokedSignal
+    userInvokedSignal,
+    blockInitiative
   });
 
   const personalization = communication?.personalization || {};
-  const questionBurden = clean(personalization?.questionBurden, 40) || "adaptive";
+  const questionBurden =
+    clean(personalization?.questionBurden, 40) ||
+    (questionRestraint >= 0.72 ? "light" : "adaptive");
   const humor = highStakes || repairActive
     ? "off"
     : clean(communication?.humor, 40) || "adaptive";
@@ -125,6 +128,13 @@ export function deriveCompanionState({
       forcedCallbackAllowed: false
     },
     initiative,
+    instinctPressure: {
+      dominant: clean(instinctKernel?.dominant?.id, 80) || null,
+      continuity: continuityPressure,
+      questionRestraint,
+      repairFirst: repairActive,
+      initiativeBlocked: blockInitiative
+    },
     interaction: {
       tempo: interactionTempo(message),
       correctionActive: repairActive,
