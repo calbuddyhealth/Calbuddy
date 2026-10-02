@@ -77,6 +77,22 @@
           <strong>Adaptive</strong> is the recommended test setting. Casual conversation uses low reasoning, ordinary discussion uses medium reasoning, and complex coaching, health, or developer work escalates automatically. <strong>Deep</strong> forces xhigh reasoning and will be slower and more expensive.
         </div>
 
+        <div class="owner-ai-control-row">
+          <div class="owner-ai-control-copy">
+            <strong>Biblical Wisdom Core</strong>
+            <small>Controls whether Ari uses the Bible as an interpretive wisdom lens for moral, relational, existential, character, stewardship, and long-horizon judgment.</small>
+          </div>
+          <select class="owner-ai-select" id="biblicalWisdomModeSelect" aria-label="Biblical Wisdom Core mode">
+            <option value="off">Off</option>
+            <option value="consultative">Consultative</option>
+            <option value="primary">Primary</option>
+          </select>
+        </div>
+
+        <div class="owner-ai-note">
+          <strong>Consultative</strong> lets Scripture challenge Ari's proposed judgment when a value-laden issue is present. <strong>Primary</strong> begins value-laden deliberation from the broad biblical witness, while evidence, safety, law, medicine, technical facts, trusted permissions, and your agency still take precedence in their own domains.
+        </div>
+
         <div style="height:14px"></div>
         <button class="owner-ai-action" id="saveOwnerAiControls" type="button">Save owner controls</button>
         <div class="owner-ai-inline-status" id="ownerAiStatus" role="status" aria-live="polite"></div>
