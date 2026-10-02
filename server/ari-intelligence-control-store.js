@@ -1,4 +1,4 @@
-import { normalizeReasoningProfile } from "./ari-intelligence-entitlement.js";
+import { normalizeBiblicalWisdomMode, normalizeReasoningProfile } from "./ari-intelligence-entitlement.js";
 
 const CONTROL_TABLE = "ari_intelligence_controls";
 const PROFILE_TABLE = "profiles";
@@ -10,24 +10,24 @@ export async function loadAriIntelligenceControls({ userId } = {}) {
   const config = supabaseServiceConfig();
   if (!id || !config) return defaultControls("unavailable");
   try {
-    const params = new URLSearchParams({ select: "advanced_enabled,reasoning_profile,updated_at", user_id: `eq.${id}`, limit: "1" });
+    const params = new URLSearchParams({ select: "advanced_enabled,reasoning_profile,biblical_wisdom_mode,updated_at", user_id: `eq.${id}`, limit: "1" });
     const response = await fetch(`${config.url}/rest/v1/${CONTROL_TABLE}?${params.toString()}`, { headers: serviceHeaders(config.key), cache: "no-store" });
     if (!response.ok) return defaultControls("read_failed");
     const rows = await response.json().catch(() => []);
     const row = Array.isArray(rows) ? rows[0] : rows;
     if (!row) return defaultControls("default");
-    return { enabled: row.advanced_enabled === true, reasoningProfile: normalizeReasoningProfile(row.reasoning_profile), updatedAt: row.updated_at || null, source: "server_store" };
+    return { enabled: row.advanced_enabled === true, reasoningProfile: normalizeReasoningProfile(row.reasoning_profile), biblicalWisdomMode: normalizeBiblicalWisdomMode(row.biblical_wisdom_mode), updatedAt: row.updated_at || null, source: "server_store" };
   } catch {
     return defaultControls("read_failed");
   }
 }
 
-export async function saveAriIntelligenceControls({ userId, enabled = false, reasoningProfile = "adaptive" } = {}) {
+export async function saveAriIntelligenceControls({ userId, enabled = false, reasoningProfile = "adaptive", biblicalWisdomMode = "off" } = {}) {
   const id = cleanUserId(userId);
   const config = supabaseServiceConfig();
   if (!id) throw new Error("A valid user id is required to save ARI intelligence controls.");
   if (!config) throw new Error("ARI intelligence control storage is not configured.");
-  const payload = { user_id: id, advanced_enabled: enabled === true, reasoning_profile: normalizeReasoningProfile(reasoningProfile), updated_at: new Date().toISOString() };
+  const payload = { user_id: id, advanced_enabled: enabled === true, reasoning_profile: normalizeReasoningProfile(reasoningProfile), biblical_wisdom_mode: normalizeBiblicalWisdomMode(biblicalWisdomMode), updated_at: new Date().toISOString() };
   const response = await fetch(`${config.url}/rest/v1/${CONTROL_TABLE}?on_conflict=user_id`, {
     method: "POST",
     headers: { ...serviceHeaders(config.key), "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=representation" },
@@ -37,7 +37,7 @@ export async function saveAriIntelligenceControls({ userId, enabled = false, rea
   const rows = await response.json().catch(() => []);
   if (!response.ok) throw new Error(String(rows?.message || rows?.error || "ARI intelligence controls could not be saved."));
   const row = Array.isArray(rows) ? rows[0] : rows;
-  return { enabled: row?.advanced_enabled === true, reasoningProfile: normalizeReasoningProfile(row?.reasoning_profile || payload.reasoning_profile), updatedAt: row?.updated_at || payload.updated_at, source: "server_store" };
+  return { enabled: row?.advanced_enabled === true, reasoningProfile: normalizeReasoningProfile(row?.reasoning_profile || payload.reasoning_profile), biblicalWisdomMode: normalizeBiblicalWisdomMode(row?.biblical_wisdom_mode || payload.biblical_wisdom_mode), updatedAt: row?.updated_at || payload.updated_at, source: "server_store" };
 }
 
 export async function loadAriUnlimitedEntitlement({ userId } = {}) {
@@ -87,7 +87,7 @@ export async function loadAriCommercialEntitlement({ userId } = {}) {
 }
 
 function defaultControls(source = "default") {
-  return { enabled: false, reasoningProfile: "adaptive", updatedAt: null, source };
+  return { enabled: false, reasoningProfile: "adaptive", biblicalWisdomMode: "off", updatedAt: null, source };
 }
 
 function supabaseServiceConfig() {

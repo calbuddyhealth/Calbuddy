@@ -4,6 +4,7 @@ import {
   verifyOwnerRequest
 } from "../server/ari-owner-auth.js";
 import {
+  normalizeBiblicalWisdomMode,
   normalizeReasoningProfile,
   resolveAriIntelligenceEntitlement
 } from "../server/ari-intelligence-entitlement.js";
@@ -60,7 +61,8 @@ export default async function handler(req, res) {
   const controls = await saveAriIntelligenceControls({
     userId,
     enabled: body?.enabled === true,
-    reasoningProfile: normalizeReasoningProfile(body?.reasoningProfile)
+    reasoningProfile: normalizeReasoningProfile(body?.reasoningProfile),
+    biblicalWisdomMode: normalizeBiblicalWisdomMode(body?.biblicalWisdomMode)
   });
 
   const entitlement = resolveAriIntelligenceEntitlement({
@@ -100,6 +102,8 @@ function runtimeSummary(entitlement = null) {
     adaptiveStrategyActive: cognitiveLoopActive,
     adaptiveStrategyOwnerOnly: true,
     practicalPriorMaturation: cognitiveLoopActive,
+    biblicalWisdomMode: entitlement?.biblicalWisdomMode || "off",
+    biblicalWisdomAvailable: entitlement?.ownerEligible === true,
     serverBackedControls: true
   };
 }

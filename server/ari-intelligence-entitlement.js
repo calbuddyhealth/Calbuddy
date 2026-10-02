@@ -5,6 +5,7 @@
 export const ARI_INTELLIGENCE_ENTITLEMENT_VERSION = "1.4.0";
 
 const REASONING_PROFILES = new Set(["adaptive", "economy", "balanced", "deep"]);
+const BIBLICAL_WISDOM_MODES = new Set(["off", "consultative", "primary"]);
 
 export function resolveAriIntelligenceEntitlement({
   userId = "",
@@ -39,6 +40,11 @@ export function resolveAriIntelligenceEntitlement({
   const reasoningProfile = advancedEnabled
     ? normalizeReasoningProfile(controls?.reasoningProfile)
     : "standard";
+  // Biblical wisdom is an explicit owner-controlled interpretive preference.
+  // Paid intelligence never inherits the owner's religious reasoning mode.
+  const biblicalWisdomMode = ownerEligible
+    ? normalizeBiblicalWisdomMode(controls?.biblicalWisdomMode)
+    : "off";
 
   const accountRole = ownerEligible ? "owner" : "user";
   const accessClass = ownerEligible
@@ -75,6 +81,7 @@ export function resolveAriIntelligenceEntitlement({
     ariUnlimitedEligible,
     premiumEligible,
     reasoningProfile,
+    biblicalWisdomMode,
     conversationBeta: advancedEnabled,
     cognitiveLoopAllowed,
     cognitiveLoopEnabled,
@@ -94,4 +101,9 @@ export function resolveAriIntelligenceEntitlement({
 export function normalizeReasoningProfile(value = "adaptive") {
   const candidate = String(value || "").trim().toLowerCase();
   return REASONING_PROFILES.has(candidate) ? candidate : "adaptive";
+}
+
+export function normalizeBiblicalWisdomMode(value = "off") {
+  const candidate = String(value || "").trim().toLowerCase();
+  return BIBLICAL_WISDOM_MODES.has(candidate) ? candidate : "off";
 }
