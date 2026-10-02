@@ -997,7 +997,7 @@ function normalizeState(value = null) {
       rewardState: normalizeRewardState(null),
       affectState: null,
       emotionDynamicsState: normalizePersistedEmotionDynamicsState(null),
-      neuromodulationState: normalizePersistedNeuromodulationState(null),
+      neuromodulationState: null,
       feltState: null,
       affectivePreferenceState: null,
       motivationalHistory: [],
@@ -1018,7 +1018,9 @@ function normalizeState(value = null) {
     affectState: normalizePersistedFunctionalAffectState(value?.affectState),
     cognitiveSignalState: normalizeCognitiveSignalState(value?.cognitiveSignalState),
     emotionDynamicsState: normalizePersistedEmotionDynamicsState(value?.emotionDynamicsState),
-    neuromodulationState: normalizePersistedNeuromodulationState(value?.neuromodulationState),
+    neuromodulationState: value?.neuromodulationState
+      ? normalizePersistedNeuromodulationState(value.neuromodulationState)
+      : null,
     feltState: normalizePersistedFeltState(value?.feltState),
     affectivePreferenceState: normalizePersistedAffectivePreferenceState(value?.affectivePreferenceState),
     motivationalHistory: normalizeMotivationalHistory(value?.motivationalHistory),
