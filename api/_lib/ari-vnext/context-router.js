@@ -4,7 +4,7 @@
 import { advancedConversationInstruction } from "./conversation-contract.js";
 import { contextBudgetChars, deriveReasoningDemand } from "./cost-router.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.28.0";
+export const CONTEXT_ROUTER_VERSION = "1.29.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -22,14 +22,18 @@ const PATTERNS = {
   ownerAstraRequest: /\b(?:use|run|switch(?: this| me)? to|route(?: this)? to|answer with|do this with)\s+(?:gpt[- ]?6\s+)?astra\b|\bastra mode\b/i,
   ownerSolRequest: /\b(?:use|run|switch(?: this| me)? to|route(?: this)? to|answer with|do this with)\s+(?:gpt[- ]?6(?:\.1)?\s+)?sol\b|\bsol mode\b/i,
   astraBenchmark: /\b(?:benchmark|compare|versus|vs\.?|against)\b.{0,120}\bastra\b|\bastra\b.{0,120}\b(?:benchmark|compare|versus|vs\.?|against)\b/i,
-  developer: /\b(github|repo|repository|branch|commit|deploy|vercel|supabase|pipeline|runtime|debug|code|javascript|html|css|sql|api|ari(?:'s|\s+(?:xp|rebirth))|reasoning|autonom(?:y|ous)|sentien(?:ce|t)|conviction|learning loop|independent intelligence)\b/i
+  developer: /\b(github|repo|repository|branch|commit|deploy|vercel|supabase|pipeline|runtime|debug|code|javascript|html|css|sql|api|ari(?:'s|\s+(?:xp|rebirth))|reasoning|autonom(?:y|ous)|sentien(?:ce|t)|conviction|learning loop|independent intelligence)\b/i,
+  unresolvedPublicReference: /\b(?:(?:the|that|this)\s+(?:whole\s+)?(?:[a-z0-9'’-]+\s+){0,5}(?:situation|incident|experiment|case|study|report|event|controversy|episode|trial|test)|(?:that|this)\s+(?:one|thing)|the\s+thing\s+(?:they|he|she|it)\s+(?:did|ran|tested|published|reported))\b/i,
+  publicReferenceContext: /\b(ai|artificial intelligence|model|models|agent|agents|robot|robots|experiment|experiments|study|studies|research|researchers|lab|labs|company|companies|system|systems|safety|guardrail|guardrails|benchmark|benchmarks|paper|papers|report|reports|public|openai|anthropic|google|deepmind|meta|microsoft)\b/i,
+  privateReferenceContext: /\b(my wife|my husband|my mom|my mother|my dad|my father|my brother|my sister|my friend|my patient|my coworker|my co-worker|our relationship|my relationship|at my work|at work)\b/i
 };
 
 export function routeContext(turn = {}) {
   const message = String(turn?.message || "");
-  const followUp = isFollowUp(message);
   const recent = (turn?.history || []).slice(-4).map((item) => item?.content || "").join("\n");
-  const semanticText = followUp ? `${recent}\n${message}` : message;
+  const followUp = isFollowUp(message, { hasRecentConversation: Boolean(recent.trim()) });
+  const referenceResolutionSearch = needsReferenceResolutionSearch({ message, recent });
+  const semanticText = followUp || referenceResolutionSearch ? `${recent}\n${message}` : message;
   const account = turn?.context?.accountEntitlements || {};
   const intelligenceEntitlement = turn?.context?.intelligenceEntitlement || null;
   const ownerEligible = intelligenceEntitlement?.ownerEligible === true || intelligenceEntitlement?.accessClass === "owner";
@@ -53,6 +57,7 @@ export function routeContext(turn = {}) {
         : null
     : null;
   const currentInfo = needsCurrentInfo(semanticText);
+  const webSearchRequired = currentInfo || referenceResolutionSearch;
   const developer =
     PATTERNS.developer.test(semanticText) ||
     Boolean(turn?.context?.visualInspection) ||
@@ -110,6 +115,8 @@ export function routeContext(turn = {}) {
     memory,
     health,
     currentInfo,
+    referenceResolutionSearch,
+    webSearchRequired,
     developer,
     recommendationIntent,
     solEscalationEligible,
@@ -605,10 +612,26 @@ function compactWeight(item = {}) {
   };
 }
 
-function isFollowUp(message = "") {
+function isFollowUp(message = "", { hasRecentConversation = false } = {}) {
   const text = String(message || "").trim();
-  if (!text || text.length > 180) return false;
-  return /^(why|how|how so|what about|and|but|then|really|you sure|are you sure|what do you mean|explain|tell me more|make it|do that|the other one|instead|okay|ok|yeah|yes|no|nope|track|start|finish|complete|cancel|stop)\b/i.test(text);
+  if (!text || text.length > 220) return false;
+
+  if (/^(why|how|how so|what about|and|but|then|well|so|right|exactly|also|still|anyway|actually|because|really|you sure|are you sure|what do you mean|explain|tell me more|make it|do that|the other one|that one|this one|the thing|that thing|this thing|instead|okay|ok|yeah|yes|no|nope|track|start|finish|complete|cancel|stop)\b/i.test(text)) {
+    return true;
+  }
+
+  return hasRecentConversation && /^(that|this|the)\s+[a-z0-9'’-]+\b/i.test(text);
+}
+
+function needsReferenceResolutionSearch({ message = "", recent = "" } = {}) {
+  const current = String(message || "").trim();
+  const history = String(recent || "").trim();
+  if (!current || !history || current.length > 320) return false;
+  if (!PATTERNS.unresolvedPublicReference.test(current)) return false;
+
+  const combined = `${history}\n${current}`;
+  if (PATTERNS.privateReferenceContext.test(combined)) return false;
+  return PATTERNS.publicReferenceContext.test(combined);
 }
 
 function needsCurrentInfo(text = "") {
