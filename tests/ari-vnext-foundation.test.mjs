@@ -104,7 +104,7 @@ test("free-tier freshness never escalates the model", () => {
   assert.equal(fast.mode, "fast");
   assert.equal(fast.freshness, "live");
   assert.equal(fast.model, process.env.OPENAI_ARI_FREE_MODEL || "gpt-4o-mini");
-  assert.equal(fast.costTier, "free_direct_live");
+  assert.equal(fast.costTier, "fast_live_search");
   assert.equal(fast.escalated, false);
 
   const deep = resolveModelPolicy({ currentInfo: true, complexity: "deep" });
@@ -112,7 +112,7 @@ test("free-tier freshness never escalates the model", () => {
   assert.equal(deep.freshness, "live");
   assert.equal(deep.model, process.env.OPENAI_ARI_FREE_MODEL || "gpt-4o-mini");
   assert.equal(deep.reasoningEffort, null);
-  assert.equal(deep.costTier, "free_direct_live");
+  assert.equal(deep.costTier, "deep_live_search");
   assert.equal(deep.liveSearchRequired, true);
   assert.equal(deep.escalated, false);
 });
