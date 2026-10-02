@@ -125,7 +125,14 @@ function beliefEvidence(value = null, route = {}) {
 
 function identityEvidence(value = null, route = {}, companionState = null) {
   if (!value || typeof value !== "object") return null;
+  const companionOwned = new Set([
+    "repair_exactly",
+    "natural_continuity",
+    "high_stakes_expression",
+    "controlled_spontaneity"
+  ]);
   const behaviors = (Array.isArray(value?.activeBehaviors) ? value.activeBehaviors : [])
+    .filter((item) => !companionOwned.has(clean(item?.id, 80)))
     .map((item) => clean(item?.instruction || item?.reason || item?.id, 220))
     .filter(Boolean);
   const invariants = (Array.isArray(value?.invariants) ? value.invariants : [])
