@@ -238,10 +238,12 @@ function deriveConversationalInitiative({
   familiarity = "new",
   relevantThread = null,
   shouldReferencePast = false,
-  userInvokedSignal = false
+  userInvokedSignal = false,
+  blockInitiative = false
 } = {}) {
   if (highStakes) return noInitiative("high_stakes");
   if (repairActive) return noInitiative("repair_first");
+  if (blockInitiative) return noInitiative("instinct_control");
   if (userInvokedSignal) {
     return {
       allowed: false,
