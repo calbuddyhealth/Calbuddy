@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: js/home-resilience.js
-// Version: 1.6.3
+// Version: 1.6.4
 // Purpose:
 //   Keep Ask Ari recoverable when an iOS WebView is backgrounded while routing
 //   Home through the selected Ari runtime.
