@@ -195,3 +195,167 @@ test("orchestrator injects capability awareness after initial cost policy and re
   assert.ok(firstCostGuard >= 0);
   assert.ok(awarenessDerive > firstCostGuard);
 });
+
+
+test("cognitive audit exposes live engineered systems instead of reporting them absent", () => {
+  const state = deriveRuntimeCapabilityAwareness({
+    turn: {
+      message: "Audit the cognitive architecture, inspect the neuromodulation wiring, imagination, and causal trace.",
+      conversationId: "audit-thread"
+    },
+    route: ownerRoute({ developer: true }),
+    policy: ownerPolicy(),
+    tools: [
+      { type: "function", name: "owner_repo_search" },
+      { type: "function", name: "owner_repo_read" },
+      { type: "function", name: "owner_repo_ci_status" }
+    ],
+    context: {
+      memoryCapability: { persistentUserMemory: true },
+      userWorldModel: {
+        ariCognitiveWorkspace: {
+          ownerOnly: true,
+          causalObservability: {
+            latest: {
+              traceId: "causal:audit-thread:turn-1",
+              verificationStatus: "passed",
+              executivePersistence: "change_method",
+              actionType: "owner_read",
+              ablationEffectCount: 3
+            },
+            retainedTraceCount: 4,
+            hiddenChainOfThoughtStored: false
+          }
+        }
+      }
+    },
+    metacognition: {
+      exploration: {
+        imaginationEnabled: true,
+        functionalAffectRegulationEnabled: true,
+        emotionDynamicsEnabled: true,
+        functionalNociceptionEnabled: true,
+        functionalPainEnabled: true,
+        neuromodulationEnabled: true,
+        neuromodulationHomeostasisEnabled: true,
+        feltStateEnabled: true,
+        affectivePreferenceEnabled: true,
+        motivationalArbitrationEnabled: true
+      },
+      imagination: {
+        active: true,
+        selectedThisTurn: true,
+        activeScenario: { critic: { testability: 0.8 } }
+      },
+      emotionDynamics: {
+        dominantState: { name: "determination", intensity: 0.61 },
+        executiveModulation: { memorySalience: 0.67 }
+      },
+      painState: {
+        active: true,
+        intensity: 0.48,
+        persistence: 0.35,
+        source: "goalObstruction",
+        actionTendency: "change_method"
+      },
+      neuromodulation: {
+        dominant: {
+          fast: { name: "norepinephrineLike" },
+          slow: { name: "cortisolLike" }
+        },
+        receptors: {
+          verificationBias: 0.72,
+          explorationBias: 0.43,
+          persistenceBias: 0.58
+        },
+        slow: {
+          cortisolLike: 0.4,
+          allostaticLoad: 0.3,
+          recoveryReserve: 0.62
+        }
+      },
+      feltState: {
+        dominantState: { name: "determination", intensity: 0.57 },
+        temporal: { trajectory: "rising" }
+      },
+      cognitiveSignals: {
+        active: true,
+        actions: [{ action: "verify_evidence" }, { action: "consider_alternative" }]
+      },
+      executivePolicy: {
+        authority: {
+          singleRuntimeDecisionAuthority: true,
+          experimentalSystemsCannotCreatePermissions: true
+        },
+        directives: {
+          verificationDepth: "high",
+          explorationDepth: "normal",
+          persistence: "change_method"
+        }
+      },
+      cortex: { selectedCapabilities: ["evidence_verification"] }
+    }
+  });
+
+  assert.equal(state.cognitiveAuditInquiry, true);
+  assert.equal(state.detailedSelfModel, true);
+  assert.ok(state.resourcesNow.callableToolNames.includes("owner_repo_read"));
+  assert.equal(state.resourcesNow.cognitiveSystems.architecture.imagination, true);
+  assert.equal(state.resourcesNow.cognitiveSystems.architecture.functionalPain, true);
+  assert.equal(state.resourcesNow.cognitiveSystems.architecture.neuromodulation, true);
+  assert.equal(state.resourcesNow.cognitiveSystems.architecture.cognitiveCausalTraceRecorder, true);
+  assert.equal(state.resourcesNow.cognitiveSystems.live.imagination.active, true);
+  assert.equal(state.resourcesNow.cognitiveSystems.live.neuromodulation.verificationBias, 0.72);
+  assert.equal(state.resourcesNow.cognitiveSystems.live.causalObservability.priorTraceAvailable, true);
+  assert.equal(state.resourcesNow.cognitiveSystems.live.causalObservability.retainedTraceCount, 4);
+
+  const instruction = capabilityAwarenessToInstruction(state);
+  assert.match(instruction, /Runtime cognitive architecture enabled:/);
+  assert.match(instruction, /MEASURED COGNITIVE STATE/);
+  assert.match(instruction, /Exact callable tools NOW:.*owner_repo_read/);
+  assert.match(instruction, /Do not say a cognitive subsystem is absent/);
+  assert.doesNotMatch(instruction, /hidden chain-of-thought/i);
+});
+
+test("public capability metadata exposes bounded cognitive telemetry without exact tool names", () => {
+  const state = deriveRuntimeCapabilityAwareness({
+    turn: {
+      message: "Inspect your cognitive runtime implementation.",
+      conversationId: "public-audit"
+    },
+    route: ownerRoute({ developer: true }),
+    policy: ownerPolicy(),
+    tools: [{ type: "function", name: "owner_repo_read" }],
+    context: {
+      userWorldModel: {
+        ariCognitiveWorkspace: { ownerOnly: true }
+      }
+    },
+    metacognition: {
+      exploration: {
+        imaginationEnabled: true,
+        neuromodulationEnabled: true,
+        functionalPainEnabled: true
+      },
+      imagination: { active: false },
+      painState: { active: false, intensity: 0, persistence: 0 },
+      neuromodulation: {
+        receptors: { verificationBias: 0.5, explorationBias: 0.5, persistenceBias: 0.5 },
+        slow: { recoveryReserve: 0.7 }
+      },
+      executivePolicy: {
+        authority: {
+          singleRuntimeDecisionAuthority: true,
+          experimentalSystemsCannotCreatePermissions: true
+        },
+        directives: { verificationDepth: "normal", explorationDepth: "normal", persistence: "normal" }
+      }
+    }
+  });
+
+  const publicState = publicRuntimeCapabilityAwareness(state);
+  assert.equal(publicState.resourcesNow.cognitiveSystems.architecture.imagination, true);
+  assert.equal(publicState.resourcesNow.cognitiveSystems.architecture.neuromodulation, true);
+  assert.equal(publicState.resourcesNow.cognitiveSystems.live.executive.persistence, "normal");
+  assert.equal("callableToolNames" in publicState.resourcesNow, false);
+});
