@@ -9,6 +9,7 @@ import { institutionalMemoryToInstruction } from "./institutional-memory.js";
 import { ARI_PERSONA } from "./persona.js";
 import { coachingStateToInstruction, deriveCoachingState } from "./coaching-state.js";
 import { companionStateToInstruction, deriveCompanionState } from "./companion-state.js";
+import { deliberationHarnessToInstruction, deriveDeliberationHarness } from "./deliberation-harness.js";
 import { communicationProfileToInstruction, resolvePersonalizedCommunicationProfile } from "./communication-profile.js";
 import { communicationLearningToInstruction } from "./communication-outcomes.js";
 import { buildRelevantContext, contextToText, routeContext } from "./context-router.js";
@@ -165,6 +166,15 @@ export async function runAriVNext(turn = {}) {
     metacognition,
     relevantContext
   });
+  const deliberationHarness = deriveDeliberationHarness({
+    turn,
+    route,
+    safety,
+    modelPolicy,
+    companionState,
+    metacognition,
+    relationshipContinuity
+  });
   const rawScientificIntelligence = deriveScientificIntelligence({
     turn,
     route,
@@ -278,6 +288,7 @@ export async function runAriVNext(turn = {}) {
     selfModel,
     relationshipContinuity,
     companionState,
+    deliberationHarness,
     goalHierarchy,
     metacognition,
     scientificIntelligence,
@@ -446,6 +457,7 @@ export async function runAriVNext(turn = {}) {
       selfModel,
       relationshipContinuity,
       companionState,
+      deliberationHarness,
       goalHierarchy,
       metacognition,
       cortexAdviser: publicCortexAdviser(cortexAdviser),
@@ -1813,6 +1825,7 @@ function buildInstructions({
   selfModel,
   relationshipContinuity,
   companionState,
+  deliberationHarness,
   goalHierarchy,
   metacognition,
   scientificIntelligence,
@@ -1828,6 +1841,7 @@ function buildInstructions({
     "\nSELF MODEL\n" + selfModelToInstruction(selfModel),
     "\n" + relationshipContinuityToInstruction(relationshipContinuity),
     "\n" + companionStateToInstruction(companionState),
+    "\n" + deliberationHarnessToInstruction(deliberationHarness),
     "\nMETACOGNITION\n" + metacognitionToInstruction(metacognition),
     "\nCOMMUNICATION PROFILE\n" + communicationProfileToInstruction(communication),
     "\nSAFETY CONTEXT\n" + safetyToInstruction(safety)
@@ -1943,6 +1957,11 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
   const normalizedTools = Array.isArray(tools) ? tools : [];
 
   const buildBody = (model, fallbackFrom = null) => {
+    const continuity = resolveProviderReasoningContinuity({
+      turn,
+      policy,
+      model
+    });
     const body = {
       model,
       instructions: withRuntimeModelIdentity({
@@ -1951,10 +1970,14 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
         activeModel: model,
         fallbackFrom
       }),
-      input,
+      input: continuity.input || input,
       max_output_tokens: policy?.maxOutputTokens || 1200,
-      store: false
+      store: policy?.persistReasoning === true
     };
+
+    if (continuity.previousResponseId) {
+      body.previous_response_id = continuity.previousResponseId;
+    }
 
     if (normalizedTools.length) {
       body.tools = normalizedTools;
@@ -1963,7 +1986,11 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
     }
 
     if (policy?.supportsReasoning && policy?.reasoningEffort) {
-      body.reasoning = { effort: policy.reasoningEffort };
+      body.reasoning = {
+        effort: continuity.baselineEffort || policy.reasoningEffort,
+        ...(policy?.reasoningMode ? { mode: policy.reasoningMode } : {}),
+        ...(policy?.reasoningContext ? { context: policy.reasoningContext } : {})
+      };
     }
 
     if (turn?.userId) {
@@ -1971,17 +1998,29 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
       body.safety_identifier = userId.slice(0, 200);
       body.prompt_cache_key = `ari-vnext:${userId.slice(0, 54)}`.slice(0, 64);
     }
+
+    body._ariReasoningContinuity = {
+      resumed: Boolean(continuity.previousResponseId),
+      baselineEffort: continuity.baselineEffort || policy?.reasoningEffort || null,
+      effectiveEffort: policy?.reasoningEffort || null,
+      configurationUpdateUsed: continuity.configurationUpdateUsed === true,
+      mode: policy?.reasoningMode || null,
+      context: policy?.reasoningContext || null,
+      persisted: body.store === true
+    };
     return body;
   };
 
   const send = async (body) => {
+    const providerBody = { ...body };
+    delete providerBody._ariReasoningContinuity;
     const response = await fetch(RESPONSES_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(providerBody),
       signal: controller.signal
     });
     const data = await response.json().catch(() => ({}));
@@ -2023,8 +2062,9 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
     if (attempt.data && typeof attempt.data === "object") {
       attempt.data._ariPromptBudget = promptBudgetTelemetry({
         instructions: attempt.body.instructions,
-        input
+        input: attempt.body.input
       });
+      attempt.data._ariReasoningContinuity = attempt.body._ariReasoningContinuity || null;
     }
     return attempt.data;
   } catch (error) {
@@ -2037,6 +2077,54 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+function resolveProviderReasoningContinuity({ turn = {}, policy = {}, model = "" } = {}) {
+  const persisted = policy?.persistReasoning === true;
+  const state = turn?.context?.reasoningContinuity || null;
+  const selectedModel = String(model || "").trim();
+  const sameModel =
+    persisted &&
+    state?.previousResponseId &&
+    String(state?.model || "").trim().toLowerCase() === selectedModel.toLowerCase();
+
+  if (!sameModel) {
+    return {
+      previousResponseId: null,
+      baselineEffort: policy?.reasoningEffort || null,
+      configurationUpdateUsed: false,
+      input: null
+    };
+  }
+
+  const currentMessage = String(turn?.message || "").trim();
+  const standardConversation =
+    (policy?.reasoningMode || "standard") === "standard" &&
+    (state?.reasoningMode || "standard") === "standard";
+  const baselineEffort = standardConversation
+    ? state?.baselineEffort || policy?.reasoningEffort || "medium"
+    : policy?.reasoningEffort || "medium";
+  const effectiveEffort = policy?.reasoningEffort || baselineEffort;
+  const shouldUpdateEffort =
+    standardConversation &&
+    state?.effectiveEffort &&
+    state.effectiveEffort !== effectiveEffort;
+
+  const continuationInput = [];
+  if (shouldUpdateEffort) {
+    continuationInput.push({
+      type: "configuration_update",
+      reasoning: { effort: effectiveEffort }
+    });
+  }
+  continuationInput.push({ role: "user", content: currentMessage });
+
+  return {
+    previousResponseId: state.previousResponseId,
+    baselineEffort,
+    configurationUpdateUsed: shouldUpdateEffort,
+    input: continuationInput
+  };
 }
 
 function shouldTryProviderModelFallback({ response, data = {}, policy = {} } = {}) {
@@ -2531,6 +2619,7 @@ function providerSummary(data = {}) {
     model: data?.model || null,
     usage: data?.usage || null,
     promptBudget: data?._ariPromptBudget || null,
-    routingFallback: data?._ariRoutingFallback || null
+    routingFallback: data?._ariRoutingFallback || null,
+    reasoningContinuity: data?._ariReasoningContinuity || null
   };
 }
