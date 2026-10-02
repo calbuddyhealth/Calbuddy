@@ -305,7 +305,7 @@ export async function runAriVNext(turn = {}) {
   }
 
   const tools = getAriTools(route);
-  if ((route.currentInfo || route.referenceResolutionSearch) && process.env.ARI_VNEXT_WEB_SEARCH_ENABLED !== "false") {
+  if (route.webSearchRequired && process.env.ARI_VNEXT_WEB_SEARCH_ENABLED !== "false") {
     tools.push({ type: "web_search" });
   }
 
