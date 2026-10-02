@@ -20,6 +20,7 @@ import {
   sendAgentMailboxMessage
 } from "../../../server/ari-supabase-agent-mailbox.js";
 import { reserveTurnCompute } from "./turn-compute-governor.js";
+import { isBackgroundWorkerEnabled } from "../background-ai-switch.js";
 
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 
@@ -214,20 +215,33 @@ export async function runAriMultiAgentCouncil({
   );
 
   if (!tasks.length) {
-    const coordinator = await planSpecialistTasks({
-      turn,
-      route,
-      safety,
-      plan,
-      modelPolicy,
-      model: workerModel
-    }).catch(() => null);
+    const ledger = turn?.context?.turnComputeGovernor || null;
+    const remainingCalls = ledger
+      ? Math.max(0, Number(ledger.maxCalls || 0) - Number(ledger.usedCalls || 0))
+      : 0;
+    const skipCoordinator = remainingCalls > 0 && remainingCalls <= 3;
+
+    const coordinator = skipCoordinator
+      ? null
+      : await planSpecialistTasks({
+          turn,
+          route,
+          safety,
+          plan,
+          modelPolicy,
+          model: workerModel
+        }).catch(() => null);
 
     tasks = normalizeCoordinatorTasks(
       coordinator?.tasks,
       deriveFallbackTasks({ turn, route, safety, plan }),
       plan
     );
+
+    if (skipCoordinator) {
+      const workerAllowance = Math.max(1, remainingCalls - 1);
+      tasks = tasks.slice(0, workerAllowance);
+    }
   }
 
   if (anchor && !taskSession) {
@@ -1119,7 +1133,7 @@ async function persistVerifierMessage({
 
 function shouldQueueBackgroundCouncil({ route = {}, taskSession = null } = {}) {
   if (!taskSession?.id) return false;
-  if (process.env.ARI_DURABLE_AGENT_ASYNC_ENABLED === "false") return false;
+  if (!isBackgroundWorkerEnabled("ARI_DURABLE_AGENT_ASYNC_ENABLED")) return false;
   return (
     route?.developer === true &&
     route?.intelligenceEntitlement?.ownerEligible === true
