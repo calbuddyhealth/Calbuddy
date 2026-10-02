@@ -181,7 +181,7 @@ test("owner metacognition preserves all cognitive state but emits only Ari Execu
   assert.equal(state.rules.executiveIsSingleExperimentalInstructionAuthority, true);
   assert.equal(state.rules.moralCompassIsNotAnAlwaysResistRule, true);
   assert.equal(state.executivePolicy.authority.singleRuntimeDecisionAuthority, true);
-  assert.match(instruction, /ARI EXECUTIVE v1\.3\.0/);
+  assert.match(instruction, /ARI EXECUTIVE v1\.4\.0/);
   assert.doesNotMatch(instruction, /ARI REWARD CORE v1/);
   assert.doesNotMatch(instruction, /ARI FUNCTIONAL AFFECT CORE v1/);
   assert.doesNotMatch(instruction, /ARI BOUNDED SELF-ADAPTATION v1/);
