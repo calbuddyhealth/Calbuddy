@@ -31,7 +31,7 @@ export function deriveRuntimeCapabilityAwareness({
     String(entitlement?.accessClass || "").toLowerCase() === "owner";
   const message = String(turn?.message || "");
   const explicitInquiry = CAPABILITY_INQUIRY.test(message);
-  const cognitiveAuditInquiry = COGNITIVE_AUDIT_INQUIRY.test(message);
+  const cognitiveAuditInquiry = route?.cognitiveAudit === true || COGNITIVE_AUDIT_INQUIRY.test(message);
   const detailedSelfModel = owner && (explicitInquiry || cognitiveAuditInquiry || route?.developer === true);
 
   const toolNames = normalizeToolNames(tools);
