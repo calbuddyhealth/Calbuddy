@@ -34,6 +34,8 @@ export function resolveModelPolicy(route = {}) {
     liveSearchRequired: freshness === "live",
     escalated: false,
     routingReason: "free_direct",
+    modelIdentityRequested: false,
+    ownerModelRequest: null,
     casualConversation: route?.casualConversation === true
   };
 }
@@ -132,6 +134,8 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
     liveSearchRequired: freshness === "live",
     conversationBeta: true,
     ownerModelContinuity: owner,
+    modelIdentityRequested: owner && route?.modelIdentityRequested === true,
+    ownerModelRequest: owner ? route?.ownerModelRequest || null : null,
     casualConversation
   };
 }
