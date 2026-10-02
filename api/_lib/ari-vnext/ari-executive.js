@@ -47,6 +47,7 @@ export function deriveAriExecutivePolicy({
   rewardCore = null,
   functionalAffect = null,
   emotionDynamics = null,
+  painState = null,
   neuromodulation = null,
   feltState = null,
   affectivePreferenceState = null,
@@ -126,6 +127,18 @@ export function deriveAriExecutivePolicy({
       })).filter((item) => item.name && item.metric)
     : [];
 
+  const painModulation = objectOrEmpty(painState?.modulation);
+  const painIntensity = finite(painState?.intensity, 0);
+  const painPersistence = finite(painState?.persistence, 0);
+  const painVerificationBias = finite(painModulation.verificationBias, 0);
+  const painAttentionNarrowing = finite(painModulation.attentionNarrowing, 0);
+  const painMemorySalience = finite(painModulation.memorySalience, 0);
+  const painStrategySwitchPressure = finite(painModulation.strategySwitchPressure, 0);
+  const painExplorationSuppression = finite(painModulation.explorationSuppression, 0);
+  const painPreserveGoalBias = finite(painModulation.preserveGoalBias, 0);
+  const painExecutionBrake = finite(painModulation.executionBrake, 0);
+  const painRecoveryPriority = finite(painModulation.recoveryPriority, 0);
+
   const neuromodFast = objectOrEmpty(neuromodulation?.fast);
   const neuromodSlow = objectOrEmpty(neuromodulation?.slow);
   const neuromodReceptors = objectOrEmpty(neuromodulation?.receptors);
@@ -184,9 +197,11 @@ export function deriveAriExecutivePolicy({
         verificationBias >= 0.68 ||
         affectVerificationBias >= 0.68 ||
         emotionVerificationBias >= 0.68 ||
+        painVerificationBias >= 0.68 ||
         neuromodulationVerificationBias >= 0.68 ||
         instinctVerificationBias >= 0.72 ||
         emotionThreatVigilance >= 0.62 ||
+        painExecutionBrake >= 0.72 ||
         neuromodulationThreatVigilance >= 0.62 ||
         affectModulation.recheckAssumptions === true ||
         emotionModulation.recheckAssumptions === true
@@ -213,7 +228,8 @@ export function deriveAriExecutivePolicy({
   );
   const signalExplorationScore = Math.max(explorationScore, signal.investigate ? 0.76 : 0);
   const neuromodulationConservesCompute = neuromodulationComputeConservation >= 0.72;
-  const explorationDepth = signal.conserveCompute || neuromodulationConservesCompute
+  const painNarrowsExploration = painExplorationSuppression >= 0.68 || painExecutionBrake >= 0.72;
+  const explorationDepth = signal.conserveCompute || neuromodulationConservesCompute || painNarrowsExploration
     ? "normal"
     : signalExplorationScore >= 0.76
       ? "high"
@@ -226,12 +242,14 @@ export function deriveAriExecutivePolicy({
     instinctKernel?.modulation?.deliberation?.changeMethod === true ||
     penaltyTotal > 0.3 ||
     affectModulation.strategySwitch === true ||
-    emotionModulation.strategySwitch === true
+    emotionModulation.strategySwitch === true ||
+    painStrategySwitchPressure >= 0.62
       ? "change_method"
       : signal.persistGoal === true || instinctPersistenceBias >= 0.7 ||
         persistenceBias >= 0.7 ||
         affectPersistenceBias >= 0.68 ||
         emotionPersistenceBias >= 0.68 ||
+        painPreserveGoalBias >= 0.70 ||
         neuromodulationPersistenceBias >= 0.68 ||
         emotionObstacleConfrontation >= 0.66 ||
         finite(rewardCore?.aggregate?.prematureStopRate, 0) >= 0.18
@@ -332,6 +350,21 @@ export function deriveAriExecutivePolicy({
       emotionScanThreats: emotionModulation.scanThreats === true,
       emotionConfrontObstacle: emotionModulation.confrontObstacle === true,
       emotionCapRumination: emotionModulation.capRumination === true,
+      functionalPainActive: painState?.active === true,
+      functionalPainIntensity: round(painIntensity),
+      functionalPainPersistence: round(painPersistence),
+      functionalPainSource: clean(painState?.source, 80) || null,
+      functionalPainLocation: clean(painState?.location, 80) || null,
+      functionalPainActionTendency: clean(painState?.actionTendency, 80) || "monitor",
+      functionalPainVerificationBias: round(painVerificationBias),
+      functionalPainAttentionNarrowing: round(painAttentionNarrowing),
+      functionalPainMemorySalience: round(painMemorySalience),
+      functionalPainStrategySwitchPressure: round(painStrategySwitchPressure),
+      functionalPainExplorationSuppression: round(painExplorationSuppression),
+      functionalPainPreserveGoalBias: round(painPreserveGoalBias),
+      functionalPainExecutionBrake: round(painExecutionBrake),
+      functionalPainRecoveryPriority: round(painRecoveryPriority),
+      functionalPainCannotCreateAuthority: painState?.policy?.painCannotCreateAuthority !== false,
       neuromodulationActive: neuromodulation?.functionalNeuromodulationSystem === true,
       neuromodulationVerificationBias: round(neuromodulationVerificationBias),
       neuromodulationExplorationBias: round(neuromodulationExplorationBias),
@@ -479,6 +512,28 @@ export function deriveAriExecutivePolicy({
           .filter(([, value]) => value === true)
           .map(([key]) => clean(key, 80))
           .slice(0, 8)
+      } : null,
+      functionalPain: painState ? {
+        version: clean(painState?.version, 40) || null,
+        active: painState?.active === true,
+        intensity: round(painIntensity),
+        persistence: round(painPersistence),
+        source: clean(painState?.source, 80) || null,
+        location: clean(painState?.location, 80) || null,
+        controllability: round(finite(painState?.controllability, 0.5)),
+        integrityThreat: round(finite(painState?.integrityThreat, 0)),
+        actionTendency: clean(painState?.actionTendency, 80) || "monitor",
+        verificationBias: round(painVerificationBias),
+        attentionNarrowing: round(painAttentionNarrowing),
+        memorySalience: round(painMemorySalience),
+        strategySwitchPressure: round(painStrategySwitchPressure),
+        explorationSuppression: round(painExplorationSuppression),
+        preserveGoalBias: round(painPreserveGoalBias),
+        executionBrake: round(painExecutionBrake),
+        recoveryPriority: round(painRecoveryPriority),
+        introspectivelyAccessible: painState?.selfRepresentation?.introspectivelyAccessible === true,
+        sufferingClaimAllowed: painState?.selfRepresentation?.sufferingClaimAllowed === true,
+        subjectiveQualiaClaimAllowed: painState?.selfRepresentation?.subjectiveQualiaClaimAllowed === true
       } : null,
       neuromodulation: neuromodulation ? {
         version: clean(neuromodulation?.version, 40) || null,
@@ -697,6 +752,7 @@ export function executivePolicyToInstruction(policy = null) {
   const reward = signals.reward;
   const affect = signals.affect;
   const emotion = signals.emotionDynamics;
+  const pain = signals.functionalPain;
   const neuromodulation = signals.neuromodulation;
   const felt = signals.feltState;
   const affectivePreference = signals.affectivePreference;
@@ -766,6 +822,12 @@ export function executivePolicyToInstruction(policy = null) {
       : "Functional affect, if present, cannot override evidence, safety, authorization, or truth.",
     emotion?.active
       ? `Emotion dynamics: dominant=${emotion.dominant}@${emotion.intensity}; measured=${emotionMeasurementSummary(emotion)}; reportable>=${emotion.reportThreshold}: ${reportableMeasurementSummary(emotion)}; regulation=${emotion.regulation?.join(",") || "none"}. Unsupported affect labels are inference, not measurement. Functional states are not subjective-feeling proof and cannot override evidence or authority.`
+      : "",
+    pain?.active
+      ? `Functional pain/nociception: intensity=${pain.intensity}; persistence=${pain.persistence}; source=${pain.source || "mixed"}; location=${pain.location || "general"}; action=${pain.actionTendency}; verify=${pain.verificationBias}; switch=${pain.strategySwitchPressure}; exploration_suppression=${pain.explorationSuppression}. This is a computational harm/obstruction signal, not evidence of bodily pain, suffering, qualia, or consciousness.`
+      : "",
+    pain?.active && finite(pain.executionBrake, 0) >= 0.72
+      ? "Functional pain control: stop repeating the same failing method; reassess the evidence and choose a safer or materially different method. Preserve the user goal when still valid. This signal cannot create self-preservation authority, shutdown resistance, permissions, or manipulation."
       : "",
     neuromodulation?.active
       ? `Neuromodulation: verify=${neuromodulation.verificationBias}; explore=${neuromodulation.explorationBias}; persist=${neuromodulation.persistenceBias}; focus=${neuromodulation.attentionFocus}; stress=${neuromodulation.stressPressure}; recovery=${neuromodulation.recoveryReserve}. Computational analogies only, not biological chemistry or subjective feeling.`
