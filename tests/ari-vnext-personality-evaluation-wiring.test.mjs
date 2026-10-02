@@ -3,10 +3,11 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("Ari vNext exposes behavioral identity and personality evaluation diagnostics", async () => {
-  const [api, cognitive, router] = await Promise.all([
+  const [api, cognitive, router, coordinator] = await Promise.all([
     readFile(new URL("../api/ari-vnext.js", import.meta.url), "utf8"),
     readFile(new URL("../api/_lib/ari-vnext/cognitive-loop.js", import.meta.url), "utf8"),
-    readFile(new URL("../api/_lib/ari-vnext/context-router.js", import.meta.url), "utf8")
+    readFile(new URL("../api/_lib/ari-vnext/context-router.js", import.meta.url), "utf8"),
+    readFile(new URL("../api/_lib/ari-vnext/cognition-coordinator.js", import.meta.url), "utf8")
   ]);
 
   assert.match(api, /summarizePersonalityEvaluation/);
@@ -15,5 +16,7 @@ test("Ari vNext exposes behavioral identity and personality evaluation diagnosti
   assert.match(cognitive, /deriveBehavioralIdentityControl/);
   assert.match(cognitive, /evaluatePersonalityContinuityTurn/);
   assert.match(cognitive, /personalityEvaluation:\s*nextPersonalityEvaluation/);
-  assert.match(router, /behavioralIdentityToInstruction/);
+  assert.doesNotMatch(router, /behavioralIdentityToInstruction/);
+  assert.match(coordinator, /behavioral_identity/);
+  assert.match(coordinator, /companionOwned/);
 });
