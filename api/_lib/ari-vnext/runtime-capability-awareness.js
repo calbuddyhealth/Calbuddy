@@ -403,6 +403,7 @@ function deriveConditionalResources({ owner = false, route = {}, policy = {} } =
       resources: [
         "owner memory search",
         "repository search/read",
+        "persisted cognitive causal trace inspection",
         "CI status",
         "Supabase agent mailbox",
         "confirmation-gated isolated GitHub edit proposals"
@@ -473,7 +474,7 @@ function deriveResourceCombinations({
   }
 
   if (owner && available.has("owner_developer_workspace")) {
-    combinations.push("For development: owner memory/search -> repository search/read -> CI evidence -> exact confirmation-gated patch proposal.");
+    combinations.push("For development: inspect persisted cognitive traces and/or owner memory -> repository search/read -> CI evidence -> exact confirmation-gated patch proposal.");
   }
 
   if (owner && available.has("owner_model_portfolio") && available.has("owner_multi_agent")) {
@@ -503,7 +504,7 @@ function toolFamily(name = "") {
   const value = clean(name, 120);
 
   if (value === "web_search") return "live_web_research";
-  if (/^owner_(?:repo|memory|agent_mailbox)_/.test(value) || value === "propose_owner_github_edit") {
+  if (value === "owner_cognitive_trace_read" || /^owner_(?:repo|memory|agent_mailbox)_/.test(value) || value === "propose_owner_github_edit") {
     return "owner_developer_workspace";
   }
   if (/^owner_chatgpt_discussion_/.test(value)) return "owner_peer_model_dialogue";
