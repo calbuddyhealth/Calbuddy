@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { estimateOpenAICost, extractOpenAIUsage, recordOpenAIUsage } from "../ai-provider-usage.js";
 import { reserveTurnCompute } from "./turn-compute-governor.js";
 
-export const ARI_BLIND_REASONING_ARENA_VERSION = "1.0.0";
+export const ARI_BLIND_REASONING_ARENA_VERSION = "1.1.0";
 
 const RESPONSES_URL = process.env.OPENAI_RESPONSES_URL || "https://api.openai.com/v1/responses";
 const TIMEOUT_MS = Number(process.env.ARI_REASONING_ARENA_TIMEOUT_MS) > 0
@@ -267,7 +267,7 @@ export async function runBlindReasoningArena({
   };
 }
 
-function isExplicitAstraBenchmark(problem = "") {
+export function isExplicitAstraBenchmark(problem = "") {
   const text = clean(problem, 5000);
   return /\bastra\b/i.test(text) &&
     /\b(?:benchmark|compare|versus|vs\.?|against)\b/i.test(text);
