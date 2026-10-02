@@ -11,6 +11,7 @@ import { coachingStateToInstruction, deriveCoachingState } from "./coaching-stat
 import { companionStateToInstruction, deriveCompanionState } from "./companion-state.js";
 import { cognitionCoordinatorToInstruction, deriveCognitionCoordinator } from "./cognition-coordinator.js";
 import { deliberationHarnessToInstruction, deriveDeliberationHarness } from "./deliberation-harness.js";
+import { deriveInstinctKernel } from "./instinct-kernel.js";
 import { communicationProfileToInstruction, resolvePersonalizedCommunicationProfile } from "./communication-profile.js";
 import { communicationLearningToInstruction } from "./communication-outcomes.js";
 import { buildRelevantContext, contextToText, routeContext } from "./context-router.js";
@@ -150,13 +151,23 @@ export async function runAriVNext(turn = {}) {
     coachingState,
     longitudinalState
   });
+  const instinctKernel = deriveInstinctKernel({
+    turn,
+    route,
+    safety,
+    communication,
+    relevantContext,
+    relationshipContinuity,
+    modelPolicy
+  });
   const metacognition = deriveMetacognition({
     route,
     context: relevantContext,
     safety,
     coachingState,
     longitudinalState,
-    modelPolicy
+    modelPolicy,
+    instinctKernel
   });
   const companionState = deriveCompanionState({
     turn,
@@ -165,7 +176,8 @@ export async function runAriVNext(turn = {}) {
     safety,
     relationshipContinuity,
     metacognition,
-    relevantContext
+    relevantContext,
+    instinctKernel
   });
   const cognitionCoordinator = deriveCognitionCoordinator({
     route,
@@ -181,7 +193,8 @@ export async function runAriVNext(turn = {}) {
     modelPolicy,
     companionState,
     metacognition,
-    relationshipContinuity
+    relationshipContinuity,
+    instinctKernel
   });
   const rawScientificIntelligence = deriveScientificIntelligence({
     turn,
@@ -464,6 +477,7 @@ export async function runAriVNext(turn = {}) {
       communication,
       selfModel,
       relationshipContinuity,
+      instinctKernel,
       companionState,
       cognitionCoordinator,
       deliberationHarness,
