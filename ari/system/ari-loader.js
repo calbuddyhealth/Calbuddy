@@ -1,12 +1,12 @@
 // ari/system/ari-loader.js
 // Ari Architecture Loader
-// Purpose: Load Ari's foundational architecture into a single usable object.
-// This is the first code bridge between Ari's written architecture and the live app.
+// Compatibility bridge for older browser-side Rebirth consumers.
+// The canonical live cognition authority is the vNext authority map.
 
 window.Ari = window.Ari || {};
 
 window.Ari.loader = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   async loadTextFile(path) {
     const response = await fetch(path, {
@@ -24,7 +24,8 @@ window.Ari.loader = {
     const files = {
       constitution: "ari/constitution/ari-constitution.md",
       soul: "ari/soul/ari-soul.md",
-      authority: "ari/authority/ari-authority-map.md",
+      authority: "docs/ARI_COGNITION_AUTHORITY_MAP.md",
+      legacyAuthority: "ari/authority/ari-authority-map.md",
       guardian: "ari/guardian/ari-guardian.md",
       brain: "ari/brain/ari-brain.md",
       router: "ari/brain/ari-router.md",
@@ -55,6 +56,9 @@ window.Ari.loader = {
 
     const architecture = {
       version: this.version,
+      runtimeAuthority: "vnext",
+      authoritySource: files.authority,
+      compatibilityOnly: true,
       loadedAt: new Date().toISOString(),
       files: {},
       organs: {}
@@ -80,7 +84,7 @@ window.Ari.loader = {
       })
     );
 
-    console.log("Ari architecture loaded.", architecture);
+    console.log("Ari compatibility architecture loaded with vNext authority.", architecture);
 
     return architecture;
   },
