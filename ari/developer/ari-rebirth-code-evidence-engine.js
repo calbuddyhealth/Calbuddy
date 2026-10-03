@@ -1,12 +1,23 @@
 // ari/developer/ari-rebirth-code-evidence-engine.js
 // Ari compatibility Code Evidence Engine
 // Purpose: Convert developer understanding into executable evidence-gathering steps.
-// V1.3.0 — vNext-aware semantic discovery / full-file evidence required.
+// V1.3.1 — vNext-aware semantic discovery / stale compatibility seeds filtered.
 
 window.Ari = window.Ari || {};
 
+const ARI_STALE_COMPATIBILITY_SEEDS = new Set([
+  "index.html",
+  "style.css",
+  "api/ask-calbuddy.js",
+  "ari/ari-rebirth-app-bridge.js",
+  "ari/language/ari-language-composer.js",
+  "ari/language/ari-language-composer-v9.js",
+  "ari/language/ari-composer-bridge.js",
+  "ari/language/ari-ai-writer.js"
+]);
+
 window.AriRebirthCodeEvidenceEngine = {
-  version: "1.3.0",
+  version: "1.3.1",
 
   build(input = {}) {
     const summary = input.summary || input || {};
@@ -83,6 +94,7 @@ window.AriRebirthCodeEvidenceEngine = {
         semanticFirst: true,
         currentMainFirst: true,
         canonicalVNextFirst: true,
+        filterStaleCompatibilitySeeds: true,
         keywordOnlySearchForbidden: true,
         searchBeforeGuessing: true,
         readBeforeEditing: true,
@@ -291,7 +303,17 @@ window.AriRebirthCodeEvidenceEngine = {
     const likelyFiles = Array.isArray(understanding.likelyFiles)
       ? understanding.likelyFiles
       : [];
-    likelyFiles.forEach(filePath => files.add(filePath));
+
+    // The older understanding engine can still emit historical default seeds.
+    // Preserve an explicitly named file, but do not let those defaults pull a
+    // current vNext investigation back into the retired Rebirth architecture.
+    likelyFiles.forEach(filePath => {
+      const normalized = String(filePath || "").trim();
+      if (!normalized) return;
+      if (normalized === target.filePath || !ARI_STALE_COMPATIBILITY_SEEDS.has(normalized)) {
+        files.add(normalized);
+      }
+    });
     if (target.filePath) files.add(target.filePath);
 
     const targetArea = understanding.targetArea || "";
