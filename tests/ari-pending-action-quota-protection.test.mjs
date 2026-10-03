@@ -42,6 +42,15 @@ test("pending-action UI recovers from both legacy and vNext stores", () => {
   assert.match(source, /ari:runtimeReady/);
 });
 
+test("canonical vNext pending state takes precedence over the legacy CalBuddy mirror", () => {
+  const current = source.match(/function currentPendingAction\(\)[\s\S]*?\n  }/)?.[0] || "";
+  const vnextIndex = current.indexOf("AriVNextBridge");
+  const legacyIndex = current.indexOf("CalBuddy");
+  assert.ok(vnextIndex >= 0, "vNext pending state should be consulted");
+  assert.ok(legacyIndex > vnextIndex, "legacy mirror must only be a fallback after vNext");
+  assert.match(current, /if \(vnext\) return vnext/);
+});
+
 test("recovered pending actions get a usable confirmation label", () => {
   assert.match(source, /edit_workout/);
   assert.match(source, /Apply this workout change\?/);
@@ -50,13 +59,11 @@ test("recovered pending actions get a usable confirmation label", () => {
   assert.match(source, /confirmation_text/);
 });
 
-
 test("pending-action recovery can rebuild state from the durable action ledger", () => {
   assert.match(source, /restoreDurablePendingAction/);
   assert.match(source, /restorePendingActionFromLedger/);
   assert.match(source, /if \(!pending\) pending = await restoreDurablePendingAction\(\)/);
 });
-
 
 test("recovery verifies browser pending state against the durable ledger before showing buttons", () => {
   assert.match(source, /reconcilePendingActionWithLedger/);
@@ -72,7 +79,6 @@ test("a yes or cancel aimed at a stale terminal card is consumed locally instead
   assert.match(intercept, /hideRecoveredPendingIfEmpty\(\)/);
   assert.match(intercept, /return true/);
 });
-
 
 test("quota exhaustion cannot strand a real pending confirmation", () => {
   const quotaUi = fs.readFileSync("js/ari-quota-ui.js", "utf8");
