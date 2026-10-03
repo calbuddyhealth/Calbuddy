@@ -1,4 +1,4 @@
-// ARI XP — pending-action recovery + quota protection v1.2.0
+// ARI XP — pending-action recovery + quota protection v1.3.0
 (() => {
   "use strict";
 
@@ -11,9 +11,11 @@
   }
 
   function currentPendingAction() {
-    const legacy = window.CalBuddy?.getPendingAction?.() || null;
-    if (legacy) return legacy;
-    return window.AriVNextBridge?.getPendingAction?.() || null;
+    // vNext owns semantic/action state. The CalBuddy value is a compatibility
+    // mirror only, so it must never hide a newer canonical vNext proposal.
+    const vnext = window.AriVNextBridge?.getPendingAction?.() || null;
+    if (vnext) return vnext;
+    return window.CalBuddy?.getPendingAction?.() || null;
   }
 
   async function reconcilePendingAction(action = currentPendingAction()) {
