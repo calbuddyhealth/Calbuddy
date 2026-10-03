@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-connect-event-split-v3.css?v=3.0.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-header-icon-parity.css?v=1.0.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-connect-category-rails-v1.css?v=1.0.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-host-window-v1.css?v=1.0.0" />
 </head>
 <body class="circle-v5-real-world circle-connect-next">
   <main class="circle-v5-page" id="meetupPage" hidden>
@@ -121,8 +122,10 @@
         </label>
 
         <label class="circle-v5-field">When?
-          <input class="circle-v5-input" id="meetupFormStarts" type="datetime-local" required />
+          <input class="circle-v5-input" id="meetupFormStarts" type="datetime-local" aria-describedby="meetupStartWindowNote meetupStartWindowError" required />
         </label>
+        <p class="circle-v5-form-note circle-connect-start-window-note" id="meetupStartWindowNote">Events can be scheduled up to 60 days ahead.</p>
+        <p class="circle-v5-form-note circle-connect-start-window-error" id="meetupStartWindowError" role="alert" hidden>Choose a date within the next 60 days.</p>
 
         <label class="circle-v5-field">General area
           <input class="circle-v5-input" id="meetupFormArea" maxlength="100" placeholder="Mission Valley, San Diego" autocomplete="off" required />
@@ -232,6 +235,7 @@
   <script src="js/ari-circle/location/search-location-v1.js?v=1.2.0" defer></script>
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.1" defer></script>
   <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.5.1" defer></script>
+  <script src="js/ari-circle/connect/host-window-v1.js?v=1.0.0" defer></script>
   <script src="js/ari-circle/connect/connect-v1.js?v=1.4.0" defer></script>
   <script src="js/ari-circle/connect/category-rails-v1.js?v=1.0.0" defer></script>
 </body>
