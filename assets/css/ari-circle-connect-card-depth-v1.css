@@ -32,6 +32,51 @@ body.circle-connect-next .circle-connect-card__content {
     inset 0 1px 0 rgba(255,255,255,.96);
 }
 
+/* When a host skips the optional photo, the information panel owns the card.
+   The generated category mark becomes a quiet watermark instead of consuming
+   half of the invitation as an empty media column. */
+body.circle-connect-next .circle-connect-card__content:has(.circle-connect-card__media[data-cover-source="fallback"]) {
+  grid-template-columns:minmax(0,1fr) !important;
+  gap:0 !important;
+}
+body.circle-connect-next .circle-connect-card__content:has(.circle-connect-card__media[data-cover-source="fallback"]) .circle-connect-card__body {
+  grid-column:1 / -1;
+  width:100%;
+  padding-right:86px;
+}
+body.circle-connect-next .circle-connect-card__media[data-cover-source="fallback"] {
+  position:absolute;
+  z-index:2;
+  inset:0;
+  width:100%;
+  height:100%;
+  min-height:0 !important;
+  aspect-ratio:auto !important;
+  border:0 !important;
+  border-radius:inherit;
+  background:transparent !important;
+  box-shadow:none !important;
+  pointer-events:none;
+}
+body.circle-connect-next .circle-connect-card__media[data-cover-source="fallback"]::before,
+body.circle-connect-next .circle-connect-card__media[data-cover-source="fallback"]::after {
+  display:none !important;
+}
+body.circle-connect-next .circle-connect-card__media[data-cover-source="fallback"] .circle-connect-card__media-fallback {
+  display:block !important;
+  position:absolute;
+  right:21px;
+  bottom:19px;
+  font-size:4.4rem;
+  line-height:1;
+  opacity:.055;
+  filter:grayscale(1) saturate(0);
+  transform:rotate(-7deg);
+}
+body.circle-connect-next .circle-connect-card__media[data-cover-source="fallback"] small {
+  display:none !important;
+}
+
 body.circle-connect-next .circle-connect-avatar {
   box-shadow:
     0 0 0 1px rgba(30,49,78,.08),
@@ -84,6 +129,25 @@ body.circle-connect-next .circle-connect-card:active {
       0 24px 48px rgba(55,80,135,.085),
       0 0 0 1px rgba(255,255,255,.34),
       inset 0 1px 0 rgba(255,255,255,1);
+  }
+
+  body.circle-connect-next .circle-connect-card__content:has(.circle-connect-card__media[data-cover-source="fallback"]) .circle-connect-card__body {
+    padding-right:70px;
+  }
+  body.circle-connect-next .circle-connect-card__media[data-cover-source="fallback"] .circle-connect-card__media-fallback {
+    right:17px;
+    bottom:17px;
+    font-size:3.65rem;
+  }
+}
+
+@media (max-width:390px) {
+  body.circle-connect-next .circle-connect-card__content:has(.circle-connect-card__media[data-cover-source="fallback"]) .circle-connect-card__body {
+    padding-right:60px;
+  }
+  body.circle-connect-next .circle-connect-card__media[data-cover-source="fallback"] .circle-connect-card__media-fallback {
+    right:14px;
+    font-size:3.1rem;
   }
 }
 
