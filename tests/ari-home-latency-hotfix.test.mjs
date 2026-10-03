@@ -28,10 +28,18 @@ test("ordinary chat cannot trigger browser GitHub owner verification", () => {
   assert.match(hotfix, /ownerSessionCache\?\.isOwner === true/);
 });
 
-test("Home startup initiative scanning is suppressed while latency hotfix is active", () => {
-  assert.match(hotfix, /home_latency_guard/);
-  assert.match(hotfix, /client\.check = async function/);
-  assert.match(hotfix, /languageModelCalls:\s*0/);
+test("Home latency layer no longer disables canonical vNext initiative", () => {
+  assert.doesNotMatch(hotfix, /home_latency_guard/);
+  assert.doesNotMatch(hotfix, /client\.check = async function/);
+  assert.doesNotMatch(hotfix, /shouldInitiate:\s*false/);
+  assert.match(hotfix, /leaves its check\/engage implementation untouched/);
+});
+
+test("Home clears stale Rebirth runtime preference and pins conversation to vNext", () => {
+  assert.match(hotfix, /function forceVNextRuntime\(\)/);
+  assert.match(hotfix, /setAriRuntimeMode\?\.\("vnext"\)/);
+  assert.match(hotfix, /localStorage\.setItem\("ari_runtime_mode_v1", "vnext"\)/);
+  assert.match(hotfix, /forceVNextRuntime\(\);/);
 });
 
 test("Home requests current resilience and authoritative latency assets", () => {
