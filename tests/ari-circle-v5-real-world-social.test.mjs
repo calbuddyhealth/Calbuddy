@@ -14,14 +14,14 @@ const connections = fs.readFileSync("js/ari-circle/connections/connections-contr
 
 test("Connect prioritizes people doing things and the two primary actions", () => {
   assert.match(meetupHtml, /id="hostMeetupButton"[\s\S]*circle-connect-action__label">Host<\/span>/);
-  assert.match(meetupHtml, /href="ari-circle-friends\.html"[\s\S]*circle-connect-action__label">Find Friends<\/span>/);
+  assert.match(meetupHtml, /href="ari-circle-friends\.html"[^>]*>\s*<span[^>]*>[\s\S]*?<\/span>\s*<span class="circle-connect-action__label">Find people<\/span>\s*<\/a>/);
   assert.doesNotMatch(meetupHtml, /Find something to do\./);
   assert.match(meetupHtml, /HAPPENING NOW/);
   assert.match(meetupHtml, /TODAY/);
   assert.match(meetupHtml, /TOMORROW/);
   assert.match(meetupHtml, /THIS WEEKEND/);
   assert.match(meetupHtml, /COMING UP/);
-  assert.match(meetupHtml, /Anything/);
+  assert.match(meetupHtml, /data-activity=""><span>All<\/span>/);
 });
 
 test("Connect reuses canonical meetup joins, requests, waitlists, rooms, and hosting", () => {

@@ -37,9 +37,10 @@ test("legacy Feed route redirects to Connect", () => {
 
 test("Connect is activity-first and keeps controls compact", () => {
   assert.match(meetup, /id="hostMeetupButton"[\s\S]*circle-connect-action__label">Host<\/span>/);
-  assert.match(meetup, /href="ari-circle-friends\.html"[\s\S]*circle-connect-action__label">Find Friends<\/span>/);
+  assert.match(meetup, /href="ari-circle-friends\.html"[^>]*>\s*<span[^>]*>[\s\S]*?<\/span>\s*<span class="circle-connect-action__label">Find people<\/span>\s*<\/a>/);
   assert.doesNotMatch(meetup, /Find something to do\./);
-  assert.match(meetup, /WHAT ARE YOU UP FOR\?/);
+  assert.match(meetup, /<h2 id="activityTitle">Explore<\/h2>/);
+  assert.match(meetup, /id="meetupCategorySections" aria-label="Meetups by category"/);
   assert.match(meetup, /HAPPENING NOW/);
   assert.match(meetup, /THIS WEEKEND/);
   assert.match(meetup, /data-ari-circle-search-location data-surface="meetup"/);

@@ -237,6 +237,7 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
     "ari-circle-moderation-worker.js",
     "ari-circle-moderation.js",
     "ari-circle-owner-photo-review.js",
+    "ari-circle-place-search-v2.js",
     "ari-circle-push-dispatch.js",
     "ari-cognitive-cycle.js",
     "ari-community-cycle.js",
