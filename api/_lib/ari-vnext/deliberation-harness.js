@@ -2,7 +2,7 @@
 // Coordinates existing reasoning, Cortex, council, continuity, and verification
 // signals without making an additional model call.
 
-export const ARI_DELIBERATION_HARNESS_VERSION = "1.1.0";
+export const ARI_DELIBERATION_HARNESS_VERSION = "1.2.0";
 
 export function deriveDeliberationHarness({
   turn = {},
@@ -22,6 +22,12 @@ export function deriveDeliberationHarness({
   const sideQuestion = detectsSideQuestion(message);
   const ambiguous = detectsMaterialAmbiguity(message);
   const priorFailure = hasPriorFailure(modelPolicy?.reasoningDemand?.reasons);
+  const executionSession = currentExecutionSession(turn);
+  const failedAttemptCount = Array.isArray(executionSession?.failedAttempts)
+    ? executionSession.failedAttempts.length
+    : 0;
+  const repeatedExecutionFailure = failedAttemptCount >= 2;
+  const hypothesisCollapseRequired = Boolean(route?.developer === true && repeatedExecutionFailure);
   const cortexNeeds = metacognition?.cortex?.needs || {};
   const instinct = instinctKernel?.modulation?.deliberation || {};
   const signal = metacognition?.cognitiveSignals?.directives || {};
@@ -100,9 +106,26 @@ export function deriveDeliberationHarness({
       failureModeReview,
       reconcileToolEvidenceBeforeClaimingSuccess: true,
       distinguishObservedFromInferred: true,
-      changeMethodAfterRepeatedFailure: priorFailure || instinct?.changeMethod === true || signal.changeMethod === true,
+      changeMethodAfterRepeatedFailure:
+        repeatedExecutionFailure ||
+        priorFailure ||
+        instinct?.changeMethod === true ||
+        signal.changeMethod === true,
       preserveUsefulPartialWorkAcrossCorrections: true,
       stopRule: verificationGate ? "verified_or_materially_blocked" : "sufficiently_supported"
+    },
+    hypothesisCollapseProtocol: {
+      active: hypothesisCollapseRequired,
+      triggerFailedAttempts: 2,
+      failedAttemptCount,
+      returnToOriginalFailure: true,
+      auditAssumptionsVsFacts: true,
+      identifyKnownGoodContracts: true,
+      compareAgainstKnownGoodBaseline: true,
+      separateConflatedStateOrApiConcepts: true,
+      classifyTestFailuresByCausalRelevance: true,
+      decideRepairVsRebuild: true,
+      patchOnlyAfterReset: true
     },
     instinctPressure: {
       dominant: clean(instinctKernel?.dominant?.id, 80) || null,
@@ -134,7 +157,8 @@ export function deriveDeliberationHarness({
       hiddenChainOfThoughtPersistedByHarness: false,
       noExtraModelCall: true,
       noPermissionExpansion: true,
-      noSuccessClaimWithoutEvidence: true
+      noSuccessClaimWithoutEvidence: true,
+      failedTestRequiresCausalInterpretationBeforeProductionChange: true
     }
   };
 }
@@ -143,6 +167,7 @@ export function deliberationHarnessToInstruction(state = null) {
   if (!state) return "";
   const contract = state.taskContract || {};
   const d = state.deliberation || {};
+  const collapse = state.hypothesisCollapseProtocol || {};
   const provider = state.providerExecution || {};
 
   return [
@@ -171,12 +196,26 @@ export function deliberationHarnessToInstruction(state = null) {
     d.verificationGate
       ? "Verification gate: separate proposed, executed, observed, and verified. Reconcile tool output and contradictory evidence before claiming success."
       : "Do not over-verify routine low-consequence work.",
-    d.changeMethodAfterRepeatedFailure
+    "A failing test is evidence that the assertion failed; it is not automatic proof that the proposed fix is wrong. Establish the causal relationship to the user-visible failure before changing production code to satisfy the test.",
+    collapse.active
+      ? `HYPOTHESIS COLLAPSE PROTOCOL REQUIRED: ${collapse.failedAttemptCount} attempts have failed. Before another production patch, stop extending the current theory. Return to the original user-visible failure; perform a compact facts-vs-assumptions audit; identify known-good contracts and invariants; compare against a known-good baseline such as clean main; separate concepts that may have been conflated into the same state or API; classify each failing test as causally relevant, stale, or verification noise; then decide whether to repair the current branch or rebuild from a known-good base. Only after that reset should you choose the next patch. Preserve concise conclusions and evidence, not hidden chain-of-thought.`
+      : "",
+    !collapse.active && d.changeMethodAfterRepeatedFailure
       ? "A prior method appears to have failed or retried. Change the method or discriminating test instead of repeating the same attempt."
       : "",
     "Preserve useful completed work when requirements change. Revise only the affected branch of the solution.",
     "Return the conclusion, concise rationale, material uncertainty, and observable evidence. Never reveal hidden chain-of-thought."
-  ].filter(Boolean).join("\n").slice(0, 3600);
+  ].filter(Boolean).join("\n").slice(0, 4600);
+}
+
+function currentExecutionSession(turn = {}) {
+  const workspace = turn?.context?.userWorldModel?.ariCognitiveWorkspace?.executionWorkspace;
+  if (!workspace || typeof workspace !== "object" || Array.isArray(workspace)) return null;
+  const value = workspace?.active === true && workspace?.session && typeof workspace.session === "object"
+    ? workspace.session
+    : workspace;
+  if (!["active", "waiting", "blocked"].includes(String(value?.status || "").toLowerCase())) return null;
+  return value;
 }
 
 function detectsRequirementUpdate(message = "") {
