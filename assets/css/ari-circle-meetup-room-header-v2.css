@@ -1,4 +1,4 @@
-/* ARI Circle Meetup Room Header V2 — make room state and exit path unmistakable */
+/* ARI Circle Meetup Room Header V2.1 — make room state and exit path unmistakable */
 body.meetup-room-surface .meetup-room-header {
   grid-template-columns: auto minmax(0,1fr) 54px !important;
   align-items: center !important;
@@ -56,7 +56,10 @@ body.meetup-room-surface .meetup-room-back__label {
 
 body.meetup-room-surface .meetup-room-brand {
   position: relative;
+  grid-column: 2;
+  justify-self: center;
   min-width: 0 !important;
+  max-width: 100%;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
