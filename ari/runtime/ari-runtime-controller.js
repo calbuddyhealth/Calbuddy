@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.6.5
+// Version: 1.6.7
 // Purpose:
 //   Make Ari vNext the single semantic/action authority on Home + Nutrition.
 //   Legacy CalBuddy/Rebirth remains a read-only emergency response fallback.
@@ -34,13 +34,13 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.6.6";
+  const VERSION = "1.6.7";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
   const VNEXT_SCRIPTS = [
     "ari/vnext/ari-vnext-training-context.js?v=1.3.0",
-    "ari/vnext/ari-vnext-action-adapter.js?v=1.6.0",
+    "ari/vnext/ari-vnext-action-adapter.js?v=1.7.0",
     "ari/vnext/ari-vnext-activity-adapter.js?v=1.1.0",
     "ari/vnext/ari-vnext-bridge.js?v=1.14.0",
     "ari/vnext/ari-vnext-context-guard.js?v=1.2.4",
@@ -201,7 +201,7 @@
     const base = dependencyBase(src);
     if (base.endsWith("ari-vnext-training-context.js")) return Boolean(window.AriVNextTrainingContext);
     if (base.endsWith("ari-vnext-action-adapter.js")) {
-      return Boolean(window.AriVNextActionAdapter && versionAtLeast(window.AriVNextActionAdapter?.version, "1.6.0"));
+      return Boolean(window.AriVNextActionAdapter && versionAtLeast(window.AriVNextActionAdapter?.version, "1.7.0"));
     }
     if (base.endsWith("ari-vnext-activity-adapter.js")) return Boolean(window.AriVNextActivityAdapter);
     if (base.endsWith("ari-vnext-bridge.js")) {
@@ -259,7 +259,7 @@
       typeof window.AriVNextBridge?.ask === "function" &&
       versionAtLeast(window.AriVNextBridge?.version, "1.14.0") &&
       window.AriVNextActionAdapter &&
-      versionAtLeast(window.AriVNextActionAdapter?.version, "1.6.0") &&
+      versionAtLeast(window.AriVNextActionAdapter?.version, "1.7.0") &&
       window.AriVNextActivityAdapter &&
       contextGuardReady() &&
       window.AriVNextInitiative &&

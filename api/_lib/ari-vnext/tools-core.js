@@ -1,7 +1,7 @@
 // ARI vNext — model-visible application capabilities.
 // These functions PROPOSE mutations. The trusted app layer validates and executes them.
 
-export const TOOL_REGISTRY_VERSION = "1.15.0";
+export const TOOL_REGISTRY_VERSION = "1.16.0";
 
 export function getAriTools(route = {}) {
   const tools = [];
@@ -61,7 +61,7 @@ export function getAriTools(route = {}) {
 
     tools.push(functionTool(
       "propose_workout_plan",
-      "Propose a complete workout plan when the CURRENT user explicitly asks Ari to create, build, make, or plan a workout. Use known training history, current-week overlap, goal, performance and recovery evidence when relevant. When Training context includes exerciseLibrary candidates, choose only from those canonical entries and copy both the exact exercise id and name. Never invent an exercise id. Give one exact target rep count per exercise rather than a rep range so ARI XP can save the prescription without changing Ari's plan. A missing workout date is clarified before this tool is available; do not invent dates.",
+      "Propose a complete workout plan when the CURRENT user explicitly asks Ari to create, build, make, or plan a workout. Use known training history, current-week overlap, goal, performance and recovery evidence when relevant. Every exercise must carry the exact exercise id and exact exercise name from Training context exerciseLibrary when that library is present. Treat those values as canonical identifiers, not prose: never invent an id, paraphrase a canonical name, or substitute a free-form exercise label. If several canonical candidates could work, choose the closest suitable candidate from the supplied library. Give one exact target rep count per exercise rather than a rep range so ARI XP can save the prescription without changing Ari's plan. A missing workout date is clarified before this tool is available; do not invent dates.",
       {
         type: "object",
         additionalProperties: false,
@@ -73,12 +73,14 @@ export function getAriTools(route = {}) {
           warmup: { type: "string" },
           exercises: {
             type: "array",
+            minItems: 1,
+            maxItems: 16,
             items: {
               type: "object",
               additionalProperties: false,
               properties: {
-                exerciseId: { type: "string" },
-                name: { type: "string" },
+                exerciseId: { type: "string", minLength: 1, maxLength: 160 },
+                name: { type: "string", minLength: 1, maxLength: 160 },
                 sets: { type: ["number", "null"] },
                 reps: { type: ["number", "null"] },
                 restSeconds: { type: ["number", "null"] },
@@ -374,10 +376,11 @@ function validateSemantics(name, args) {
 
   if (name === "propose_workout_plan") {
     if (!String(args?.focus || "").trim()) return { valid: false, error: "workout_focus_required" };
-    if (!Array.isArray(args?.exercises) || args.exercises.length === 0 || args.exercises.length > 20) {
+    if (!Array.isArray(args?.exercises) || args.exercises.length === 0 || args.exercises.length > 16) {
       return { valid: false, error: "workout_exercises_required" };
     }
     for (const exercise of args.exercises) {
+      if (!String(exercise?.exerciseId || "").trim()) return { valid: false, error: "workout_exercise_id_required" };
       if (!String(exercise?.name || "").trim()) return { valid: false, error: "workout_exercise_name_required" };
       if (!validNullableRange(exercise?.sets, 1, 12)) return { valid: false, error: "workout_sets_out_of_range" };
       if (!validNullableRange(exercise?.reps, 1, 100)) return { valid: false, error: "workout_reps_out_of_range" };
