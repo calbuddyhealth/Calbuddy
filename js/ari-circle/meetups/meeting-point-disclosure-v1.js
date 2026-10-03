@@ -1,48 +1,61 @@
-/* ARI Circle Meetup Room — Meeting Point Disclosure V1 */
+/* ARI Circle Meetup Room — Meeting Point Disclosure V2 */
 (() => {
   "use strict";
 
-  const summary = document.querySelector(".meetup-room-point-summary");
-  const section = document.querySelector(".meetup-room-point");
+  const disclosure = document.getElementById("meetingPointDisclosure");
+  const summary = document.getElementById("meetingPointSummary");
   const edit = document.getElementById("editMeetingPoint");
   const cancel = document.getElementById("cancelMeetingPoint");
   const form = document.getElementById("meetingPointForm");
 
-  if (!summary || !section || !edit || !cancel || !form) return;
+  if (!disclosure || !summary || !edit || !cancel || !form) return;
+
+  let syncing = false;
 
   function sync() {
+    if (syncing) return;
+    syncing = true;
+
     const hostCanEdit = !edit.hidden;
     const expanded = hostCanEdit && !form.hidden;
 
-    section.classList.toggle("is-host", hostCanEdit);
-    section.classList.toggle("is-expanded", expanded);
+    disclosure.classList.toggle("is-host", hostCanEdit);
     summary.setAttribute("aria-expanded", String(expanded));
-    summary.setAttribute("aria-controls", "meetingPointForm");
 
-    if (hostCanEdit) {
-      summary.setAttribute("role", "button");
-      summary.setAttribute("tabindex", "0");
-      summary.setAttribute("aria-label", expanded ? "Collapse meeting point editor" : "Edit meeting point");
+    if (!hostCanEdit) {
+      summary.setAttribute("aria-disabled", "true");
+      summary.tabIndex = -1;
     } else {
-      summary.removeAttribute("role");
-      summary.removeAttribute("tabindex");
-      summary.removeAttribute("aria-label");
+      summary.removeAttribute("aria-disabled");
+      summary.tabIndex = 0;
     }
+
+    if (disclosure.open !== expanded) disclosure.open = expanded;
+    syncing = false;
   }
 
-  function toggleFromSummary(event) {
-    if (event.target.closest("#editMeetingPoint")) return;
-    if (edit.hidden) return;
+  summary.addEventListener("click", (event) => {
+    const hostCanEdit = !edit.hidden;
 
+    if (!hostCanEdit) {
+      event.preventDefault();
+      return;
+    }
+
+    if (event.target.closest("#editMeetingPoint")) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    event.preventDefault();
     if (form.hidden) edit.click();
     else cancel.click();
-  }
+  });
 
-  summary.addEventListener("click", toggleFromSummary);
-  summary.addEventListener("keydown", (event) => {
-    if (edit.hidden || !["Enter", " "].includes(event.key)) return;
-    event.preventDefault();
-    toggleFromSummary(event);
+  disclosure.addEventListener("toggle", () => {
+    if (syncing) return;
+    if (edit.hidden && disclosure.open) disclosure.open = false;
   });
 
   const observer = new MutationObserver(sync);
