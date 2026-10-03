@@ -14,27 +14,35 @@ test("meetup room header names the current surface instead of generic ARI Circle
   assert.match(html, /meetup-room-brand__room">ROOM</);
   assert.doesNotMatch(html, /class="[^"]*(?:feed-brand|circle-v5-brand)[^"]*meetup-room-brand/);
   assert.doesNotMatch(html, /meetup-room-brand[^>]*>[\s\S]*ARI CIRCLE/);
-  assert.match(html, /ari-circle-meetup-room-header-v2\.css\?v=2\.1\.0/);
+  assert.match(html, /ari-circle-meetup-room-header-v2\.css\?v=2\.2\.0/);
 });
 
 test("meeting room opens slightly zoomed out on mobile while preserving user zoom", () => {
   assert.match(html, /name="viewport" content="width=device-width, initial-scale=0\.9, maximum-scale=5, user-scalable=yes, viewport-fit=cover"/);
 });
 
-test("room exit is a larger explicit Back control that returns to Connect", () => {
+test("room exit is a large purple arrow-only control that returns to Connect", () => {
   assert.match(html, /class="feed-icon-button meetup-room-back" href="ari-circle-meetup\.html" aria-label="Back to Connect"/);
-  assert.match(html, /meetup-room-back__label">Back</);
-  assert.match(css, /\.meetup-room-back\s*\{[\s\S]*min-width:\s*78px\s*!important/);
-  assert.match(css, /\.meetup-room-back\s*\{[\s\S]*height:\s*58px\s*!important/);
-  assert.match(css, /box-shadow:[\s\S]*rgba\(44,91,177,\.16\)/);
+  assert.match(html, /meetup-room-back__arrow" aria-hidden="true">←/);
+  assert.doesNotMatch(html, /meetup-room-back__label/);
+  assert.match(css, /\.meetup-room-back\s*\{[\s\S]*width:\s*76px\s*!important/);
+  assert.match(css, /\.meetup-room-back\s*\{[\s\S]*height:\s*76px\s*!important/);
+  assert.match(css, /linear-gradient\(145deg,#7446f5 0%,#8c52ff 55%,#a264ff 100%\)/);
+  assert.match(css, /\.meetup-room-back__arrow\s*\{[\s\S]*2\.35rem/);
 });
 
-test("room title owns the middle header column without shared brand hooks", () => {
+test("Meeting Room title fills the larger centered header", () => {
+  assert.match(css, /\.meetup-room-header\s*\{[\s\S]*min-height:\s*94px\s*!important/);
+  assert.match(css, /\.meetup-room-header\s*\{[\s\S]*grid-template-columns:\s*76px minmax\(0,1fr\) 76px\s*!important/);
   assert.match(css, /\.meetup-room-brand\s*\{[\s\S]*grid-column:\s*2/);
-  assert.match(css, /\.meetup-room-brand\s*\{[\s\S]*justify-self:\s*center/);
+  assert.match(css, /\.meetup-room-brand\s*\{[\s\S]*justify-self:\s*stretch/);
+  assert.match(css, /font:\s*800 clamp\(1\.18rem,5\.6vw,1\.72rem\)\/1 Orbitron/);
+  assert.match(css, /\.meetup-room-brand::after\s*\{[\s\S]*left:\s*7%[\s\S]*right:\s*7%/);
 });
 
-test("message action remains secondary to the room exit control", () => {
-  assert.match(css, /\.meetup-room-header \.circle-v4-message\s*\{[\s\S]*width:\s*52px\s*!important/);
-  assert.match(css, /\.meetup-room-header\s*\{[\s\S]*grid-template-columns:\s*auto minmax\(0,1fr\) 54px/);
+test("global Messages action is removed from Meeting Room header", () => {
+  assert.doesNotMatch(html, /class="circle-v4-message"/);
+  assert.doesNotMatch(html, /href="ari-circle-messages\.html"/);
+  assert.match(html, /class="meetup-room-header-spacer" aria-hidden="true"/);
+  assert.match(css, /\.meetup-room-header-spacer\s*\{[\s\S]*width:\s*76px/);
 });
