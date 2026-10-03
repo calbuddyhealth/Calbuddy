@@ -1,0 +1,203 @@
+/* =============================================================
+   ARI CIRCLE CONNECT — PREMIUM GLASS HEADER V2
+   Scoped to Connect so Profile and other Circle surfaces keep their shell.
+============================================================= */
+
+body.circle-connect-next .circle-v51-halo-header,
+body.circle-connect-next .circle-v51-halo-header.feed-header,
+body.circle-connect-next .circle-v51-halo-header.circle-v5-header {
+  min-height: 76px !important;
+  grid-template-columns: 52px minmax(0, 1fr) 52px !important;
+  align-items: center !important;
+  gap: 6px !important;
+  top: max(8px, env(safe-area-inset-top)) !important;
+  margin: 10px 12px 18px !important;
+  padding: 9px 10px !important;
+  overflow: visible !important;
+  border: 1px solid transparent !important;
+  border-radius: 30px !important;
+  background:
+    linear-gradient(120deg, rgba(255,255,255,.95), rgba(248,252,255,.89) 48%, rgba(253,249,255,.92)) padding-box,
+    linear-gradient(110deg, rgba(61,215,247,.55), rgba(217,231,255,.78) 45%, rgba(169,111,255,.55)) border-box !important;
+  box-shadow:
+    0 15px 34px rgba(34, 54, 88, .105),
+    0 3px 10px rgba(76, 148, 236, .045),
+    inset 0 1px 0 rgba(255,255,255,.98) !important;
+  backdrop-filter: blur(24px) saturate(135%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(135%) !important;
+  isolation: isolate;
+}
+
+/* The older shared shell paints a short underline. The premium edge above replaces it. */
+body.circle-connect-next .circle-v51-halo-header::after {
+  display: none !important;
+  content: none !important;
+}
+
+/* Soft ambient cyan/violet light under the glass without changing layout. */
+body.circle-connect-next .circle-v51-halo-header::before {
+  position: absolute;
+  z-index: -1;
+  inset: 7px 18px -8px;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 8% 50%, rgba(47,214,247,.17), transparent 34%),
+    radial-gradient(circle at 92% 50%, rgba(157,104,255,.15), transparent 34%);
+  filter: blur(12px);
+  opacity: .72;
+  pointer-events: none;
+  content: "";
+}
+
+body.circle-connect-next .circle-v51-halo-header .circle-v4-menu {
+  justify-self: start !important;
+}
+
+body.circle-connect-next .circle-v51-halo-header .circle-v4-message,
+body.circle-connect-next .circle-v51-halo-header .circle-v51-header-action {
+  justify-self: end !important;
+}
+
+body.circle-connect-next .circle-v51-halo-header .circle-v4-menu > summary.feed-icon-button,
+body.circle-connect-next .circle-v51-halo-header .circle-v4-message.circle-v51-header-action {
+  display: grid !important;
+  width: 48px !important;
+  height: 48px !important;
+  min-width: 48px !important;
+  min-height: 48px !important;
+  padding: 0 !important;
+  place-items: center !important;
+  overflow: visible !important;
+  border: 1px solid rgba(214,225,240,.95) !important;
+  border-radius: 50% !important;
+  color: #172944 !important;
+  background: linear-gradient(145deg, rgba(255,255,255,.99), rgba(247,250,255,.95)) !important;
+  box-shadow:
+    0 8px 20px rgba(32, 52, 85, .105),
+    0 0 0 3px rgba(255,255,255,.34),
+    inset 0 1px 0 rgba(255,255,255,1) !important;
+  font-size: 0 !important;
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease !important;
+}
+
+body.circle-connect-next .circle-v51-halo-header .circle-v4-menu > summary.feed-icon-button:hover,
+body.circle-connect-next .circle-v51-halo-header .circle-v4-message.circle-v51-header-action:hover {
+  border-color: rgba(157,185,231,.95) !important;
+  box-shadow:
+    0 10px 23px rgba(32,52,85,.12),
+    0 0 0 3px rgba(239,247,255,.66),
+    inset 0 1px 0 #fff !important;
+}
+
+body.circle-connect-next .circle-v51-halo-header .circle-v4-menu > summary.feed-icon-button:active,
+body.circle-connect-next .circle-v51-halo-header .circle-v4-message.circle-v51-header-action:active {
+  transform: translateY(1px) scale(.98) !important;
+}
+
+body.circle-connect-next .circle-v51-halo-header .circle-v4-menu > summary svg,
+body.circle-connect-next .circle-v51-halo-header .circle-v4-message svg,
+body.circle-connect-next .circle-v51-halo-header .circle-v51-header-action svg {
+  display: block !important;
+  width: 24px !important;
+  height: 24px !important;
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 1.8 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+}
+
+body.circle-connect-next .circle-v51-halo-header .circle-v51-brand,
+body.circle-connect-next .circle-v51-halo-header .feed-brand.circle-v5-brand {
+  min-width: 0 !important;
+  width: 100% !important;
+  padding: 0 5px !important;
+  justify-self: stretch !important;
+  justify-content: center !important;
+  transform: none !important;
+}
+
+body.circle-connect-next .circle-v51-halo-header .circle-v51-wordmark {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  column-gap: 7px !important;
+  min-width: 0 !important;
+  white-space: nowrap !important;
+}
+
+body.circle-connect-next .circle-v51-halo-header .circle-v51-wordmark strong,
+body.circle-connect-next .circle-v51-halo-header .circle-v51-wordmark em {
+  font-family: "Orbitron", "Audiowide", Inter, sans-serif !important;
+  font-size: clamp(.98rem, 4.6vw, 1.17rem) !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  letter-spacing: .055em !important;
+  text-transform: uppercase !important;
+}
+
+body.circle-connect-next .circle-v51-halo-header .circle-v51-wordmark strong {
+  color: #14233d !important;
+  text-shadow: 0 1px 0 rgba(255,255,255,.9) !important;
+}
+
+body.circle-connect-next .circle-v51-halo-header .circle-v51-wordmark em {
+  color: transparent !important;
+  background: linear-gradient(92deg, #21cdec 0%, #519ff7 52%, #9b68ff 100%) !important;
+  background-clip: text !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  font-style: normal !important;
+}
+
+/* Match the mockup's compact floating unread counter on the message circle. */
+body.circle-connect-next .circle-v51-halo-header .circle-v4-message > .ari-social-badge,
+body.circle-connect-next .circle-v51-halo-header .circle-v51-header-action > .ari-social-badge {
+  top: -5px !important;
+  right: -5px !important;
+  min-width: 20px !important;
+  height: 20px !important;
+  padding: 0 5px !important;
+  border-radius: 999px !important;
+  background: linear-gradient(135deg, #365eff, #7447f5) !important;
+  color: #fff !important;
+  font: 800 10.5px/1 Inter, system-ui, sans-serif !important;
+  box-shadow: 0 5px 13px rgba(67,72,238,.3), 0 0 0 2px rgba(255,255,255,.98) !important;
+}
+
+@media (max-width: 420px) {
+  body.circle-connect-next .circle-v51-halo-header,
+  body.circle-connect-next .circle-v51-halo-header.feed-header,
+  body.circle-connect-next .circle-v51-halo-header.circle-v5-header {
+    min-height: 72px !important;
+    grid-template-columns: 48px minmax(0, 1fr) 48px !important;
+    margin-inline: 10px !important;
+    padding: 8px !important;
+    border-radius: 28px !important;
+  }
+
+  body.circle-connect-next .circle-v51-halo-header .circle-v4-menu > summary.feed-icon-button,
+  body.circle-connect-next .circle-v51-halo-header .circle-v4-message.circle-v51-header-action {
+    width: 46px !important;
+    height: 46px !important;
+    min-width: 46px !important;
+    min-height: 46px !important;
+  }
+
+  body.circle-connect-next .circle-v51-halo-header .circle-v51-wordmark {
+    column-gap: 5px !important;
+  }
+
+  body.circle-connect-next .circle-v51-halo-header .circle-v51-wordmark strong,
+  body.circle-connect-next .circle-v51-halo-header .circle-v51-wordmark em {
+    font-size: clamp(.9rem, 4.25vw, 1.05rem) !important;
+    letter-spacing: .045em !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.circle-connect-next .circle-v51-halo-header .circle-v4-menu > summary.feed-icon-button,
+  body.circle-connect-next .circle-v51-halo-header .circle-v4-message.circle-v51-header-action {
+    transition: none !important;
+  }
+}
