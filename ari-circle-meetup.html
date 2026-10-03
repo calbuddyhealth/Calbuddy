@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="assets/css/ari-circle-connect-premium-v2.css?v=2.0.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-connect-event-split-v3.css?v=3.0.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-header-icon-parity.css?v=1.0.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-connect-category-rails-v1.css?v=1.0.0" />
 </head>
 <body class="circle-v5-real-world circle-connect-next">
   <main class="circle-v5-page" id="meetupPage" hidden>
@@ -56,11 +57,13 @@
           <button class="circle-connect-chip" type="button" data-activity="running"><span>Run</span></button>
           <button class="circle-connect-chip" type="button" data-activity="sports"><span>Sports</span></button>
           <button class="circle-connect-chip" type="button" data-activity="food"><span>Food</span></button>
+          <button class="circle-connect-chip" type="button" data-activity="other"><span>Other</span></button>
         </div>
       </section>
 
       <p id="meetupStatus" class="circle-connect-status" role="status" aria-live="polite">Finding things happening nearby…</p>
       <button id="refreshMeetups" type="button" hidden aria-hidden="true" tabindex="-1">Refresh</button>
+      <div class="circle-connect-category-board" id="meetupCategorySections" aria-label="Meetups by category"></div>
 
       <section class="circle-connect-section" id="meetupNowSection" aria-labelledby="meetupNowTitle" hidden>
         <div class="circle-connect-section-head">
@@ -112,6 +115,7 @@
         <button class="circle-v5-close" type="button" data-close="hostMeetupDialog" aria-label="Close">×</button>
       </div>
       <form class="circle-v5-form" id="hostMeetupForm">
+        <p class="circle-connect-host-limit-note">You can host up to 5 active or upcoming events at a time.</p>
         <label class="circle-v5-field">What are you doing?
           <input class="circle-v5-input" id="meetupFormTitle" maxlength="90" placeholder="Coffee after work" autocomplete="off" required />
         </label>
@@ -229,5 +233,6 @@
   <script id="ariCircleV5RealWorldModerationScript" src="js/ari-circle/real-world-moderation-v5.js?v=5.1.1" defer></script>
   <script id="ariCircleV5RealWorldScript" src="js/ari-circle/v5-real-world.js?v=5.5.1" defer></script>
   <script src="js/ari-circle/connect/connect-v1.js?v=1.4.0" defer></script>
+  <script src="js/ari-circle/connect/category-rails-v1.js?v=1.0.0" defer></script>
 </body>
 </html>
