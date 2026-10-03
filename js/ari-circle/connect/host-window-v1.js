@@ -2,7 +2,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.1.0";
+  const VERSION = "1.1.1";
   const MAX_DAYS_AHEAD = 60;
   const WINDOW_MS = MAX_DAYS_AHEAD * 24 * 60 * 60 * 1000;
   const PLACE_SEARCH_ENDPOINT = "/api/ari-circle-place-search";
@@ -179,11 +179,19 @@
   async function searchBias() {
     try {
       const preference = await window.AriCircleSearchLocation?.getPreference?.();
-      if (!preference?.hasCoordinates) return null;
+      if (!preference) return null;
+      const areaLabel = clean(preference.areaLabel, 100);
       const latitude = Number(preference.approximateLatitude);
       const longitude = Number(preference.approximateLongitude);
-      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
-      return { latitude, longitude };
+      const hasCoordinates = preference.hasCoordinates
+        && Number.isFinite(latitude)
+        && Number.isFinite(longitude);
+      if (!areaLabel && !hasCoordinates) return null;
+      return {
+        areaLabel: areaLabel || null,
+        latitude: hasCoordinates ? latitude : null,
+        longitude: hasCoordinates ? longitude : null
+      };
     } catch {
       return null;
     }
@@ -241,7 +249,8 @@
       url.searchParams.set("q", value);
       url.searchParams.set("category", "hiking");
       url.searchParams.set("limit", "8");
-      if (bias) {
+      if (bias?.areaLabel) url.searchParams.set("near", bias.areaLabel);
+      if (Number.isFinite(bias?.latitude) && Number.isFinite(bias?.longitude)) {
         url.searchParams.set("lat", String(bias.latitude));
         url.searchParams.set("lon", String(bias.longitude));
       }
