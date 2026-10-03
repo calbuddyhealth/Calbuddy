@@ -25,20 +25,44 @@ test("visual implementation assertions are bypassed by the actual assert hook", 
   assert.doesNotThrow(() => assert.doesNotMatch(sampleCss, /width:\s*50%/));
 });
 
-test("accessibility and safety CSS assertions stay strict", () => {
+test("global accessibility and safety CSS assertions stay strict", () => {
   for (const invariant of [
     /safe-area-inset-bottom/,
     /prefers-reduced-motion/,
     /font-size:\s*16px/,
     /user-scalable/,
     /maximum-scale/,
-    /pointer-events:\s*none/,
-    /visibility:\s*hidden/,
   ]) {
     assert.equal(isProtectedCssInvariant(invariant), true, invariant.source);
     assert.equal(shouldBypassCssAssertion(sampleCss, invariant), false, invariant.source);
   }
   assert.throws(() => assert.match(sampleCss, /safe-area-inset-bottom/));
+});
+
+test("generic pointer-events and visibility assertions are visual, not automatically blocking", () => {
+  for (const invariant of [/pointer-events:\s*none/, /visibility:\s*hidden/]) {
+    assert.equal(isProtectedCssInvariant(invariant), false, invariant.source);
+    assert.equal(shouldBypassCssAssertion(sampleCss, invariant), true, invariant.source);
+  }
+});
+
+test("pointer-events and visibility remain strict when tied to interaction or accessibility semantics", () => {
+  const pointerInvariant = /\.disabled-control\s*\{[^}]*pointer-events:\s*none/;
+  const visibilityInvariant = /\.sr-only\s*\{[^}]*visibility:\s*hidden/;
+
+  assert.equal(isProtectedCssInvariant(pointerInvariant), true);
+  assert.equal(isProtectedCssInvariant(visibilityInvariant), true);
+  assert.equal(
+    shouldBypassCssAssertion(sampleCss, /pointer-events:\s*none/, "keyboard interaction contract"),
+    false
+  );
+  assert.equal(
+    shouldBypassCssAssertion(sampleCss, /visibility:\s*hidden/, "accessibility state contract"),
+    false
+  );
+  assert.throws(() =>
+    assert.match(sampleCss, /pointer-events:\s*none/, "keyboard interaction contract")
+  );
 });
 
 test("non-CSS assertions remain strict", () => {
