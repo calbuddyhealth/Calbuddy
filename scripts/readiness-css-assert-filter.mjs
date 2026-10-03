@@ -1,4 +1,7 @@
-import assert from "node:assert/strict";
+import { createRequire, syncBuiltinESMExports } from "node:module";
+
+const require = createRequire(import.meta.url);
+const assert = require("node:assert/strict");
 
 const originalMatch = assert.match.bind(assert);
 const originalDoesNotMatch = assert.doesNotMatch.bind(assert);
@@ -41,6 +44,7 @@ function wrapCssAwareAssertion(original) {
 
 assert.match = wrapCssAwareAssertion(originalMatch);
 assert.doesNotMatch = wrapCssAwareAssertion(originalDoesNotMatch);
+syncBuiltinESMExports();
 
 process.on("exit", () => {
   if (bypassed > 0) {
