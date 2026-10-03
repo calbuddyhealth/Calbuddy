@@ -1,0 +1,111 @@
+/* ARI Circle Meetup Room — compact meeting point disclosure */
+body.meetup-room-surface .meetup-room-point {
+  padding: 0;
+  overflow: hidden;
+}
+
+body.meetup-room-surface .meetup-room-point > .meetup-room-section-head {
+  display: none !important;
+}
+
+body.meetup-room-surface .meetup-room-point-summary {
+  min-height: 74px;
+  margin: 0;
+  padding: 16px 18px 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body.meetup-room-surface .meetup-room-point.is-host .meetup-room-point-summary {
+  cursor: pointer;
+}
+
+body.meetup-room-surface .meetup-room-point-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: block;
+}
+
+body.meetup-room-surface .meetup-room-point-copy strong {
+  display: block;
+  margin: 0;
+  color: #17233d;
+  font: 850 clamp(.92rem,3.8vw,1.08rem)/1.3 Inter,sans-serif;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.meetup-room-surface .meetup-room-point-copy span,
+body.meetup-room-surface .meetup-room-copy {
+  display: none !important;
+}
+
+body.meetup-room-surface .meetup-room-edit-point {
+  flex: 0 0 auto;
+  min-width: 64px;
+  min-height: 42px;
+  padding: 0 15px;
+  border-radius: 15px;
+  font-weight: 800;
+}
+
+body.meetup-room-surface .meetup-room-point-form {
+  margin: 0 18px 18px 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(40,78,150,.09);
+  animation: meetup-point-reveal .18s ease-out both;
+}
+
+body.meetup-room-surface .meetup-room-point-form .circle-v5-input {
+  min-height: 54px;
+  font-weight: 700;
+}
+
+body.meetup-room-surface .meetup-room-point.is-expanded .meetup-room-point-summary {
+  padding-bottom: 13px;
+}
+
+body.meetup-room-surface .meetup-room-point.is-host .meetup-room-point-summary:focus-visible {
+  outline: 3px solid rgba(104,76,245,.22);
+  outline-offset: -4px;
+  border-radius: 18px;
+}
+
+@media (hover:hover) {
+  body.meetup-room-surface .meetup-room-point.is-host .meetup-room-point-summary:hover {
+    background: linear-gradient(90deg,rgba(49,208,233,.035),rgba(139,92,246,.035));
+  }
+}
+
+@keyframes meetup-point-reveal {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width:390px) {
+  body.meetup-room-surface .meetup-room-point-summary {
+    min-height: 68px;
+    padding: 14px 15px 14px 17px;
+  }
+
+  body.meetup-room-surface .meetup-room-point-form {
+    margin: 0 15px 15px 17px;
+  }
+
+  body.meetup-room-surface .meetup-room-edit-point {
+    min-width: 58px;
+    min-height: 40px;
+    padding: 0 12px;
+  }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  body.meetup-room-surface .meetup-room-point-form {
+    animation: none;
+  }
+}
