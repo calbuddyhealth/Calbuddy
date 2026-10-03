@@ -1,0 +1,48 @@
+/* ARI Circle Connect — keep the search-location editor inside the mobile viewport */
+body.circle-connect-next .circle-connect-actionbar > [data-ari-circle-search-location][data-surface="meetup"] {
+  position: relative;
+  min-width: 0;
+}
+
+body.circle-connect-next .ari-circle-location-orb .ari-circle-location-panel {
+  left: 0;
+  right: auto;
+  width: min(420px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  min-width: 0;
+  transform: none;
+  box-sizing: border-box;
+}
+
+body.circle-connect-next .ari-circle-location-panel,
+body.circle-connect-next .ari-circle-location-panel__form,
+body.circle-connect-next .ari-circle-location-panel__form > *,
+body.circle-connect-next .ari-circle-location-panel__form label {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+body.circle-connect-next .ari-circle-location-panel__form input,
+body.circle-connect-next .ari-circle-location-panel__form select,
+body.circle-connect-next .ari-circle-location-panel__form button {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+body.circle-connect-next .ari-circle-location-panel__form input,
+body.circle-connect-next .ari-circle-location-panel__form select {
+  width: 100%;
+}
+
+@media (max-width: 560px) {
+  body.circle-connect-next .ari-circle-location-orb .ari-circle-location-panel {
+    width: calc(100vw - 32px);
+    max-width: calc(100vw - 32px);
+  }
+
+  body.circle-connect-next .ari-circle-location-panel__form input,
+  body.circle-connect-next .ari-circle-location-panel__form select {
+    font-size: 16px !important;
+  }
+}
