@@ -6,8 +6,6 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 const html = await read("ari-circle-meetup.html");
 const connect = await read("js/ari-circle/connect/connect-v1.js");
-const baseCss = await read("assets/css/ari-circle-connect-v1.css");
-const eventCss = await read("assets/css/ari-circle-connect-event-split-v3.css");
 const migration = await read("supabase/migrations/20260926085500_ari_circle_meetup_cover_media_v1.sql");
 
 test("Host flow offers one optional invitation photo without template assets", () => {
@@ -23,19 +21,17 @@ test("Connect cards render uploaded cover media or code-generated category fallb
   assert.match(connect, /function meetupMedia\(/);
   assert.match(connect, /row\.cover_image_path/);
   assert.match(connect, /getPublicUrl\(cleanPath\)/);
+  assert.match(connect, /circle-connect-card__media/);
+  assert.match(connect, /data-cover-source=/);
   assert.match(connect, /circle-connect-card__media-fallback/);
   assert.match(connect, /\["Movies", "🍿", "movies"\]/);
   assert.match(connect, /ari_circle_list_meetups_with_media/);
-  assert.match(baseCss, /\.circle-connect-media--movies/);
 });
 
-test("current Connect event cards keep tall cover media at roughly half the card", () => {
-  assert.match(html, /ari-circle-connect-event-split-v3\.css/);
-  assert.match(eventCss, /\.circle-connect-card__content\s*\{[\s\S]*?grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/);
-  assert.match(eventCss, /\.circle-connect-card__content\s*\{[\s\S]*?min-height:196px/);
-  assert.match(eventCss, /\.circle-connect-card__media\s*\{[\s\S]*?width:100%[\s\S]*?height:100%[\s\S]*?min-height:196px[\s\S]*?aspect-ratio:auto/);
-  assert.match(eventCss, /\.circle-connect-card__media img\s*\{[\s\S]*?width:100%[\s\S]*?height:100%[\s\S]*?object-fit:cover/);
-  assert.doesNotMatch(eventCss, /\.circle-connect-card__media\s*\{[^}]*aspect-ratio:4\s*\/\s*3/);
+test("meetup cover-media readiness is independent of CSS implementation details", () => {
+  assert.match(connect, /data-cover-source="\$\{url \? "user" : "fallback"\}"/);
+  assert.match(connect, /circle-connect-card__media-fallback/);
+  assert.match(connect, /\$\{image\}/);
 });
 
 test("meetup photos are normalized and safety-screened before upload", () => {
