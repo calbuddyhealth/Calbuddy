@@ -425,3 +425,47 @@ test("execution runtime modules remain syntactically valid", () => {
     execFileSync(process.execPath, ["--check", path], { stdio: "pipe" });
   }
 });
+
+
+test("asking for the unresolved step resumes the same durable investigation", () => {
+  const first = deriveExecutionWorkspace({
+    turn: developerTurn({ turnId: "turn-unresolved-1" }),
+    route: { developer: true, complexity: "deep" },
+    context: {}
+  });
+  const persisted = advanceExecutionSession({
+    workspace: first,
+    turn: developerTurn({ turnId: "turn-unresolved-1" }),
+    result: {
+      success: true,
+      reply: "I reached the bounded developer investigation step limit.",
+      executionEvidence: {
+        observations: [{
+          id: "obs-unresolved",
+          kind: "repository_read",
+          summary: "The investigation narrowed to provider continuity.",
+          verified: true
+        }]
+      },
+      executionWorkspaceUpdate: {
+        status: "active",
+        nextStep: "Inspect the provider reasoning continuity handoff."
+      }
+    }
+  });
+
+  const resumed = deriveExecutionWorkspace({
+    previous: persisted,
+    turn: developerTurn({
+      turnId: "turn-unresolved-2",
+      message: "What's the unresolved step?"
+    }),
+    route: { developer: true, followUp: true, complexity: "fast" },
+    context: {}
+  });
+
+  assert.equal(resumed.active, true);
+  assert.equal(resumed.resumeSuggested, true);
+  assert.equal(resumed.session.id, persisted.id);
+  assert.equal(resumed.session.nextStep, "Inspect the provider reasoning continuity handoff.");
+});

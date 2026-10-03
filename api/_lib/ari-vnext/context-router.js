@@ -620,7 +620,7 @@ function isFollowUp(message = "", { hasRecentConversation = false } = {}) {
   const text = String(message || "").trim();
   if (!text || text.length > 220) return false;
 
-  if (/^(why|how|how so|what about|and|but|then|well|so|right|exactly|also|still|anyway|actually|because|really|you sure|are you sure|what do you mean|explain|tell me more|make it|do that|check again|look again|recheck|try again|retry|keep going|continue|the other one|that one|this one|the thing|that thing|this thing|instead|okay|ok|yeah|yes|no|nope|track|start|finish|complete|cancel|stop)\b/i.test(text)) {
+  if (/^(why|how|how so|what about|and|but|then|well|so|right|exactly|also|still|anyway|actually|because|really|you sure|are you sure|what do you mean|explain|tell me more|make it|do that|check again|look again|recheck|try again|retry|keep going|continue|what(?:'s| is) (?:the )?(?:unresolved|next) step|what(?:'s| is) next|what remains|where did you stop|where were we|the other one|that one|this one|the thing|that thing|this thing|instead|okay|ok|yeah|yes|no|nope|track|start|finish|complete|cancel|stop)\b/i.test(text)) {
     return true;
   }
 

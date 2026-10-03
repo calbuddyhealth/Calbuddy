@@ -682,6 +682,7 @@ export default async function handler(req, res) {
     const nextBilledInputTokens = priorBilledInputTokens + Math.max(0, Number(currentProviderUsage.inputTokens || 0));
     const nextReasoningContinuityToken =
       result?.modelPolicy?.persistReasoning === true &&
+      result?.provider?.continuitySafe !== false &&
       result?.provider?.id &&
       turn.conversationId
         ? sealReasoningContinuityToken({

@@ -1540,7 +1540,11 @@ async function executeOwnerDeveloperWorkspaceTurn({
     longitudinalState,
     pendingAction: null,
     action: null,
-    provider: providerSummary(response),
+    provider: {
+      ...providerSummary(response),
+      continuitySafe: false,
+      continuityResetReason: "unresolved_tool_call_at_step_limit"
+    },
     semanticActionReview: publicActionReview(semanticActionReview),
     executionEvidence: evidence,
     executionWorkspaceUpdate: {
@@ -2355,7 +2359,7 @@ function shouldRetryFreshReasoningThread({ response, data = {} } = {}) {
   const status = Number(response?.status || 0);
   if (![400, 404, 409, 410, 422].includes(status)) return false;
   const message = String(data?.error?.message || data?.error || "").toLowerCase();
-  return /previous[_ ]?response|response id|conversation|continuation|not found|expired|invalid.*response|unknown response/.test(message);
+  return /previous[_ ]?response|response id|conversation|continuation|not found|expired|invalid.*response|unknown response|no tool output found for function call|tool output.*function call|function call.*tool output/.test(message);
 }
 
 function shouldTryProviderModelFallback({ response, data = {}, policy = {} } = {}) {
