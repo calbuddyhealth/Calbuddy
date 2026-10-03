@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: js/ari-latency-hotfix.js
-// Version: 1.2.0
+// Version: 1.3.0
 // Purpose:
 //   Keep ordinary Ari conversation off legacy blocking app hydration without
 //   allowing stale browser state to become authoritative personal context.
@@ -12,6 +12,8 @@
 //   - Never make ordinary chat wait for browser GitHub owner verification.
 //   - Clear stale cross-document pending turns so refresh does not auto-resend.
 //   - Do not override or suppress the canonical AriVNextInitiative client.
+//   - Keep Home conversation pinned to the canonical vNext runtime even when an
+//     old browser session still contains a Rebirth-era runtime preference.
 // =====================================================
 
 (() => {
@@ -28,6 +30,15 @@
   function clean(value = "") {
     return String(value || "").trim();
   }
+
+  function forceVNextRuntime() {
+    try {
+      CalBuddy.setAriRuntimeMode?.("vnext");
+      localStorage.setItem("ari_runtime_mode_v1", "vnext");
+    } catch {}
+  }
+
+  forceVNextRuntime();
 
   function setActiveMessage(message = "") {
     const text = clean(message);
@@ -283,10 +294,11 @@
   // AriVNextInitiative is now owned by the canonical runtime. This latency layer
   // deliberately leaves its check/engage implementation untouched.
   window.AriLatencyHotfix = Object.freeze({
-    version: "1.2.0",
+    version: "1.3.0",
     setActiveMessage,
     currentMessage,
     needsAuthoritativeAppContext,
-    buildLightContext
+    buildLightContext,
+    forceVNextRuntime
   });
 })();
