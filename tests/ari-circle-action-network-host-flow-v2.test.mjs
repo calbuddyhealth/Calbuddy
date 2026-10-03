@@ -5,6 +5,7 @@ import test from "node:test";
 const meetupHtml = await readFile(new URL("../ari-circle-meetup.html", import.meta.url), "utf8");
 const connectController = await readFile(new URL("../js/ari-circle/connect/connect-v1.js", import.meta.url), "utf8");
 const connectCss = await readFile(new URL("../assets/css/ari-circle-connect-v1.css", import.meta.url), "utf8");
+const premiumCss = await readFile(new URL("../assets/css/ari-circle-connect-premium-v2.css", import.meta.url), "utf8");
 const locationCss = await readFile(new URL("../assets/css/ari-circle-search-location-v1.css", import.meta.url), "utf8");
 const migration = await readFile(new URL("../supabase/migrations/20260826050000_ari_circle_host_flow_v2.sql", import.meta.url), "utf8");
 const retirement = await readFile(new URL("../supabase/migrations/20260923160837_ari_circle_retire_xp_completion.sql", import.meta.url), "utf8");
@@ -68,10 +69,17 @@ test("Connect premium cards keep one Host CTA and hide empty-state UI correctly"
 });
 
 
-test("Connect primary actions and vibe filters are true circles", () => {
-  assert.match(connectCss, /\.circle-connect-action\s*\{[\s\S]*width:104px[\s\S]*height:104px[\s\S]*border-radius:50%/);
-  assert.match(connectCss, /\.circle-connect-chip\s*\{[\s\S]*width:78px[\s\S]*height:78px[\s\S]*border-radius:50%/);
-  assert.match(meetupHtml, /circle-connect-chip__icon/);
+test("Connect keeps usable primary actions and compact labeled activity filters", () => {
+  assert.match(meetupHtml, /ari-circle-connect-premium-v2\.css\?v=2\.0\.0/);
+  assert.match(premiumCss, /\.circle-connect-action\s*\{[^}]*min-height:46px/);
+  assert.match(premiumCss, /\.circle-connect-chip\s*\{[^}]*width:auto;[^}]*height:36px/);
+  const filters = [...meetupHtml.matchAll(/<button[^>]*data-activity="([^"]*)"[^>]*><span>([^<]+)<\/span><\/button>/g)]
+    .map((match) => match.slice(1));
+  assert.deepEqual(filters, [
+    ["", "All"], ["gym", "Gym"], ["coffee", "Coffee"], ["walking", "Walk"],
+    ["hiking", "Hike"], ["running", "Run"], ["sports", "Sports"], ["food", "Food"], ["other", "Other"]
+  ]);
+  assert.doesNotMatch(meetupHtml, /circle-connect-chip__icon/);
   assert.match(meetupHtml, /circle-connect-action__icon/);
 });
 

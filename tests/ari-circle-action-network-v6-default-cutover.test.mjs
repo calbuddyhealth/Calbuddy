@@ -15,7 +15,7 @@ test("home navigation opens Circle Connect", () => {
 test("member Circle is Connect plus Profile", () => {
   assert.match(meetupHtml, /<title>Connect \| ARI Circle<\/title>/);
   assert.match(meetupHtml, /id="hostMeetupButton"[\s\S]*circle-connect-action__label">Host<\/span>/);
-  assert.match(meetupHtml, /href="ari-circle-friends\.html"[\s\S]*circle-connect-action__label">Find Friends<\/span>/);
+  assert.match(meetupHtml, /href="ari-circle-friends\.html"[^>]*>\s*<span[^>]*>[\s\S]*?<\/span>\s*<span class="circle-connect-action__label">Find people<\/span>\s*<\/a>/);
   assert.doesNotMatch(meetupHtml, /Find something to do\./);
   assert.match(profileHtml, /<body class="ari-circle-page">/);
   assert.match(profileHtml, /id="circle-profile"/);

@@ -21,7 +21,7 @@ test("meeting point is rebuilt as one native disclosure card", () => {
 test("collapsed card shows the saved value and host edit affordance only", () => {
   assert.match(html, /<strong id="meetingPointValue">Add meeting point<\/strong>/);
   assert.match(html, /id="editMeetingPoint"[^>]*hidden>Set<\/button>/);
-  assert.match(html, /id="meetingPointPrivacy"[^>]*>Attendees only<\/span>/);
+  assert.doesNotMatch(html, /id="meetingPointPrivacy"|Attendees only/);
   assert.match(css, /\.meetup-room-point-summary\s*\{[\s\S]*min-height:\s*78px/);
   assert.match(css, /#copyMeetingPoint\s*\{\s*display:\s*none\s*!important/);
 });
