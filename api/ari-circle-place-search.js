@@ -25,6 +25,49 @@ function roundCoordinate(value, digits = 5) {
   return Math.round(number * factor) / factor;
 }
 
+function normalizeText(value) {
+  return clean(value, 180)
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function levenshtein(a, b) {
+  const left = normalizeText(a);
+  const right = normalizeText(b);
+  if (!left) return right.length;
+  if (!right) return left.length;
+
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  const current = new Array(right.length + 1);
+
+  for (let i = 1; i <= left.length; i += 1) {
+    current[0] = i;
+    for (let j = 1; j <= right.length; j += 1) {
+      current[j] = Math.min(
+        current[j - 1] + 1,
+        previous[j] + 1,
+        previous[j - 1] + (left[i - 1] === right[j - 1] ? 0 : 1)
+      );
+    }
+    for (let j = 0; j <= right.length; j += 1) previous[j] = current[j];
+  }
+
+  return previous[right.length];
+}
+
+function milesBetween(lat1, lon1, lat2, lon2) {
+  if ([lat1, lon1, lat2, lon2].some((value) => !Number.isFinite(Number(value)))) return null;
+  const toRad = (degrees) => Number(degrees) * Math.PI / 180;
+  const dLat = toRad(Number(lat2) - Number(lat1));
+  const dLon = toRad(Number(lon2) - Number(lon1));
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 3958.7613 * 2 * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
 function joinLabel(parts) {
   const seen = new Set();
   return parts
@@ -115,6 +158,14 @@ function hikingPriority(item) {
   return 2;
 }
 
+function hikingScore(item, query, latitude, longitude) {
+  const textPenalty = levenshtein(query, item?.name || item?.label) * 3;
+  const typePenalty = hikingPriority(item) * 8;
+  const miles = milesBetween(latitude, longitude, item?.latitude, item?.longitude);
+  const distancePenalty = miles === null ? 0 : Math.min(24, miles / 20);
+  return textPenalty + typePenalty + distancePenalty;
+}
+
 function dedupe(items) {
   const seen = new Set();
   return items.filter((item) => {
@@ -186,6 +237,7 @@ export default async function handler(req, res) {
 
   const limit = clampLimit(req.query?.limit);
   const category = clean(req.query?.category, 40).toLowerCase();
+  const near = clean(req.query?.near, 100);
   const latitude = finiteNumber(req.query?.lat);
   const longitude = finiteNumber(req.query?.lon);
   const safeLatitude = latitude !== null && latitude >= -90 && latitude <= 90 ? latitude : null;
@@ -207,9 +259,24 @@ export default async function handler(req, res) {
       results = [];
     }
 
-    if (results.length < Math.min(4, limit)) {
+    if (near) {
       try {
-        const fallback = await searchNominatim(query, { limit, signal: controller.signal });
+        const localQueryResults = await searchPhoton(`${query} ${near}`, {
+          latitude: safeLatitude,
+          longitude: safeLongitude,
+          limit,
+          signal: controller.signal
+        });
+        results = dedupe([...results, ...localQueryResults]);
+      } catch {
+        results = dedupe(results);
+      }
+    }
+
+    if (results.length < Math.min(6, limit)) {
+      try {
+        const fallbackQuery = near ? `${query}, ${near}` : query;
+        const fallback = await searchNominatim(fallbackQuery, { limit, signal: controller.signal });
         results = dedupe([...results, ...fallback]);
       } catch {
         results = dedupe(results);
@@ -219,12 +286,16 @@ export default async function handler(req, res) {
     }
 
     if (category === "hiking") {
-      results.sort((a, b) => hikingPriority(a) - hikingPriority(b));
+      results.sort((a, b) =>
+        hikingScore(a, query, safeLatitude, safeLongitude)
+        - hikingScore(b, query, safeLatitude, safeLongitude)
+      );
     }
 
     return res.status(200).json({
       scope: "US",
-      biased: safeLatitude !== null && safeLongitude !== null,
+      biased: Boolean(near || (safeLatitude !== null && safeLongitude !== null)),
+      near: near || null,
       results: results.slice(0, limit)
     });
   } catch (error) {
