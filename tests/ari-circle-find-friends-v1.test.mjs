@@ -9,6 +9,7 @@ const friendsCss = fs.readFileSync("assets/css/ari-circle-find-friends-v1.css", 
 const shell = fs.readFileSync("js/ari-circle/v5-real-world.js", "utf8");
 const menu = fs.readFileSync("js/ari-circle/circle-menu-v5.js", "utf8");
 const migration = fs.readFileSync("supabase/migrations/20260926004500_ari_circle_find_friends_local_v1.sql", "utf8");
+const globalSearchMigration = fs.readFileSync("supabase/migrations/20261003145500_ari_circle_global_friend_search_v2.sql", "utf8");
 
 test("Find Friends client script parses cleanly", () => {
   assert.doesNotThrow(() => new Function(friendsJs));
@@ -20,16 +21,39 @@ test("Connect top bar prioritizes Host and Find people without duplicate hero co
   assert.doesNotMatch(meetupHtml, /Find something to do\./);
 });
 
-test("Find Friends page has local radar, mutual suggestions, search, and profile navigation", () => {
+test("Find Friends page separates local Radar from global member search", () => {
   assert.match(friendsHtml, /data-ari-circle-search-location data-surface="friends"/);
   assert.match(friendsHtml, /LOCATION RADAR/);
   assert.match(friendsHtml, /Suggested for you/);
   assert.match(friendsHtml, /People nearby/);
+  assert.match(friendsHtml, /Search all Circle members/);
+  assert.match(friendsHtml, /no matter where they live/);
   assert.match(friendsHtml, /id="friendsSearchForm"/);
   assert.match(friendsJs, /ari-circle\.html\?user=/);
   assert.match(friendsJs, /data-friend-add/);
   assert.match(friendsJs, /ari:circleSearchLocationChanged/);
   assert.match(friendsCss, /circle-friend-card__avatar/);
+});
+
+test("typed name or handle search uses the global V2 directory and is not gated by Radar", () => {
+  assert.match(friendsJs, /rpc\("ari_circle_find_friends_v2"/);
+  assert.match(friendsJs, /Searching all Circle members/);
+  assert.match(globalSearchMigration, /create or replace function public\.ari_circle_find_friends_v2/);
+  assert.match(globalSearchMigration, /position\(clean_query in lower\(coalesce\(p\.handle::text, ''\)\)\) > 0/);
+  assert.match(globalSearchMigration, /position\(clean_query in lower\(coalesce\(p\.display_name, ''\)\)\) > 0/);
+  assert.match(globalSearchMigration, /clean_query <> ''\s*\n\s*or \(/);
+  assert.match(globalSearchMigration, /relationship_status text/);
+  assert.match(globalSearchMigration, /relationship_direction text/);
+  assert.match(globalSearchMigration, /not public\.ari_circle_social_pair_is_blocked\(caller_id, p\.user_id\)/);
+});
+
+test("global search keeps current friends and pending requests visible with safe actions", () => {
+  assert.match(globalSearchMigration, /rel\.status as relationship_status/);
+  assert.match(globalSearchMigration, /when c\.relationship_status = 'accepted' then 0/);
+  assert.match(friendsJs, /status === "accepted"[\s\S]*label: "Friends"/);
+  assert.match(friendsJs, /status === "pending" && direction === "incoming"[\s\S]*label: "Request received"/);
+  assert.match(friendsJs, /label: "Requested"/);
+  assert.match(friendsJs, /status === "declined"[\s\S]*label: "Request declined"/);
 });
 
 test("Find Friends prevents iOS focus auto-zoom and releases focus before navigation", () => {
@@ -39,7 +63,7 @@ test("Find Friends prevents iOS focus auto-zoom and releases focus before naviga
   assert.match(friendsJs, /function settleVisualViewport\(\)/);
   assert.match(friendsJs, /settleVisualViewport\(\);[\s\S]*void load/);
   assert.match(friendsHtml, /ari-circle-find-friends-v1\.css\?v=1\.0\.2/);
-  assert.match(friendsHtml, /find-friends-v1\.js\?v=1\.0\.1/);
+  assert.match(friendsHtml, /find-friends-v1\.js\?v=1\.1\.0/);
 });
 
 test("Find Friends fits the mobile viewport without horizontal overflow", () => {
@@ -63,6 +87,16 @@ test("friend discovery backend uses private coarse location and mutual accepted 
   const returnsBlock = migration.slice(
     migration.indexOf("returns table"),
     migration.indexOf("language plpgsql")
+  );
+  assert.doesNotMatch(returnsBlock, /approximate_latitude/);
+  assert.doesNotMatch(returnsBlock, /approximate_longitude/);
+  assert.doesNotMatch(returnsBlock, /private_area/);
+});
+
+test("global search also never returns private coarse coordinates", () => {
+  const returnsBlock = globalSearchMigration.slice(
+    globalSearchMigration.indexOf("returns table"),
+    globalSearchMigration.indexOf("language plpgsql")
   );
   assert.doesNotMatch(returnsBlock, /approximate_latitude/);
   assert.doesNotMatch(returnsBlock, /approximate_longitude/);
