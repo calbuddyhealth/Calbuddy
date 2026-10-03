@@ -1,46 +1,11 @@
-/* ARI Circle header icon parity — keep Connect controls identical to Profile. */
-body.circle-connect-next .circle-v51-halo-header .circle-v4-menu > summary.feed-icon-button,
-body.circle-connect-next .circle-v51-halo-header .circle-v4-message.circle-v51-header-action {
-  display:grid !important;
-  width:38px !important;
-  height:38px !important;
-  min-width:38px !important;
-  min-height:38px !important;
-  padding:0 !important;
-  place-items:center !important;
-  overflow:visible !important;
-  border:1px solid #e1e8f0 !important;
-  border-radius:13px !important;
-  color:#24344c !important;
-  background:#fff !important;
-  box-shadow:0 4px 11px rgba(40,58,88,.05) !important;
-  font-size:0 !important;
-}
+@import url("./ari-circle-header-premium-v2.css?v=2.0.0");
 
-/* Premium Connect previously painted a second menu/message glyph with pseudo-elements.
-   The shared Circle shell already injects the same SVGs used by Profile, so suppress
-   those duplicates rather than drawing a second icon on top. */
+/* ARI Circle Connect header adapter.
+   The premium V2 sheet owns sizing and visual treatment; these rules only prevent
+   legacy pseudo-glyphs from duplicating the shared shell's real SVG controls. */
 body.circle-connect-next .circle-v51-halo-header .circle-v4-menu > summary::before,
 body.circle-connect-next .circle-v51-halo-header .circle-v4-menu > summary::after,
 body.circle-connect-next .circle-v51-halo-header .circle-v4-message::before {
   content:none !important;
   display:none !important;
-}
-
-body.circle-connect-next .circle-v51-halo-header .circle-v4-menu > summary svg,
-body.circle-connect-next .circle-v51-halo-header .circle-v4-message svg,
-body.circle-connect-next .circle-v51-halo-header .circle-v51-header-action svg {
-  display:block !important;
-  width:21px !important;
-  height:21px !important;
-  fill:none !important;
-  stroke:currentColor !important;
-  stroke-width:1.85 !important;
-  stroke-linecap:round !important;
-  stroke-linejoin:round !important;
-}
-
-body.circle-connect-next .circle-v51-halo-header .circle-v4-menu > summary:active,
-body.circle-connect-next .circle-v51-halo-header .circle-v4-message:active {
-  transform:translateY(1px);
 }
