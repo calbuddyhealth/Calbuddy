@@ -2,9 +2,10 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const MAX_DAYS_AHEAD = 60;
   const WINDOW_MS = MAX_DAYS_AHEAD * 24 * 60 * 60 * 1000;
+  const DESTINATION_MODULE_SRC = "js/ari-circle/connect/destination-anchor-v2.js?v=2.0.0";
   const $ = (id) => document.getElementById(id);
 
   let cutoff = null;
@@ -82,12 +83,27 @@
     input?.reportValidity?.();
   }
 
+  function ensureDestinationModule() {
+    if (window.AriCircleHikingDestinationV2) return;
+    if (document.querySelector('script[data-ari-circle-hiking-destination="v2"]')) return;
+
+    const script = document.createElement("script");
+    script.src = DESTINATION_MODULE_SRC;
+    script.async = true;
+    script.dataset.ariCircleHikingDestination = "v2";
+    script.addEventListener("error", () => {
+      console.warn("Circle hiking destination helper could not load.");
+    }, { once: true });
+    document.head.appendChild(script);
+  }
+
   function init() {
     const input = $("meetupFormStarts");
     const form = $("hostMeetupForm");
     const dialog = $("hostMeetupDialog");
     if (!input || !form) return;
 
+    ensureDestinationModule();
     refreshWindow();
     input.addEventListener("input", validate);
     input.addEventListener("change", validate);
@@ -98,6 +114,7 @@
       const observer = new MutationObserver((records) => {
         if (records.some((record) => record.attributeName === "open") && dialog.open) {
           refreshWindow();
+          ensureDestinationModule();
         }
       });
       observer.observe(dialog, { attributes: true, attributeFilter: ["open"] });
