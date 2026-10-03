@@ -1,0 +1,23 @@
+/* ARI Circle Host Window V1 */
+body.circle-connect-next .circle-connect-start-window-note {
+  margin: -4px 0 2px;
+  color: #6f7f99;
+  font-weight: 700;
+}
+
+body.circle-connect-next .circle-connect-start-window-error {
+  margin: -3px 0 2px;
+  color: #b42318;
+  font-weight: 800;
+}
+
+body.circle-connect-next #meetupFormStarts[aria-invalid="true"] {
+  border-color: rgba(180, 35, 24, .55) !important;
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, .08) !important;
+}
+
+body.circle-connect-next #createMeetupSubmit[data-start-window-disabled="true"] {
+  opacity: .48;
+  box-shadow: none !important;
+  cursor: not-allowed;
+}
