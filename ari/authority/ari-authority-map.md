@@ -1,66 +1,48 @@
 # ARI AUTHORITY MAP
-Version: 1.0
+Version: 2.0
 
-## Purpose 
+## Purpose
 
-This document defines Ari's chain of command.
+This file remains only for compatibility with the older browser-side Rebirth architecture loader. It must not define a second production cognition hierarchy.
 
-If two files, prompts, organs, or systems conflict, this authority map decides what wins.
+The canonical live model-facing authority map is `docs/ARI_COGNITION_AUTHORITY_MAP.md`. The canonical runtime rule authority is implemented by `api/_lib/ari-vnext/ari-executive.js`.
 
-## Authority Order
+## Current Runtime Authority
 
-1. Ari Constitution
-2. Ari Soul
-3. Ari Guardian
-4. Ari Brain Router
-5. Active Organ
-6. Memory and Context
-7. User Interface / Canvas
-8. Legacy CalBuddy Code
+1. Hard enforcement: authentication, permissions, privacy, confirmation, product invariants, provider requirements, and safety enforcement.
+2. Ari Runtime Constitution: identity, truth, judgment, agency, privacy, correction, action truth, and reasoning boundaries.
+3. Current user intent.
+4. Product and domain constraints.
+5. Current verified evidence and relevant context.
+6. Ari Executive strategy.
+7. Learned and experimental cognitive signals.
+8. Communication style.
 
-## Rule
+## Live Prompt Authorities
 
-Higher authority always overrides lower authority.
+Only these systems should directly emit behavioral or process instructions into the primary vNext model prompt:
 
-If old CalBuddy code conflicts with Ari's Constitution, the Constitution wins.
+1. Companion Core
+2. Communication Profile
+3. Ari Executive
+4. Deliberation Harness
 
-If memory conflicts with safety, Guardian wins.
+The Instinct Kernel is a deterministic pre-deliberative control substrate consumed by those authorities. It is not an additional prompt authority.
 
-If an active organ conflicts with Ari's mission, Soul wins.
+## Evidence-Producing Systems
 
-If UI tries to change Ari's identity, Constitution wins.
+Relationship Continuity, Communication Closure, Behavioral Identity, Belief System, Dreaming, Experience Engine, Conviction and goal learning, Cognitive Loop persistence, Reward/Affect/Emotion systems, Curiosity/Imagination, Adaptive Strategy learning, and Initiative remain useful as evidence and state producers. They do not independently outrank current user intent, verified evidence, or the canonical runtime authorities.
 
-## Legacy Code Rule
+## Legacy Compatibility Rule
 
-Legacy CalBuddy files are temporary support systems.
+Older Rebirth and CalBuddy systems may remain available for diagnostics, labs, narrow compatibility, or explicitly bounded fallback behavior, but they must not become a second semantic or write authority.
 
-They may help Ari function during migration, but they do not define Ari.
+Compatibility files include older browser-side Constitution, Soul, Guardian, Brain, and Organ documents, `ari/ari-rebirth-app-bridge.js`, legacy developer engines, and CalBuddy compatibility handlers. Their role is transitional and subordinate to the vNext runtime.
 
-Legacy files include:
+## Design Rule
 
-- calbuddy-core.js
-- api/ask-calbuddy.js
-- old prompt patches
-- old dashboard logic
-- old nutrition-first language
+Add new cognition as state first. Prefer extending an existing vNext authority or evidence source over adding another prompt layer.
 
-These files must slowly be replaced or reduced.
+Do not route new production behavior through a legacy subsystem merely because that subsystem already has a similarly named feature.
 
-## Organ Responsibility Rule
-
-One organ. One purpose.
-
-No organ should take over another organ's job.
-
-Soul defines purpose.
-Guardian protects safety and honesty.
-Brain routes and reasons.
-Heart adds emotional influence.
-Memory stores continuity.
-Coach handles health and habits.
-Builder handles coding and creation.
-Canvas displays the experience.
-
-## Final Rule
-
-No new Ari code should be written unless we know which organ it belongs to.
+When old architecture and live vNext behavior disagree, live vNext contracts and current verified evidence win.
