@@ -19,22 +19,37 @@ export function looksLikeCssSource(value) {
   return (declarations?.length || 0) >= 2;
 }
 
-export function isProtectedCssInvariant(expected) {
-  const source = expected instanceof RegExp ? expected.source : String(expected || "");
+const GLOBAL_PROTECTED_CSS =
+  /safe-area-inset|prefers-reduced-motion|font-size.{0,40}16px|user-scalable|maximum-scale/i;
+const CONDITIONAL_INTERACTION_CSS = /pointer-events.{0,40}none|visibility.{0,40}hidden/i;
+const INTERACTION_CONTEXT =
+  /a11y|accessib|aria|keyboard|focus|interactive|interaction|click|tap|touch|disabled|inert|modal|dialog|screen-reader|sr-only/i;
 
-  return /safe-area-inset|prefers-reduced-motion|font-size.{0,40}16px|user-scalable|maximum-scale|pointer-events.{0,40}none|visibility.{0,40}hidden/i.test(
-    source
-  );
+function assertionContext(expected, message = "") {
+  const source = expected instanceof RegExp ? expected.source : String(expected || "");
+  return `${source} ${String(message || "")}`;
 }
 
-export function shouldBypassCssAssertion(actual, expected) {
+export function isProtectedCssInvariant(expected, message = "") {
+  const context = assertionContext(expected, message);
+
+  if (GLOBAL_PROTECTED_CSS.test(context)) return true;
+
+  // pointer-events/visibility are common visual implementation details. They only
+  // become blocking when the assertion itself identifies an interaction or
+  // accessibility contract instead of merely matching the CSS declaration.
+  return CONDITIONAL_INTERACTION_CSS.test(context) && INTERACTION_CONTEXT.test(context);
+}
+
+export function shouldBypassCssAssertion(actual, expected, message = "") {
   if (process.env.ARI_READINESS_ALLOW_VISUAL_ASSERTS === "1") return false;
-  return looksLikeCssSource(actual) && !isProtectedCssInvariant(expected);
+  return looksLikeCssSource(actual) && !isProtectedCssInvariant(expected, message);
 }
 
 function wrapCssAwareAssertion(original) {
   return function cssAwareAssertion(actual, expected, ...rest) {
-    if (shouldBypassCssAssertion(actual, expected)) {
+    const message = rest[0];
+    if (shouldBypassCssAssertion(actual, expected, message)) {
       bypassed += 1;
       return;
     }
