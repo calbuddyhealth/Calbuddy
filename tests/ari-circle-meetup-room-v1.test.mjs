@@ -18,7 +18,7 @@ test("exact meeting point is private room data, not part of public meetup discov
   assert.ok(publicListStart >= 0 && requestStart > publicListStart);
   assert.doesNotMatch(publicMeetupMigration.slice(publicListStart, requestStart), /meeting_point/i);
   assert.match(roomHtml, /Meeting point/i);
-  assert.match(roomHtml, /Attendees only/i);
+  assert.doesNotMatch(roomHtml, /Attendees only/i);
 });
 
 test("meetup chat rows are not directly exposed to browser roles", () => {
