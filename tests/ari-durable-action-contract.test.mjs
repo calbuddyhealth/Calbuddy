@@ -1,13 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { getAriTools } from "../api/_lib/ari-vnext/tools.js";
 
 const api = fs.readFileSync("api/ari-vnext.js", "utf8");
 const core = fs.readFileSync("calbuddy-core.js", "utf8");
 const adapter = fs.readFileSync("ari/vnext/ari-vnext-action-adapter.js", "utf8");
 const training = fs.readFileSync("ari/vnext/ari-vnext-training-context.js", "utf8");
 const bridge = fs.readFileSync("ari/vnext/ari-vnext-bridge.js", "utf8");
-const tools = fs.readFileSync("api/_lib/ari-vnext/tools-core.js", "utf8");
 const resilience = fs.readFileSync("js/home-resilience.js", "utf8");
 const pendingRecovery = fs.readFileSync("js/ari-pending-action-recovery.js", "utf8");
 const migration = fs.readFileSync("supabase/migrations/20260922223000_ari_action_transaction_ledger.sql", "utf8");
@@ -49,9 +49,12 @@ test("workout generation is library-first and persistence remains registry-valid
   assert.match(training, /getRecommendedExercises/);
   assert.match(training, /exerciseLibrary/);
   assert.match(bridge, /exerciseLibrary: trainingContext\.exerciseLibrary/);
-  assert.match(tools, /exerciseId: \{ type: "string" \}/);
-  assert.match(tools, /required: \["exerciseId", "name", "sets", "reps", "restSeconds", "notes"\]/);
-  assert.match(adapter, /request\?\.exerciseId \|\| request\?\.name/);
+  const workoutTool = getAriTools({ training: true }).find((tool) => tool.name === "propose_workout_plan");
+  const exerciseSchema = workoutTool.parameters.properties.exercises.items;
+  assert.deepEqual(exerciseSchema.properties.exerciseId, { type: "string", minLength: 1, maxLength: 160 });
+  assert.deepEqual(exerciseSchema.properties.name, { type: "string", minLength: 1, maxLength: 160 });
+  assert.deepEqual(exerciseSchema.required, ["exerciseId", "name", "sets", "reps", "restSeconds", "notes"]);
+  assert.match(adapter, /resolveWorkoutExerciseRequest\(controller, request\)/);
   assert.match(adapter, /registryValidated: true/);
 });
 
