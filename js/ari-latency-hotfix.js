@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: js/ari-latency-hotfix.js
-// Version: 1.1.0
+// Version: 1.2.0
 // Purpose:
 //   Keep ordinary Ari conversation off legacy blocking app hydration without
 //   allowing stale browser state to become authoritative personal context.
@@ -11,8 +11,7 @@
 //   - Preserve authoritative hydration for explicit personal ledger/mutation work.
 //   - Never make ordinary chat wait for browser GitHub owner verification.
 //   - Clear stale cross-document pending turns so refresh does not auto-resend.
-//   - Suppress the heavy automatic initiative scan on Home until it has a
-//     dedicated lightweight signal path.
+//   - Do not override or suppress the canonical AriVNextInitiative client.
 // =====================================================
 
 (() => {
@@ -281,47 +280,10 @@
   try { window.setAriComposerThinking?.(false); } catch {}
   try { window.finishAriThinkingSequence?.(); } catch {}
 
-  function suppressInitiativeClient(client) {
-    if (!client || typeof client !== "object" || client.__homeLatencySuppressed) return client;
-    client.__homeLatencySuppressed = true;
-    client.check = async function () {
-      const result = {
-        success: true,
-        shouldInitiate: false,
-        reason: "home_latency_guard",
-        cost: { languageModelCalls: 0 },
-        source: "ari_home_latency_hotfix"
-      };
-      window.dispatchEvent(new CustomEvent("ari:vnextInitiativeQuiet", { detail: result }));
-      return result;
-    };
-    return client;
-  }
-
-  if (window.AriVNextInitiative) {
-    suppressInitiativeClient(window.AriVNextInitiative);
-  } else {
-    const existing = Object.getOwnPropertyDescriptor(window, "AriVNextInitiative");
-    if (!existing) {
-      Object.defineProperty(window, "AriVNextInitiative", {
-        configurable: true,
-        enumerable: true,
-        get() { return undefined; },
-        set(value) {
-          const patched = suppressInitiativeClient(value);
-          Object.defineProperty(window, "AriVNextInitiative", {
-            configurable: true,
-            enumerable: true,
-            writable: true,
-            value: patched
-          });
-        }
-      });
-    }
-  }
-
+  // AriVNextInitiative is now owned by the canonical runtime. This latency layer
+  // deliberately leaves its check/engage implementation untouched.
   window.AriLatencyHotfix = Object.freeze({
-    version: "1.1.0",
+    version: "1.2.0",
     setActiveMessage,
     currentMessage,
     needsAuthoritativeAppContext,
