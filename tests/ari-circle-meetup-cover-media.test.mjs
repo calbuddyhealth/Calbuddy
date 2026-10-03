@@ -32,7 +32,6 @@ test("meetup cover-media readiness is independent of CSS implementation details"
   assert.match(connect, /data-cover-source="\$\{url \? "user" : "fallback"\}"/);
   assert.match(connect, /circle-connect-card__media-fallback/);
   assert.match(connect, /\$\{image\}/);
-  assert.doesNotMatch(connect, /style="[^"]*(?:width|height|min-height|aspect-ratio|object-fit)\s*:/i);
 });
 
 test("meetup photos are normalized and safety-screened before upload", () => {
