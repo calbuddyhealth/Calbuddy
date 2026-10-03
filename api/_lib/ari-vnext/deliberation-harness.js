@@ -209,8 +209,11 @@ export function deliberationHarnessToInstruction(state = null) {
 }
 
 function currentExecutionSession(turn = {}) {
-  const value = turn?.context?.userWorldModel?.ariCognitiveWorkspace?.executionWorkspace;
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const workspace = turn?.context?.userWorldModel?.ariCognitiveWorkspace?.executionWorkspace;
+  if (!workspace || typeof workspace !== "object" || Array.isArray(workspace)) return null;
+  const value = workspace?.active === true && workspace?.session && typeof workspace.session === "object"
+    ? workspace.session
+    : workspace;
   if (!["active", "waiting", "blocked"].includes(String(value?.status || "").toLowerCase())) return null;
   return value;
 }
