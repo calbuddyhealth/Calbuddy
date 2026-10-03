@@ -1,0 +1,94 @@
+/* ARI Circle Connect Card Depth V1 — stronger physical separation without heavy chrome */
+body.circle-connect-next {
+  background:
+    radial-gradient(circle at 12% 4%,rgba(79,202,235,.07),transparent 27rem),
+    radial-gradient(circle at 88% 0%,rgba(137,108,244,.055),transparent 24rem),
+    #f5f7fb;
+}
+
+body.circle-connect-next .circle-connect-list {
+  gap:16px;
+}
+
+body.circle-connect-next .circle-connect-card,
+body.circle-connect-next .circle-connect-card.is-live {
+  border-color:rgba(24,43,72,.095);
+  background:linear-gradient(180deg,rgba(255,255,255,.995),rgba(252,253,255,.985));
+  box-shadow:
+    0 2px 4px rgba(20,35,60,.035),
+    0 12px 28px rgba(20,35,60,.105),
+    0 28px 60px rgba(55,80,135,.09),
+    0 0 0 1px rgba(255,255,255,.38),
+    inset 0 1px 0 rgba(255,255,255,1);
+  transform:translateZ(0);
+  transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;
+}
+
+body.circle-connect-next .circle-connect-card__content {
+  border-color:rgba(29,48,76,.085);
+  background:rgba(255,255,255,.985);
+  box-shadow:
+    0 10px 24px rgba(31,47,75,.055),
+    inset 0 1px 0 rgba(255,255,255,.96);
+}
+
+body.circle-connect-next .circle-connect-avatar {
+  box-shadow:
+    0 0 0 1px rgba(30,49,78,.08),
+    0 5px 14px rgba(31,47,75,.10);
+}
+
+body.circle-connect-next .circle-connect-card__actions .circle-v5-button-primary {
+  box-shadow:
+    0 10px 24px rgba(65,120,255,.22),
+    0 3px 8px rgba(65,120,255,.10),
+    inset 0 1px 0 rgba(255,255,255,.38) !important;
+}
+
+body.circle-connect-next .circle-connect-card-menu > summary,
+body.circle-connect-next .circle-connect-card__actions > .circle-v5-button {
+  border-color:rgba(27,46,75,.10);
+  background:rgba(255,255,255,.98);
+  box-shadow:
+    0 8px 18px rgba(31,47,75,.085),
+    inset 0 1px 0 #fff;
+}
+
+@media (hover:hover) {
+  body.circle-connect-next .circle-connect-card:hover {
+    transform:translateY(-3px);
+    border-color:rgba(31,51,82,.12);
+    box-shadow:
+      0 4px 8px rgba(20,35,60,.045),
+      0 18px 38px rgba(20,35,60,.13),
+      0 34px 72px rgba(55,80,135,.105),
+      0 0 0 1px rgba(255,255,255,.44),
+      inset 0 1px 0 rgba(255,255,255,1);
+  }
+}
+
+body.circle-connect-next .circle-connect-card:active {
+  transform:translateY(-1px) scale(.995);
+}
+
+@media (max-width:560px) {
+  body.circle-connect-next .circle-connect-list {
+    gap:14px;
+  }
+
+  body.circle-connect-next .circle-connect-card,
+  body.circle-connect-next .circle-connect-card.is-live {
+    box-shadow:
+      0 2px 4px rgba(20,35,60,.035),
+      0 10px 24px rgba(20,35,60,.10),
+      0 24px 48px rgba(55,80,135,.085),
+      0 0 0 1px rgba(255,255,255,.34),
+      inset 0 1px 0 rgba(255,255,255,1);
+  }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  body.circle-connect-next .circle-connect-card {
+    transition:none !important;
+  }
+}
