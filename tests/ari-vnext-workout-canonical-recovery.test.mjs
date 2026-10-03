@@ -110,9 +110,10 @@ test("adapter retries the canonical name when the model supplied a noncanonical 
     }
   });
   const adapter = loadAdapter(controller);
-  const mapped = await adapter.mapWorkoutPlanValidated(pending([
+  const p = pending([
     { exerciseId: "made-up-incline-db-id", name: "Incline Dumbbell Bench Press", sets: 4, reps: 8, restSeconds: 90, notes: "" }
-  ]), pending([]).arguments);
+  ]);
+  const mapped = await adapter.mapWorkoutPlanValidated(p, p.arguments);
   assert.equal(mapped.success, true);
   assert.equal(mapped.resolution.exercises[0].exerciseId, "incline-dumbbell-bench-press");
 });
