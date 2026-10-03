@@ -15,13 +15,13 @@
 
   const BOTTOM_THRESHOLD = 96;
   const KEYBOARD_THRESHOLD = 120;
-  const VIEWPORT_SETTLE_DELAYS = [0, 80, 180, 360];
+  const VIEWPORT_SETTLE_DELAYS = [80, 180, 360];
 
   let thread = null;
   let jumpButton = null;
   let nearBottom = true;
   let keyboardOpen = false;
-  let viewportTimer = null;
+  let viewportTimers = [];
   let lastViewportHeight = 0;
   let lastViewportOffsetTop = 0;
 
@@ -98,10 +98,11 @@
   }
 
   function scheduleVisualViewportSync() {
-    clearTimeout(viewportTimer);
+    viewportTimers.forEach((timer) => window.clearTimeout(timer));
+    viewportTimers = [];
     syncVisualViewport();
-    VIEWPORT_SETTLE_DELAYS.slice(1).forEach((delay, index) => {
-      window.setTimeout(syncVisualViewport, delay + index);
+    VIEWPORT_SETTLE_DELAYS.forEach((delay) => {
+      viewportTimers.push(window.setTimeout(syncVisualViewport, delay));
     });
   }
 
