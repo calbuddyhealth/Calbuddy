@@ -1,0 +1,165 @@
+/* ARI Circle Meetup Room Header V2 — make room state and exit path unmistakable */
+body.meetup-room-surface .meetup-room-header {
+  grid-template-columns: auto minmax(0,1fr) 54px !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+body.meetup-room-surface .meetup-room-back {
+  position: relative;
+  min-width: 78px !important;
+  width: auto !important;
+  height: 58px !important;
+  padding: 0 14px 0 11px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  border: 1px solid rgba(54,122,255,.24) !important;
+  border-radius: 999px !important;
+  background:
+    linear-gradient(#fff,#fff) padding-box,
+    linear-gradient(135deg,rgba(43,207,235,.72),rgba(91,113,255,.62),rgba(139,92,246,.68)) border-box !important;
+  color: #13223f !important;
+  box-shadow:
+    0 10px 24px rgba(44,91,177,.16),
+    0 3px 8px rgba(44,91,177,.08),
+    inset 0 1px 0 rgba(255,255,255,1) !important;
+  text-decoration: none !important;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform .16s ease,box-shadow .16s ease,border-color .16s ease;
+}
+
+body.meetup-room-surface .meetup-room-back::before {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(135deg,rgba(46,207,235,.12),rgba(116,84,245,.10));
+  filter: blur(7px);
+  pointer-events: none;
+}
+
+body.meetup-room-surface .meetup-room-back__arrow {
+  display: inline-grid;
+  place-items: center;
+  font: 800 1.65rem/1 Inter,system-ui,sans-serif;
+  letter-spacing: 0;
+  transform: translateY(-1px);
+}
+
+body.meetup-room-surface .meetup-room-back__label {
+  font: 850 .72rem/1 Inter,system-ui,sans-serif;
+  letter-spacing: -.01em;
+}
+
+body.meetup-room-surface .meetup-room-brand {
+  position: relative;
+  min-width: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: .38em;
+  pointer-events: none;
+  text-decoration: none !important;
+  white-space: nowrap;
+}
+
+body.meetup-room-surface .meetup-room-brand::after {
+  content: "";
+  position: absolute;
+  left: 19%;
+  right: 19%;
+  bottom: -12px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg,#35cee8,#3978ff,#8b5cf6);
+  box-shadow: 0 4px 12px rgba(66,110,240,.18);
+}
+
+body.meetup-room-surface .meetup-room-brand__meeting,
+body.meetup-room-surface .meetup-room-brand__room {
+  font: 800 clamp(.76rem,3.4vw,.94rem)/1 Orbitron,Inter,sans-serif;
+  letter-spacing: .055em;
+}
+
+body.meetup-room-surface .meetup-room-brand__meeting {
+  color: #15233f;
+}
+
+body.meetup-room-surface .meetup-room-brand__room {
+  color: #4d72ef;
+  background: linear-gradient(100deg,#2bcce8 0%,#4f8bff 48%,#8b5cf6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+body.meetup-room-surface .meetup-room-header .circle-v4-message {
+  width: 52px !important;
+  min-width: 52px !important;
+  height: 52px !important;
+  min-height: 52px !important;
+  border-radius: 18px !important;
+}
+
+@media (hover:hover) {
+  body.meetup-room-surface .meetup-room-back:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 14px 30px rgba(44,91,177,.20),
+      0 4px 10px rgba(44,91,177,.10),
+      inset 0 1px 0 #fff !important;
+  }
+}
+
+body.meetup-room-surface .meetup-room-back:active {
+  transform: translateY(0) scale(.97);
+}
+
+body.meetup-room-surface .meetup-room-back:focus-visible {
+  outline: 3px solid rgba(50,126,255,.24);
+  outline-offset: 3px;
+}
+
+@media (max-width:390px) {
+  body.meetup-room-surface .meetup-room-header {
+    grid-template-columns: 68px minmax(0,1fr) 50px !important;
+    gap: 7px !important;
+  }
+
+  body.meetup-room-surface .meetup-room-back {
+    min-width: 68px !important;
+    height: 56px !important;
+    padding: 0 10px !important;
+    gap: 4px !important;
+  }
+
+  body.meetup-room-surface .meetup-room-back__arrow {
+    font-size: 1.5rem;
+  }
+
+  body.meetup-room-surface .meetup-room-back__label {
+    font-size: .66rem;
+  }
+
+  body.meetup-room-surface .meetup-room-brand__meeting,
+  body.meetup-room-surface .meetup-room-brand__room {
+    font-size: .72rem;
+    letter-spacing: .035em;
+  }
+
+  body.meetup-room-surface .meetup-room-header .circle-v4-message {
+    width: 50px !important;
+    min-width: 50px !important;
+    height: 50px !important;
+    min-height: 50px !important;
+  }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  body.meetup-room-surface .meetup-room-back {
+    transition: none !important;
+  }
+}
