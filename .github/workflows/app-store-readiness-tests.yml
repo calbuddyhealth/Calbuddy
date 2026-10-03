@@ -29,9 +29,7 @@ jobs:
           node-version: "24"
 
       - name: Run ARI XP readiness Node tests
-        env:
-          NODE_OPTIONS: --import=./scripts/readiness-css-assert-filter.mjs
-        run: node --test tests/*.test.mjs
+        run: node --import ./scripts/readiness-css-assert-filter.mjs --test tests/*.test.mjs
 
       - name: Run visual contract diagnostics
         continue-on-error: true
