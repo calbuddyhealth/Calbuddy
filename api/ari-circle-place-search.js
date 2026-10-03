@@ -153,7 +153,7 @@ function normalizeNominatimRow(row) {
 
 function hikingPriority(item) {
   const text = `${item?.kind || ""} ${item?.label || ""}`.toLowerCase();
-  if (/peak|mountain|trail|path|hiking|nature_reserve/.test(text)) return 0;
+  if (/peak|mountain|trail|path|hiking|nature_reserve|rock|viewpoint/.test(text)) return 0;
   if (/park|forest|protected_area|recreation/.test(text)) return 1;
   return 2;
 }
@@ -170,7 +170,7 @@ function dedupe(items) {
   const seen = new Set();
   return items.filter((item) => {
     if (!item) return false;
-    const key = `${Math.round(item.latitude * 1000)}:${Math.round(item.longitude * 1000)}:${item.label.toLowerCase()}`;
+    const key = `${Math.round(item.latitude * 1000)}:${Math.round(item.longitude * 1000)}:${normalizeText(item.name || item.label)}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
