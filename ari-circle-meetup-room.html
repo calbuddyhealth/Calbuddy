@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#f6f8fc" />
-  <title>Meetup Room | ARI Circle</title>
+  <title>Meeting Room | ARI Circle</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700;800;900&family=Orbitron:wght@600;700;800&display=swap" rel="stylesheet" />
@@ -14,14 +14,21 @@
   <link rel="stylesheet" href="assets/css/ari-circle-v5-visual-authority.css?v=5.2.5" />
   <link rel="stylesheet" href="assets/css/ari-circle-meetup-room-v1.css?v=1.2.0" />
   <link rel="stylesheet" href="assets/css/ari-circle-meetup-room-ios-focus.css?v=1.0.0" />
+  <link rel="stylesheet" href="assets/css/ari-circle-meetup-room-header-v2.css?v=2.0.0" />
 </head>
 <body class="circle-v5-real-world meetup-room-surface">
   <div class="meetup-room-loading" id="meetupRoomLoading" role="status" aria-live="polite">Opening meetup room…</div>
 
   <main class="circle-v5-page meetup-room-page" id="meetupRoomPage" hidden>
-    <header class="circle-v5-header feed-header">
-      <a class="feed-icon-button meetup-room-back" href="ari-circle-meetup.html" aria-label="Back to Meet Up">←</a>
-      <a class="feed-brand circle-v5-brand" href="ari-circle-meetup.html" aria-label="ARI Circle Connect"><span>ARI CIRCLE</span></a>
+    <header class="circle-v5-header feed-header meetup-room-header">
+      <a class="feed-icon-button meetup-room-back" href="ari-circle-meetup.html" aria-label="Back to Connect">
+        <span class="meetup-room-back__arrow" aria-hidden="true">←</span>
+        <span class="meetup-room-back__label">Back</span>
+      </a>
+      <div class="feed-brand circle-v5-brand meetup-room-brand" aria-label="Meeting Room">
+        <span class="meetup-room-brand__meeting">MEETING</span>
+        <span class="meetup-room-brand__room">ROOM</span>
+      </div>
       <a class="circle-v4-message" href="ari-circle-messages.html" aria-label="Messages">💬</a>
     </header>
 
