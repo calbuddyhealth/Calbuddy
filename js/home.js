@@ -65,32 +65,27 @@ let ariThinkingSequencePhase = "idle";
 let ariPresenceFocus = false;
 let ariActionInFlight = false;
 
-const ARI_ASSETS = {
-  heroOpen: "assets/ari/ari-idle-open.png",
-  heroClosed: "assets/ari/ari-idle-closed.png"
-};
+let ARI_ASSETS = window.AriAvatar.getPreset().assets;
+let ARI_THINKING_SEQUENCE = window.AriAvatar.getPreset().sequence;
 
 const ARI_COMPOSER_PROMPT = "What are you working on?";
 const ARI_PREFERENCES_URL = "ari-preference-settings.html";
 
-const ARI_THINKING_SEQUENCE = Object.freeze({
-  frameNumbers: Object.freeze([1, 2, 4, 5, 6, 7, 8]),
-  frameSources: Object.freeze({
-    1: "assets/ari/ari-thinking-1.png",
-    2: "assets/ari/ari-thinking-2.png",
-    4: "assets/ari/ari-thinking-4.png",
-    5: "assets/ari/ari-thinking-5.png",
-    6: "assets/ari/ari-thinking-6.png",
-    7: "assets/ari/ari-thinking-7.png",
-    8: "assets/ari/ari-thinking-8.png"
-  }),
-  firstFrame: 1,
-  holdLowFrame: 7,
-  lastFrame: 8,
-  enterDelay: 240,
-  holdFrame8Delay: 7000,
-  frame7BlinkDelay: 140,
-  exitDelay: 165
+window.addEventListener("ari:avatar-changed", () => {
+  const phase = ariThinkingSequencePhase;
+  clearAriThinkingSequenceTimer();
+  ARI_ASSETS = window.AriAvatar.getPreset().assets;
+  ARI_THINKING_SEQUENCE = window.AriAvatar.getPreset().sequence;
+  preloadAriAssets();
+  startAriBlinkLoop();
+  setAriHero("heroOpen");
+  const header = document.getElementById("ariHeaderAvatar");
+  if (header) header.src = ARI_ASSETS.heroOpen;
+  // Keep the current frame/phase when switching during an active reply.
+  renderAriThinkingFrame(ariThinkingSequenceFrame, true);
+  if (phase === "holding") scheduleAriThinkingHold();
+  else if (phase === "entering") scheduleAriThinkingSequence(advanceAriThinkingSequence, ARI_THINKING_SEQUENCE.enterDelay);
+  else if (phase === "exiting") scheduleAriThinkingSequence(reverseAriThinkingSequence, ARI_THINKING_SEQUENCE.exitDelay);
 });
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -307,9 +302,9 @@ function scheduleAriThinkingHold() {
     if (ariThinkingSequencePhase !== "holding") return;
 
     renderAriThinkingFrame(
-      showingFrame8
-        ? ARI_THINKING_SEQUENCE.holdLowFrame
-        : ARI_THINKING_SEQUENCE.lastFrame
+      ARI_THINKING_SEQUENCE.cycleWhileHolding
+        ? (showingFrame8 ? ARI_THINKING_SEQUENCE.firstFrame : getAdjacentAriThinkingFrame(ariThinkingSequenceFrame, 1))
+        : (showingFrame8 ? ARI_THINKING_SEQUENCE.holdLowFrame : ARI_THINKING_SEQUENCE.lastFrame)
     );
 
     scheduleAriThinkingHold();
@@ -465,6 +460,7 @@ function startAriBlinkLoop() {
 }
 
 function scheduleNextAriBlink() {
+  if (window.AriAvatar.getVariant() === "male") return;
   const nextBlinkDelay = 2600 + Math.random() * 7200;
 
   ariBlinkInterval = setTimeout(() => {
