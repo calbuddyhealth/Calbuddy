@@ -78,13 +78,16 @@ test("two failed developer attempts trigger the hypothesis collapse protocol", (
         userWorldModel: {
           ariCognitiveWorkspace: {
             executionWorkspace: {
-              id: "exec-pr392",
-              status: "active",
-              goal: "Fix the meetup GPS behavior.",
-              failedAttempts: [
-                { id: "failure-1", summary: "First patch failed CI." },
-                { id: "failure-2", summary: "Second patch still missed the user-visible bug." }
-              ]
+              active: true,
+              session: {
+                id: "exec-pr392",
+                status: "active",
+                goal: "Fix the meetup GPS behavior.",
+                failedAttempts: [
+                  { id: "failure-1", summary: "First patch failed CI." },
+                  { id: "failure-2", summary: "Second patch still missed the user-visible bug." }
+                ]
+              }
             }
           }
         }
@@ -128,9 +131,12 @@ test("one failed developer attempt changes method without forcing theory collaps
         userWorldModel: {
           ariCognitiveWorkspace: {
             executionWorkspace: {
-              id: "exec-one-failure",
-              status: "active",
-              failedAttempts: [{ id: "failure-1", summary: "The first check failed." }]
+              active: true,
+              session: {
+                id: "exec-one-failure",
+                status: "active",
+                failedAttempts: [{ id: "failure-1", summary: "The first check failed." }]
+              }
             }
           }
         }
