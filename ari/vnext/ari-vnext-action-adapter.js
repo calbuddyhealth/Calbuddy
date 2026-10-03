@@ -5,7 +5,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.6.0";
+  const VERSION = "1.7.0";
   const SOURCE = "ari_vnext_action_adapter";
   const WORKOUT_CONTROLLER_URL = "js/training/workout-plan-controller.js";
 
@@ -343,9 +343,9 @@
       for (const request of requestedExercises) {
         const requestedId = clean(request?.exerciseId, 160);
         const requestedName = clean(request?.name, 160);
-        const match = resolveCanonicalExercise(controller, requestedId || requestedName);
+        const match = resolveWorkoutExerciseRequest(controller, request);
         if (!match.accepted || !match.exercise?.id) {
-          unresolved.push({ requested: requestedId || requestedName, candidates: match.candidates });
+          unresolved.push({ requested: requestedName || requestedId, candidates: match.candidates });
           continue;
         }
         if (usedIds.has(match.exercise.id)) continue;
@@ -792,6 +792,31 @@
     };
   }
 
+  function resolveWorkoutExerciseRequest(controller, request = {}) {
+    const requestedId = clean(request?.exerciseId, 160);
+    const requestedName = clean(request?.name, 160);
+
+    if (requestedId) {
+      const exactById = controller.getExercise(requestedId);
+      if (exactById?.id) {
+        return { accepted: true, exercise: exactById, match: "registry_exact_id", candidates: [exactById.name] };
+      }
+    }
+
+    if (requestedName) {
+      const byName = resolveCanonicalExercise(controller, requestedName);
+      if (byName.accepted && byName.exercise?.id) {
+        return {
+          ...byName,
+          match: requestedId ? `name_retry_${byName.match}` : byName.match
+        };
+      }
+    }
+
+    if (requestedId && !requestedName) return resolveCanonicalExercise(controller, requestedId);
+    return { accepted: false, exercise: null, match: "unresolved", candidates: [] };
+  }
+
   function resolveCanonicalExercise(controller, requestedName) {
     const query = clean(requestedName, 180);
     if (!query) return { accepted: false, exercise: null, match: "missing", candidates: [] };
@@ -799,15 +824,90 @@
     const exact = controller.getExercise(query);
     if (exact?.id) return { accepted: true, exercise: exact, match: "registry_exact", candidates: [exact.name] };
 
-    const results = controller.findExercises(query, { limit: 4, fuzzy: true }) || [];
-    const candidates = results.map((item) => item?.name).filter(Boolean).slice(0, 4);
+    const results = controller.findExercises(query, { limit: 6, fuzzy: true }) || [];
+    const candidates = results.map((item) => item?.name).filter(Boolean).slice(0, 6);
     const top = results[0];
     if (!top?.id) return { accepted: false, exercise: null, match: "none", candidates };
 
     const reasons = Array.isArray(top.searchReasons) ? top.searchReasons : [];
     const score = Number(top.searchScore || 0);
     const accepted = reasons.some((reason) => ["exact_id", "exact_name", "exact_alias", "name_starts_with_query", "alias_starts_with_query"].includes(reason)) || score >= 6500;
-    return { accepted, exercise: accepted ? top : null, match: accepted ? reasons[0] || `score_${score}` : "ambiguous", candidates };
+    if (accepted) {
+      return { accepted: true, exercise: top, match: reasons[0] || `score_${score}`, candidates };
+    }
+
+    const recovered = recoverCanonicalExercise(query, results);
+    if (recovered.accepted) return { ...recovered, candidates };
+    return { accepted: false, exercise: null, match: "ambiguous", candidates };
+  }
+
+  function recoverCanonicalExercise(query, results = []) {
+    const queryTokens = exerciseTokenSet(query);
+    if (!queryTokens.size) return { accepted: false, exercise: null, match: "recovery_missing" };
+
+    const ranked = (Array.isArray(results) ? results : [])
+      .filter((candidate) => candidate?.id && candidate?.name)
+      .slice(0, 6)
+      .map((candidate, index) => ({
+        candidate,
+        index,
+        score: Number(candidate?.searchScore || 0),
+        similarity: exerciseTokenSimilarity(queryTokens, exerciseTokenSet(candidate.name))
+      }))
+      .sort((a, b) => {
+        if (b.similarity !== a.similarity) return b.similarity - a.similarity;
+        if (b.score !== a.score) return b.score - a.score;
+        return a.index - b.index;
+      });
+
+    const top = ranked[0];
+    if (!top || top.similarity < 0.72 || top.score < 3000) {
+      return { accepted: false, exercise: null, match: "recovery_weak" };
+    }
+
+    const second = ranked[1] || null;
+    const scoreMargin = second ? top.score - second.score : top.score;
+    const similarityMargin = second ? top.similarity - second.similarity : top.similarity;
+    const clearlyDominant = !second || scoreMargin >= 1200 || similarityMargin >= 0.2;
+    if (!clearlyDominant) {
+      return { accepted: false, exercise: null, match: "recovery_ambiguous" };
+    }
+
+    return {
+      accepted: true,
+      exercise: top.candidate,
+      match: `recovered_token_match_${Math.round(top.similarity * 100)}`
+    };
+  }
+
+  function exerciseTokenSet(value) {
+    const aliases = {
+      db: "dumbbell",
+      dumbbells: "dumbbell",
+      bb: "barbell",
+      barbells: "barbell",
+      presses: "press",
+      flies: "fly",
+      flyes: "fly",
+      curls: "curl",
+      rows: "row",
+      raises: "raise",
+      pushups: "pushup"
+    };
+    return new Set(
+      normalize(value)
+        .split(/\s+/)
+        .map((token) => aliases[token] || token)
+        .filter(Boolean)
+    );
+  }
+
+  function exerciseTokenSimilarity(left, right) {
+    if (!left?.size || !right?.size) return 0;
+    let intersection = 0;
+    for (const token of left) if (right.has(token)) intersection += 1;
+    const union = new Set([...left, ...right]).size;
+    return union ? intersection / union : 0;
   }
 
   function resolveDayExercise(controller, day, queryValue) {
