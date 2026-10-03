@@ -1,55 +1,55 @@
-/* ARI Circle Meetup Room Header V2.3 — larger, forgiving exit control with centered room identity */
+/* ARI Circle Meetup Room Header V2.4 — large white exit control with radiant violet arrow */
 body.meetup-room-surface .meetup-room-header {
-  min-height: 106px !important;
-  padding: 9px 12px !important;
-  grid-template-columns: 92px minmax(0,1fr) 92px !important;
+  min-height: 114px !important;
+  padding: 9px 10px !important;
+  grid-template-columns: 104px minmax(0,1fr) 104px !important;
   align-items: center !important;
-  gap: 8px !important;
+  gap: 7px !important;
 }
 
 body.meetup-room-surface .meetup-room-back {
   position: relative;
   justify-self: start;
-  width: 88px !important;
-  min-width: 88px !important;
-  height: 88px !important;
-  min-height: 88px !important;
+  width: 96px !important;
+  min-width: 96px !important;
+  height: 96px !important;
+  min-height: 96px !important;
   padding: 0 !important;
   display: inline-grid !important;
   place-items: center !important;
-  border: 1px solid rgba(124,76,255,.40) !important;
-  border-radius: 28px !important;
-  background: linear-gradient(145deg,#6d3ff0 0%,#8750ff 54%,#9d63ff 100%) !important;
-  color: #fff !important;
+  border: 1.5px solid rgba(124,76,255,.22) !important;
+  border-radius: 30px !important;
+  background: rgba(255,255,255,.98) !important;
+  color: #8159ff !important;
   box-shadow:
-    0 16px 34px rgba(112,68,228,.30),
-    0 5px 12px rgba(78,51,161,.17),
-    inset 0 1px 0 rgba(255,255,255,.34) !important;
+    0 16px 36px rgba(68,76,120,.13),
+    0 5px 14px rgba(124,76,255,.10),
+    inset 0 1px 0 rgba(255,255,255,1) !important;
   text-decoration: none !important;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   isolation: isolate;
-  transition: transform .16s ease,box-shadow .16s ease,filter .16s ease;
+  transition: transform .16s ease,box-shadow .16s ease,border-color .16s ease;
 }
 
 body.meetup-room-surface .meetup-room-back::before {
   content: "";
   position: absolute;
-  inset: -6px;
+  inset: -5px;
   z-index: -1;
-  border-radius: 32px;
-  background: rgba(132,82,255,.16);
+  border-radius: 35px;
+  background: radial-gradient(circle,rgba(150,92,255,.18) 0%,rgba(99,102,241,.08) 48%,transparent 74%);
   filter: blur(10px);
   pointer-events: none;
 }
 
-/* Extend the forgiving touch target beyond the visible button without changing layout. */
+/* Extend the touch target beyond the visible white button without changing layout. */
 body.meetup-room-surface .meetup-room-back::after {
   content: "";
   position: absolute;
-  inset: -5px;
+  inset: -8px;
   z-index: 1;
-  border-radius: 33px;
+  border-radius: 38px;
   background: transparent;
 }
 
@@ -58,10 +58,15 @@ body.meetup-room-surface .meetup-room-back__arrow {
   z-index: 2;
   display: inline-grid;
   place-items: center;
-  font: 900 2.55rem/1 Inter,system-ui,sans-serif;
-  letter-spacing: 0;
+  font: 600 2.72rem/1 Inter,system-ui,sans-serif;
+  letter-spacing: -.04em;
+  background: linear-gradient(120deg,#6546f5 0%,#8b5cf6 48%,#c26dff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: #8b5cf6;
   transform: translateY(-1px);
-  text-shadow: 0 2px 7px rgba(47,25,112,.22);
+  filter: drop-shadow(0 3px 8px rgba(126,76,255,.24));
 }
 
 body.meetup-room-surface .meetup-room-brand {
@@ -111,7 +116,7 @@ body.meetup-room-surface .meetup-room-brand__room {
 
 body.meetup-room-surface .meetup-room-header-spacer {
   display: block;
-  width: 92px;
+  width: 104px;
   height: 1px;
   justify-self: end;
   pointer-events: none;
@@ -119,52 +124,53 @@ body.meetup-room-surface .meetup-room-header-spacer {
 
 @media (hover:hover) {
   body.meetup-room-surface .meetup-room-back:hover {
-    transform: translateY(-2px) scale(1.018);
-    filter: saturate(1.08);
+    transform: translateY(-2px) scale(1.012);
+    border-color: rgba(124,76,255,.30) !important;
     box-shadow:
-      0 20px 40px rgba(112,68,228,.34),
-      0 7px 14px rgba(78,51,161,.18),
-      inset 0 1px 0 rgba(255,255,255,.38) !important;
+      0 20px 42px rgba(68,76,120,.16),
+      0 7px 16px rgba(124,76,255,.13),
+      inset 0 1px 0 rgba(255,255,255,1) !important;
   }
 }
 
 body.meetup-room-surface .meetup-room-back:active {
-  transform: translateY(0) scale(.955);
+  transform: translateY(0) scale(.965);
 }
 
 body.meetup-room-surface .meetup-room-back:focus-visible {
-  outline: 4px solid rgba(132,82,255,.28);
+  outline: 4px solid rgba(132,82,255,.22);
   outline-offset: 4px;
 }
 
 @media (max-width:390px) {
   body.meetup-room-surface .meetup-room-header {
-    min-height: 98px !important;
-    padding: 8px 8px !important;
-    grid-template-columns: 84px minmax(0,1fr) 84px !important;
-    gap: 6px !important;
+    min-height: 106px !important;
+    padding: 8px 7px !important;
+    grid-template-columns: 96px minmax(0,1fr) 96px !important;
+    gap: 5px !important;
   }
 
   body.meetup-room-surface .meetup-room-back {
-    width: 80px !important;
-    min-width: 80px !important;
-    height: 80px !important;
-    min-height: 80px !important;
-    border-radius: 25px !important;
+    width: 88px !important;
+    min-width: 88px !important;
+    height: 88px !important;
+    min-height: 88px !important;
+    border-radius: 28px !important;
   }
 
   body.meetup-room-surface .meetup-room-back::after {
-    inset: -4px;
+    inset: -7px;
   }
 
   body.meetup-room-surface .meetup-room-back__arrow {
-    font-size: 2.3rem;
+    font-size: 2.48rem;
+    font-weight: 600;
   }
 
   body.meetup-room-surface .meetup-room-brand__meeting,
   body.meetup-room-surface .meetup-room-brand__room {
-    font-size: clamp(1.02rem,5.2vw,1.34rem);
-    letter-spacing: .025em;
+    font-size: clamp(1rem,5vw,1.28rem);
+    letter-spacing: .022em;
   }
 
   body.meetup-room-surface .meetup-room-brand::after {
@@ -174,7 +180,7 @@ body.meetup-room-surface .meetup-room-back:focus-visible {
   }
 
   body.meetup-room-surface .meetup-room-header-spacer {
-    width: 84px;
+    width: 96px;
   }
 }
 
