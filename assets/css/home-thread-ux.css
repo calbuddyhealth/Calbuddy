@@ -1,5 +1,38 @@
 /* ARI XP home thread UX polish */
 
+:root {
+  --ari-visual-viewport-height: 100svh;
+  --ari-visual-viewport-offset-top: 0px;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --ari-visual-viewport-height: 100dvh;
+  }
+}
+
+/*
+ * Keep Home inside one visual-viewport coordinate system. iOS Safari can
+ * transiently leave 100svh/fixed descendants sized to an older viewport after
+ * the keyboard or browser chrome moves. JavaScript refreshes the two custom
+ * properties from window.visualViewport during those transitions.
+ */
+body.ari-home-page .ari-v1-home {
+  position: fixed;
+  top: var(--ari-visual-viewport-offset-top, 0px);
+  right: 0;
+  bottom: auto;
+  left: 0;
+  height: var(--ari-visual-viewport-height, 100svh);
+  min-height: 0;
+}
+
+body.ari-home-page .ari-header-v5,
+body.ari-home-page .ari-conversation-shell,
+body.ari-home-page .ari-bottom-input {
+  position: absolute;
+}
+
 .ari-thread {
   scroll-padding-block: 18px 28px;
   overscroll-behavior-y: contain;

@@ -15,12 +15,15 @@
 
   const BOTTOM_THRESHOLD = 96;
   const KEYBOARD_THRESHOLD = 120;
+  const VIEWPORT_SETTLE_DELAYS = [80, 180, 360];
 
   let thread = null;
   let jumpButton = null;
   let nearBottom = true;
   let keyboardOpen = false;
-  let viewportTimer = null;
+  let viewportTimers = [];
+  let lastViewportHeight = 0;
+  let lastViewportOffsetTop = 0;
 
   function distanceFromBottom() {
     if (!thread) return 0;
@@ -70,42 +73,69 @@
     else setJumpVisible(true);
   }
 
-  function updateKeyboardState() {
+  function syncVisualViewport() {
     const vv = window.visualViewport;
-    if (!vv) return;
-    const obscured = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    const rawHeight = vv?.height || window.innerHeight || document.documentElement.clientHeight;
+    const rawOffsetTop = vv?.offsetTop || 0;
+    const height = Math.max(1, Math.round(rawHeight));
+    const offsetTop = Math.max(0, Math.round(rawOffsetTop));
+    const obscured = Math.max(0, (window.innerHeight || height) - height - offsetTop);
     const nextOpen = obscured >= KEYBOARD_THRESHOLD;
-    const changed = nextOpen !== keyboardOpen;
+    const keyboardChanged = nextOpen !== keyboardOpen;
+    const viewportChanged = height !== lastViewportHeight || offsetTop !== lastViewportOffsetTop;
+
     keyboardOpen = nextOpen;
-    document.documentElement.style.setProperty("--ari-visual-viewport-height", `${Math.round(vv.height)}px`);
+    lastViewportHeight = height;
+    lastViewportOffsetTop = offsetTop;
+
+    document.documentElement.style.setProperty("--ari-visual-viewport-height", `${height}px`);
+    document.documentElement.style.setProperty("--ari-visual-viewport-offset-top", `${offsetTop}px`);
     document.body.classList.toggle("ari-keyboard-open", keyboardOpen);
-    if (changed && keyboardOpen && document.activeElement?.id === "ariInput" && nearBottom) {
-      clearTimeout(viewportTimer);
-      viewportTimer = setTimeout(() => scrollToBottom({ smooth: false }), 90);
+
+    if ((viewportChanged || keyboardChanged) && nearBottom) {
+      requestAnimationFrame(() => scrollToBottom({ smooth: false }));
     }
+  }
+
+  function scheduleVisualViewportSync() {
+    viewportTimers.forEach((timer) => window.clearTimeout(timer));
+    viewportTimers = [];
+    syncVisualViewport();
+    VIEWPORT_SETTLE_DELAYS.forEach((delay) => {
+      viewportTimers.push(window.setTimeout(syncVisualViewport, delay));
+    });
   }
 
   function bindVisualViewport() {
     const vv = window.visualViewport;
-    if (!vv) return;
-    vv.addEventListener("resize", updateKeyboardState, { passive: true });
-    vv.addEventListener("scroll", updateKeyboardState, { passive: true });
-    updateKeyboardState();
+    if (vv) {
+      vv.addEventListener("resize", scheduleVisualViewportSync, { passive: true });
+      vv.addEventListener("scroll", scheduleVisualViewportSync, { passive: true });
+    }
+    window.addEventListener("resize", scheduleVisualViewportSync, { passive: true });
+    window.addEventListener("orientationchange", scheduleVisualViewportSync, { passive: true });
+    window.addEventListener("pageshow", scheduleVisualViewportSync, { passive: true });
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") scheduleVisualViewportSync();
+    });
+    scheduleVisualViewportSync();
   }
 
   function initialize() {
     thread = document.getElementById("ariMessages");
     const shell = document.getElementById("ariConversationShell");
+    const input = document.getElementById("ariInput");
     if (!thread || !shell) return;
     jumpButton = createJumpButton(shell);
     nearBottom = isNearBottom();
     thread.addEventListener("scroll", onThreadScroll, { passive: true });
     const observer = new MutationObserver(handleThreadMutation);
     observer.observe(thread, { childList: true, subtree: true });
-    document.getElementById("ariInput")?.addEventListener("focus", () => {
+    input?.addEventListener("focus", () => {
       nearBottom = isNearBottom();
-      setTimeout(updateKeyboardState, 0);
+      scheduleVisualViewportSync();
     });
+    input?.addEventListener("blur", scheduleVisualViewportSync);
     bindVisualViewport();
   }
 
