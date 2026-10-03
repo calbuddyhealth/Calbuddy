@@ -1,11 +1,11 @@
 /* =============================================================
    ARI CIRCLE — FIND FRIENDS V1
-   Local radar + mutual-connection suggestions.
+   Local radar + mutual suggestions + global name/@handle search.
 ============================================================= */
 (() => {
   "use strict";
 
-  const VERSION = "1.0.1";
+  const VERSION = "1.1.0";
   const $ = (id) => document.getElementById(id);
 
   const state = {
@@ -108,12 +108,34 @@
     return parts.join("");
   }
 
+  function relationshipAction(row) {
+    const status = clean(row.relationship_status, 24).toLowerCase();
+    const direction = clean(row.relationship_direction, 24).toLowerCase();
+
+    if (status === "accepted") {
+      return { label: "Friends", addable: false };
+    }
+    if (status === "pending" && direction === "incoming") {
+      return { label: "Request received", addable: false };
+    }
+    if (status === "pending" || state.requested.has(row.user_id)) {
+      return { label: "Requested", addable: false };
+    }
+    if (status === "declined") {
+      return { label: "Request declined", addable: false };
+    }
+    return { label: "Add Friend", addable: true };
+  }
+
   function friendCard(row) {
     const displayName = clean(row.display_name) || "ARI Circle User";
     const handle = clean(row.handle);
     const bio = clean(row.bio, 180);
-    const requested = state.requested.has(row.user_id);
     const href = profileUrl(row);
+    const action = relationshipAction(row);
+    const actionButton = action.addable
+      ? `<button type="button" data-friend-add="${escapeHtml(row.user_id)}">${escapeHtml(action.label)}</button>`
+      : `<button type="button" disabled>${escapeHtml(action.label)}</button>`;
 
     return `
       <article class="circle-friend-card" data-friend-user="${escapeHtml(row.user_id)}">
@@ -130,9 +152,7 @@
         <div class="circle-friend-card__meta">${metaMarkup(row)}</div>
         <div class="circle-friend-card__actions">
           <a href="${href}">View Profile</a>
-          <button type="button" data-friend-add="${escapeHtml(row.user_id)}"${requested ? " disabled" : ""}>
-            ${requested ? "Requested" : "Add Friend"}
-          </button>
+          ${actionButton}
         </div>
       </article>
     `;
@@ -194,22 +214,29 @@
 
     state.loading = true;
     state.query = clean(query, 80);
-    setStatus(state.query ? `Searching for "${state.query}"…` : "Finding people around your radar…");
+    setStatus(state.query ? `Searching all Circle members for "${state.query}"…` : "Finding people around your radar…");
 
     try {
-      const { data, error } = await state.client.rpc("ari_circle_find_friends_v1", {
+      const { data, error } = await state.client.rpc("ari_circle_find_friends_v2", {
         search_text: state.query || null,
         result_limit: 100
       });
       if (error) throw error;
 
       state.rows = Array.isArray(data) ? data : [];
+      state.requested = new Set(
+        state.rows
+          .filter((row) => clean(row.relationship_status, 24).toLowerCase() === "pending"
+            && clean(row.relationship_direction, 24).toLowerCase() === "outgoing")
+          .map((row) => row.user_id)
+          .filter(Boolean)
+      );
       render();
 
       if (state.query) {
         setStatus(state.rows.length
-          ? `${state.rows.length} result${state.rows.length === 1 ? "" : "s"} found.`
-          : "No matching people found.");
+          ? `${state.rows.length} global result${state.rows.length === 1 ? "" : "s"} found.`
+          : "No matching Circle members found.");
       } else {
         const nearbyCount = state.rows.filter((row) => row.is_nearby === true).length;
         const suggestedCount = state.rows.filter((row) => row.is_suggested === true || Number(row.mutual_count) > 0).length;
@@ -254,6 +281,11 @@
       if (error) throw error;
 
       state.requested.add(target);
+      const row = state.rows.find((candidate) => candidate.user_id === target);
+      if (row) {
+        row.relationship_status = "pending";
+        row.relationship_direction = "outgoing";
+      }
       button.textContent = "Requested";
       showToast("Friend request sent.");
       return true;
