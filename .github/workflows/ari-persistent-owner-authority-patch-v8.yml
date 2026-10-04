@@ -1,0 +1,58 @@
+name: Apply persistent owner authority core patch v8
+
+on:
+  push:
+    branches:
+      - agent/ari-persistent-owner-authority
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/ari-persistent-owner-authority
+          fetch-depth: 1
+
+      - name: Apply persistent owner core changes only
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/ari-persistent-owner-authority-patch-v6.yml').read_text()
+          marker = "          python - <<'PY'\n"
+          source_start = workflow.index(marker) + len(marker)
+          source_end = workflow.index("\n          PY", source_start)
+          script = "\n".join(
+              line[10:] if line.startswith("          ") else line
+              for line in workflow[source_start:source_end].splitlines()
+          )
+
+          # v6 already contains the corrected structural product patch. Stop
+          # before its test-rewrite helper; tests are updated directly later.
+          test_helper = script.find('\ndef replace_test')
+          if test_helper < 0:
+              test_helper = script.find('\n          def replace_test')
+          if test_helper < 0:
+              raise SystemExit('test helper boundary missing')
+          product_script = script[:test_helper]
+          exec(compile(product_script, '<persistent-owner-core-v8>', 'exec'))
+          PY
+
+      - name: Verify core syntax
+        run: node --check calbuddy-core.js
+
+      - name: Commit product patch and remove one-shot workflows
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for f in .github/workflows/ari-persistent-owner-authority-patch*.yml; do
+            [ -e "$f" ] && git rm "$f"
+          done
+          git add calbuddy-core.js
+          git commit -m "Make verified owner authority persistent"
+          git push origin HEAD:agent/ari-persistent-owner-authority
