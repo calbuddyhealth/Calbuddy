@@ -22,10 +22,11 @@ test("casual turns stay direct and do not manufacture deliberation", () => {
     }
   });
 
-  assert.equal(ARI_DELIBERATION_HARNESS_VERSION, "1.2.0");
+  assert.equal(ARI_DELIBERATION_HARNESS_VERSION, "1.3.0");
   assert.equal(state.tier, "direct");
   assert.equal(state.deliberation.candidatePasses, 1);
   assert.equal(state.deliberation.verificationGate, false);
+  assert.equal(state.testFailureTriageProtocol.active, false);
   assert.equal(state.hypothesisCollapseProtocol.active, false);
   assert.equal(state.safeguards.noExtraModelCall, true);
 });
@@ -70,6 +71,63 @@ test("critical technical work gets bounded alternatives, countercase, and verifi
   assert.match(instruction, /Do not expose hidden reasoning traces/i);
 });
 
+test("developer test failures trigger causal triage before the first production patch", () => {
+  const state = deriveDeliberationHarness({
+    turn: {
+      message: "Fix the failing pending-action precedence test.",
+      context: {
+        userWorldModel: {
+          ariCognitiveWorkspace: {
+            executionWorkspace: {
+              active: true,
+              session: {
+                id: "exec-pr398",
+                status: "active",
+                goal: "Keep vNext pending actions authoritative.",
+                failedAttempts: [
+                  {
+                    id: "failure-1",
+                    summary: "CI test failed because a source-text assertion reported legacy precedence."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    route: { developer: true, complexity: "deep", casualConversation: false },
+    modelPolicy: {
+      reasoningDemand: { band: "high", reasons: ["previous test fail"] },
+      reasoningMode: "standard",
+      reasoningEffort: "high"
+    }
+  });
+
+  assert.equal(state.testFailureTriageProtocol.active, true);
+  assert.equal(state.testFailureTriageProtocol.triggerDetected, true);
+  assert.equal(state.testFailureTriageProtocol.reproduceExactFailureFirst, true);
+  assert.equal(state.testFailureTriageProtocol.inspectAssertionAndClaimedBehavior, true);
+  assert.deepEqual(state.testFailureTriageProtocol.classifyFailureAs, ["application", "test", "environment"]);
+  assert.equal(state.testFailureTriageProtocol.requireCausalLinkBeforeProductionChange, true);
+  assert.equal(state.testFailureTriageProtocol.preferBehaviorLevelVerification, true);
+  assert.equal(state.testFailureTriageProtocol.staticSourceTextChecksNeedSemanticJustification, true);
+  assert.equal(state.testFailureTriageProtocol.preserveIntendedRequirementWhenFixingTest, true);
+  assert.equal(state.testFailureTriageProtocol.rerunFocusedFailureThenRelevantRegression, true);
+  assert.equal(state.hypothesisCollapseProtocol.active, false);
+
+  const instruction = deliberationHarnessToInstruction(state);
+  assert.match(instruction, /TEST FAILURE TRIAGE REQUIRED/i);
+  assert.match(instruction, /reproduce the exact failing test or command/i);
+  assert.match(instruction, /assertion and the application behavior it claims to measure/i);
+  assert.match(instruction, /application code, test code, or environment/i);
+  assert.match(instruction, /Do not change production code until a causal link is established/i);
+  assert.match(instruction, /runtime behavior/i);
+  assert.match(instruction, /scanning source text, comments, or token order/i);
+  assert.match(instruction, /preserve the intended requirement rather than weakening it/i);
+  assert.match(instruction, /focused failure first, then the relevant regression set/i);
+});
+
 test("two failed developer attempts trigger the hypothesis collapse protocol", () => {
   const state = deriveDeliberationHarness({
     turn: {
@@ -101,6 +159,7 @@ test("two failed developer attempts trigger the hypothesis collapse protocol", (
     }
   });
 
+  assert.equal(state.testFailureTriageProtocol.active, true);
   assert.equal(state.hypothesisCollapseProtocol.active, true);
   assert.equal(state.hypothesisCollapseProtocol.failedAttemptCount, 2);
   assert.equal(state.hypothesisCollapseProtocol.auditAssumptionsVsFacts, true);
@@ -113,6 +172,7 @@ test("two failed developer attempts trigger the hypothesis collapse protocol", (
   assert.equal(state.deliberation.changeMethodAfterRepeatedFailure, true);
 
   const instruction = deliberationHarnessToInstruction(state);
+  assert.match(instruction, /TEST FAILURE TRIAGE REQUIRED/i);
   assert.match(instruction, /HYPOTHESIS COLLAPSE PROTOCOL REQUIRED/i);
   assert.match(instruction, /original user-visible failure/i);
   assert.match(instruction, /facts-vs-assumptions audit/i);
@@ -148,11 +208,13 @@ test("one failed developer attempt changes method without forcing theory collaps
     }
   });
 
+  assert.equal(state.testFailureTriageProtocol.active, true);
   assert.equal(state.hypothesisCollapseProtocol.active, false);
   assert.equal(state.hypothesisCollapseProtocol.failedAttemptCount, 1);
   assert.equal(state.deliberation.changeMethodAfterRepeatedFailure, true);
 
   const instruction = deliberationHarnessToInstruction(state);
+  assert.match(instruction, /TEST FAILURE TRIAGE REQUIRED/i);
   assert.doesNotMatch(instruction, /HYPOTHESIS COLLAPSE PROTOCOL REQUIRED/i);
   assert.match(instruction, /Change the method or discriminating test/i);
 });
@@ -166,6 +228,7 @@ test("repair state makes the current correction authoritative without creating a
   });
 
   assert.equal(state.taskContract.currentCorrectionWins, true);
+  assert.equal(state.testFailureTriageProtocol.active, false);
   assert.equal(state.safeguards.noExtraModelCall, true);
 });
 

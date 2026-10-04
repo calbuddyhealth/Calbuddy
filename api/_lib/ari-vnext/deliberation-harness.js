@@ -2,7 +2,7 @@
 // Coordinates existing reasoning, Cortex, council, continuity, and verification
 // signals without making an additional model call.
 
-export const ARI_DELIBERATION_HARNESS_VERSION = "1.2.0";
+export const ARI_DELIBERATION_HARNESS_VERSION = "1.3.0";
 
 export function deriveDeliberationHarness({
   turn = {},
@@ -27,6 +27,12 @@ export function deriveDeliberationHarness({
     ? executionSession.failedAttempts.length
     : 0;
   const repeatedExecutionFailure = failedAttemptCount >= 2;
+  const testFailureSignal = detectsTestFailureSignal({
+    message,
+    executionSession,
+    reasons: modelPolicy?.reasoningDemand?.reasons
+  });
+  const testFailureTriageRequired = Boolean(route?.developer === true && testFailureSignal);
   const hypothesisCollapseRequired = Boolean(route?.developer === true && repeatedExecutionFailure);
   const cortexNeeds = metacognition?.cortex?.needs || {};
   const instinct = instinctKernel?.modulation?.deliberation || {};
@@ -114,6 +120,18 @@ export function deriveDeliberationHarness({
       preserveUsefulPartialWorkAcrossCorrections: true,
       stopRule: verificationGate ? "verified_or_materially_blocked" : "sufficiently_supported"
     },
+    testFailureTriageProtocol: {
+      active: testFailureTriageRequired,
+      triggerDetected: testFailureSignal,
+      reproduceExactFailureFirst: true,
+      inspectAssertionAndClaimedBehavior: true,
+      classifyFailureAs: ["application", "test", "environment"],
+      requireCausalLinkBeforeProductionChange: true,
+      preferBehaviorLevelVerification: true,
+      staticSourceTextChecksNeedSemanticJustification: true,
+      preserveIntendedRequirementWhenFixingTest: true,
+      rerunFocusedFailureThenRelevantRegression: true
+    },
     hypothesisCollapseProtocol: {
       active: hypothesisCollapseRequired,
       triggerFailedAttempts: 2,
@@ -158,7 +176,8 @@ export function deriveDeliberationHarness({
       noExtraModelCall: true,
       noPermissionExpansion: true,
       noSuccessClaimWithoutEvidence: true,
-      failedTestRequiresCausalInterpretationBeforeProductionChange: true
+      failedTestRequiresCausalInterpretationBeforeProductionChange: true,
+      repairedTestMustPreserveIntendedRequirement: true
     }
   };
 }
@@ -167,6 +186,7 @@ export function deliberationHarnessToInstruction(state = null) {
   if (!state) return "";
   const contract = state.taskContract || {};
   const d = state.deliberation || {};
+  const testTriage = state.testFailureTriageProtocol || {};
   const collapse = state.hypothesisCollapseProtocol || {};
   const provider = state.providerExecution || {};
 
@@ -197,6 +217,9 @@ export function deliberationHarnessToInstruction(state = null) {
       ? "Verification gate: separate proposed, executed, observed, and verified. Reconcile tool output and contradictory evidence before claiming success."
       : "Do not over-verify routine low-consequence work.",
     "A failing test is evidence that the assertion failed; it is not automatic proof that the proposed fix is wrong. Establish the causal relationship to the user-visible failure before changing production code to satisfy the test.",
+    testTriage.active
+      ? "TEST FAILURE TRIAGE REQUIRED: reproduce the exact failing test or command before patching. Inspect both the assertion and the application behavior it claims to measure. Classify the defect from evidence as application code, test code, or environment. Do not change production code until a causal link is established. If the requirement concerns runtime behavior, prefer executing and observing that behavior over scanning source text, comments, or token order. When repairing a test, preserve the intended requirement rather than weakening it. Verify the correction by rerunning the focused failure first, then the relevant regression set."
+      : "",
     collapse.active
       ? `HYPOTHESIS COLLAPSE PROTOCOL REQUIRED: ${collapse.failedAttemptCount} attempts have failed. Before another production patch, stop extending the current theory. Return to the original user-visible failure; perform a compact facts-vs-assumptions audit; identify known-good contracts and invariants; compare against a known-good baseline such as clean main; separate concepts that may have been conflated into the same state or API; classify each failing test as causally relevant, stale, or verification noise; then decide whether to repair the current branch or rebuild from a known-good base. Only after that reset should you choose the next patch. Preserve concise conclusions and evidence, not hidden chain-of-thought.`
       : "",
@@ -205,7 +228,7 @@ export function deliberationHarnessToInstruction(state = null) {
       : "",
     "Preserve useful completed work when requirements change. Revise only the affected branch of the solution.",
     "Return the conclusion, concise rationale, material uncertainty, and observable evidence. Never reveal hidden chain-of-thought."
-  ].filter(Boolean).join("\n").slice(0, 4600);
+  ].filter(Boolean).join("\n").slice(0, 5200);
 }
 
 function currentExecutionSession(turn = {}) {
@@ -235,6 +258,20 @@ function hasPriorFailure(reasons = []) {
   return (Array.isArray(reasons) ? reasons : []).some((item) =>
     /previous.*fail|retry|tool.*fail|prior.*fail/i.test(clean(item, 160))
   );
+}
+function detectsTestFailureSignal({ message = "", executionSession = null, reasons = [] } = {}) {
+  const failedAttemptEvidence = Array.isArray(executionSession?.failedAttempts)
+    ? executionSession.failedAttempts.flatMap((item) => [item?.summary, item?.evidence, item?.reason])
+    : [];
+  const evidence = [
+    clean(message, 2500),
+    ...(Array.isArray(reasons) ? reasons : []).map((item) => clean(item, 300)),
+    ...failedAttemptEvidence.map((item) => clean(item, 500))
+  ].filter(Boolean).join(" ");
+  if (!evidence) return false;
+  const subject = "(?:test|tests|spec|specs|assertion|assert|ci|check|checks|workflow)";
+  const failure = "(?:fail|failed|failing|failure|red|error|broken)";
+  return new RegExp(`\\b${subject}\\b.{0,100}\\b${failure}\\b|\\b${failure}\\b.{0,100}\\b${subject}\\b`, "i").test(evidence);
 }
 function fallbackBand(route = {}) {
   if (route?.complexity === "deep") return "high";
