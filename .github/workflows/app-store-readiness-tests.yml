@@ -29,7 +29,37 @@ jobs:
           node-version: "24"
 
       - name: Run ARI XP Node tests
-        run: node --test tests/*.test.mjs
+        shell: bash
+        run: |
+          set +e
+          node --test --test-reporter=spec tests/*.test.mjs 2>&1 | tee /tmp/ari-node-tests.log
+          status=${PIPESTATUS[0]}
+          set -e
+          {
+            echo "exit_code=${status}"
+            grep -E "(^|[[:space:]])(not ok|fail|failed|failure|Error|AssertionError|ERR_|✖)" /tmp/ari-node-tests.log | tail -n 160 || true
+          } > /tmp/ari-node-test-failures.txt
+          {
+            echo "### ARI XP Node test diagnostics"
+            echo
+            echo "Exit code: ${status}"
+            echo
+            echo '```text'
+            cat /tmp/ari-node-test-failures.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - name: Upload Node test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ari-node-test-diagnostics
+          path: |
+            /tmp/ari-node-test-failures.txt
+            /tmp/ari-node-tests.log
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Install Playwright
         run: |
