@@ -10,7 +10,7 @@ const workflow = fs.readFileSync(".github/workflows/ari-visual-inspector.yml", "
 const isolation = fs.readFileSync("js/account-isolation-guard.js", "utf8");
 const consent = fs.readFileSync("js/ai-processing-consent.js", "utf8");
 
-test("Live Owner implementation stays syntactically valid", () => {
+test("Persistent Owner implementation stays syntactically valid", () => {
   for (const path of [
     "calbuddy-core.js",
     "api/ari-visual-inspector.js",
@@ -21,32 +21,35 @@ test("Live Owner implementation stays syntactically valid", () => {
   }
 });
 
-test("Live Owner activation is a normal owner-confirmed chat action", () => {
+test("verified owner identity activates persistent owner mode without a 45-minute confirmation", () => {
   assert.match(core, /CalBuddy\.isLiveOwnerEnableCommand/);
   assert.match(core, /CalBuddy\.isLiveOwnerDisableCommand/);
-  assert.match(core, /enable_visual_live_owner_session/);
-  assert.match(core, /CalBuddy\.createPendingAction/);
-  assert.match(core, /Enable Live Owner Session for up to 45 minutes/);
   assert.match(core, /CalBuddy\.enableVisualLiveOwnerSession/);
   assert.match(core, /verifyOwnerSession\(\{ force: true \}\)/);
-  assert.match(core, /calbuddyVisualLiveOwnerSession/);
+  assert.match(core, /mode:\s*"persistent_owner"/);
+  assert.match(core, /persistent:\s*true/);
+  assert.match(core, /until you disable it or sign out/);
+  assert.doesNotMatch(core, /Enable Live Owner Session for up to 45 minutes/);
 });
 
-test("Live Owner state is account-bound and time-bound", () => {
+test("persistent owner state is account-bound with no active local timeout", () => {
   assert.match(core, /state\?\.userId/);
-  assert.match(core, /Number\(state\.expiresAt\) <= Date\.now\(\)/);
-  assert.match(core, /String\(session\.user\.id\) !== String\(state\.userId\)/);
+  assert.match(core, /String\(state\.userId\) !== userId/);
+  assert.match(core, /mode:\s*"persistent_owner"/);
+  assert.match(core, /expiresAt:\s*null/);
+  assert.match(core, /state\?\.enabled === false/);
   assert.match(isolation, /calbuddyVisualLiveOwnerSession/);
   assert.match(isolation, /const VERSION = "1\.0\.2"/);
 });
 
-test("visual inspection automatically uses active Live Owner mode", () => {
+test("visual inspection automatically uses persistent owner capability unless sandbox is explicit", () => {
   assert.match(core, /isVisualLiveOwnerSessionActive/);
   assert.match(core, /resolvedVisualMode/);
   assert.match(core, /"live_owner"/);
   assert.match(core, /visualMode: resolvedVisualMode/);
   assert.match(core, /messageRequiresLiveOwner/);
-  assert.match(core, /This inspection depends on your real ARI XP account state/);
+  assert.match(core, /liveOwnerActive = true/);
+  assert.doesNotMatch(core, /confirmation_text:\s*"Enable Live Owner Session/);
 });
 
 test("Live Owner delegation never sends the raw owner token as a workflow input", () => {
@@ -76,7 +79,7 @@ test("the delegated worker receives no refresh token from the owner browser", ()
   assert.match(api, /mutationAuthority: false/);
 });
 
-test("Live Owner carries scoped AI-processing authorization without changing permanent consent metadata", () => {
+test("Persistent Owner carries scoped AI-processing authorization without changing permanent consent metadata", () => {
   assert.match(api, /scope:\s*"visual_owner_inspection"/);
   assert.match(api, /liveOwnerExpiresAt/);
   assert.match(api, /hasScopedLiveOwnerAIProcessingAuthorization/);
