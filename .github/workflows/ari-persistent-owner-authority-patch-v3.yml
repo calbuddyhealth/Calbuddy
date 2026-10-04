@@ -1,0 +1,300 @@
+name: Apply persistent owner authority patch v3
+
+on:
+  push:
+    branches:
+      - agent/ari-persistent-owner-authority
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/ari-persistent-owner-authority
+          fetch-depth: 1
+
+      - name: Apply persistent owner authority changes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          core_path = Path('calbuddy-core.js')
+          core = core_path.read_text()
+
+          def splice(text, start, end, replacement, label):
+              if start < 0 or end < 0 or end <= start:
+                  raise SystemExit(f'{label}: invalid semantic boundary')
+              return text[:start] + replacement + text[end:]
+
+          persistent_block = '''CalBuddy.getVisualLiveOwnerSession = function () {
+            const key = "calbuddyVisualLiveOwnerSession";
+            const saved = localStorage.getItem(key);
+            if (!saved) return null;
+            try {
+              const state = JSON.parse(saved);
+              if (!state?.userId || !["persistent_owner", "live_owner"].includes(state?.mode)) {
+                localStorage.removeItem(key);
+                return null;
+              }
+              if (
+                state.mode === "live_owner" &&
+                Number.isFinite(Number(state?.expiresAt)) &&
+                Number(state.expiresAt) <= Date.now()
+              ) {
+                localStorage.removeItem(key);
+                return null;
+              }
+              return {
+                ...state,
+                mode: "persistent_owner",
+                enabled: state.enabled !== false,
+                persistent: true,
+                expiresAt: null
+              };
+            } catch {
+              localStorage.removeItem(key);
+              return null;
+            }
+          };
+
+          CalBuddy.isVisualLiveOwnerSessionActive = async function () {
+            const key = "calbuddyVisualLiveOwnerSession";
+            const session = await CalBuddy.getCurrentSession();
+            const userId = String(session?.user?.id || "").trim();
+            if (!session?.access_token || !userId) {
+              localStorage.removeItem(key);
+              return false;
+            }
+            const verified = await CalBuddy.verifyOwnerSession();
+            if (!verified) {
+              localStorage.removeItem(key);
+              return false;
+            }
+            let state = CalBuddy.getVisualLiveOwnerSession();
+            if (state?.userId && String(state.userId) !== userId) {
+              localStorage.removeItem(key);
+              state = null;
+            }
+            if (state?.enabled === false) return false;
+            if (!state || state.mode !== "persistent_owner" || state.enabled !== true) {
+              state = {
+                mode: "persistent_owner",
+                userId,
+                enabled: true,
+                persistent: true,
+                enabledAt: Number(state?.enabledAt || Date.now()),
+                expiresAt: null
+              };
+              localStorage.setItem(key, JSON.stringify(state));
+              window.dispatchEvent(new CustomEvent("calbuddy:liveOwnerSessionChanged", {
+                detail: { active: true, ...state }
+              }));
+            }
+            return true;
+          };
+
+          CalBuddy.enableVisualLiveOwnerSession = async function () {
+            const client = window.calbuddySupabase || CalBuddy.supabase;
+            if (!client?.auth) {
+              return { success: false, code: "LIVE_OWNER_AUTH_UNAVAILABLE", reply: "Persistent Owner Mode is unavailable because authentication is not ready." };
+            }
+            let session = null;
+            try {
+              const refreshed = await client.auth.refreshSession();
+              session = refreshed?.data?.session || null;
+            } catch {}
+            if (!session) session = await CalBuddy.getCurrentSession();
+            if (!session?.access_token || !session?.user?.id) {
+              return { success: false, code: "LIVE_OWNER_AUTH_REQUIRED", reply: "Persistent Owner Mode requires a current signed-in owner session." };
+            }
+            const owner = await CalBuddy.verifyOwnerSession({ force: true });
+            if (!owner) {
+              return { success: false, code: "OWNER_ACCESS_DENIED", reply: "Persistent Owner Mode requires verified owner identity." };
+            }
+            const state = {
+              mode: "persistent_owner",
+              userId: String(session.user.id),
+              enabled: true,
+              persistent: true,
+              enabledAt: Date.now(),
+              expiresAt: null
+            };
+            localStorage.setItem("calbuddyVisualLiveOwnerSession", JSON.stringify(state));
+            window.dispatchEvent(new CustomEvent("calbuddy:liveOwnerSessionChanged", {
+              detail: { active: true, ...state }
+            }));
+            return {
+              success: true,
+              state,
+              reply: "Persistent Owner Mode is enabled for this verified owner account. It stays available across reloads and token refreshes until you disable it or sign out. Read-only owner inspection and bounded developer capabilities stay available; high-impact actions keep their existing confirmation and authorization gates."
+            };
+          };
+
+          CalBuddy.disableVisualLiveOwnerSession = async function () {
+            const key = "calbuddyVisualLiveOwnerSession";
+            const session = await CalBuddy.getCurrentSession().catch(() => null);
+            const existing = CalBuddy.getVisualLiveOwnerSession();
+            const userId = String(session?.user?.id || existing?.userId || CalBuddy.ownerSessionCache?.userId || "").trim();
+            if (userId) {
+              localStorage.setItem(key, JSON.stringify({
+                mode: "persistent_owner",
+                userId,
+                enabled: false,
+                persistent: true,
+                disabledAt: Date.now(),
+                expiresAt: null
+              }));
+            } else {
+              localStorage.removeItem(key);
+            }
+            window.dispatchEvent(new CustomEvent("calbuddy:liveOwnerSessionChanged", {
+              detail: { active: false, persistent: true }
+            }));
+            return {
+              success: true,
+              reply: "Persistent Owner Mode is paused for live visual inspection. Your verified owner identity remains intact, and high-impact actions still keep their separate confirmation gates."
+            };
+          };
+          '''
+
+          start = core.index('CalBuddy.getVisualLiveOwnerSession = function () {')
+          end = core.index('CalBuddy.verifyOwnerSession = async function', start)
+          core = splice(core, start, end, persistent_block, 'owner state functions')
+
+          live_state = core.find('const liveOwnerState =')
+          if live_state >= 0:
+              start = core.rfind('\n', 0, live_state) + 1
+              end = core.index('if (!started?.success || !started?.requestId)', live_state)
+              replacement = '''    const started = await CalBuddy.requestVisualInspector({
+              action: "start",
+              targetPath,
+              viewports,
+              actions,
+              instruction,
+              visualMode
+            });
+
+            '''
+              core = splice(core, start, end, replacement, 'visual inspector request')
+
+          enable_needle = core.index('CalBuddy.isLiveOwnerEnableCommand(message)')
+          enable_start = core.rfind('if (', 0, enable_needle)
+          disable_needle = core.index('CalBuddy.isLiveOwnerDisableCommand(message)', enable_needle)
+          disable_start = core.rfind('if (', 0, disable_needle)
+          enable_replacement = '''if (
+            !readOnlyFallback &&
+            userContext.ownerMode === true &&
+            CalBuddy.isLiveOwnerEnableCommand(message)
+          ) {
+            const persistentOwner = await CalBuddy.enableVisualLiveOwnerSession();
+            CalBuddy.setAriMood(persistentOwner?.success ? "happy" : "concerned");
+            finishTiming();
+            return {
+              ...(persistentOwner || {}),
+              source: "persistent_owner_mode",
+              emotion: persistentOwner?.success ? "happy" : "concerned"
+            };
+          }
+
+          '''
+          core = splice(core, enable_start, disable_start, enable_replacement, 'owner enable command')
+
+          declaration = 'const liveOwnerActive = await CalBuddy.isVisualLiveOwnerSessionActive();'
+          if declaration not in core:
+              raise SystemExit('live owner declaration missing')
+          core = core.replace(declaration, 'let liveOwnerActive = await CalBuddy.isVisualLiveOwnerSessionActive();', 1)
+
+          requested = core.index('if (requestedLiveOwner && !liveOwnerActive) {')
+          resolved = core.index('const resolvedVisualMode =', requested)
+          requested_replacement = '''if (requestedLiveOwner && !liveOwnerActive) {
+            const activation = await CalBuddy.enableVisualLiveOwnerSession();
+            if (!activation?.success) {
+              finishTiming();
+              return {
+                ...(activation || {}),
+                emotion: "concerned",
+                liveOwnerSession: { active: false, persistent: true }
+              };
+            }
+            liveOwnerActive = true;
+          }
+
+          '''
+          core = splice(core, requested, resolved, requested_replacement, 'owner visual auto-activation')
+          core_path.write_text(core)
+
+          def replace_test(path, title, replacement):
+              p = Path(path)
+              text = p.read_text()
+              pattern = rf'test\("{re.escape(title)}", \(\) => \{{.*?\n\}}\);'
+              next_text, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+              if count != 1:
+                  raise SystemExit(f'test replacement failed: {title}')
+              p.write_text(next_text)
+
+          replace_test(
+              'tests/ari-live-owner-session.test.mjs',
+              'Live Owner activation is a normal owner-confirmed chat action',
+              '''test("verified owner identity activates persistent owner mode without a 45-minute confirmation", () => {
+            assert.match(core, /CalBuddy\\.enableVisualLiveOwnerSession/);
+            assert.match(core, /verifyOwnerSession\\(\\{ force: true \\}\\)/);
+            assert.match(core, /mode:\\s*"persistent_owner"/);
+            assert.match(core, /persistent:\\s*true/);
+            assert.match(core, /until you disable it or sign out/);
+            assert.doesNotMatch(core, /Enable Live Owner Session for up to 45 minutes/);
+          });''')
+          replace_test(
+              'tests/ari-live-owner-session.test.mjs',
+              'Live Owner state is account-bound and time-bound',
+              '''test("persistent owner state is account-bound with no active local timeout", () => {
+            assert.match(core, /String\\(state\\.userId\\) !== userId/);
+            assert.match(core, /mode:\\s*"persistent_owner"/);
+            assert.match(core, /expiresAt:\\s*null/);
+            assert.match(core, /state\\?\\.enabled === false/);
+            assert.match(isolation, /calbuddyVisualLiveOwnerSession/);
+          });''')
+          replace_test(
+              'tests/ari-live-owner-session.test.mjs',
+              'visual inspection automatically uses active Live Owner mode',
+              '''test("visual inspection automatically uses persistent owner capability unless sandbox is explicit", () => {
+            assert.match(core, /isVisualLiveOwnerSessionActive/);
+            assert.match(core, /resolvedVisualMode/);
+            assert.match(core, /visualMode: resolvedVisualMode/);
+            assert.match(core, /messageRequiresLiveOwner/);
+            assert.match(core, /liveOwnerActive = true/);
+            assert.doesNotMatch(core, /confirmation_text:\\s*"Enable Live Owner Session/);
+          });''')
+          replace_test(
+              'tests/ari-live-owner-vnext-routing.test.mjs',
+              'the deterministic core still owns Live Owner execution and server verification',
+              '''test("the deterministic core separates persistent owner identity from high-impact action gates", () => {
+            assert.match(core, /CalBuddy\\.enableVisualLiveOwnerSession/);
+            assert.match(core, /verifyOwnerSession\\(\\{ force: true \\}\\)/);
+            assert.match(core, /mode:\\s*"persistent_owner"/);
+            assert.match(core, /high-impact actions keep their existing confirmation and authorization gates/);
+            assert.match(core, /CalBuddy\\.runVisualInspection/);
+            assert.doesNotMatch(core, /Enable Live Owner Session for up to 45 minutes/);
+          });''')
+          PY
+
+      - name: Verify focused owner-mode contract
+        run: |
+          node --check calbuddy-core.js
+          node --test tests/ari-live-owner-session.test.mjs tests/ari-live-owner-vnext-routing.test.mjs
+
+      - name: Commit patch and remove one-shot workflows
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/ari-persistent-owner-authority-patch.yml
+          git rm .github/workflows/ari-persistent-owner-authority-patch-v2.yml
+          git rm .github/workflows/ari-persistent-owner-authority-patch-v3.yml
+          git add calbuddy-core.js tests/ari-live-owner-session.test.mjs tests/ari-live-owner-vnext-routing.test.mjs
+          git commit -m "Make verified owner authority persistent"
+          git push origin HEAD:agent/ari-persistent-owner-authority
