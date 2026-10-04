@@ -707,6 +707,7 @@ function meaningfulCognitiveSignature(state = {}) {
       id: clean(executionSession.id, 180),
       status: clean(executionSession.status, 40),
       nextStep: clean(executionSession.nextStep, 240),
+      developerCheckpoint: executionSession.developerCheckpoint || null,
       progressCount: Array.isArray(executionSession.progressEvents) ? executionSession.progressEvents.length : 0,
       evidenceCount: Array.isArray(executionSession.evidence) ? executionSession.evidence.length : 0
     } : null,

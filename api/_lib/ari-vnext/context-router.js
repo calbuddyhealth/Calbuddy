@@ -3,6 +3,7 @@
 
 import { advancedConversationInstruction } from "./conversation-contract.js";
 import { contextBudgetChars, deriveReasoningDemand } from "./cost-router.js";
+import { developerResumeCheckpoint } from "./developer-checkpoint.js";
 
 export const CONTEXT_ROUTER_VERSION = "1.29.0";
 
@@ -62,6 +63,7 @@ export function routeContext(turn = {}) {
   const cognitiveAudit = ownerEligible && PATTERNS.cognitiveSystemAudit.test(semanticText);
   const developer =
     PATTERNS.developer.test(semanticText) ||
+    (ownerEligible && Boolean(developerResumeCheckpoint(turn))) ||
     cognitiveAudit ||
     Boolean(turn?.context?.visualInspection) ||
     Boolean(turn?.context?.executionEvidence);

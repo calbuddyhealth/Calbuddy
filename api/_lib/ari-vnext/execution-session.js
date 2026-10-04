@@ -3,6 +3,7 @@
 // progress events, artifacts, and next steps. Never hidden chain-of-thought.
 
 import { createHash } from "node:crypto";
+import { developerCheckpointNextStep, normalizeDeveloperCheckpoint } from "./developer-checkpoint.js";
 
 export const ARI_EXECUTION_SESSION_VERSION = "1.0.0";
 export const EXECUTION_SESSION_STATUSES = Object.freeze([
@@ -166,6 +167,11 @@ export function advanceExecutionSession({
     successCriteria: base.successCriteria,
     approach,
     nextStep,
+    developerCheckpoint: status === "completed" ? null : normalizeDeveloperCheckpoint(
+      Object.hasOwn(effectiveResult?.executionWorkspaceUpdate || {}, "developerCheckpoint")
+        ? effectiveResult.executionWorkspaceUpdate.developerCheckpoint
+        : base.developerCheckpoint
+    ),
     hypotheses: hypotheses.slice(0, 8),
     evidence: evidence.slice(0, 18),
     artifacts: artifacts.slice(0, 12),
@@ -190,6 +196,7 @@ export function executionWorkspaceToInstruction(workspace = null) {
     session.successCriteria ? `Success criteria: ${session.successCriteria}` : "",
     session.approach ? `Current approach: ${session.approach}` : "",
     session.nextStep ? `Next step: ${session.nextStep}` : "",
+    session.developerCheckpoint ? `Saved developer checkpoint: ${developerCheckpointNextStep(session.developerCheckpoint)} File revisions are historical evidence; read current contents before editing.` : "",
     session.hypotheses?.length
       ? `Hypotheses: ${session.hypotheses.slice(0, 5).map(item => `${item.id}:${item.status}:${item.label}`).join(" | ")}`
       : "",
@@ -539,6 +546,7 @@ function normalizeExecutionSession(value = null) {
     successCriteria: clean(value.successCriteria, 700),
     approach: clean(value.approach, 700) || null,
     nextStep: clean(value.nextStep, 700) || null,
+    developerCheckpoint: normalizeDeveloperCheckpoint(value.developerCheckpoint),
     hypotheses: (Array.isArray(value.hypotheses) ? value.hypotheses : []).map(normalizeHypothesis).filter(Boolean).slice(0, 8),
     evidence: arrayObjects(value.evidence, 18),
     artifacts: arrayObjects(value.artifacts, 12),

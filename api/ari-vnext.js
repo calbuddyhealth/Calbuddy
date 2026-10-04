@@ -25,6 +25,7 @@ import {
   persistAriCognitiveState
 } from "./_lib/ari-vnext/cognitive-state-store.js";
 import { summarizeCommunicationClosure } from "./_lib/ari-vnext/communication-closure.js";
+import { finalizeDeveloperPause } from "./_lib/ari-vnext/developer-checkpoint.js";
 import { summarizePersonalityEvaluation } from "./_lib/ari-vnext/personality-evaluation.js";
 import { persistCommunicationClosure } from "./_lib/ari-vnext/communication-closure-store.js";
 import { buildCurrentTurn, cleanText } from "./_lib/ari-vnext/current-turn.js";
@@ -1311,6 +1312,7 @@ export default async function handler(req, res) {
 
     const responsePayload = {
       ...result,
+      ...finalizeDeveloperPause(result, { stateStored: cognitiveStateStored, session: nextCognitiveState?.executionSession }),
       turnId: turn.turnId,
       conversationId: turn.conversationId,
       authoritativeContext: turn.context?.authoritativeContext || null,
