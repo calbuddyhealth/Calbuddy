@@ -20,7 +20,7 @@ test("vNext preserves the trusted CalBuddy action boundary separately from legac
   assert.match(runtime, /enable_visual_live_owner_session/);
 });
 
-test("Live Owner enable, disable, and visual requests are intercepted before model routing", () => {
+test("Persistent Owner enable, disable, and visual requests are intercepted before model routing", () => {
   assert.match(runtime, /runOwnerVisualPreflight/);
   assert.match(runtime, /CalBuddy\.isLiveOwnerEnableCommand/);
   assert.match(runtime, /CalBuddy\.isLiveOwnerDisableCommand/);
@@ -32,7 +32,7 @@ test("Live Owner enable, disable, and visual requests are intercepted before mod
   assert.ok(bridgeCall > preflightCall, "owner visual preflight must execute before vNext model call");
 });
 
-test("typed Yes and Cancel stay on the same local owner-control action", () => {
+test("legacy pending owner-control confirmations remain safely cancellable", () => {
   assert.match(runtime, /localPending && isAffirmative\(message\)/);
   assert.match(runtime, /trustedCalBuddyActions\.confirm\(\)/);
   assert.match(runtime, /localPending && isNegative\(message\)/);
@@ -41,11 +41,13 @@ test("typed Yes and Cancel stay on the same local owner-control action", () => {
   assert.match(runtime, /ari_vnext_local_owner_control_cancel/);
 });
 
-test("the deterministic core still owns Live Owner execution and server verification", () => {
+test("the deterministic core separates persistent owner identity from high-impact action gates", () => {
   assert.match(core, /CalBuddy\.enableVisualLiveOwnerSession/);
   assert.match(core, /verifyOwnerSession\(\{ force: true \}\)/);
-  assert.match(core, /action_type:\s*"enable_visual_live_owner_session"/);
+  assert.match(core, /mode:\s*"persistent_owner"/);
+  assert.match(core, /high-impact actions keep their existing confirmation and authorization gates/);
   assert.match(core, /CalBuddy\.runVisualInspection/);
+  assert.doesNotMatch(core, /Enable Live Owner Session for up to 45 minutes/);
 });
 
 test("runtime 1.6.7 is the canonical runtime version", () => {
