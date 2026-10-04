@@ -1,9 +1,41 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import vm from "node:vm";
 
 const source = fs.readFileSync("js/ari-pending-action-recovery.js", "utf8");
 const home = fs.readFileSync("home.html", "utf8");
+
+async function loadPendingRecovery({ vnext = null, legacy = null, bridgeAvailable = true } = {}) {
+  const reads = [];
+  const reconciled = [];
+  const classes = new Set();
+  const bar = {
+    classList: { add: name => classes.add(name), remove: name => classes.delete(name) },
+    setAttribute() {},
+    removeAttribute() {}
+  };
+  const label = { textContent: "" };
+  const window = {
+    AriVNextBridge: bridgeAvailable ? {
+      getPendingAction() { reads.push("vnext"); return vnext; }
+    } : undefined,
+    CalBuddy: {
+      getPendingAction() { reads.push("legacy"); return legacy; },
+      async reconcilePendingActionWithLedger(action) { reconciled.push(action); return action; }
+    },
+    addEventListener() {},
+    setTimeout() {}
+  };
+  const document = {
+    getElementById: id => ({ pendingActionBar: bar, pendingActionText: label })[id] || null,
+    addEventListener() {}
+  };
+  vm.runInNewContext(source, { window, document }, { filename: "js/ari-pending-action-recovery.js" });
+  // Let the real startup reconciliation finish before checking the rendered state.
+  await new Promise(resolve => setImmediate(resolve));
+  return { reads, reconciled, classes, label };
+}
 
 test("pending-action recovery patch is syntactically valid", () => {
   assert.doesNotThrow(() => new Function(source));
@@ -42,6 +74,38 @@ test("pending-action UI recovers from both legacy and vNext stores", () => {
   assert.match(source, /ari:runtimeReady/);
 });
 
+test("canonical vNext pending state takes precedence over the legacy CalBuddy mirror", async () => {
+  const vnext = { id: "canonical", confirmation_text: "Save the current workout?" };
+  const legacy = { id: "stale-mirror", confirmation_text: "Log the old meal?" };
+  const { reads, reconciled, classes, label } = await loadPendingRecovery({ vnext, legacy });
+  assert.ok(reads.includes("vnext"));
+  assert.equal(reads.includes("legacy"), false, "the legacy mirror must not be read when vNext has a proposal");
+  assert.ok(reconciled.length > 0);
+  for (const action of reconciled) assert.equal(action, vnext);
+  assert.equal(classes.has("show"), true);
+  assert.equal(label.textContent, vnext.confirmation_text);
+});
+
+for (const bridgeAvailable of [true, false]) {
+  test(`pending-action recovery falls back to CalBuddy when vNext is ${bridgeAvailable ? "empty" : "unavailable"}`, async () => {
+    const legacy = { id: "legacy-only", confirmation_text: "Log this meal?" };
+    const { reads, reconciled, classes, label } = await loadPendingRecovery({ legacy, bridgeAvailable });
+    assert.equal(reads.includes("vnext"), bridgeAvailable);
+    assert.ok(reads.includes("legacy"));
+    assert.ok(reconciled.length > 0);
+    for (const action of reconciled) assert.equal(action, legacy);
+    assert.equal(classes.has("show"), true);
+    assert.equal(label.textContent, legacy.confirmation_text);
+  });
+}
+
+test("pending-action recovery keeps confirmation hidden when both stores are empty", async () => {
+  const { reconciled, classes, label } = await loadPendingRecovery();
+  assert.equal(reconciled.length, 0);
+  assert.equal(classes.has("show"), false);
+  assert.equal(label.textContent, "");
+});
+
 test("recovered pending actions get a usable confirmation label", () => {
   assert.match(source, /edit_workout/);
   assert.match(source, /Apply this workout change\?/);
@@ -50,13 +114,11 @@ test("recovered pending actions get a usable confirmation label", () => {
   assert.match(source, /confirmation_text/);
 });
 
-
 test("pending-action recovery can rebuild state from the durable action ledger", () => {
   assert.match(source, /restoreDurablePendingAction/);
   assert.match(source, /restorePendingActionFromLedger/);
   assert.match(source, /if \(!pending\) pending = await restoreDurablePendingAction\(\)/);
 });
-
 
 test("recovery verifies browser pending state against the durable ledger before showing buttons", () => {
   assert.match(source, /reconcilePendingActionWithLedger/);
@@ -72,7 +134,6 @@ test("a yes or cancel aimed at a stale terminal card is consumed locally instead
   assert.match(intercept, /hideRecoveredPendingIfEmpty\(\)/);
   assert.match(intercept, /return true/);
 });
-
 
 test("quota exhaustion cannot strand a real pending confirmation", () => {
   const quotaUi = fs.readFileSync("js/ari-quota-ui.js", "utf8");

@@ -1,17 +1,16 @@
 // ari/developer/ari-rebirth-architecture-engine.js
-// Purpose: Design safe app architecture for new features or major redesigns.
-// V1.0.0 — Architecture Only / No Search / No Read / No Patch
+// Compatibility architecture engine for Owner developer workflows.
+// V2.0.0 — vNext-aware architecture / no search / no read / no patch.
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthArchitectureEngine = {
-  version: "1.0.0",
+  version: "2.0.0",
 
   design(input = {}) {
     const summary = input.summary || input || {};
     const appContext = summary.appContext || {};
     const text = this.getText(summary);
-
     if (!appContext.ownerMode) return null;
 
     const understanding =
@@ -23,21 +22,19 @@ window.AriRebirthArchitectureEngine = {
       this.isArchitectureRequest(text) ||
       understanding?.intentFamily === "tool_or_feature_build" ||
       understanding?.intentFamily === "homepage_redesign_or_patch";
-
     if (!isArchitectureRequest) return null;
 
-    const normalized = this.normalize(text);
-    const systemType = this.inferSystemType(normalized, understanding);
+    const systemType = this.inferSystemType(this.normalize(text), understanding);
 
     return {
       architectureRan: true,
       architectureVersion: this.version,
       source: "ari-rebirth-architecture-engine",
-
+      compatibilityEngine: true,
+      canonicalRuntime: "ari-vnext",
       systemType,
       ownerRequest: text,
-      architectureGoal: this.inferGoal(systemType, text),
-
+      architectureGoal: this.inferGoal(systemType),
       recommendedArchitecture: this.buildArchitecture(systemType),
       requiredFiles: this.requiredFiles(systemType),
       integrationPoints: this.integrationPoints(systemType),
@@ -45,363 +42,188 @@ window.AriRebirthArchitectureEngine = {
       risks: this.risks(systemType),
       buildOrder: this.buildOrder(systemType),
       testPlan: this.testPlan(systemType),
-
       architecturePolicy: {
         architectureOnly: true,
         noSearch: true,
         noRead: true,
         noPatch: true,
+        canonicalVNextFirst: true,
+        singleSemanticAuthority: true,
+        stateFirstForNewCognition: true,
         mustGatherEvidenceBeforeEdit: true,
-        preserveCalBuddyCore: true,
         preserveAriFirstExperience: true
       }
     };
   },
 
   getText(summary = {}) {
-    return String(
-      summary.userMessage ||
-        summary.message ||
-        summary.input ||
-        summary.normalizedMessage ||
-        ""
-    ).trim();
+    return String(summary.userMessage || summary.message || summary.input || summary.normalizedMessage || "").trim();
   },
 
   normalize(text = "") {
-    return String(text || "")
-      .toLowerCase()
-      .replace(/\s+/g, " ")
-      .trim();
+    return String(text || "").toLowerCase().replace(/\s+/g, " ").trim();
   },
 
   isArchitectureRequest(text = "") {
     const t = this.normalize(text);
-
     return this.hasAny(t, [
-      "redesign",
-      "completely change",
-      "new tool",
-      "new feature",
-      "build a tool",
-      "create a tool",
-      "add barcode",
-      "barcode scanner",
-      "anatomy knowledge",
-      "knowledge engine",
-      "architecture",
-      "system",
-      "how should this work",
-      "how do we connect",
-      "workflow",
-      "capability"
+      "redesign", "completely change", "new tool", "new feature", "build a tool",
+      "create a tool", "barcode scanner", "knowledge engine", "architecture",
+      "system", "how should this work", "how do we connect", "workflow", "capability"
     ]);
   },
 
   inferSystemType(text = "", understanding = null) {
     const targetArea = understanding?.targetArea || "";
-
     if (targetArea === "homepage_ui") return "homepage_redesign";
     if (targetArea === "tooling") return "new_tool_capability";
     if (targetArea === "ari_response_behavior") return "ari_behavior_system";
-
-    if (this.hasAny(text, ["home screen", "homepage", "main screen", "redesign"])) {
-      return "homepage_redesign";
-    }
-
-    if (this.hasAny(text, ["barcode", "scanner", "scan food"])) {
-      return "barcode_tool";
-    }
-
-    if (this.hasAny(text, ["anatomy", "knowledge", "education", "medical knowledge"])) {
-      return "knowledge_tool";
-    }
-
-    if (this.hasAny(text, ["ari", "speak", "natural", "less robotic", "behavior"])) {
-      return "ari_behavior_system";
-    }
-
+    if (this.hasAny(text, ["home screen", "homepage", "main screen", "redesign"])) return "homepage_redesign";
+    if (this.hasAny(text, ["barcode", "scanner", "scan food"])) return "barcode_tool";
+    if (this.hasAny(text, ["anatomy", "knowledge", "education", "medical knowledge"])) return "knowledge_tool";
+    if (this.hasAny(text, ["ari", "speak", "natural", "behavior", "reasoning", "harness"])) return "ari_behavior_system";
     return "new_tool_capability";
   },
 
-  inferGoal(systemType, text = "") {
+  inferGoal(systemType) {
     const goals = {
-      homepage_redesign:
-        "Redesign the homepage while preserving Ari-first visibility, Ask Ari flow, and the Calories Left meter.",
-      barcode_tool:
-        "Add barcode scanning as a modular food lookup tool that can create safe meal logging confirmations.",
-      knowledge_tool:
-        "Add a knowledge capability that can answer educational questions without contaminating nutrition logging or medical safety boundaries.",
-      ari_behavior_system:
-        "Improve Ari behavior through modular understanding, communication, and self-improvement layers without destabilizing CalBuddy core.",
-      new_tool_capability:
-        "Add a new modular tool capability without overloading calbuddy-core.js or breaking existing app actions."
+      homepage_redesign: "Change the live Home experience while preserving the canonical vNext runtime, mobile behavior, and current navigation contracts.",
+      barcode_tool: "Add barcode capability through the vNext tool/action boundary with explicit confirmation before any meal write.",
+      knowledge_tool: "Add read-only knowledge capability through vNext without creating a competing prompt or write authority.",
+      ari_behavior_system: "Improve Ari by extending the canonical vNext authorities, evidence sources, and deliberation harness instead of adding another Rebirth-era prompt stack.",
+      new_tool_capability: "Add a modular vNext capability with one clear owner, validated inputs, one write authority, and regression coverage."
     };
-
     return goals[systemType] || goals.new_tool_capability;
   },
 
   buildArchitecture(systemType) {
     const map = {
       homepage_redesign: {
-        frontendLayer: "index.html owns visible layout and inline homepage behavior.",
-        styleLayer: "style.css owns spacing, visual hierarchy, mobile layout, meter appearance.",
-        appBrainLayer: "calbuddy-core.js owns dashboard data, context, Ari handoff, and actions.",
-        ariLayer: "Ari Rebirth proposes design intent but does not directly mutate DOM.",
-        rule: "Keep Ari visible. Do not hide Ari behind popup/chat launcher."
+        frontendLayer: "home.html owns the live Home document and script/style composition.",
+        interactionLayer: "js/home.js and focused Home modules own browser interaction.",
+        runtimeLayer: "ari/runtime/ari-runtime-controller.js keeps conversation on vNext.",
+        serverLayer: "api/ari-vnext.js plus api/_lib/ari-vnext/orchestrator.js own canonical semantic/tool behavior.",
+        rule: "Prefer focused feature modules over adding more inline compatibility logic."
       },
-
       barcode_tool: {
-        frontendLayer: "Scanner UI starts from Log page or Ari pending action flow.",
-        appBrainLayer: "calbuddy-core.js exposes lookupBarcode and creates log_meal confirmation.",
-        apiLayer: "api/barcode.js handles external lookup and normalization.",
-        dataLayer: "meals table stores confirmed result only.",
-        ariLayer: "Ari explains estimate and asks before logging."
+        uiLayer: "Nutrition/Log UI captures or displays the barcode result.",
+        toolLayer: "api/_lib/ari-vnext/tools.js and tools-core.js define/validate the capability.",
+        actionLayer: "toolToApplicationAction maps only confirmed writes into the application action boundary.",
+        backendLayer: "A focused API/RPC performs lookup and normalization.",
+        dataLayer: "Only confirmed meal writes reach authoritative storage."
       },
-
       knowledge_tool: {
-        frontendLayer: "Ari chat remains the entry point.",
-        appBrainLayer: "calbuddy-core.js calls searchKnowledge or future tool router.",
-        apiLayer: "api/knowledge.js handles retrieval/answer support.",
-        safetyLayer: "Medical/health answers stay educational and conservative.",
-        ariLayer: "Ari separates knowledge answers from app write actions."
+        entryLayer: "Ari chat remains the entry point.",
+        orchestrationLayer: "The vNext route/orchestrator selects a bounded read-only capability.",
+        toolLayer: "The capability returns evidence, not a second prompt constitution.",
+        safetyLayer: "Domain-specific safety remains enforced above the tool.",
+        writeRule: "Knowledge lookup must not silently create application writes."
       },
-
       ari_behavior_system: {
-        understandingLayer: "Developer Understanding and normal semantic engines infer request meaning.",
-        communicationLayer: "Communication Planner decides speaking strategy.",
-        composerLayer: "Language Composer writes final natural answer.",
-        bridgeLayer: "Ari Rebirth App Bridge extracts reply/action safely.",
-        selfImprovementLayer: "Self Improvement Engine turns behavior flaws into investigation work."
+        authorityLayer: "Companion Core, Communication Profile, Ari Executive, and Deliberation Harness are the model-facing authorities.",
+        substrateLayer: "Instinct Kernel supplies deterministic pressure rather than an independent prompt.",
+        stateLayer: "Memory, continuity, reward, affect, curiosity, imagination, conviction, and related systems produce state/evidence.",
+        orchestrationLayer: "api/_lib/ari-vnext/orchestrator.js resolves the turn and tools.",
+        browserLayer: "ari/runtime/ari-runtime-controller.js and ari/vnext/ari-vnext-bridge.js transport the canonical result."
       },
-
       new_tool_capability: {
-        toolDefinitionLayer: "Define the tool purpose, inputs, outputs, and safety rules.",
-        appBrainLayer: "calbuddy-core.js exposes a small wrapper method only.",
-        apiLayer: "New api/<tool>.js endpoint handles heavy work.",
-        actionLayer: "Only confirmed app writes become pendingAction or server action.",
-        ariLayer: "Ari decides when to suggest the tool and how to explain results."
+        contractLayer: "Define the capability purpose, inputs, outputs, permissions, and whether it can write.",
+        registryLayer: "Register/validate it in the vNext tool stack.",
+        backendLayer: "Use a focused endpoint or RPC for heavy work.",
+        actionLayer: "Route writes through one confirmation/application-action authority.",
+        verificationLayer: "Add focused regression tests plus broader affected-surface checks."
       }
     };
-
     return map[systemType] || map.new_tool_capability;
   },
 
   requiredFiles(systemType) {
     const map = {
-      homepage_redesign: ["index.html", "style.css", "calbuddy-core.js"],
-      barcode_tool: ["log.html", "calbuddy-core.js", "api/barcode.js", "api/actions.js"],
-      knowledge_tool: ["calbuddy-core.js", "api/knowledge.js", "api/ask-calbuddy.js"],
-      ari_behavior_system: [
-        "ari/ari-rebirth-app-bridge.js",
-        "ari/language/ari-communication-planner.js",
-        "ari/language/ari-language-composer.js",
-        "ari/developer/ari-rebirth-self-improvement-engine.js"
-      ],
-      new_tool_capability: ["calbuddy-core.js", "api/actions.js", "api/ask-calbuddy.js"]
+      homepage_redesign: ["home.html", "js/home.js", "ari/runtime/ari-runtime-controller.js", "assets/css/home.css", "assets/css/home-thread-ux.css"],
+      barcode_tool: ["api/_lib/ari-vnext/tools.js", "api/_lib/ari-vnext/tools-core.js", "api/_lib/ari-vnext/orchestrator.js", "nutrition.html", "js/nutrition.js"],
+      knowledge_tool: ["api/_lib/ari-vnext/tools.js", "api/_lib/ari-vnext/orchestrator.js", "api/ari-vnext.js"],
+      ari_behavior_system: ["api/_lib/ari-vnext/orchestrator.js", "api/_lib/ari-vnext/ari-executive.js", "api/_lib/ari-vnext/deliberation-harness.js", "docs/ARI_COGNITION_AUTHORITY_MAP.md", "ari/runtime/ari-runtime-controller.js"],
+      new_tool_capability: ["api/_lib/ari-vnext/tools.js", "api/_lib/ari-vnext/tools-core.js", "api/_lib/ari-vnext/orchestrator.js"]
     };
-
     return map[systemType] || map.new_tool_capability;
   },
 
   integrationPoints(systemType) {
     const common = [
-      "Ari must return intent/action, not secretly change production state.",
-      "CalBuddy core executes only approved actions.",
-      "GitHub edits require exact file evidence and owner confirmation."
+      "Current user intent and verified evidence outrank learned/legacy state.",
+      "One canonical semantic authority owns the turn.",
+      "Application writes require the existing confirmation/action boundary.",
+      "A compatibility layer may adapt data but must not become a second semantic authority."
     ];
-
     const map = {
-      homepage_redesign: [
-        "index.html structure",
-        "style.css layout classes",
-        "calbuddy:dashboardUpdated event",
-        "sendAriMessage flow"
-      ],
-      barcode_tool: [
-        "CalBuddy.lookupBarcode",
-        "/api/barcode",
-        "pendingAction: log_meal",
-        "meals table"
-      ],
-      knowledge_tool: [
-        "CalBuddy.searchKnowledge",
-        "/api/knowledge",
-        "Ari response safety layer",
-        "no automatic app writes"
-      ],
-      ari_behavior_system: [
-        "AriRebirthPipeline",
-        "AriRebirthAppBridge.extractReply",
-        "communication planner",
-        "language composer"
-      ],
-      new_tool_capability: [
-        "CalBuddy tool wrapper",
-        "new API endpoint",
-        "Ari action planner",
-        "pending action confirmation"
-      ]
+      homepage_redesign: ["home.html", "sendAriMessage flow", "Ari.Runtime", "mobile visual viewport"],
+      barcode_tool: ["vNext tool registry", "tool validation", "toolToApplicationAction", "meal persistence"],
+      knowledge_tool: ["vNext routing", "read-only tool result", "response grounding"],
+      ari_behavior_system: ["Ari Executive", "Deliberation Harness", "Unified Cognition Coordinator", "AriVNextBridge"],
+      new_tool_capability: ["vNext tool registry", "focused endpoint/RPC", "application action confirmation", "regression tests"]
     };
-
     return [...common, ...(map[systemType] || map.new_tool_capability)];
   },
 
   dataNeeds(systemType) {
     const map = {
-      homepage_redesign: [
-        "No new database tables unless storing layout/user preferences."
-      ],
-      barcode_tool: [
-        "Barcode value",
-        "normalized food name",
-        "calories/macros",
-        "serving size",
-        "confirmed meal write"
-      ],
-      knowledge_tool: [
-        "Knowledge source",
-        "query",
-        "answer",
-        "safety category",
-        "optional citation/source metadata"
-      ],
-      ari_behavior_system: [
-        "Owner feedback",
-        "failure type",
-        "affected engine",
-        "developer investigation result"
-      ],
-      new_tool_capability: [
-        "Tool input schema",
-        "tool result schema",
-        "whether result can create pendingAction"
-      ]
+      homepage_redesign: ["No new persistence unless the user-facing feature itself needs durable state."],
+      barcode_tool: ["barcode", "normalized product/food identity", "serving", "nutrition values", "confirmed write payload"],
+      knowledge_tool: ["query", "retrieved evidence", "source metadata", "domain/safety classification"],
+      ari_behavior_system: ["current turn", "relevant context", "cognitive state", "tool evidence", "verification outcome"],
+      new_tool_capability: ["input schema", "result schema", "permission/write classification", "verification evidence"]
     };
-
     return map[systemType] || map.new_tool_capability;
   },
 
   risks(systemType) {
+    const common = [
+      "Creating a second semantic or write authority.",
+      "Reusing a legacy file map that no longer owns the live feature.",
+      "Changing production code to satisfy a stale test without proving causal relevance."
+    ];
     const map = {
-      homepage_redesign: [
-        "Breaking mobile layout.",
-        "Hiding Ari or making the page feel less Ari-first.",
-        "Breaking inline chat functions.",
-        "Breaking meter click/navigation."
-      ],
-      barcode_tool: [
-        "Bad calorie data from external source.",
-        "Logging without confirmation.",
-        "Barcode lookup failure or missing product.",
-        "Serving size mismatch."
-      ],
-      knowledge_tool: [
-        "Medical overconfidence.",
-        "Mixing education with diagnosis.",
-        "Untrusted knowledge sources.",
-        "Answering outside safe scope."
-      ],
-      ari_behavior_system: [
-        "Composer changes affecting all answers.",
-        "Bridge extraction returning directive text.",
-        "Too many engines competing for authority.",
-        "Self-improvement loop proposing unsafe edits."
-      ],
-      new_tool_capability: [
-        "Tool bloat inside calbuddy-core.js.",
-        "Unclear action contract.",
-        "Backend endpoint not matching frontend payload.",
-        "No test path before deployment."
-      ]
+      homepage_redesign: ["Breaking mobile viewport behavior.", "Breaking Home conversation/navigation wiring."],
+      barcode_tool: ["Untrusted product data.", "Logging without confirmation.", "Serving-size mismatch."],
+      knowledge_tool: ["Ungrounded answers.", "Domain overconfidence.", "Accidental write coupling."],
+      ari_behavior_system: ["Prompt-authority duplication.", "Legacy Rebirth instructions competing with vNext.", "Excessive context/prompt bloat."],
+      new_tool_capability: ["Tool contract ambiguity.", "Endpoint/validator mismatch.", "Unbounded side effects."]
     };
-
-    return map[systemType] || map.new_tool_capability;
+    return [...common, ...(map[systemType] || map.new_tool_capability)];
   },
 
   buildOrder(systemType) {
+    const common = [
+      "Define the user-visible success condition.",
+      "Identify the current canonical owner on main.",
+      "Read the current contract before changing code.",
+      "Prefer the smallest additive or consolidating change that preserves one authority."
+    ];
     const map = {
-      homepage_redesign: [
-        "Define exact layout goal.",
-        "Read index.html.",
-        "Read style.css.",
-        "Read calbuddy-core.js only for affected behavior.",
-        "Patch smallest layout block.",
-        "Test mobile homepage, Ari chat, meter, navigation."
-      ],
-      barcode_tool: [
-        "Define barcode result schema.",
-        "Verify or build /api/barcode.",
-        "Connect CalBuddy.lookupBarcode.",
-        "Convert result into pending log_meal action.",
-        "Test known barcode, unknown barcode, failed lookup."
-      ],
-      knowledge_tool: [
-        "Define knowledge scope.",
-        "Build or verify /api/knowledge.",
-        "Connect CalBuddy.searchKnowledge.",
-        "Add safety boundaries.",
-        "Test normal education, medical caution, unknown answer."
-      ],
-      ari_behavior_system: [
-        "Identify behavior failure.",
-        "Run self-improvement investigation.",
-        "Read bridge/composer/planner.",
-        "Patch only the bottleneck.",
-        "Test greeting, normal answer, developer request, food logging."
-      ],
-      new_tool_capability: [
-        "Define tool purpose.",
-        "Define input/output schema.",
-        "Create API endpoint.",
-        "Add CalBuddy wrapper.",
-        "Teach Ari when to use it.",
-        "Test success/failure/confirmation paths."
-      ]
+      homepage_redesign: ["Trace Home DOM, owning JS, CSS, and runtime wiring.", "Implement focused change.", "Test mobile, conversation, navigation, and viewport behavior."],
+      barcode_tool: ["Define result schema.", "Register/validate vNext tool.", "Connect focused backend.", "Map confirmed write.", "Test valid/unknown/failure/cancel paths."],
+      knowledge_tool: ["Define evidence scope.", "Add bounded read-only capability.", "Ground response in returned evidence.", "Test success, missing evidence, and safety boundaries."],
+      ari_behavior_system: ["Identify which existing authority/evidence source owns the behavior.", "Extend that owner rather than adding a new prompt layer.", "Test representative conversation and failure-recovery scenarios."],
+      new_tool_capability: ["Define contract.", "Register tool.", "Implement endpoint/RPC.", "Wire application action only if needed.", "Test success/failure/authorization/confirmation paths."]
     };
-
-    return map[systemType] || map.new_tool_capability;
+    return [...common, ...(map[systemType] || map.new_tool_capability)];
   },
 
   testPlan(systemType) {
+    const common = [
+      "Reproduce the target scenario before the change.",
+      "Verify the focused regression after the change.",
+      "Run affected subsystem tests and CI.",
+      "Confirm no competing legacy path became active."
+    ];
     const map = {
-      homepage_redesign: [
-        "Open homepage on mobile.",
-        "Send Ari a normal message.",
-        "Expand conversations.",
-        "Check Calories Left meter.",
-        "Navigate to Goals, Progress, Daily Intake."
-      ],
-      barcode_tool: [
-        "Scan or submit valid barcode.",
-        "Handle unknown barcode.",
-        "Confirm log meal.",
-        "Cancel log meal.",
-        "Verify dashboard updates."
-      ],
-      knowledge_tool: [
-        "Ask educational question.",
-        "Ask unsafe/medical diagnostic question.",
-        "Ask unknown-source question.",
-        "Verify no accidental pendingAction."
-      ],
-      ari_behavior_system: [
-        "Ask simple greeting.",
-        "Ask hard follow-up.",
-        "Ask developer request.",
-        "Ask food logging request.",
-        "Verify no directive text leaks."
-      ],
-      new_tool_capability: [
-        "Test valid input.",
-        "Test missing input.",
-        "Test API failure.",
-        "Test Ari explanation.",
-        "Test pendingAction only when appropriate."
-      ]
+      homepage_redesign: ["Test iPhone Safari viewport/keyboard transitions.", "Send a normal Ari message.", "Verify navigation and quick actions."],
+      barcode_tool: ["Known barcode.", "Unknown barcode.", "Provider/API failure.", "Confirm and cancel write."],
+      knowledge_tool: ["Grounded answer.", "Missing evidence.", "Restricted/sensitive domain boundary.", "No accidental pending action."],
+      ari_behavior_system: ["Simple conversation.", "Hard debugging turn.", "Correction after failure.", "Tool/action turn.", "No legacy prompt competition."],
+      new_tool_capability: ["Valid input.", "Invalid/missing input.", "Backend failure.", "Authorization/confirmation path."]
     };
-
-    return map[systemType] || map.new_tool_capability;
+    return [...common, ...(map[systemType] || map.new_tool_capability)];
   },
 
   hasAny(text = "", terms = []) {
@@ -410,6 +232,6 @@ window.AriRebirthArchitectureEngine = {
 };
 
 console.log(
-  "ARI REBIRTH ARCHITECTURE ENGINE LOADED:",
+  "ARI COMPATIBILITY ARCHITECTURE ENGINE LOADED:",
   window.AriRebirthArchitectureEngine.version
 );
