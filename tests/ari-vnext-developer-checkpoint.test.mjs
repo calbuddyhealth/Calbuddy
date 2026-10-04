@@ -52,33 +52,50 @@ function mockRuntime(t, respond) {
     }
     const body = JSON.parse(options.body);
     requests.push(body);
-    assert.ok(requests.length <= 7, "investigation must stay bounded");
+    assert.ok(requests.length <= 26, "adaptive investigation must retain a hard safety ceiling");
     return { ok: true, json: async () => ({ output: respond(requests.length, body) }) };
   });
   return { reads, requests };
 }
 
-test("six-step exhaustion checkpoints the exact unexecuted read and exposes collected evidence", async t => {
+test("productive developer investigation continues beyond six and checkpoints at the adaptive safety ceiling", async t => {
   const { reads, requests } = mockRuntime(t, count => [{
     type: "function_call", name: "owner_repo_read", call_id: `read-${count}`,
     arguments: JSON.stringify(readArgs(`api/file-${count}.js`))
   }]);
   const initial = turn();
   const result = await runAriVNext(initial);
-  assert.equal(reads.length, 6);
-  assert.equal(requests.length, 7);
-  assert.equal(result.source, "ari_vnext_owner_developer_step_limit");
+  assert.equal(reads.length, 24);
+  assert.equal(requests.length, 25);
+  assert.equal(result.source, "ari_vnext_owner_developer_budget_pause");
   const state = result.executionWorkspaceUpdate.developerCheckpoint;
-  assert.deepEqual(state.nextOperation, { name: "owner_repo_read", arguments: readArgs("api/file-7.js") });
-  assert.equal(state.inspectedFiles.length, 6);
+  assert.deepEqual(state.nextOperation, { name: "owner_repo_read", arguments: readArgs("api/file-25.js") });
+  assert.equal(state.inspectedFiles.length, 12);
+  assert.equal(state.taskController.window.steps, 24);
+  assert.equal(state.taskController.window.modelCalls, 25);
+  assert.equal(state.taskController.lastDecision.reason, "step_cap");
   assert.equal(state.inspectedFiles[0].sha, "b".repeat(40));
   assert.equal(JSON.stringify(state).includes("export const"), false);
-  assert.match(result.reply, /Read api\/file-6.js/);
-  assert.match(result.reply, /Next: Read api\/file-7.js/);
+  assert.match(result.reply, /Read api\/file-24.js/);
+  assert.match(result.reply, /Next: Read api\/file-25.js/);
   assert.doesNotMatch(result.reply, /session is preserved|checkpoint was saved/);
   const persisted = advanceExecutionSession({ turn: initial,
     workspace: deriveExecutionWorkspace({ turn: initial, route: result.route }), result });
   assert.deepEqual(persisted.developerCheckpoint, state);
+});
+
+test("adaptive investigation pauses after repeated evidence stops adding information", async t => {
+  const { reads, requests } = mockRuntime(t, count => [{
+    type: "function_call", name: "owner_repo_read", call_id: "stall-" + count,
+    arguments: JSON.stringify(readArgs("api/stall-" + Math.min(count, 6) + ".js"))
+  }]);
+  const result = await runAriVNext(turn({ turnId: "checkpoint-stall" }));
+  assert.equal(reads.length, 9);
+  assert.equal(requests.length, 10);
+  assert.equal(result.source, "ari_vnext_owner_developer_budget_pause");
+  assert.equal(result.developerInvestigation.budgetDecision.reason, "evidence_stalled");
+  assert.equal(result.executionWorkspaceUpdate.developerCheckpoint.taskController.window.steps, 9);
+  assert.match(result.reply, /stopped producing new evidence/);
 });
 
 test("continue resumes the exact read without chat history and notices changed source", async t => {
@@ -102,7 +119,7 @@ test("continue resumes the exact read without chat history and notices changed s
 
 test("save claims require a successful write of the matching checkpoint", () => {
   const state = checkpoint();
-  const result = { source: "ari_vnext_owner_developer_step_limit", executionWorkspaceUpdate: { developerCheckpoint: state } };
+  const result = { source: "ari_vnext_owner_developer_budget_pause", executionWorkspaceUpdate: { developerCheckpoint: state } };
   const saved = finalizeDeveloperPause(result, { stateStored: true, session: { developerCheckpoint: state } });
   assert.equal(saved.developerInvestigation.checkpointStored, true);
   assert.match(saved.reply, /checkpoint was saved/);

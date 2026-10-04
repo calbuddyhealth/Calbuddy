@@ -5,6 +5,7 @@ import test from "node:test";
 import { verifyOwnerRequest } from "../server/ari-owner-auth.js";
 import editHandler from "../api/ari-github-edit.js";
 import readHandler from "../api/ari-github-read.js";
+import codeTaskHandler from "../api/ari-code-task.js";
 
 const OWNER_ID = "0b3b0f56-676f-4859-a9f4-b377dd73544f";
 const OWNER_EMAIL = "onofreerostico@yahoo.com";
@@ -150,7 +151,8 @@ test("ARI owner authorization", async (t) => {
 test("GitHub APIs contain no client owner_access authorization fallback", async () => {
   const apiFiles = [
     "api/ari-github-read.js",
-    "api/ari-github-edit.js"
+    "api/ari-github-edit.js",
+    "api/ari-code-task.js"
   ];
 
   for (const relativePath of apiFiles) {
@@ -167,7 +169,7 @@ test("GitHub APIs contain no client owner_access authorization fallback", async 
 test("GitHub APIs reject a forged owner_access body before GitHub is called", async () => {
   configureOwnerEnvironment();
 
-  for (const handler of [readHandler, editHandler]) {
+  for (const handler of [readHandler, editHandler, codeTaskHandler]) {
     const response = makeResponse();
 
     await handler(
@@ -241,6 +243,7 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
     "ari-circle-push-dispatch.js",
     "ari-cognitive-cycle.js",
     "ari-community-cycle.js",
+    "ari-code-task.js",
     "ari-conversation.js",
     "ari-daily-chat-quota.js",
     "ari-dreaming-cycle.js",
@@ -279,6 +282,7 @@ test("Vercel API surface matches the reviewed ARI XP release contract", async ()
   assert.equal(names.has("secure-ai-gateway.js"), true, "compatibility AI routes must remain behind the secure gateway");
   assert.equal(names.has("ari-vnext.js"), true, "vNext primary runtime must remain present");
   assert.equal(names.has("ari-owner-intelligence-controls.js"), true, "owner intelligence controls must remain explicit server API surface");
+  assert.equal(names.has("ari-code-task.js"), true, "owner durable code-task execution must remain explicit reviewed server API surface");
   assert.equal(names.has("ari-agent-mailbox.js"), true, "owner Supabase mailbox must remain explicit reviewed server API surface");
   assert.equal(names.has("ari-agent-worker.js"), true, "background agent worker must remain an explicit reviewed server API surface");
   assert.equal(names.has("ari-cognitive-cycle.js"), true, "consolidated cognitive scheduler must remain an explicit reviewed server API surface");

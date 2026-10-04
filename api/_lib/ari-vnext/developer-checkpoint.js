@@ -1,5 +1,10 @@
 // Compact, read-only continuation state. Never persist source contents or replay writes.
-export const DEVELOPER_STEP_LIMIT = 6;
+import { normalizeDeveloperTaskController } from "./developer-task-controller.js";
+
+export const DEVELOPER_CHECKPOINT_STEP_CAP = 24;
+// Backward-compatible export for older callers/tests. The live orchestrator no longer
+// treats this value as a fixed investigation limit.
+export const DEVELOPER_STEP_LIMIT = DEVELOPER_CHECKPOINT_STEP_CAP;
 
 const READ_ARGUMENTS = {
   owner_repo_read: ["filePath", "branch", "startLine", "endLine"],
@@ -23,7 +28,7 @@ export function normalizeDeveloperCheckpoint(value) {
       !(typeof item === "number" && Number.isSafeInteger(item)))) return null;
   return {
     version: 1,
-    completedSteps: Math.min(DEVELOPER_STEP_LIMIT, Math.max(0, Number(value.completedSteps) || 0)),
+    completedSteps: Math.min(DEVELOPER_CHECKPOINT_STEP_CAP, Math.max(0, Number(value.completedSteps) || 0)),
     nextOperation: { name: operation.name, arguments: Object.fromEntries(entries) },
     inspectedFiles: (Array.isArray(value.inspectedFiles) ? value.inspectedFiles : [])
       .filter(file => typeof file?.filePath === "string" && /^[a-f0-9]{40,64}$/i.test(file?.sha || ""))
@@ -33,19 +38,37 @@ export function normalizeDeveloperCheckpoint(value) {
         branch: typeof file.branch === "string" ? file.branch.slice(0, 180) : null,
         sha: file.sha,
         fullFile: file.fullFile === true
-      }))
+      })),
+    taskController: normalizeDeveloperTaskController(value.taskController) || null
   };
 }
 
-export function createDeveloperCheckpoint({ checked, reads = [], previous = null, completedSteps = DEVELOPER_STEP_LIMIT } = {}) {
+export function createDeveloperCheckpoint({
+  checked,
+  reads = [],
+  previous = null,
+  completedSteps = null,
+  taskController = null
+} = {}) {
   // An edit selected at the boundary must start with a fresh read next turn.
   const nextOperation = checked?.name === "propose_owner_github_edit"
     ? { name: "owner_repo_read", arguments: { filePath: checked.arguments?.filePath, branch: null, startLine: null, endLine: null } }
     : { name: checked?.name, arguments: checked?.arguments };
-  const files = new Map((normalizeDeveloperCheckpoint(previous)?.inspectedFiles || [])
+  const previousState = normalizeDeveloperCheckpoint(previous);
+  const files = new Map((previousState?.inspectedFiles || [])
     .map(file => [`${file.branch}:${file.filePath}`, file]));
   for (const read of reads) files.set(`${read.branch}:${read.filePath}`, read);
-  return normalizeDeveloperCheckpoint({ version: 1, completedSteps, nextOperation, inspectedFiles: [...files.values()] });
+  const controller = normalizeDeveloperTaskController(taskController) || previousState?.taskController || null;
+  const steps = completedSteps == null
+    ? Number(controller?.window?.steps || 0)
+    : Number(completedSteps || 0);
+  return normalizeDeveloperCheckpoint({
+    version: 1,
+    completedSteps: steps,
+    nextOperation,
+    inspectedFiles: [...files.values()],
+    taskController: controller
+  });
 }
 
 export function developerCheckpointNextStep(value) {
@@ -70,26 +93,50 @@ export function developerResumeCheckpoint(turn = {}) {
   return normalizeDeveloperCheckpoint(workspace.session.developerCheckpoint);
 }
 
-export function developerPauseReply({ evidence = {}, checkpoint = null, stored = null } = {}) {
+export function developerPauseReply({ evidence = {}, checkpoint = null, stored = null, budgetDecision = null } = {}) {
   const state = normalizeDeveloperCheckpoint(checkpoint);
   const observations = (Array.isArray(evidence.observations) ? evidence.observations : [])
     .slice(-4).map(item => String(item?.summary || "").slice(0, 400)).filter(Boolean);
+  const decision = budgetDecision || state?.taskController?.lastDecision || null;
+  const reason = developerPauseReason(decision?.reason);
   return [
-    `I paused after ${state?.completedSteps || DEVELOPER_STEP_LIMIT} investigation steps. The investigation is not complete.`,
+    `I paused after ${state?.completedSteps || 0} investigation steps${reason ? ` because ${reason}` : ""}. The investigation is not complete.`,
     observations.length ? `Evidence collected:\n${observations.map(item => `- ${item}`).join("\n")}` : "No verified findings are available yet.",
     `Next: ${developerCheckpointNextStep(state)}`,
-    stored === true ? 'The checkpoint was saved. Say "continue" to resume that step within another bounded investigation.' :
+    stored === true ? 'The checkpoint was saved. Say "continue" to resume that exact step in a fresh adaptive investigation window.' :
       stored === false ? "I couldn't save a resumable checkpoint. Keep the next step above; I cannot promise this investigation will resume from it." : ""
   ].filter(Boolean).join("\n\n");
 }
 
 export function finalizeDeveloperPause(result = {}, { stateStored = false, session = null } = {}) {
-  if (result.source !== "ari_vnext_owner_developer_step_limit") return {};
+  if (!["ari_vnext_owner_developer_step_limit", "ari_vnext_owner_developer_budget_pause"].includes(result.source)) return {};
   const checkpoint = normalizeDeveloperCheckpoint(result.executionWorkspaceUpdate?.developerCheckpoint);
   const stored = stateStored === true && checkpoint !== null &&
     JSON.stringify(normalizeDeveloperCheckpoint(session?.developerCheckpoint)) === JSON.stringify(checkpoint);
   return {
-    reply: developerPauseReply({ evidence: result.executionEvidence, checkpoint, stored }),
-    developerInvestigation: { paused: true, checkpointStored: stored, nextStep: developerCheckpointNextStep(checkpoint) }
+    reply: developerPauseReply({
+      evidence: result.executionEvidence,
+      checkpoint,
+      stored,
+      budgetDecision: result?.developerInvestigation?.budgetDecision || checkpoint?.taskController?.lastDecision || null
+    }),
+    developerInvestigation: {
+      paused: true,
+      checkpointStored: stored,
+      nextStep: developerCheckpointNextStep(checkpoint),
+      budgetDecision: result?.developerInvestigation?.budgetDecision || checkpoint?.taskController?.lastDecision || null
+    }
   };
+}
+
+function developerPauseReason(reason = "") {
+  return ({
+    evidence_stalled: "recent steps stopped producing new evidence, so Ari should change strategy instead of wasting calls",
+    step_cap: "this investigation window reached its hard safety ceiling",
+    model_call_cap: "this investigation window reached its model-call safety ceiling",
+    token_cap: "this investigation window reached its token safety ceiling",
+    runtime_cap: "this investigation window reached its runtime safety ceiling",
+    window_cost_cap: "this investigation window reached its configured cost ceiling",
+    task_cost_cap: "the durable task reached its configured cumulative cost ceiling"
+  })[String(reason || "")] || "the adaptive investigation budget requested a clean checkpoint";
 }

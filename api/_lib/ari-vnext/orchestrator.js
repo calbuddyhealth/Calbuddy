@@ -28,12 +28,18 @@ import {
 } from "./developer-workspace.js";
 import { deriveLongitudinalState, longitudinalStateToInstruction } from "./longitudinal-state.js";
 import {
-  DEVELOPER_STEP_LIMIT,
   createDeveloperCheckpoint,
   developerCheckpointNextStep,
   developerPauseReply,
   developerResumeCheckpoint
 } from "./developer-checkpoint.js";
+import {
+  developerTaskBudgetDecision,
+  developerTaskBudgetInstruction,
+  recordDeveloperInitialModelCall,
+  recordDeveloperTaskStep,
+  startDeveloperTaskController
+} from "./developer-task-controller.js";
 import { deriveMetacognition, metacognitionToInstruction } from "./metacognition.js";
 import { resolveModelPolicy } from "./model-policy.js";
 import {
@@ -1304,6 +1310,11 @@ async function executeOwnerDeveloperWorkspaceTurn({
   let evidence = emptyDeveloperEvidence();
   const verifiedReads = new Map();
   const resumedCheckpoint = developerResumeCheckpoint(turn);
+  let taskController = startDeveloperTaskController(
+    resumedCheckpoint?.taskController || null,
+    { limits: { maxModelCalls: 25 } }
+  );
+  if (!resumedCheckpoint) taskController = recordDeveloperInitialModelCall(taskController, first);
   if (resumedCheckpoint) {
     const session = turn.context.userWorldModel.ariCognitiveWorkspace.executionWorkspace.session;
     evidence = mergeDeveloperEvidence(evidence, { observations: session.evidence, artifacts: session.artifacts });
@@ -1327,7 +1338,9 @@ async function executeOwnerDeveloperWorkspaceTurn({
     action = toolToApplicationAction(checked.name);
   }
 
-  for (let step = 0; step < DEVELOPER_STEP_LIMIT; step += 1) {
+  let step = 0;
+  while (developerTaskBudgetDecision(taskController).continue) {
+    const stepStartedAt = Date.now();
     if (action === "github_edit") {
       const args = checked?.arguments || {};
       const filePath = String(args.filePath || "").trim();
@@ -1503,10 +1516,16 @@ async function executeOwnerDeveloperWorkspaceTurn({
     response = await callResponses({
       turn,
       policy: modelPolicy,
-      instructions: instructions + "\n" + cognitiveSignalDecisionToInstruction(metacognition.executivePolicy?.directives) + "\nOWNER DEVELOPER EXECUTION WORKSPACE\nThe preceding function output is observed repository/CI/memory/cognitive-trace/mailbox evidence. Let that evidence determine the next step. You may inspect persisted cognitive causal traces, search owner memory for a prior analogy, search the repository, read another exact file, check CI, inspect the configured Supabase mailbox, send a bounded handoff/finding/question to another authorized Ari/SOL worker, or prepare one exact isolated-branch edit. A causal trace is compact structured telemetry, not hidden reasoning. Supabase is an explicit audited mailbox datastore, never a sandbox escape or arbitrary network proxy. Do not repeat a failed step unchanged. Do not claim a test passed unless repo_ci_status reports conclusion=success.",
+      instructions: instructions + "\n" + cognitiveSignalDecisionToInstruction(metacognition.executivePolicy?.directives) + "\n" + developerTaskBudgetInstruction(taskController) + "\nOWNER DEVELOPER EXECUTION WORKSPACE\nThe preceding function output is observed repository/CI/memory/cognitive-trace/mailbox evidence. Prefer one broad repository search followed by targeted exact reads. Avoid repeating an unchanged read or search when it cannot add evidence. Let that evidence determine the next step. You may inspect persisted cognitive causal traces, search owner memory for a prior analogy, search the repository, read another exact file, check CI, inspect the configured Supabase mailbox, send a bounded handoff/finding/question to another authorized Ari/SOL worker, or prepare one exact isolated-branch edit. A causal trace is compact structured telemetry, not hidden reasoning. Supabase is an explicit audited mailbox datastore, never a sandbox escape or arbitrary network proxy. Do not repeat a failed step unchanged. Do not claim a test passed unless repo_ci_status reports conclusion=success.",
       input: continuationInput,
       tools: developerTools
     });
+    taskController = recordDeveloperTaskStep(taskController, {
+      response,
+      evidence: observed,
+      runtimeMs: Date.now() - stepStartedAt
+    });
+    step += 1;
     call = findFunctionCall(response?.output);
 
     if (!call) {
@@ -1556,11 +1575,18 @@ async function executeOwnerDeveloperWorkspaceTurn({
     }
   }
 
-  const checkpoint = createDeveloperCheckpoint({ checked, reads: [...verifiedReads.values()], previous: resumedCheckpoint });
+  const budgetDecision = developerTaskBudgetDecision(taskController);
+  const checkpoint = createDeveloperCheckpoint({
+    checked,
+    reads: [...verifiedReads.values()],
+    previous: resumedCheckpoint,
+    completedSteps: taskController.window.steps,
+    taskController
+  });
   return withInternalCouncil({
     success: true,
     ready: true,
-    reply: developerPauseReply({ evidence, checkpoint }),
+    reply: developerPauseReply({ evidence, checkpoint, budgetDecision }),
     route,
     safety,
     communication,
@@ -1587,7 +1613,8 @@ async function executeOwnerDeveloperWorkspaceTurn({
       nextStep: checkpoint ? developerCheckpointNextStep(checkpoint) : developerEvidenceNextStep(evidence)
     },
     ownerDeveloperWorkspace: compactDeveloperEvidence(evidence),
-    source: "ari_vnext_owner_developer_step_limit"
+    developerInvestigation: { paused: true, budgetDecision },
+    source: "ari_vnext_owner_developer_budget_pause"
   }, multiAgentCouncil);
 }
 
