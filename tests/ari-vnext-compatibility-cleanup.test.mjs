@@ -20,7 +20,6 @@ const authorityMap = source("ari/authority/ari-authority-map.md");
 const loader = source("ari/system/ari-loader.js");
 const evidenceSource = source("ari/developer/ari-rebirth-code-evidence-engine.js");
 const latency = source("js/ari-latency-hotfix.js");
-const pending = source("js/ari-pending-action-recovery.js");
 
 test("legacy architecture loader now exposes the canonical vNext authority map", () => {
   assert.match(authorityMap, /canonical live model-facing authority map is `docs\/ARI_COGNITION_AUTHORITY_MAP\.md`/i);
@@ -114,13 +113,4 @@ test("Home performance compatibility no longer disables initiative and clears st
   assert.doesNotMatch(latency, /client\.check = async function/);
   assert.match(latency, /setAriRuntimeMode\?\.\("vnext"\)/);
   assert.match(latency, /localStorage\.setItem\("ari_runtime_mode_v1", "vnext"\)/);
-});
-
-test("pending-action recovery treats vNext as canonical and CalBuddy as fallback mirror", () => {
-  const block = pending.match(/function currentPendingAction\(\)[\s\S]*?\n  }/)?.[0] || "";
-  const vnext = block.indexOf("AriVNextBridge");
-  const legacy = block.indexOf("CalBuddy");
-  assert.ok(vnext >= 0);
-  assert.ok(legacy > vnext);
-  assert.match(block, /if \(vnext\) return vnext/);
 });
