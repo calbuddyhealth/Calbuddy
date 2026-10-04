@@ -1,0 +1,95 @@
+name: Temporary ARI adaptive investigation patch
+
+on:
+  push:
+    branches:
+      - agent/ari-live-adaptive-investigation
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Restore orchestrator from main and apply surgical patch
+        shell: bash
+        run: |
+          git fetch origin main
+          git checkout origin/main -- api/_lib/ari-vnext/orchestrator.js
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'api/_lib/ari-vnext/orchestrator.js';
+          let source = fs.readFileSync(path, 'utf8');
+
+          function replaceOnce(label, find, replacement) {
+            const first = source.indexOf(find);
+            const second = first < 0 ? -1 : source.indexOf(find, first + find.length);
+            if (first < 0 || second >= 0) {
+              throw new Error(`${label}: expected exactly one match; first=${first} second=${second}`);
+            }
+            source = source.slice(0, first) + replacement + source.slice(first + find.length);
+          }
+
+          replaceOnce(
+            'imports',
+            `import {\n  DEVELOPER_STEP_LIMIT,\n  createDeveloperCheckpoint,\n  developerCheckpointNextStep,\n  developerPauseReply,\n  developerResumeCheckpoint\n} from "./developer-checkpoint.js";`,
+            `import {\n  createDeveloperCheckpoint,\n  developerCheckpointNextStep,\n  developerPauseReply,\n  developerResumeCheckpoint\n} from "./developer-checkpoint.js";\nimport {\n  developerTaskBudgetDecision,\n  developerTaskBudgetInstruction,\n  recordDeveloperTaskStep,\n  startDeveloperTaskController\n} from "./developer-task-controller.js";`
+          );
+
+          replaceOnce(
+            'controller initialization',
+            `  const verifiedReads = new Map();\n  const resumedCheckpoint = developerResumeCheckpoint(turn);`,
+            `  const verifiedReads = new Map();\n  const resumedCheckpoint = developerResumeCheckpoint(turn);\n  let taskController = startDeveloperTaskController(resumedCheckpoint?.taskController || null);`
+          );
+
+          replaceOnce(
+            'adaptive loop',
+            `  for (let step = 0; step < DEVELOPER_STEP_LIMIT; step += 1) {`,
+            `  let step = 0;\n  while (developerTaskBudgetDecision(taskController).continue) {\n    const stepStartedAt = Date.now();`
+          );
+
+          replaceOnce(
+            'budget instruction',
+            `      instructions: instructions + "\\n" + cognitiveSignalDecisionToInstruction(metacognition.executivePolicy?.directives) + "\\nOWNER DEVELOPER EXECUTION WORKSPACE\\nThe preceding function output is observed repository/CI/memory/cognitive-trace/mailbox evidence.`,
+            `      instructions: instructions + "\\n" + cognitiveSignalDecisionToInstruction(metacognition.executivePolicy?.directives) + "\\n" + developerTaskBudgetInstruction(taskController) + "\\nOWNER DEVELOPER EXECUTION WORKSPACE\\nThe preceding function output is observed repository/CI/memory/cognitive-trace/mailbox evidence.`
+          );
+
+          replaceOnce(
+            'record adaptive step',
+            `      tools: developerTools\n    });\n    call = findFunctionCall(response?.output);`,
+            `      tools: developerTools\n    });\n    taskController = recordDeveloperTaskStep(taskController, {\n      response,\n      evidence: observed,\n      runtimeMs: Date.now() - stepStartedAt\n    });\n    step += 1;\n    call = findFunctionCall(response?.output);`
+          );
+
+          replaceOnce(
+            'adaptive checkpoint',
+            `  const checkpoint = createDeveloperCheckpoint({ checked, reads: [...verifiedReads.values()], previous: resumedCheckpoint });`,
+            `  const budgetDecision = developerTaskBudgetDecision(taskController);\n  const checkpoint = createDeveloperCheckpoint({\n    checked,\n    reads: [...verifiedReads.values()],\n    previous: resumedCheckpoint,\n    completedSteps: taskController.window.steps,\n    taskController\n  });`
+          );
+
+          replaceOnce(
+            'pause reply',
+            `    reply: developerPauseReply({ evidence, checkpoint }),`,
+            `    reply: developerPauseReply({ evidence, checkpoint, budgetDecision }),`
+          );
+
+          replaceOnce(
+            'pause source',
+            `    source: "ari_vnext_owner_developer_step_limit"`,
+            `    developerInvestigation: { paused: true, budgetDecision },\n    source: "ari_vnext_owner_developer_budget_pause"`
+          );
+
+          fs.writeFileSync(path, source);
+          NODE
+
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api/_lib/ari-vnext/orchestrator.js
+          git commit -m "Wire adaptive budget into live developer loop"
+          git push origin HEAD:agent/ari-live-adaptive-investigation
