@@ -27,6 +27,13 @@ import {
   executeDeveloperWorkspaceTool
 } from "./developer-workspace.js";
 import { deriveLongitudinalState, longitudinalStateToInstruction } from "./longitudinal-state.js";
+import {
+  DEVELOPER_STEP_LIMIT,
+  createDeveloperCheckpoint,
+  developerCheckpointNextStep,
+  developerPauseReply,
+  developerResumeCheckpoint
+} from "./developer-checkpoint.js";
 import { deriveMetacognition, metacognitionToInstruction } from "./metacognition.js";
 import { resolveModelPolicy } from "./model-policy.js";
 import {
@@ -437,7 +444,20 @@ export async function runAriVNext(turn = {}) {
     : tools;
 
   let first;
-  if (route.referenceResolutionSearch && referenceResolutionTools.length) {
+  const resumeCheckpoint = route.developer && route.intelligenceEntitlement?.ownerEligible === true
+    ? developerResumeCheckpoint(turn) : null;
+  const resumeCall = resumeCheckpoint ? {
+    type: "function_call",
+    name: resumeCheckpoint.nextOperation.name,
+    arguments: JSON.stringify(resumeCheckpoint.nextOperation.arguments),
+    call_id: `developer_resume_${turn.turnId || "current"}`
+  } : null;
+  const canResume = resumeCall && tools.some(tool => tool.name === resumeCall.name) && validateToolCall(resumeCall, route).valid;
+  if (canResume) {
+    // Replay only the validated read, then let current evidence drive the model.
+    // This replaces the initial provider call rather than adding another one.
+    first = { output: [resumeCall] };
+  } else if (route.referenceResolutionSearch && referenceResolutionTools.length) {
     try {
       first = await callResponses({
         turn,
@@ -1283,6 +1303,11 @@ async function executeOwnerDeveloperWorkspaceTurn({
   let continuationInput = [...input];
   let evidence = emptyDeveloperEvidence();
   const verifiedReads = new Map();
+  const resumedCheckpoint = developerResumeCheckpoint(turn);
+  if (resumedCheckpoint) {
+    const session = turn.context.userWorldModel.ariCognitiveWorkspace.executionWorkspace.session;
+    evidence = mergeDeveloperEvidence(evidence, { observations: session.evidence, artifacts: session.artifacts });
+  }
 
   if (action === "github_edit") {
     const target = String(checked?.arguments?.filePath || "").trim();
@@ -1302,7 +1327,7 @@ async function executeOwnerDeveloperWorkspaceTurn({
     action = toolToApplicationAction(checked.name);
   }
 
-  for (let step = 0; step < 6; step += 1) {
+  for (let step = 0; step < DEVELOPER_STEP_LIMIT; step += 1) {
     if (action === "github_edit") {
       const args = checked?.arguments || {};
       const filePath = String(args.filePath || "").trim();
@@ -1420,6 +1445,7 @@ async function executeOwnerDeveloperWorkspaceTurn({
         executionEvidence: evidence,
         executionWorkspaceUpdate: {
           status: "waiting",
+          developerCheckpoint: null,
           approachChanged: false,
           nextStep: "After owner confirmation, verify the resulting commit and ARI vNext test workflow before treating the change as successful."
         },
@@ -1452,6 +1478,16 @@ async function executeOwnerDeveloperWorkspaceTurn({
 
     if (action === "repo_read" && toolResult?.success && toolResult?.filePath && typeof toolResult?.content === "string") {
       verifiedReads.set(String(toolResult.filePath), toolResult);
+      const priorRead = resumedCheckpoint?.inspectedFiles.find(file =>
+        file.filePath === toolResult.filePath && file.branch === toolResult.branch);
+      if (priorRead && priorRead.sha !== toolResult.sha) {
+        toolResult.checkpointRevisionChanged = true;
+        toolResult.instruction = "This file changed since the saved checkpoint. Reassess prior conclusions against these fresh contents before proposing an edit.";
+        evidence = mergeDeveloperEvidence(evidence, { observations: [{
+          kind: "repository_revision_changed", source: toolResult.filePath, verified: true,
+          summary: `${toolResult.filePath} changed since the checkpoint; prior conclusions require revalidation.`
+        }] });
+      }
     }
 
     continuationInput = [
@@ -1502,6 +1538,7 @@ async function executeOwnerDeveloperWorkspaceTurn({
         executionEvidence: evidence,
         executionWorkspaceUpdate: {
           status: toolResult?.success === false ? "blocked" : "active",
+          developerCheckpoint: null,
           nextStep: developerEvidenceNextStep(evidence)
         },
         ownerDeveloperWorkspace: compactDeveloperEvidence(evidence),
@@ -1519,10 +1556,11 @@ async function executeOwnerDeveloperWorkspaceTurn({
     }
   }
 
+  const checkpoint = createDeveloperCheckpoint({ checked, reads: [...verifiedReads.values()], previous: resumedCheckpoint });
   return withInternalCouncil({
     success: true,
     ready: true,
-    reply: "I reached the bounded developer investigation step limit without enough evidence to claim completion. The session is preserved with the next unresolved step.",
+    reply: developerPauseReply({ evidence, checkpoint }),
     route,
     safety,
     communication,
@@ -1545,7 +1583,8 @@ async function executeOwnerDeveloperWorkspaceTurn({
     executionEvidence: evidence,
     executionWorkspaceUpdate: {
       status: "active",
-      nextStep: developerEvidenceNextStep(evidence)
+      developerCheckpoint: checkpoint,
+      nextStep: checkpoint ? developerCheckpointNextStep(checkpoint) : developerEvidenceNextStep(evidence)
     },
     ownerDeveloperWorkspace: compactDeveloperEvidence(evidence),
     source: "ari_vnext_owner_developer_step_limit"
