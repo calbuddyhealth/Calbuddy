@@ -1,0 +1,95 @@
+name: Apply persistent owner authority patch v5
+
+on:
+  push:
+    branches:
+      - agent/ari-persistent-owner-authority
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/ari-persistent-owner-authority
+          fetch-depth: 1
+
+      - name: Apply corrected structural patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/ari-persistent-owner-authority-patch-v3.yml').read_text()
+          marker = "          python - <<'PY'\n"
+          source_start = workflow.index(marker) + len(marker)
+          source_end = workflow.index("\n          PY", source_start)
+          script = "\n".join(
+              line[10:] if line.startswith("          ") else line
+              for line in workflow[source_start:source_end].splitlines()
+          )
+
+          enable_start = script.index('enable_needle = core.index')
+          enable_end = script.index('\n\ndeclaration =', enable_start)
+          robust_enable = '''def matching_block_end(text, block_start, label):
+              brace_start = text.index("{", block_start)
+              depth = 0
+              for index in range(brace_start, len(text)):
+                  char = text[index]
+                  if char == "{":
+                      depth += 1
+                  elif char == "}":
+                      depth -= 1
+                      if depth == 0:
+                          return index + 1
+              raise SystemExit(f"{label}: closing brace missing")
+
+          enable_needle = core.index("CalBuddy.isLiveOwnerEnableCommand(message)")
+          enable_start = core.rfind("if (", 0, enable_needle)
+          enable_end = matching_block_end(core, enable_start, "owner enable command")
+          enable_replacement = '''if (
+            !readOnlyFallback &&
+            userContext.ownerMode === true &&
+            CalBuddy.isLiveOwnerEnableCommand(message)
+          ) {
+            const persistentOwner = await CalBuddy.enableVisualLiveOwnerSession();
+            CalBuddy.setAriMood(persistentOwner?.success ? "happy" : "concerned");
+            finishTiming();
+            return {
+              ...(persistentOwner || {}),
+              source: "persistent_owner_mode",
+              emotion: persistentOwner?.success ? "happy" : "concerned"
+            };
+          }'''
+          core = splice(core, enable_start, enable_end, enable_replacement, "owner enable command")'''
+          script = script[:enable_start] + robust_enable + script[enable_end:]
+
+          old_boundary = "resolved = core.index('const resolvedVisualMode =', requested)"
+          new_boundary = 'resolved = matching_block_end(core, requested, "owner visual auto-activation")'
+          if old_boundary not in script:
+              raise SystemExit('expected requested-owner boundary not found in patch source')
+          script = script.replace(old_boundary, new_boundary, 1)
+
+          exec(compile(script, '<persistent-owner-patch-v5>', 'exec'))
+          PY
+
+      - name: Verify focused owner-mode contract
+        run: |
+          node --check calbuddy-core.js
+          node --test tests/ari-live-owner-session.test.mjs tests/ari-live-owner-vnext-routing.test.mjs
+
+      - name: Commit patch and remove one-shot workflows
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/ari-persistent-owner-authority-patch.yml
+          git rm .github/workflows/ari-persistent-owner-authority-patch-v2.yml
+          git rm .github/workflows/ari-persistent-owner-authority-patch-v3.yml
+          git rm .github/workflows/ari-persistent-owner-authority-patch-v4.yml
+          git rm .github/workflows/ari-persistent-owner-authority-patch-v5.yml
+          git add calbuddy-core.js tests/ari-live-owner-session.test.mjs tests/ari-live-owner-vnext-routing.test.mjs
+          git commit -m "Make verified owner authority persistent"
+          git push origin HEAD:agent/ari-persistent-owner-authority
