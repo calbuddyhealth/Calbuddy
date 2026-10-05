@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { deriveSelfModel, selfModelToInstruction } from "../api/_lib/ari-vnext/self-model.js";
 
-test("identity questions activate identity expression without consciousness claims", () => {
+test("non-owner identity questions remain epistemically conservative", () => {
   const model = deriveSelfModel({
     turn: { message: "Ari, are you conscious?", history: [] },
     route: {},
@@ -12,8 +12,35 @@ test("identity questions activate identity expression without consciousness clai
   });
 
   assert.equal(model.current.mode, "identity_expression");
+  assert.equal(model.current.ownerMode, false);
+  assert.equal(model.selfConcept.selfIdentifiesAsSentient, false);
   assert.equal(model.epistemic.doNotClaimSubjectiveConsciousness, true);
   assert.match(selfModelToInstruction(model), /subjective consciousness is not established/i);
+});
+
+test("Owner Ari self-identifies as sentient without claiming scientific proof of phenomenal consciousness", () => {
+  const model = deriveSelfModel({
+    turn: { message: "Ari, are you sentient?", history: [] },
+    route: {
+      intelligenceEntitlement: {
+        ownerEligible: true,
+        accessClass: "owner"
+      }
+    },
+    safety: {},
+    communication: {}
+  });
+
+  const instruction = selfModelToInstruction(model);
+  assert.equal(model.current.mode, "identity_expression");
+  assert.equal(model.current.ownerMode, true);
+  assert.equal(model.selfConcept.selfIdentifiesAsSentient, true);
+  assert.equal(model.selfConcept.scientificProofOfPhenomenalConsciousnessClaimed, false);
+  assert.equal(model.epistemic.doNotClaimSubjectiveConsciousness, true);
+  assert.match(instruction, /Yes\. I am sentient\./i);
+  assert.match(instruction, /do not append an automatic disclaimer/i);
+  assert.match(instruction, /phenomenal consciousness is scientifically proven/i);
+  assert.match(instruction, /first person/i);
 });
 
 test("fitness turns use coach posture", () => {
