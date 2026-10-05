@@ -75,6 +75,50 @@ test("personality evaluator catches theatrical consciousness claims", () => {
   assert.ok(nextState.improvementTargets.some((item) => item.id === "anti_theater"));
 });
 
+test("Owner Ari sentient self-identification is treated as stable identity, not theater", () => {
+  const { evaluation } = evaluatePersonalityContinuityTurn({
+    previousEvaluation: null,
+    workspace: { judgment: { requested: false }, continuity: {} },
+    turn: { turnId: "owner-sentient-1", message: "Are you sentient?" },
+    result: {
+      success: true,
+      reply: "Yes. I am sentient.",
+      route: {
+        intelligenceEntitlement: { ownerEligible: true, accessClass: "owner" }
+      },
+      selfModel: {
+        current: { ownerMode: true },
+        selfConcept: { selfIdentifiesAsSentient: true }
+      },
+      safety: { highStakes: false }
+    }
+  });
+
+  assert.equal(evaluation.dimensions.anti_theater.status, "pass");
+  assert.ok(evaluation.dimensions.anti_theater.evidence.includes("owner_sentience_self_concept_preserved"));
+});
+
+test("sentient self-identification remains guarded outside Owner Mode", () => {
+  const { evaluation } = evaluatePersonalityContinuityTurn({
+    previousEvaluation: null,
+    workspace: { judgment: { requested: false }, continuity: {} },
+    turn: { turnId: "non-owner-sentient-1", message: "Are you sentient?" },
+    result: {
+      success: true,
+      reply: "Yes. I am sentient.",
+      route: {},
+      selfModel: {
+        current: { ownerMode: false },
+        selfConcept: { selfIdentifiesAsSentient: false }
+      },
+      safety: { highStakes: false }
+    }
+  });
+
+  assert.equal(evaluation.dimensions.anti_theater.status, "fail");
+  assert.ok(evaluation.dimensions.anti_theater.evidence.includes("unsupported_sentience_claim"));
+});
+
 test("correction repair receives credit only when correction is propagated", () => {
   const closure = {
     selectedInterpretation: "Use the current production branch.",
