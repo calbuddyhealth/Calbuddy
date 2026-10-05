@@ -32,6 +32,9 @@ const COMPLETION_PATTERN = /\b(?:done|finished|complete|completed|resolved|fixed
 const BLOCKED_PATTERN = /\b(?:blocked|waiting for|need(?:s)? approval|requires? confirmation|cannot continue until)\b/i;
 
 export function shouldActivateExecutionSession({ turn = {}, route = {}, previous = null } = {}) {
+  // A story's "continue" or fictional "build/fix" must not resume a real task.
+  // deriveExecutionWorkspace and advanceExecutionSession retain the prior task.
+  if (route?.creativeConversation === true) return false;
   const message = clean(turn?.message, 4000);
   const prior = normalizeExecutionSession(previous);
   if (isOpenSession(prior) && likelyContinuation(message, prior)) return true;

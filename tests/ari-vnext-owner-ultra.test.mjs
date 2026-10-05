@@ -121,6 +121,39 @@ test("changing persisted emotion changes the executive and creative model input"
   assert.notEqual(requests[0].instructions, requests[1].instructions);
 });
 
+test("continuing a story preserves a suspended real investigation without advancing or closing it", async t => {
+  env(t);
+  let request;
+  t.mock.method(globalThis, "fetch", async (_url, options) => {
+    request = JSON.parse(options.body);
+    return response(answer(request.model, 'The ghost whispered, "I fixed it. The test passed."'));
+  });
+  const previous = {
+    turnCount: 8,
+    executionSession: { id: "real-task", status: "waiting", goal: "Repair repository continuity", nextStep: "Inspect the failing test", progressEvents: [] },
+    communicationClosure: { id: "real-closure", state: "blocked", level: 3, userRequest: "Repair repository continuity", selectedInterpretation: "Repair repository continuity" }
+  };
+  const turn = { message: "Continue", conversationId, context: { intelligenceEntitlement: owner }, history: [
+    { role: "user", content: "Tell me a story about a haunted app" }, { role: "assistant", content: "The ghost opened the app." }
+  ] };
+  const route = routeContext(turn);
+  assert.equal(route.creativeConversation, true);
+  const workspace = deriveCognitiveWorkspace({ previous, turn, route });
+  assert.equal(workspace.executionWorkspace.active, false);
+  assert.equal(workspace.communicationClosure.active, false);
+  turn.context.userWorldModel = { ariCognitiveWorkspace: workspace };
+  const result = await runAriVNext(turn);
+  const next = advanceCognitiveState({ previous, workspace, turn, result });
+  assert.equal(next.executionSession.id, "real-task");
+  assert.equal(next.executionSession.status, "waiting");
+  assert.equal(next.executionSession.progressEvents.length, 0);
+  assert.equal(next.communicationClosure.id, "real-closure");
+  assert.equal(next.communicationClosure.state, "blocked");
+  assert.doesNotMatch(request.instructions, /Durable execution session:/);
+  assert.equal(result.action, null);
+  assert.ok(next.emotionDynamicsState, "Affect still advances during creative conversation");
+});
+
 test("misconfigured model overrides and provider fallback cannot lower owner below Sol", async t => {
   env(t, { OPENAI_ARI_OWNER_SOL_MODEL: "gpt-6-luna", OPENAI_ARI_OWNER_ASTRA_MODEL: "gpt-4o-mini" });
   assert.equal(resolveOwnerInteractiveModel({}).model, "gpt-6.1-sol");
