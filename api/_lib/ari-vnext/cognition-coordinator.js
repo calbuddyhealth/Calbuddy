@@ -1,3 +1,5 @@
+import { isOwnerUltraRoute } from "./owner-ultra.js";
+
 // ARI vNext — unified cognition coordinator.
 //
 // State engines may remain specialized, but only a small set of model-facing
@@ -30,6 +32,7 @@ export function deriveCognitionCoordinator({
 
   return {
     version: ARI_COGNITION_COORDINATOR_VERSION,
+    ownerUltra: isOwnerUltraRoute(route),
     authorities: {
       relationshipBehavior: "companion_core",
       communicationStyle: "communication_profile",
@@ -77,7 +80,8 @@ export function cognitionCoordinatorToInstruction(state = null) {
     lines.push(`Evidence [${item.kind}]: ${clean(item.summary, 520)}`);
   }
 
-  return lines.join("\n").slice(0, 3600);
+  const instruction = lines.join("\n");
+  return state.ownerUltra ? instruction : instruction.slice(0, 3600);
 }
 
 function closureEvidence(value = null, route = {}) {
@@ -198,6 +202,7 @@ function convictionEvidence(value = null, route = {}) {
 }
 
 function maxEvidenceSources(route = {}, safety = {}) {
+  if (isOwnerUltraRoute(route)) return 6;
   if (safety?.highStakes === true) return 2;
   if (route?.complexity === "deep") return 3;
   if (route?.casualConversation === true) return 1;

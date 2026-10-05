@@ -17,12 +17,12 @@ test("owner Advanced Ari enables the cognitive loop while premium alone does not
   assert.equal(isOwnerCognitiveLoopEnabled({ advancedEnabled: false, ownerEligible: true }), false);
 });
 
-test("owner cognition stays lightweight for casual turns and deep for meaningful turns", () => {
+test("owner cognition stays deep across casual and meaningful routes", () => {
   const entitlement = { advancedEnabled: true, ownerEligible: true, cognitiveLoopEnabled: true };
   assert.equal(resolveOwnerCognitionMode({
     entitlement,
     route: { casualConversation: true, complexity: "fast" }
-  }), "lightweight");
+  }), "deep");
   assert.equal(resolveOwnerCognitionMode({
     entitlement,
     route: { casualConversation: false, complexity: "fast" }

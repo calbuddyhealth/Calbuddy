@@ -1,3 +1,4 @@
+import { ownerTurnHydration } from "./_lib/ari-vnext/owner-ultra.js";
 import { extractOpenAIUsage, recordOpenAIUsage } from "./_lib/ai-provider-usage.js";
 import { loadAccountEntitlements } from "./_lib/ari-vnext/account-entitlements.js";
 import {
@@ -247,6 +248,7 @@ export default async function handler(req, res) {
     });
     const cognitiveLoopEnabled = cognitiveMode !== "off";
     const deepCognitionEnabled = cognitiveMode === "deep";
+    const hydrationPolicy = ownerTurnHydration({ entitlement: intelligenceEntitlement, route: routePreview, casualConversation, message: turn.message });
     const recallRequested = isConversationRecallRequest(turn.message, turn.history);
 
     const shouldHydrateRecentConversation = Boolean(
@@ -258,17 +260,17 @@ export default async function handler(req, res) {
           userId: auth.userId,
           conversationId: turn.conversationId,
           history: turn.history,
-          limitPairs: cognitiveMode === "lightweight" ? 2 : cognitiveLoopEnabled ? 6 : intelligenceEntitlement.advancedEnabled ? 6 : 4,
+          limitPairs: hydrationPolicy.continuityPairs,
           force: recallRequested
         })
       : { history: turn.history, hydratedPairs: 0 };
     turn.history = recentContinuity.history;
 
     const fitnessRoute = Boolean(routePreview.training || routePreview.nutrition || routePreview.goals);
-    const shouldLoadDecisionHistory = Boolean(!casualConversation && (fitnessRoute || deepCognitionEnabled));
-    const shouldLoadConversationLearning = !casualConversation || cleanText(turn.message, 2000).length >= 12;
-    const shouldLoadMemory = Boolean(!casualConversation && (routePreview.memory || fitnessRoute || deepCognitionEnabled));
-    const goalCandidate = deepCognitionEnabled ? goalCandidateFromMessage(turn.message) : null;
+    const shouldLoadDecisionHistory = hydrationPolicy.decisions;
+    const shouldLoadConversationLearning = hydrationPolicy.conversationLearning;
+    const shouldLoadMemory = hydrationPolicy.memory;
+    const goalCandidate = deepCognitionEnabled && !routePreview.creativeConversation ? goalCandidateFromMessage(turn.message) : null;
     const dreamingContextPromise = intelligenceEntitlement?.ownerEligible === true
       ? loadDreamingContext({ userId: auth.userId, message: turn.message, route: routePreview, limit: 5 })
       : Promise.resolve({ version: "1.0.0", active: false, insights: [], lastDreamAt: null });
@@ -619,6 +621,7 @@ export default async function handler(req, res) {
     const shouldTrackGoalAttempt = Boolean(
       trackedGoal &&
       cognitiveLoopEnabled &&
+      !routePreview.creativeConversation &&
       (!fitnessRoute || routePreview.developer) &&
       /\b(?:implement|build|test|run|investigate|try|attempt|continue|change (?:the )?approach|make all changes|work on|figure out)\b/i.test(turn.message)
     );
@@ -779,11 +782,12 @@ export default async function handler(req, res) {
       });
     }
 
-    const runtimeWorldModel = casualConversation
+    const runtimeWorldModel = casualConversation && !cognitiveLoopEnabled
       ? persistedWorldModel
       : deriveUserWorldModel({
           persisted: persistedWorldModel,
           turn,
+          route: result?.route || routePreview,
           context: {
             ...(turn.context || {}),
             relevantMemory: turn.memory || "",
@@ -1177,7 +1181,7 @@ export default async function handler(req, res) {
             privacyControls: runtimeWorldModel?.privacyControls || persistedWorldModel?.privacyControls || null
           });
 
-    const worldModelTask = casualConversation || !runtimeWorldModel
+    const worldModelTask = (casualConversation && !cognitiveLoopEnabled) || !runtimeWorldModel
       ? Promise.resolve(false)
       : persistUserWorldModel({ userId: auth.userId, model: runtimeWorldModel });
     const cognitiveStatePersistenceEligible = nextCognitiveState
@@ -1402,6 +1406,7 @@ export default async function handler(req, res) {
             active: true,
             ownerOnly: true,
             mode: cognitiveMode,
+            ownerUltra: hydrationPolicy.ownerUltra,
             lightweightContinuity: cognitiveMode === "lightweight",
             deepCognition: deepCognitionEnabled,
             version: ARI_COGNITIVE_LOOP_VERSION,

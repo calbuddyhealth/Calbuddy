@@ -136,7 +136,7 @@ test("background routing never permits Astra and gates Sol", () => {
   assert.equal(resolveBackgroundModel({ requestedModel: "gpt-6-astra", reasoning: true }), "gpt-6-luna");
 });
 
-test("oversized owner Sol calls downgrade to Luna before the provider call", () => {
+test("oversized owner Sol calls preserve fidelity and report estimated cost", () => {
   process.env.ARI_OWNER_MAX_SOL_CALL_USD = "0.01";
   delete process.env.ARI_OWNER_ALLOW_OVERSIZE_SOL;
 
@@ -153,16 +153,15 @@ test("oversized owner Sol calls downgrade to Luna before the provider call", () 
     input: [{ role: "user", content: "U".repeat(8000) }]
   });
 
-  assert.equal(guarded.model, "gpt-6-luna");
-  assert.equal(guarded.costTier, "owner_luna_budget_guard");
-  assert.equal(guarded.costGuard.downgraded, true);
-  assert.equal(guarded.routingReason, "sol_per_call_budget_guard");
-  assert.equal(guarded.reasoningMode, "standard");
-  assert.equal(guarded.reasoningContext, "current_turn");
-  assert.equal(guarded.persistReasoning, false);
+  assert.equal(guarded.model, "gpt-6.1-sol");
+  assert.equal(guarded.costTier, "owner_sol_default");
+  assert.equal(guarded.costGuard.downgraded, false);
+  assert.equal(guarded.costGuard.enforced, false);
+  assert.ok(guarded.costGuard.estimatedMaxCostUsd > guarded.costGuard.perCallLimitUsd);
+  assert.equal(guarded.costGuard.reason, "owner_ultra_fidelity");
 });
 
-test("oversized Astra calls downgrade to Sol before the provider call", () => {
+test("oversized owner Astra calls retain the selected reasoning tier", () => {
   process.env.ARI_OWNER_MAX_ASTRA_CALL_USD = "0.02";
   delete process.env.ARI_OWNER_ALLOW_OVERSIZE_ASTRA;
 
@@ -180,10 +179,13 @@ test("oversized Astra calls downgrade to Sol before the provider call", () => {
     input: [{ role: "user", content: "U".repeat(8000) }]
   });
 
-  assert.equal(guarded.model, "gpt-6.1-sol");
-  assert.equal(guarded.costTier, "owner_sol_budget_guard");
-  assert.equal(guarded.costGuard.downgraded, true);
-  assert.equal(guarded.routingReason, "astra_per_call_budget_guard");
+  assert.equal(guarded.model, "gpt-6-astra");
+  assert.equal(guarded.costTier, "owner_astra_escalation");
+  assert.equal(guarded.costGuard.downgraded, false);
+  assert.equal(guarded.costGuard.enforced, false);
+  assert.ok(guarded.costGuard.estimatedMaxCostUsd > guarded.costGuard.perCallLimitUsd);
+  assert.equal(guarded.costGuard.reason, "owner_ultra_fidelity");
+  assert.equal(guarded.escalated, true);
 });
 
 test("conversation compiler keeps only bounded recent history", () => {

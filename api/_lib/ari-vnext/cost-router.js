@@ -3,12 +3,11 @@
 
 import { estimateOpenAICost } from "../ai-provider-usage.js";
 
-export const ARI_COST_ROUTER_VERSION = "1.2.0";
+export const ARI_COST_ROUTER_VERSION = "1.3.0";
 export const ARI_REASONING_GOVERNOR_VERSION = "1.0.0";
 
 const DEFAULT_OWNER_MODEL = "gpt-6.1-sol";
 const DEFAULT_OWNER_ASTRA_MODEL = "gpt-6-astra";
-const DEFAULT_OWNER_BUDGET_MODEL = "gpt-6-luna";
 const DEFAULT_BACKGROUND_FAST_MODEL = "gpt-6-luna";
 const DEFAULT_BACKGROUND_REASONING_MODEL = "gpt-6-luna";
 
@@ -87,7 +86,7 @@ export function resolveOwnerInteractiveModel({
   const allowLegacyOverrides =
     String(process.env.ARI_OWNER_USE_LEGACY_MODEL_OVERRIDES || "").trim().toLowerCase() === "true";
 
-  const normalModel =
+  const configuredNormalModel =
     clean(process.env.OPENAI_ARI_OWNER_SOL_MODEL, 160) ||
     (allowLegacyOverrides
       ? clean(process.env.OPENAI_ARI_OWNER_DEFAULT_MODEL, 160) ||
@@ -95,9 +94,10 @@ export function resolveOwnerInteractiveModel({
       : "") ||
     DEFAULT_OWNER_MODEL;
 
-  const astraModel =
-    clean(process.env.OPENAI_ARI_OWNER_ASTRA_MODEL, 160) ||
-    DEFAULT_OWNER_ASTRA_MODEL;
+  const normalModel = isSolClassModel(configuredNormalModel) || isAstraClassModel(configuredNormalModel)
+    ? configuredNormalModel : DEFAULT_OWNER_MODEL;
+  const configuredAstraModel = clean(process.env.OPENAI_ARI_OWNER_ASTRA_MODEL, 160);
+  const astraModel = isAstraClassModel(configuredAstraModel) ? configuredAstraModel : DEFAULT_OWNER_ASTRA_MODEL;
 
   const explicitRequest = clean(route?.ownerModelRequest, 40).toLowerCase();
   const explicitDeepProfile = clean(reasoningProfile, 40).toLowerCase() === "deep";
@@ -141,7 +141,6 @@ export function resolveOwnerInteractiveModel({
   return {
     model: escalateToAstra ? astraModel : normalModel,
     fallbackModel: normalModel,
-    budgetModel: DEFAULT_OWNER_BUDGET_MODEL,
     reasoningDemand,
     escalated: escalateToAstra,
     reason: escalateToAstra
@@ -201,13 +200,9 @@ export function applyInteractiveCostGuard({
   });
   const estimatedMaxCostUsd = Math.max(0, Number(estimate?.estimatedCostUsd) || 0);
   const astra = isAstraClassModel(policy?.model);
-  const sol = isSolClassModel(policy?.model);
   const perCallLimitUsd = astra
     ? positiveNumber(process.env.ARI_OWNER_MAX_ASTRA_CALL_USD, 0.50)
     : positiveNumber(process.env.ARI_OWNER_MAX_SOL_CALL_USD, 0.20);
-  const allowOversize = astra
-    ? String(process.env.ARI_OWNER_ALLOW_OVERSIZE_ASTRA || "").trim().toLowerCase() === "true"
-    : String(process.env.ARI_OWNER_ALLOW_OVERSIZE_SOL || "").trim().toLowerCase() === "true";
 
   const costGuard = {
     version: ARI_COST_ROUTER_VERSION,
@@ -216,38 +211,9 @@ export function applyInteractiveCostGuard({
     estimatedInputTokens: telemetry.estimatedInputTokens,
     totalChars: telemetry.totalChars,
     downgraded: false,
-    reason: "within_call_budget"
+    enforced: false,
+    reason: policy?.accessClass === "owner" ? "owner_ultra_fidelity" : "within_call_budget"
   };
-
-  if (
-    policy?.accessClass === "owner" &&
-    (astra || sol) &&
-    estimatedMaxCostUsd > perCallLimitUsd &&
-    !allowOversize
-  ) {
-    const model = astra
-      ? clean(policy?.fallbackModel, 160) || DEFAULT_OWNER_MODEL
-      : clean(process.env.OPENAI_ARI_OWNER_BUDGET_MODEL, 160) || DEFAULT_OWNER_BUDGET_MODEL;
-    return {
-      ...policy,
-      model,
-      fallbackModel: astra ? DEFAULT_OWNER_BUDGET_MODEL : null,
-      supportsReasoning: true,
-      reasoningMode: "standard",
-      reasoningContext: "current_turn",
-      persistReasoning: false,
-      costTier: astra ? "owner_sol_budget_guard" : "owner_luna_budget_guard",
-      escalated: false,
-      routingReason: astra ? "astra_per_call_budget_guard" : "sol_per_call_budget_guard",
-      costGuard: {
-        ...costGuard,
-        downgraded: true,
-        reason: astra
-          ? "astra_estimate_above_per_call_limit"
-          : "sol_estimate_above_per_call_limit"
-      }
-    };
-  }
 
   return {
     ...policy,
@@ -311,9 +277,13 @@ export function compileConversationInput(turn = {}) {
 }
 
 export function compactInstructionText(value = "", {
-  maxChars = null
+  maxChars = null,
+  ownerUltra = false
 } = {}) {
   const text = String(value || "").replace(/\n{4,}/g, "\n\n\n").trim();
+  // Every supplied owner core section is mandatory. Individual evidence producers
+  // bound their records; never cut arbitrary middle sections out of the owner mind.
+  if (ownerUltra) return text;
   const limit = boundedInt(
     maxChars ?? process.env.ARI_CONTEXT_INSTRUCTION_CHARS,
     18000,

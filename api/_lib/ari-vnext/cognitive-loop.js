@@ -1,3 +1,5 @@
+import { isOwnerUltra } from "./owner-ultra.js";
+
 // ARI vNext — owner-only functional cognitive loop.
 // This creates persistent working-state recurrence across turns. It is a
 // functional architecture experiment, not evidence or a claim of subjective
@@ -94,14 +96,13 @@ const JUDGMENT_STOPWORDS = new Set([
 ]);
 
 export function isOwnerCognitiveLoopEnabled(entitlement = null) {
-  if (!entitlement || typeof entitlement !== "object") return false;
-  if (entitlement.cognitiveLoopEnabled !== undefined) return entitlement.cognitiveLoopEnabled === true;
-  return entitlement.advancedEnabled === true && entitlement.ownerEligible === true;
+  return isOwnerUltra(entitlement);
 }
 
 export function resolveOwnerCognitionMode({ entitlement = null, route = {} } = {}) {
   if (!isOwnerCognitiveLoopEnabled(entitlement)) return "off";
-  return route?.casualConversation === true ? "lightweight" : "deep";
+  // Routes select capabilities, never a reduced owner identity or cognitive core.
+  return "deep";
 }
 
 export function shouldPersistCognitiveState({
@@ -748,6 +749,7 @@ function deriveAttention({ route = {}, message = "", prior = {} } = {}) {
   if (route?.goals) items.push("goals");
   if (route?.social) items.push("social");
   if (route?.developer) items.push("developer");
+  if (route?.creativeConversation) items.push("creative");
   if (route?.memory || route?.followUp) items.push("continuity");
   if (route?.currentInfo) items.push("fresh_information");
   if (looksLikeIdentityQuestion(message)) items.push("self_model");

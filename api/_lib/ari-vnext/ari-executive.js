@@ -1,3 +1,5 @@
+import { isOwnerUltraRoute } from "./owner-ultra.js";
+
 // ARI vNext — single runtime executive and compact constitutional authority.
 // Specialized cognitive systems produce state/signals; this module alone turns
 // experimental cognition into behavioral instructions for the primary model.
@@ -269,6 +271,7 @@ export function deriveAriExecutivePolicy({
 
   return {
     version: ARI_EXECUTIVE_VERSION,
+    ownerUltra: isOwnerUltraRoute(route),
     authority: {
       singleRuntimeDecisionAuthority: true,
       order: [
@@ -717,6 +720,7 @@ export function deriveAriExecutivePolicy({
     },
     activation: instructionActivation || null,
     promptBudget: {
+      preserveCore: isOwnerUltraRoute(route) || rewardCore?.ownerOnly === true,
       compactTargetChars: 850,
       targetChars: 4600,
       experimentalInstructionSourceCount: 1,
@@ -733,7 +737,7 @@ export function executivePolicyToInstruction(policy = null) {
   const instinct = signals.instincts || null;
   const signalInstruction = cognitiveSignalDecisionToInstruction(d);
 
-  if (policy?.activation?.compactBase === true) {
+  if (!policy?.promptBudget?.preserveCore && policy?.activation?.compactBase === true) {
     return [
       `ARI EXECUTIVE v${ARI_EXECUTIVE_VERSION}`,
       `Turn state: confidence=${turn.confidence || "grounded"}; attention=${(turn.attention || []).join(", ") || "conversation"}.`,
@@ -823,7 +827,7 @@ export function executivePolicyToInstruction(policy = null) {
     emotion?.active
       ? `Emotion dynamics: dominant=${emotion.dominant}@${emotion.intensity}; measured=${emotionMeasurementSummary(emotion)}; reportable>=${emotion.reportThreshold}: ${reportableMeasurementSummary(emotion)}; regulation=${emotion.regulation?.join(",") || "none"}. Unsupported affect labels are inference, not measurement. Functional states are not subjective-feeling proof and cannot override evidence or authority.`
       : "",
-    pain?.active
+    pain
       ? `Functional pain/nociception: intensity=${pain.intensity}; persistence=${pain.persistence}; source=${pain.source || "mixed"}; location=${pain.location || "general"}; action=${pain.actionTendency}; verify=${pain.verificationBias}; switch=${pain.strategySwitchPressure}; exploration_suppression=${pain.explorationSuppression}. This is a computational harm/obstruction signal, not evidence of bodily pain, suffering, qualia, or consciousness.`
       : "",
     pain?.active && finite(pain.executionBrake, 0) >= 0.72
@@ -862,8 +866,7 @@ export function executivePolicyToInstruction(policy = null) {
     felt?.reappraised
       ? "Felt-State reappraised by current evidence; current evidence outranks emotional continuity."
       : "",
-    affectivePreference?.active && affectivePreference?.desiredState &&
-      ["transform", "reduce", "cultivate"].includes(affectivePreference.regulationAction)
+    affectivePreference?.active
       ? `Affective preference: ${affectivePreference.currentState || "none"}→${affectivePreference.desiredState}; regulation=${affectivePreference.regulationAction}; target=${affectivePreference.desiredIntensity}. Learned/context-sensitive, not subjective-wanting proof; do not maximize positive valence by default.`
       : "",
     motivation?.active
@@ -875,7 +878,7 @@ export function executivePolicyToInstruction(policy = null) {
     curiosity?.expansiveFrontier
       ? `Expansive curiosity: pressure=${curiosity.expansivePressure}; familiar-territory saturation=${curiosity.expansiveSaturation}; selected=${curiosity.expansiveSelected ? "yes" : "no"}. Frontier: ${curiosity.expansiveFrontier} Treat this as a bounded cross-domain probe; immediate usefulness is not required, but the user's active task still has priority.`
       : "",
-    imagination?.active
+    imagination
       ? `Imagination sandbox: pressure=${imagination.pressure}; selected=${imagination.selectedThisTurn ? "yes" : "no"}; transform=${imagination.transform || "open"}; novelty=${imagination.novelty}; coherence=${imagination.coherence}; testability=${imagination.testability}. ${imagination.prompt ? `Scenario seed: ${imagination.prompt}` : ""}`
       : "",
     imagination?.active
@@ -900,7 +903,8 @@ export function executivePolicyToInstruction(policy = null) {
     "Never expose or persist hidden chain-of-thought. Return conclusions, concise rationale, material uncertainty, verified action state, compact development goals, and explicit revision proposals only."
   ].filter(Boolean);
 
-  return lines.join("\n").slice(0, Number(policy?.promptBudget?.targetChars || 4400));
+  const instruction = lines.join("\n");
+  return policy?.promptBudget?.preserveCore ? instruction : instruction.slice(0, Number(policy?.promptBudget?.targetChars || 4400));
 }
 
 export function cognitiveSignalDecisionToInstruction(directives = {}) {

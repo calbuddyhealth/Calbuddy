@@ -1,3 +1,5 @@
+import { isOwnerUltraRoute } from "./owner-ultra.js";
+
 // ARI vNext — compact metacognitive evidence state.
 // This tracks what evidence is available for the current turn; it never stores
 // or exposes hidden chain-of-thought. Specialized cognitive systems produce
@@ -528,6 +530,7 @@ export function deriveInstructionActivation({
     route?.developer || route?.currentInfo || route?.memory || route?.followUp || safety?.highStakes
   );
   const simpleGroundedTurn = Boolean(
+    !isOwnerUltraRoute(route) &&
     !focusedEpistemicTurn &&
     !route?.social &&
     (!Array.isArray(missing) || missing.length === 0) &&

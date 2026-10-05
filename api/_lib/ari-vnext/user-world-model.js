@@ -29,6 +29,7 @@ export async function loadUserWorldModel({ userId } = {}) {
 export function deriveUserWorldModel({
   persisted = null,
   turn = {},
+  route = {},
   context = {},
   communication = null,
   selfModel = null,
@@ -61,7 +62,7 @@ export function deriveUserWorldModel({
   const explicitGoals = blocked.has("goals") ? [] : uniqueText([
     ...arrayValues(persisted?.goals?.stated),
     ...memoryLines.filter((line) => /\b(my goal|my target|trying to|want to (lose|gain|maintain|run|train|lift|build|improve|reach)|cutting|bulking)\b/i.test(line)),
-    ...extractCurrentTurnGoals(turn?.message)
+    ...(route.creativeConversation ? [] : extractCurrentTurnGoals(turn?.message))
   ], 14, 360);
 
   const adherence = longitudinalState?.training?.adherence || {};

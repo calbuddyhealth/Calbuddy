@@ -626,6 +626,7 @@ function inferRouteFromTurn(turn = {}, workspace = null) {
 function inferExplicitImagination(route = {}, workspace = null, message = "") {
   const text = clean(message, 1800);
   return Boolean(
+    route?.creativeConversation ||
     route?.creative ||
     route?.imagination ||
     (Array.isArray(workspace?.attention) && workspace.attention.some(item =>

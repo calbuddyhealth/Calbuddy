@@ -42,7 +42,7 @@ test("Advanced owner conversation uses Sol by default for short meaningful conve
   assert.equal(policy.intelligenceTier, "owner_experimental");
   assert.equal(policy.accessClass, "owner");
   assert.equal(policy.model, process.env.OPENAI_ARI_OWNER_SOL_MODEL || "gpt-6.1-sol");
-  assert.equal(policy.reasoningEffort, "low");
+  assert.equal(policy.reasoningEffort, "high");
   assert.equal(policy.escalated, false);
   assert.equal(policy.conversationBeta, true);
 });
