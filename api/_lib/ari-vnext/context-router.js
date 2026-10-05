@@ -4,8 +4,9 @@
 import { advancedConversationInstruction } from "./conversation-contract.js";
 import { contextBudgetChars, deriveReasoningDemand } from "./cost-router.js";
 import { developerResumeCheckpoint } from "./developer-checkpoint.js";
+import conversationMode from "../../../ari/vnext/ari-conversation-mode.js";
 
-export const CONTEXT_ROUTER_VERSION = "1.29.0";
+export const CONTEXT_ROUTER_VERSION = "1.30.0";
 
 const PATTERNS = {
   nutrition: /\b(calorie|calories|macro|macros|protein|carb|carbs|fat|meal|food|eat|ate|nutrition|breakfast|lunch|dinner|snack|diet|fuel|fueling|hungry|hunger)\b/i,
@@ -32,23 +33,24 @@ const PATTERNS = {
 
 export function routeContext(turn = {}) {
   const message = String(turn?.message || "");
+  const creativeConversation = conversationMode.creativeConversation(message, turn?.history);
   const recent = (turn?.history || []).slice(-4).map((item) => item?.content || "").join("\n");
   const followUp = isFollowUp(message, { hasRecentConversation: Boolean(recent.trim()) });
-  const referenceResolutionSearch = needsReferenceResolutionSearch({ message, recent });
-  const semanticText = followUp || referenceResolutionSearch ? `${recent}\n${message}` : message;
+  const referenceResolutionSearch = !creativeConversation && needsReferenceResolutionSearch({ message, recent });
+  const semanticText = !creativeConversation && (followUp || referenceResolutionSearch) ? `${recent}\n${message}` : message;
   const account = turn?.context?.accountEntitlements || {};
   const intelligenceEntitlement = turn?.context?.intelligenceEntitlement || null;
   const ownerEligible = intelligenceEntitlement?.ownerEligible === true || intelligenceEntitlement?.accessClass === "owner";
   const teenMode = account?.teenMode === true || String(account?.ageBand || "").toLowerCase() === "teen";
 
-  const nutrition = PATTERNS.nutrition.test(semanticText);
-  const training = PATTERNS.training.test(semanticText);
-  const goals = PATTERNS.goals.test(semanticText);
+  const nutrition = !creativeConversation && PATTERNS.nutrition.test(semanticText);
+  const training = !creativeConversation && PATTERNS.training.test(semanticText);
+  const goals = !creativeConversation && PATTERNS.goals.test(semanticText);
   const actionNetworkAvailable = turn?.context?.social?.actionNetwork?.available === true;
-  const social = PATTERNS.social.test(semanticText) || actionNetworkAvailable;
-  const memory = PATTERNS.memory.test(semanticText) || followUp;
-  const health = PATTERNS.health.test(semanticText);
-  const recommendationIntent = PATTERNS.recommendation.test(semanticText);
+  const social = !creativeConversation && (PATTERNS.social.test(semanticText) || actionNetworkAvailable);
+  const memory = !creativeConversation && (PATTERNS.memory.test(semanticText) || followUp);
+  const health = !creativeConversation && PATTERNS.health.test(semanticText);
+  const recommendationIntent = !creativeConversation && PATTERNS.recommendation.test(semanticText);
   const modelIdentityRequested = ownerEligible && PATTERNS.modelIdentity.test(semanticText);
   const astraBenchmarkIntent = ownerEligible && PATTERNS.astraBenchmark.test(message);
   const ownerModelRequest = ownerEligible
@@ -58,15 +60,16 @@ export function routeContext(turn = {}) {
         ? "sol"
         : null
     : null;
-  const currentInfo = needsCurrentInfo(semanticText);
+  const currentInfo = !creativeConversation && needsCurrentInfo(semanticText);
   const webSearchRequired = currentInfo || referenceResolutionSearch;
-  const cognitiveAudit = ownerEligible && PATTERNS.cognitiveSystemAudit.test(semanticText);
-  const developer =
+  const cognitiveAudit = !creativeConversation && ownerEligible && PATTERNS.cognitiveSystemAudit.test(semanticText);
+  const developer = !creativeConversation && (
     PATTERNS.developer.test(semanticText) ||
     (ownerEligible && Boolean(developerResumeCheckpoint(turn))) ||
     cognitiveAudit ||
     Boolean(turn?.context?.visualInspection) ||
-    Boolean(turn?.context?.executionEvidence);
+    Boolean(turn?.context?.executionEvidence)
+  );
   const solEscalationEligible = shouldEscalateToSol({
     message,
     semanticText,
@@ -95,7 +98,7 @@ export function routeContext(turn = {}) {
     social,
     memory
   });
-  const casualConversation = isCasualConversation({
+  const casualConversation = creativeConversation || isCasualConversation({
     message,
     followUp,
     nutrition,
@@ -135,6 +138,7 @@ export function routeContext(turn = {}) {
     intelligenceEntitlement,
     followUp,
     casualConversation,
+    creativeConversation,
     complexity
   };
 }

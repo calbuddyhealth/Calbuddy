@@ -43,6 +43,6 @@ test("Home clears stale Rebirth runtime preference and pins conversation to vNex
 });
 
 test("Home requests current resilience and authoritative latency assets", () => {
-  assert.match(home, /home-resilience\.js\?v=1\.6\.5/);
+  assert.match(home, /home-resilience\.js\?v=1\.6\.6/);
   assert.match(home, /ari-latency-hotfix\.js\?v=1\.1\.0/);
 });

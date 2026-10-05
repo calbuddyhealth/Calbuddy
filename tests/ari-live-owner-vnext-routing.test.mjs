@@ -50,6 +50,6 @@ test("the deterministic core separates persistent owner identity from high-impac
   assert.doesNotMatch(core, /Enable Live Owner Session for up to 45 minutes/);
 });
 
-test("runtime 1.6.7 is the canonical runtime version", () => {
-  assert.match(runtime, /const VERSION = "1\.6\.7"/);
+test("runtime 1.7.0 is the canonical runtime version", () => {
+  assert.match(runtime, /const VERSION = "1\.7\.0"/);
 });

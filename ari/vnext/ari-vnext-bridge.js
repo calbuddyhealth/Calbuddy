@@ -4,7 +4,7 @@
 window.Ari = window.Ari || {};
 
 window.AriVNextBridge = {
-  version: "1.14.0",
+  version: "1.15.0",
   source: "ari-vnext-bridge",
   pendingStorageKey: "ari_vnext_pending_action",
   peerReflectionStorageKey: "ari_vnext_peer_reflection_last",
@@ -19,7 +19,13 @@ window.AriVNextBridge = {
 
     const session = await this.getSession();
     const accessToken = String(session?.access_token || "").trim();
-    if (!accessToken) throw new Error("A signed-in ARI session is required.");
+    if (!accessToken) {
+      const error = new Error("A signed-in ARI session is required.");
+      error.code = "AUTH_REQUIRED";
+      error.retryable = false;
+      error.publicReply = "Please sign in again so I can respond.";
+      throw error;
+    }
 
     const pending = this.getPendingAction();
     // Confirmation and cancellation do not require a new model turn. Keep them
@@ -128,7 +134,16 @@ window.AriVNextBridge = {
           source: data?.source || "ari_vnext_daily_chat_quota"
         };
       }
-      throw new Error(data?.error || "Ari vNext request failed.");
+      const error = new Error(data?.error || "Ari vNext request failed.");
+      error.code = data?.code || "ARI_VNEXT_RUNTIME_FAILED";
+      error.status = response.status;
+      error.retryable = data?.retryable !== false && ![401, 403].includes(response.status);
+      error.turnId = data?.turnId || turnId;
+      // Only the server's public reply is displayable; raw error text remains
+      // diagnostic. Keep authentication errors distinct from provider outages.
+      error.publicReply = data?.reply || (response.status === 401 ? "Please sign in again so I can respond." : null);
+      error.failureKind = data?.failureKind || "transport";
+      throw error;
     }
 
     if (data?.pendingAction) this.setPendingAction(data.pendingAction);
@@ -315,7 +330,8 @@ window.AriVNextBridge = {
   async buildContext(options = {}) {
     const userContext = options?.userContext || {};
     const history = Array.isArray(options?.history) ? options.history : [];
-    const trainingNeeded = needsCanonicalTrainingContext(options?.message, history);
+    const creativeConversation = window.AriConversationMode?.creativeConversation(options?.message, history) === true;
+    const trainingNeeded = !creativeConversation && needsCanonicalTrainingContext(options?.message, history);
     let trainingContext = null;
 
     // The canonical Training store is valuable but comparatively heavy. Do not
@@ -397,7 +413,7 @@ window.AriVNextBridge = {
           ? options.visualInspection
           : null,
       initiativeContext:
-        options?.initiativeContext && typeof options.initiativeContext === "object"
+        !creativeConversation && options?.initiativeContext && typeof options.initiativeContext === "object"
           ? options.initiativeContext
           : null
     };

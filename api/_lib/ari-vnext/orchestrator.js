@@ -42,6 +42,7 @@ import {
 } from "./developer-task-controller.js";
 import { deriveMetacognition, metacognitionToInstruction } from "./metacognition.js";
 import { resolveModelPolicy } from "./model-policy.js";
+import { MAX_PROVIDER_ATTEMPTS, isTransientProviderFailure, providerError, retryDelayMs, waitForProviderRetry } from "./provider-recovery.js";
 import {
   applyInteractiveCostGuard,
   compactInstructionText,
@@ -166,6 +167,9 @@ export async function runAriVNext(turn = {}) {
   });
   const selfModel = deriveSelfModel({ turn: { ...turn, relationshipContinuity }, route, safety });
   let modelPolicy = resolveModelPolicy({ ...route, health: route.health || safety.highStakes });
+  if (route.creativeConversation) {
+    return runCreativeConversation({ turn, route, safety, communication, relationshipContinuity, selfModel, modelPolicy });
+  }
   const relevantContext = buildRelevantContext(turn, route);
   const coachingState = deriveCoachingState({ turn, route, context: relevantContext });
   const longitudinalState = deriveLongitudinalState({ route, context: relevantContext });
@@ -523,6 +527,7 @@ export async function runAriVNext(turn = {}) {
     reviewConfidence >= 0.84 && functionNames.has(reviewedDecision)
       ? reviewedDecision
       : "";
+  const appActionRequested = Boolean(reviewedToolName) || shouldReviewNoToolTurn(turn, actionContinuation);
 
   if (functionCall && reviewedDecision === "none" && reviewConfidence >= 0.84) {
     first = await callResponses({
@@ -608,7 +613,7 @@ export async function runAriVNext(turn = {}) {
   // Recover once when the model promises an action without producing one.
   // Reuse the current turn and the available capabilities; normal argument
   // validation and explicit confirmation still apply to any repaired proposal.
-  if (!functionCall && actionReplyRequiresProposal(extractOutputText(first))) {
+  if (!functionCall && appActionRequested && actionReplyRequiresProposal(extractOutputText(first))) {
     try {
       first = await callResponses({
         turn,
@@ -625,7 +630,11 @@ export async function runAriVNext(turn = {}) {
   }
 
   if (!functionCall) {
-    const guardedReply = guardUnpreparedActionReply(extractOutputText(first));
+    // Ordinary model answers are not application receipts. Do not run prose,
+    // fictional dialogue or explanations through an app-write text filter.
+    const guardedReply = appActionRequested
+      ? guardUnpreparedActionReply(extractOutputText(first))
+      : { reply: extractOutputText(first), actionPreparation: null };
     return withInternalCouncil({
       success: true,
       ready: true,
@@ -2178,16 +2187,45 @@ function experimentReviewToInstruction(state = null) {
   ].join("\n").slice(0, 6500);
 }
 
+async function runCreativeConversation({ turn, route, safety, communication, relationshipContinuity, selfModel, modelPolicy }) {
+  // The same authenticated runtime, provider policy, persona, safety context,
+  // history and preferences; no app tools, stale initiatives or mutation repair.
+  // Fictional dialogue is not evidence of an application write.
+  const instructions = compactInstructionText([
+    ARI_PERSONA,
+    "CONVERSATION DELIVERY\nAnswer the latest user request directly using your own language and judgment. Earlier app suggestions do not override it. No application tools are attached to this conversation-only turn. Fictional dialogue is not a real app-action receipt.",
+    communicationProfileToInstruction(communication),
+    safetyToInstruction(safety)
+  ].join("\n\n"));
+  const input = buildInput(turn);
+  const policy = applyInteractiveCostGuard({ policy: modelPolicy, instructions, input });
+  const response = await callResponses({ turn, policy, instructions, input, tools: [] });
+  const reply = extractOutputText(response);
+  if (!reply || findFunctionCall(response?.output)) {
+    throw providerError({ status: 502, message: "The provider returned no conversational response." });
+  }
+  return {
+    success: true, ready: true, reply, route, safety, communication,
+    relationshipContinuity, selfModel, modelPolicy: policy,
+    pendingAction: null, action: null, provider: providerSummary(response),
+    semanticActionReview: null,
+    requestUnderstanding: { authority: "ari_vnext_primary_model", mode: "creative_conversation", selectedTool: null, hiddenChainOfThoughtStored: false },
+    source: "ari_vnext"
+  };
+}
+
 export function buildInput(turn = {}) {
   return compileConversationInput(turn);
 }
 
-async function callResponses({ turn, policy, instructions, input, tools = [], toolChoice = "auto" } = {}) {
+export async function callResponses({ turn, policy, instructions, input, tools = [], toolChoice = "auto" } = {}) {
   const apiKey = String(process.env.ARI_PROVIDER_API_KEY || process.env.OPENAI_API_KEY || "").trim();
   if (!apiKey) throw new Error("Ari model provider key is not configured.");
 
   const controller = new AbortController();
+  const deadlineAt = Date.now() + (policy?.timeoutMs || 25000);
   const timeoutId = setTimeout(() => controller.abort(), policy?.timeoutMs || 25000);
+  let attempts = 0;
   const normalizedTools = Array.isArray(tools) ? tools : [];
 
   const buildBody = (model, fallbackFrom = null, { forceFreshReasoning = false } = {}) => {
@@ -2256,82 +2294,87 @@ async function callResponses({ turn, policy, instructions, input, tools = [], to
   const send = async (body) => {
     const providerBody = { ...body };
     delete providerBody._ariReasoningContinuity;
-    const response = await fetch(RESPONSES_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(providerBody),
-      signal: controller.signal
-    });
-    const data = await response.json().catch(() => ({}));
-    return { response, data, body };
+    attempts += 1;
+    try {
+      const response = await fetch(RESPONSES_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(providerBody),
+        signal: controller.signal
+      });
+      const parsed = await response.json().catch(() => null);
+      const data = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+      return { response, data, body };
+    } catch (error) {
+      if (controller.signal.aborted || error?.name === "AbortError") throw error;
+      // No application tools execute here: replay only the model request.
+      if (!(error instanceof TypeError) && !["ECONNRESET", "ETIMEDOUT", "EAI_AGAIN", "UND_ERR_SOCKET"].includes(error?.cause?.code || error?.code)) throw error;
+      return { response: { ok: false, status: 503 }, data: { error: { message: "Model provider connection failed." } }, body };
+    }
   };
 
   try {
     const selectedModel = String(policy?.model || "").trim();
-    let attempt = await send(buildBody(selectedModel));
-
-    if (
-      !attempt.response.ok &&
-      attempt.body?.previous_response_id &&
-      shouldRetryFreshReasoningThread({ response: attempt.response, data: attempt.data })
-    ) {
-      const originalStatus = attempt.response.status;
-      const originalMessage = String(attempt.data?.error?.message || "").slice(0, 500);
-      attempt = await send(buildBody(selectedModel, null, { forceFreshReasoning: true }));
-      attempt.data._ariReasoningThreadReset = {
-        reason: "provider_rejected_continuation",
-        originalStatus,
-        originalMessage
-      };
-      if (attempt.body?._ariReasoningContinuity) {
-        attempt.body._ariReasoningContinuity.resetReason = "provider_rejected_continuation";
+    let activeModel = selectedModel;
+    let forceFreshReasoning = false;
+    let routingFallback = null;
+    let reasoningReset = null;
+    let lastFailure = null;
+    while (attempts < MAX_PROVIDER_ATTEMPTS) {
+      const attempt = await send(buildBody(activeModel, routingFallback?.from || null, { forceFreshReasoning }));
+      if (attempt.response.ok) {
+        attempt.data._ariPromptBudget = promptBudgetTelemetry({ instructions: attempt.body.instructions, input: attempt.body.input });
+        attempt.data._ariReasoningContinuity = attempt.body._ariReasoningContinuity || null;
+        if (reasoningReset) {
+          attempt.data._ariReasoningThreadReset = reasoningReset;
+          attempt.data._ariReasoningContinuity.resetReason = "provider_rejected_continuation";
+        }
+        if (routingFallback) attempt.data._ariRoutingFallback = routingFallback;
+        attempt.data._ariProviderRecovery = { attempts, recovered: attempts > 1 };
+        return attempt.data;
       }
-    }
 
-    if (shouldTryProviderModelFallback({
-      response: attempt.response,
-      data: attempt.data,
-      policy
-    })) {
-      const fallbackModel = String(policy?.fallbackModel || "").trim();
-      const originalStatus = attempt.response.status;
-      const originalMessage = String(attempt.data?.error?.message || "").slice(0, 500);
-      const fallbackAttempt = await send(buildBody(fallbackModel, selectedModel));
-      if (fallbackAttempt.response.ok) {
-        attempt = fallbackAttempt;
-        attempt.data._ariRoutingFallback = {
-          from: selectedModel,
-          to: fallbackModel,
-          reason: "provider_model_unavailable",
-          originalStatus,
-          originalMessage
-        };
-      } else {
-        attempt = fallbackAttempt;
+      const status = Number(attempt.response.status);
+      const message = String(attempt.data?.error?.message || "ARI model provider request failed.");
+      const code = String(attempt.data?.error?.code || attempt.data?.error?.type || "");
+      lastFailure = providerError({ status, message, code, attempts });
+      if (attempts >= MAX_PROVIDER_ATTEMPTS) break;
+
+      if (!forceFreshReasoning && attempt.body?.previous_response_id && shouldRetryFreshReasoningThread(attempt)) {
+        forceFreshReasoning = true;
+        reasoningReset = { reason: "provider_rejected_continuation", originalStatus: status };
+        continue;
       }
-    }
 
-    if (!attempt.response.ok) {
-      const error = new Error(attempt.data?.error?.message || "ARI model provider request failed.");
-      error.status = attempt.response.status;
-      throw error;
+      const transient = isTransientProviderFailure({ status, message, code });
+      const delay = transient ? retryDelayMs(attempt.response, attempts) : 0;
+      // Honor Retry-After without holding an interactive function indefinitely.
+      // Continuation reset, retries and fallback share this deadline and budget.
+      if (transient && (delay > 2000 || Date.now() + delay + 500 >= deadlineAt)) break;
+      const unavailableModel = shouldTryProviderModelFallback({ ...attempt, policy }) && String(policy?.fallbackModel || "").trim() !== activeModel;
+      const fallbackModel = unavailableModel
+        ? String(policy?.fallbackModel || "").trim()
+        : transient && attempts >= 2
+          ? String(policy?.availabilityFallbackModel || "").trim()
+          : "";
+      if (fallbackModel && fallbackModel !== activeModel && !routingFallback && !/insufficient_quota|billing|credit|payment|content_policy|safety|moderation/i.test(`${code} ${message}`)) {
+        routingFallback = { from: selectedModel, to: fallbackModel, reason: transient ? "provider_temporarily_unavailable" : "provider_model_unavailable", originalStatus: status };
+        activeModel = fallbackModel;
+        forceFreshReasoning = true;
+      } else if (!transient) {
+        break;
+      }
+      // Structured diagnostic excludes prompts, user content and credentials.
+      console.warn("[ARI provider recovery]", { turnId: turn?.turnId || null, status, attempt: attempts, fallback: Boolean(routingFallback) });
+      if (delay) await waitForProviderRetry(delay, controller.signal);
     }
-    if (attempt.data && typeof attempt.data === "object") {
-      attempt.data._ariPromptBudget = promptBudgetTelemetry({
-        instructions: attempt.body.instructions,
-        input: attempt.body.input
-      });
-      attempt.data._ariReasoningContinuity = attempt.body._ariReasoningContinuity || null;
-    }
-    return attempt.data;
+    throw lastFailure || providerError({ attempts });
   } catch (error) {
-    if (error?.name === "AbortError") {
-      const timeoutError = new Error("Ari vNext model request timed out.");
-      timeoutError.status = 504;
-      throw timeoutError;
+    if (error?.name === "AbortError" || controller.signal.aborted) {
+      throw providerError({ status: 504, message: "Ari vNext model request timed out.", attempts });
     }
     throw error;
   } finally {
@@ -2580,7 +2623,12 @@ function shouldReviewNoToolTurn(turn = {}, continuation = null) {
   const text = String(turn?.message || "").trim().toLowerCase();
   if (!text) return false;
 
-  return /\b(?:can you|could you|please|i want you to|help me|log|record|save|add|create|build|make|plan|change|update|replace|remove|track|start|finish|complete|cancel|set\s+(?:it|that|this|me|my)|put\s+(?:it|that|this|together)|figure\s+out.+for\s+me)\b/i.test(text);
+  // A polite question is not a write request. The primary model still sees all
+  // eligible tools and owns semantic interpretation; this only recovers missed
+  // app changes, rather than charging every "can you" a second model pass.
+  const loggingRequest = /^(?:(?:can|could|would) you\s+|please\s+|i (?:want|need) you to\s+)?(?:log|record|save)\b|\b(?:can|could|would) you\s+(?:log|record|save)\b/i.test(text);
+  const appChangeRequest = /\b(?:add|create|build|make|plan|change|update|replace|remove|track|start|finish|complete|cancel|set|put together)\b.{0,120}\b(?:workouts?|training|meals?|foods?|weight|goals?|calories|activity|exercise|sets?|reps?|meetups?|missions?|crews?|circle|experiments?|repository|repo|branch|files?)\b/i.test(text);
+  return loggingRequest || appChangeRequest;
 }
 
 function deriveTemporalContext(turn = {}) {
@@ -2760,8 +2808,8 @@ function extractOutputText(data = {}) {
   return data.output
     .filter((item) => item?.type === "message")
     .flatMap((item) => Array.isArray(item?.content) ? item.content : [])
-    .filter((part) => part?.type === "output_text" && typeof part?.text === "string")
-    .map((part) => part.text)
+    .filter((part) => (part?.type === "output_text" && typeof part?.text === "string") || (part?.type === "refusal" && typeof part?.refusal === "string"))
+    .map((part) => part.type === "refusal" ? part.refusal : part.text)
     .join("")
     .trim();
 }
@@ -2932,6 +2980,7 @@ function providerSummary(data = {}) {
     usage: data?.usage || null,
     promptBudget: data?._ariPromptBudget || null,
     routingFallback: data?._ariRoutingFallback || null,
+    recovery: data?._ariProviderRecovery || null,
     reasoningContinuity: data?._ariReasoningContinuity || null
   };
 }
