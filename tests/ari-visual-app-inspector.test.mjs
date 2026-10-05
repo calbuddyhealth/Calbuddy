@@ -218,7 +218,7 @@ test("workflow installs Chromium and runs only the bounded inspector worker", ()
 });
 
 test("Ari self-model and capability registry know visual inspection is available", () => {
-  assert.match(selfModel, /ARI_SELF_MODEL_VERSION = "1\.4\.3"/);
+  assert.match(selfModel, /ARI_SELF_MODEL_VERSION = "1\.5\.0"/);
   assert.match(selfModel, /ownerVisualAppInspectionSupported: true/);
   assert.match(selfModel, /Visual App Inspector/);
   assert.match(selfModel, /temporary Live Owner Session/);
