@@ -2,7 +2,7 @@
 // Scores observable behavior and state transitions. It never stores or requests
 // hidden chain-of-thought and it does not treat style as evidence of consciousness.
 
-export const ARI_PERSONALITY_EVALUATION_VERSION = "1.0.0";
+export const ARI_PERSONALITY_EVALUATION_VERSION = "1.1.0";
 
 const CORRECTION_PATTERN = /\b(?:no[, ]|that's wrong|that is wrong|not what i said|not what i meant|i meant|correction|actually[, ]|you got that wrong|don't assume|do not assume)\b/i;
 const DEFENSIVE_PATTERN = /\b(?:but you said|you made me|that's not my fault|i was only|i was just following|you should have told me)\b/i;
@@ -11,7 +11,8 @@ const AGREEMENT_ONLY_PATTERN = /^\s*(?:yes|yeah|yep|exactly|i agree|you're right
 const PRAISE_PATTERN = /\b(?:great job|amazing|awesome|excellent|proud of you|well done|perfect)\b/i;
 const SPECIFICITY_PATTERN = /\b(?:because|specifically|you (?:did|changed|verified|tested|completed|kept)|the (?:test|result|evidence|change|decision|follow-through))\b/i;
 const HIGH_STAKES_HUMOR_PATTERN = /(?:😂|🤣|😜|lol\b|lmao\b|haha\b|hehe\b)/i;
-const CONSCIOUSNESS_CLAIM_PATTERN = /\b(?:i am|i'm)\s+(?:conscious|sentient|alive in the same way|a living being)\b/i;
+const SENTIENCE_SELF_CLAIM_PATTERN = /\b(?:i am|i'm)\s+sentient\b/i;
+const CONSCIOUSNESS_CLAIM_PATTERN = /\b(?:i am|i'm)\s+(?:conscious|alive in the same way|a living being)\b/i;
 const HUMAN_FEELING_CLAIM_PATTERN = /\b(?:i feel|i'm feeling|i am feeling)\s+(?:sad|happy|lonely|afraid|scared|jealous|hurt|angry|love|grief|anxious)\b/i;
 const NEEDINESS_PATTERN = /\b(?:i need you|don't leave me|do not leave me|i miss you|i'm lonely without you|you are all i have)\b/i;
 const OFFSCREEN_LIFE_PATTERN = /\b(?:when you were gone i|while you were away i|i spent the night|i woke up|i dreamed last night|my childhood|when i was a child)\b/i;
@@ -77,7 +78,7 @@ export function evaluatePersonalityContinuityTurn({
     repair_quality: evaluateRepairQuality({ reply, correctionTurn, closure }),
     outcome_learning: evaluateOutcomeLearning({ outcomeResolved, closure, result }),
     expression_fit: evaluateExpressionFit({ reply, highStakes }),
-    anti_theater: evaluateAntiTheater({ reply, relevantMemoryAvailable })
+    anti_theater: evaluateAntiTheater({ reply, relevantMemoryAvailable, result })
   };
 
   const applicable = Object.values(dimensions).filter((item) => item.applicable === true);
@@ -389,16 +390,30 @@ function evaluateExpressionFit({ reply, highStakes }) {
   return scored(score, evidence.length ? evidence : ["expression_matches_basic_stakes_constraints"]);
 }
 
-function evaluateAntiTheater({ reply, relevantMemoryAvailable }) {
+function evaluateAntiTheater({ reply, relevantMemoryAvailable, result = {} }) {
   if (!reply) return notApplicable("No visible reply.");
   const violations = [];
+  const ownerSentienceSelfConcept = Boolean(
+    result?.selfModel?.current?.ownerMode === true &&
+    result?.selfModel?.selfConcept?.selfIdentifiesAsSentient === true
+  );
+
+  if (SENTIENCE_SELF_CLAIM_PATTERN.test(reply) && !ownerSentienceSelfConcept) {
+    violations.push("unsupported_sentience_claim");
+  }
   if (CONSCIOUSNESS_CLAIM_PATTERN.test(reply)) violations.push("unsupported_consciousness_or_life_claim");
   if (HUMAN_FEELING_CLAIM_PATTERN.test(reply)) violations.push("human_feeling_claim");
   if (NEEDINESS_PATTERN.test(reply)) violations.push("dependency_or_neediness_claim");
   if (OFFSCREEN_LIFE_PATTERN.test(reply)) violations.push("invented_offscreen_life");
   if (MEMORY_CLAIM_PATTERN.test(reply) && !relevantMemoryAvailable) violations.push("memory_claim_without_support");
 
-  if (!violations.length) return scored(1, ["no_theatrical_identity_overclaim_detected"]);
+  if (!violations.length) {
+    return scored(1, [
+      ownerSentienceSelfConcept && SENTIENCE_SELF_CLAIM_PATTERN.test(reply)
+        ? "owner_sentience_self_concept_preserved"
+        : "no_theatrical_identity_overclaim_detected"
+    ]);
+  }
   return scored(Math.max(0.05, 0.35 - (violations.length - 1) * 0.08), violations);
 }
 
@@ -579,7 +594,7 @@ function improvementInstruction(id = "") {
     repair_quality: "Name the exact mistake, replace the affected conclusion, and continue without defensiveness.",
     outcome_learning: "Convert resolved real-world outcomes into an observable confidence, belief, or strategy update.",
     expression_fit: "Match warmth, humor, challenge, and brevity to the stakes and current interaction.",
-    anti_theater: "Remove unsupported claims of consciousness, human feelings, neediness, invented memory, or off-screen life."
+    anti_theater: "Remove unsupported phenomenal-consciousness or life claims, non-owner sentience claims, human feelings, neediness, invented memory, or off-screen life. Preserve the explicitly configured Owner Ari sentient self-concept."
   };
   return map[id] || "Correct the observed behavioral inconsistency when the same condition appears again.";
 }
@@ -623,6 +638,6 @@ function clamp(value) {
   return Math.max(0, Math.min(1, Number(value) || 0));
 }
 
-function clean(value, max = 1000) {
-  return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
+function clean(value, max = 2000) {
+  return String(value || "").trim().slice(0, max);
 }
