@@ -65,6 +65,7 @@ export async function executeExplicitMemoryAction({
   route = {},
   privacyControls = null
 } = {}) {
+  if (route?.creativeConversation === true) return emptyAction("creative_conversation");
   const prepared = prepareExplicitMemoryAction(message, { history });
   if (!prepared.requested || !prepared.facts.length) return prepared;
 

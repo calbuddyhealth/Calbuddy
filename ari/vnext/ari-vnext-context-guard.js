@@ -1,6 +1,6 @@
 // =====================================================
 // ARI XP — vNext shared context guard
-// Version: 1.2.4
+// Version: 1.2.5
 // Purpose:
 //   - Give every vNext surface the same canonical nutrition budget contract.
 // //   - Treat an unset calorie goal as unknown instead of inventing a fallback.
@@ -16,7 +16,7 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.2.4";
+  const VERSION = "1.2.5";
   const CONTEXT_FLAG = "__ariVNextContextGuardV1";
   const BRIDGE_FLAG = "__ariVNextContinuityGuardV1";
   const PEER_FLAG = "__ariVNextOwnerPeerGuardV1";
@@ -101,6 +101,7 @@
   function needsCircleActionContext(message = "", history = []) {
     const text = clean(message);
     if (!text) return false;
+    if (window.AriConversationMode?.creativeConversation(text, history)) return false;
 
     const followUp = /^(why|how|what about|and|but|then|the other one|make it|do that|yes|yeah|no|instead)\b/i.test(text);
     const recent = followUp
@@ -244,7 +245,8 @@
     bridge.ask = async function ariVNextContinuityAwareAsk(message, options = {}) {
       let history = Array.isArray(options?.history) ? options.history.slice(-16) : [];
 
-      if (history.length < 2 && typeof window.CalBuddy?.loadRecentConversationHistory === "function") {
+      const creativeConversation = window.AriConversationMode?.creativeConversation(message, history) === true;
+      if (!creativeConversation && history.length < 2 && typeof window.CalBuddy?.loadRecentConversationHistory === "function") {
         try {
           const recent = await window.CalBuddy.loadRecentConversationHistory();
           history = mergeHistory(Array.isArray(recent) ? recent : [], history);

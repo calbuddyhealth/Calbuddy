@@ -29,7 +29,7 @@ export function resolveModelPolicy(route = {}) {
     reasoningMode: supportsReasoning ? "standard" : null,
     reasoningContext: supportsReasoning ? "current_turn" : null,
     persistReasoning: false,
-    maxOutputTokens: mode === "deep" ? 900 : mode === "standard" ? 700 : 450,
+    maxOutputTokens: route?.creativeConversation ? 900 : mode === "deep" ? 900 : mode === "standard" ? 700 : 450,
     timeoutMs: mode === "deep" ? 22000 : mode === "standard" ? 18000 : 12000,
     costTier: freshness === "live"
       ? mode === "deep" ? "deep_live_search" : mode === "standard" ? "standard_live_search" : "fast_live_search"
@@ -129,6 +129,7 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
     freshness,
     model,
     fallbackModel: owner ? ownerRouting?.fallbackModel || null : null,
+    availabilityFallbackModel: owner && route?.creativeConversation ? ownerRouting?.budgetModel || null : null,
     supportsReasoning,
     reasoningProfile,
     reasoningEffort,
@@ -136,7 +137,9 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
     reasoningContext,
     persistReasoning,
     reasoningDemand,
-    maxOutputTokens: casualConversation
+    maxOutputTokens: route?.creativeConversation
+      ? 2400
+      : casualConversation
       ? owner
         ? 700
         : 650

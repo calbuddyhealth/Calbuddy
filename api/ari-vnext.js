@@ -65,6 +65,7 @@ import { listUserExperiments, summarizeExperimentLedger } from "./_lib/ari-vnext
 import { recordInitiativeSurface } from "./_lib/ari-vnext/initiative-events.js";
 import { filterMemoryResultForPrivacy, retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
 import { runAriVNext } from "./_lib/ari-vnext/orchestrator.js";
+import { publicTurnFailure } from "./_lib/ari-vnext/provider-recovery.js";
 import { persistAriActionProposal } from "./_lib/ari-vnext/action-ledger.js";
 import { retrieveInstitutionalMemory } from "./_lib/ari-vnext/institutional-memory.js";
 import { learnFromCouncilTurn } from "./_lib/ari-vnext/council-lesson-extractor.js";
@@ -1553,10 +1554,12 @@ export default async function handler(req, res) {
       await releaseAriRequest(requestIdentity);
     }
     console.error("[ARI vNext Error]", error);
+    const failure = publicTurnFailure(error);
     return res.status(normalizeStatus(error?.status)).json({
       success: false,
       ready: false,
-      error: error?.message || "Ari vNext could not complete the turn.",
+      ...failure,
+      error: failure.reply,
       source: "ari_vnext_api",
       timing: { totalMs: Date.now() - startedAt }
     });

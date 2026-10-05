@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: ari/runtime/ari-runtime-controller.js
-// Version: 1.6.7
+// Version: 1.7.0
 // Purpose:
 //   Make Ari vNext the single semantic/action authority on Home + Nutrition.
 //   Legacy CalBuddy/Rebirth remains a read-only emergency response fallback.
@@ -34,16 +34,17 @@
   window.Ari = window.Ari || {};
   window.CalBuddy = window.CalBuddy || {};
 
-  const VERSION = "1.6.7";
+  const VERSION = "1.7.0";
   const MODE_KEY = "ari_runtime_mode_v1";
   const DEFAULT_MODE = "vnext";
   const ALLOWED_MODES = new Set(["vnext", "rebirth"]);
   const VNEXT_SCRIPTS = [
+    "ari/vnext/ari-conversation-mode.js?v=1.0.0",
     "ari/vnext/ari-vnext-training-context.js?v=1.3.0",
     "ari/vnext/ari-vnext-action-adapter.js?v=1.7.0",
     "ari/vnext/ari-vnext-activity-adapter.js?v=1.1.0",
-    "ari/vnext/ari-vnext-bridge.js?v=1.14.0",
-    "ari/vnext/ari-vnext-context-guard.js?v=1.2.4",
+    "ari/vnext/ari-vnext-bridge.js?v=1.15.0",
+    "ari/vnext/ari-vnext-context-guard.js?v=1.2.5",
     "ari/vnext/ari-vnext-initiative.js?v=1.2.1"
   ];
 
@@ -194,11 +195,12 @@
     const ready = window.AriVNextContextGuard?.ready === true;
     if (!ready) return false;
     const version = clean(window.AriVNextContextGuard?.version);
-    return !version || versionAtLeast(version, "1.2.4");
+    return !version || versionAtLeast(version, "1.2.5");
   }
 
   function dependencyReady(src = "") {
     const base = dependencyBase(src);
+    if (base.endsWith("ari-conversation-mode.js")) return typeof window.AriConversationMode?.creativeConversation === "function";
     if (base.endsWith("ari-vnext-training-context.js")) return Boolean(window.AriVNextTrainingContext);
     if (base.endsWith("ari-vnext-action-adapter.js")) {
       return Boolean(window.AriVNextActionAdapter && versionAtLeast(window.AriVNextActionAdapter?.version, "1.7.0"));
@@ -206,7 +208,7 @@
     if (base.endsWith("ari-vnext-activity-adapter.js")) return Boolean(window.AriVNextActivityAdapter);
     if (base.endsWith("ari-vnext-bridge.js")) {
       return typeof window.AriVNextBridge?.ask === "function" &&
-        versionAtLeast(window.AriVNextBridge?.version, "1.14.0");
+        versionAtLeast(window.AriVNextBridge?.version, "1.15.0");
     }
     if (base.endsWith("ari-vnext-context-guard.js")) return contextGuardReady();
     if (base.endsWith("ari-vnext-initiative.js")) {
@@ -257,7 +259,7 @@
   function vNextReady() {
     return Boolean(
       typeof window.AriVNextBridge?.ask === "function" &&
-      versionAtLeast(window.AriVNextBridge?.version, "1.14.0") &&
+      versionAtLeast(window.AriVNextBridge?.version, "1.15.0") &&
       window.AriVNextActionAdapter &&
       versionAtLeast(window.AriVNextActionAdapter?.version, "1.7.0") &&
       window.AriVNextActivityAdapter &&
@@ -674,10 +676,12 @@
 
       await ensureVNext(signal);
       throwIfAborted(signal);
-      await markInitiativeEngaged();
+      // Engagement telemetry is optional; it cannot hold a conversation open.
+      void markInitiativeEngaged();
       throwIfAborted(signal);
 
-      const casualConversation = isCasualConversation(message);
+      const creativeConversation = window.AriConversationMode?.creativeConversation(message, input?.history) === true;
+      const casualConversation = creativeConversation || isCasualConversation(message);
       const userContext =
         input?.userContext ||
         input?.context ||
@@ -685,7 +689,8 @@
 
       throwIfAborted(signal);
 
-      const initiativeContext = stagedInitiativeContext;
+      const initiativeContext = creativeConversation ? null : stagedInitiativeContext;
+      if (creativeConversation) stagedInitiativeContext = null;
       let result = await window.AriVNextBridge.ask(message, {
         ...input,
         userContext,
@@ -704,9 +709,12 @@
       return {
         success: false,
         ready: false,
-        retryable: true,
-        code: "ARI_VNEXT_RUNTIME_FAILED",
-        reply: "I couldn't complete that request through Ari's primary runtime. Nothing was saved. Try again.",
+        retryable: error?.retryable !== false,
+        code: error?.code || "ARI_VNEXT_RUNTIME_FAILED",
+        failureKind: error?.failureKind || "runtime",
+        status: error?.status || null,
+        turnId: error?.turnId || input?.turnId || null,
+        reply: error?.publicReply || "I couldn't finish that response. Please try again.",
         pendingAction: null,
         action: null,
         source: "ari_vnext_runtime_failure"

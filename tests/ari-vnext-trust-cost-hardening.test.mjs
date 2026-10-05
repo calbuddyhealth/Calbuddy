@@ -17,7 +17,7 @@ test("runtime preserves the object-style Home ask contract without normal legacy
   assert.match(runtime, /function normalizeAskRequest\(messageOrInput = "", options = \{\}\)/);
   assert.match(runtime, /typeof messageOrInput === "object"/);
   assert.match(runtime, /const message = clean\(input\?\.message\)/);
-  assert.match(runtime, /code: "ARI_VNEXT_RUNTIME_FAILED"/);
+  assert.match(runtime, /code: error\?\.code \|\| "ARI_VNEXT_RUNTIME_FAILED"/);
   assert.doesNotMatch(runtime, /return await runReadOnlyLegacyFallback\(input, error\)/);
   assert.doesNotMatch(runtime, /AriVNextBridge\.ask\(messageOrInput/);
 });
@@ -45,7 +45,7 @@ test("vNext pending actions are discarded after expiry in the browser boundary",
 
 test("normal vNext failure returns a local retryable failure instead of calling the legacy model", () => {
   assert.match(runtime, /ARI_VNEXT_RUNTIME_FAILED/);
-  assert.match(runtime, /retryable: true/);
+  assert.match(runtime, /retryable: error\?\.retryable !== false/);
   assert.match(runtime, /pendingAction: null/);
   assert.match(runtime, /action: null/);
   assert.doesNotMatch(runtime, /return await runReadOnlyLegacyFallback\(input, error\)/);
