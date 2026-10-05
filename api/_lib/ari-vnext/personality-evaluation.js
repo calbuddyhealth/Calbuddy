@@ -638,6 +638,6 @@ function clamp(value) {
   return Math.max(0, Math.min(1, Number(value) || 0));
 }
 
-function clean(value, max = 2000) {
-  return String(value || "").trim().slice(0, max);
+function clean(value, max = 1000) {
+  return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 }
