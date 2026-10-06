@@ -2,7 +2,7 @@ import { deriveReasoningDemand, isSolClassModel, resolveOwnerInteractiveModel } 
 
 // ARI vNext model routing.
 
-export const MODEL_POLICY_VERSION = "4.4.0";
+export const MODEL_POLICY_VERSION = "4.4.1";
 
 export function resolveModelPolicy(route = {}) {
   const intelligence = route?.intelligenceEntitlement || null;
@@ -147,7 +147,8 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
         : mode === "fast"
           ? 1100
           : 1800,
-    timeoutMs: owner ? 60000 : casualConversation
+    // Owner reasoning and long-form output need more than the old one-minute cutoff.
+    timeoutMs: owner ? 180000 : casualConversation
       ? 16000
       : reasoningMode === "pro"
         ? 60000
