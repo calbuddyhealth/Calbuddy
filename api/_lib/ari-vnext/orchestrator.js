@@ -1,3 +1,4 @@
+import { isOwnerUltraRoute } from "./owner-ultra.js";
 // ARI vNext — model-first orchestration through OpenAI Responses API.
 
 import { reviewExplicitApplicationIntent } from "./action-intent-verifier.js";
@@ -46,6 +47,8 @@ import { MAX_PROVIDER_ATTEMPTS, isTransientProviderFailure, providerError, retry
 import {
   applyInteractiveCostGuard,
   compactInstructionText,
+  isSolClassModel,
+  isAstraClassModel,
   compileConversationInput,
   promptBudgetTelemetry
 } from "./cost-router.js";
@@ -167,9 +170,6 @@ export async function runAriVNext(turn = {}) {
   });
   const selfModel = deriveSelfModel({ turn: { ...turn, relationshipContinuity }, route, safety });
   let modelPolicy = resolveModelPolicy({ ...route, health: route.health || safety.highStakes });
-  if (route.creativeConversation) {
-    return runCreativeConversation({ turn, route, safety, communication, relationshipContinuity, selfModel, modelPolicy });
-  }
   const relevantContext = buildRelevantContext(turn, route);
   const coachingState = deriveCoachingState({ turn, route, context: relevantContext });
   const longitudinalState = deriveLongitudinalState({ route, context: relevantContext });
@@ -250,6 +250,16 @@ export async function runAriVNext(turn = {}) {
     coachingState
   });
   const temporalContext = deriveTemporalContext(turn);
+  // Every conversation route reaches the same cognitive core first. Creative
+  // delivery changes tools/action handling, never the owner mind or persistence.
+  if (route.creativeConversation) {
+    return runCreativeConversation({
+      turn, route, safety, communication, relationshipContinuity, selfModel, modelPolicy,
+      relevantContext, coachingState, longitudinalState, goalHierarchy, instinctKernel,
+      metacognition, companionState, cognitionCoordinator, deliberationHarness,
+      biblicalWisdom, scientificIntelligence, experimentReviewState, temporalContext
+    });
+  }
   const pendingIntent = resolvePendingActionIntent(turn);
 
   if (pendingIntent.type === "confirm") {
@@ -407,7 +417,7 @@ export async function runAriVNext(turn = {}) {
       "FINAL TRUSTED EXECUTION BOUNDARY\nOnly use an application mutation when the CURRENT user message explicitly authorizes that supported change, except for an already-validated bounded continuation. Never claim that app state, code, credentials, permissions, or external systems changed unless trusted executor evidence in this turn verifies it. If a mutation is not authorized or execution evidence is absent, answer conversationally without implying that a change occurred."
     ]
       .filter(Boolean)
-      .join("\n\n"));
+      .join("\n\n"), { ownerUltra: isOwnerUltraRoute(route) });
 
     const guardedPolicy = applyInteractiveCostGuard({
       policy: modelPolicy,
@@ -447,7 +457,7 @@ export async function runAriVNext(turn = {}) {
     "FINAL TRUSTED EXECUTION BOUNDARY\nOnly use an application mutation when the CURRENT user message explicitly authorizes that supported change, except for an already-validated bounded continuation. Never claim that app state, code, credentials, permissions, or external systems changed unless trusted executor evidence in this turn verifies it. If a mutation is not authorized or execution evidence is absent, answer conversationally without implying that a change occurred."
   ]
     .filter(Boolean)
-    .join("\n\n"));
+    .join("\n\n"), { ownerUltra: isOwnerUltraRoute(route) });
 
   const referenceResolutionTools = route.referenceResolutionSearch
     ? tools.filter((tool) => tool?.type === "web_search")
@@ -2090,6 +2100,14 @@ function buildInstructions({
     "\nSAFETY CONTEXT\n" + safetyToInstruction(safety)
   ];
 
+  if (route.creativeConversation) {
+    sections.push(
+      "CONVERSATION DELIVERY\nAnswer the latest user request directly using your own language and judgment. Keep Ari's measured state and relationship continuity present without narrating the machinery. Earlier app suggestions, open tasks, and cognitive scenario seeds do not override this creative request. No application tools are attached. Fictional dialogue is not a real app-action receipt. A fictional story need not be interrupted with labels explaining that its events are imagined.",
+      "RELEVANT CONVERSATION CONTEXT\nUse supplied personal context when relevant; never turn invented story details into real personal memories.\n" + contextToText(relevantContext)
+    );
+    return compactInstructionText(sections.filter(Boolean).join("\n"), { ownerUltra: isOwnerUltraRoute(route) });
+  }
+
   if (shouldUseFitnessIntelligence(route)) {
     sections.push("\nFITNESS INTELLIGENCE\n" + FITNESS_INTELLIGENCE);
   }
@@ -2119,7 +2137,7 @@ function buildInstructions({
     "\nACTION RULE\nCall an application function only when the CURRENT user message explicitly requests that mutation, except for one bounded continuation: when the immediately preceding user explicitly authorized one mutation, Ari immediately asked for a missing detail needed to prepare that exact mutation, and the current turn clearly supplies that detail. Never inherit permission from older or unrelated conversation history. A standalone statement like 'I ate eggs' is not permission to log food. When a supported mutation is authorized, use the matching function instead of merely describing what you could do. Natural phrasing counts; the user does not need to name the feature or tool. Never start, finish, or cancel an experiment without an explicit current-turn request and confirmation. Cancelling a proposal cancels only that proposal; a later explicit request must create a fresh proposal. Normal ARI XP application functions prepare changes for confirmation and this model pass never executes those writes. OWNER AGENT COMMUNITY post/reply functions are the explicit exception: after a current-turn owner publication request passes trusted validation, the server executes that public action immediately and returns verified publication evidence. Never claim any other change was logged or saved, and never ask the user to confirm a normal app change without returning the application function that prepares it."
   );
 
-  return compactInstructionText(sections.join("\n"));
+  return compactInstructionText(sections.join("\n"), { ownerUltra: isOwnerUltraRoute(route) });
 }
 
 function canonicalizeApplicationArguments({ applicationAction, arguments: args = {}, route = {}, scientificIntelligence = null, relevantContext = {} } = {}) {
@@ -2187,16 +2205,25 @@ function experimentReviewToInstruction(state = null) {
   ].join("\n").slice(0, 6500);
 }
 
-async function runCreativeConversation({ turn, route, safety, communication, relationshipContinuity, selfModel, modelPolicy }) {
-  // The same authenticated runtime, provider policy, persona, safety context,
-  // history and preferences; no app tools, stale initiatives or mutation repair.
-  // Fictional dialogue is not evidence of an application write.
-  const instructions = compactInstructionText([
+async function runCreativeConversation(core) {
+  const { turn, route, safety, communication, relationshipContinuity, selfModel, modelPolicy,
+    relevantContext, metacognition } = core;
+  const capabilityAwareness = deriveRuntimeCapabilityAwareness({
+    turn, route, policy: modelPolicy, tools: [], context: relevantContext, metacognition
+  });
+  const ownerUltra = isOwnerUltraRoute(route);
+  const sections = ownerUltra ? [
+    buildInstructions(core),
+    capabilityAwarenessToInstruction(capabilityAwareness),
+    institutionalMemoryToInstruction(turn?.context?.institutionalMemory || null),
+    cognitiveSignalDecisionToInstruction(metacognition.executivePolicy?.directives)
+  ] : [
     ARI_PERSONA,
     "CONVERSATION DELIVERY\nAnswer the latest user request directly using your own language and judgment. Earlier app suggestions do not override it. No application tools are attached to this conversation-only turn. Fictional dialogue is not a real app-action receipt.",
     communicationProfileToInstruction(communication),
     safetyToInstruction(safety)
-  ].join("\n\n"));
+  ];
+  const instructions = compactInstructionText(sections.filter(Boolean).join("\n\n"), { ownerUltra });
   const input = buildInput(turn);
   const policy = applyInteractiveCostGuard({ policy: modelPolicy, instructions, input });
   const response = await callResponses({ turn, policy, instructions, input, tools: [] });
@@ -2207,6 +2234,12 @@ async function runCreativeConversation({ turn, route, safety, communication, rel
   return {
     success: true, ready: true, reply, route, safety, communication,
     relationshipContinuity, selfModel, modelPolicy: policy,
+    metacognition, companionState: core.companionState,
+    cognitionCoordinator: core.cognitionCoordinator, deliberationHarness: core.deliberationHarness,
+    biblicalWisdom: core.biblicalWisdom, instinctKernel: core.instinctKernel,
+    goalHierarchy: core.goalHierarchy, scientificIntelligence: core.scientificIntelligence,
+    experimentReviewState: core.experimentReviewState, temporalContext: core.temporalContext,
+    coachingState: core.coachingState, longitudinalState: core.longitudinalState, capabilityAwareness,
     pendingAction: null, action: null, provider: providerSummary(response),
     semanticActionReview: null,
     requestUnderstanding: { authority: "ari_vnext_primary_model", mode: "creative_conversation", selectedTool: null, hiddenChainOfThoughtStored: false },
@@ -2360,7 +2393,8 @@ export async function callResponses({ turn, policy, instructions, input, tools =
         : transient && attempts >= 2
           ? String(policy?.availabilityFallbackModel || "").trim()
           : "";
-      if (fallbackModel && fallbackModel !== activeModel && !routingFallback && !/insufficient_quota|billing|credit|payment|content_policy|safety|moderation/i.test(`${code} ${message}`)) {
+      const fallbackMeetsOwnerFloor = policy?.accessClass !== "owner" || isSolClassModel(fallbackModel) || isAstraClassModel(fallbackModel);
+      if (fallbackMeetsOwnerFloor && fallbackModel && fallbackModel !== activeModel && !routingFallback && !/insufficient_quota|billing|credit|payment|content_policy|safety|moderation/i.test(`${code} ${message}`)) {
         routingFallback = { from: selectedModel, to: fallbackModel, reason: transient ? "provider_temporarily_unavailable" : "provider_model_unavailable", originalStatus: status };
         activeModel = fallbackModel;
         forceFreshReasoning = true;

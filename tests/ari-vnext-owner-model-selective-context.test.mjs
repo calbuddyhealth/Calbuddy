@@ -22,9 +22,9 @@ test("owner casual chat stays on the Sol default instead of spending Astra", () 
   });
 
   assert.equal(casual.model, standard.model);
-  assert.equal(casual.reasoningEffort, "low");
+  assert.equal(casual.reasoningEffort, "high");
   assert.equal(casual.reasoningMode, "standard");
-  assert.equal(casual.persistReasoning, false);
+  assert.equal(casual.persistReasoning, true);
   assert.equal(casual.ownerModelContinuity, true);
   assert.equal(casual.escalated, false);
   assert.equal(casual.costTier, "owner_sol_default");
@@ -40,7 +40,7 @@ test("owner current-information turns keep their complexity while enabling live 
   assert.equal(policy.mode, "standard");
   assert.equal(policy.freshness, "live");
   assert.equal(policy.liveSearchRequired, true);
-  assert.equal(policy.reasoningEffort, "medium");
+  assert.equal(policy.reasoningEffort, "high");
   assert.equal(policy.reasoningMode, "standard");
   assert.equal(policy.reasoningContext, "all_turns");
   assert.equal(policy.persistReasoning, true);

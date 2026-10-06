@@ -53,6 +53,13 @@ export function deriveCommunicationClosureWorkspace({
 } = {}) {
   const prior = normalizeCommunicationClosure(previous);
   const message = clean(turn?.message, 6000);
+  if (route?.creativeConversation === true) {
+    return {
+      version: ARI_COMMUNICATION_CLOSURE_VERSION,
+      active: false, level: 0, loop: null, resumeSuggested: false,
+      hiddenChainOfThoughtStored: false
+    };
+  }
   const continuing = Boolean(prior?.id && OPEN_STATES.has(prior.state) && likelyContinuation(message, prior));
   const level = continuing ? prior.level : classifyClosureLevel({ message, route, executionWorkspace });
 

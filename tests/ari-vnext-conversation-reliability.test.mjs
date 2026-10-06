@@ -49,7 +49,9 @@ test("the reported training-to-joke exchange recovers from a provider 503 with n
     assert.equal(request.tools, undefined);
     assert.equal(request.previous_response_id, undefined);
     assert.doesNotMatch(request.instructions, /ACTION RESPONSE CORRECTION|OWNER AGENT COMMUNITY|oldTask/);
-    assert.ok(request.instructions.length < 9000);
+    assert.match(request.instructions, /ARI COMPANION CORE/);
+    assert.match(request.instructions, /ARI EXECUTIVE/);
+    assert.equal(request.model, "gpt-6.1-sol");
   }
 });
 
@@ -63,6 +65,7 @@ test("fictional save claims and consensual roasts stay creative and do not trigg
   assert.match(roast.reply, /software update/);
   assert.equal(requests.length, 2);
   assert.ok(requests.every(request => !request.tools));
+  assert.ok(requests.every(request => request.instructions.length < 9000), "Non-owner creative requests retain their compact delivery path");
 });
 
 test("ordinary polite questions use the primary OpenAI answer without an action-verifier call", async t => {
@@ -117,14 +120,13 @@ test("fictional instructions to remember do not become durable personal memories
   assert.equal(result.storedCount, 0);
 });
 
-test("owner creative availability fallback uses an economical model and reports the actual model", async t => {
-  const requests = provider(t, [failure(503), failure(503), { ...output("Recovered joke."), model: "gpt-6-luna" }]);
+test("owner creative provider recovery preserves Sol instead of silently falling back to Luna", async t => {
+  const requests = provider(t, [failure(503), failure(503), { ...output("Recovered joke."), model: "gpt-6.1-sol" }]);
   const result = await runAriVNext({ message: "Tell me a funny joke", context: { intelligenceEntitlement: owner }, history: [] });
   assert.equal(requests.length, 3);
-  assert.equal(requests[0].model, requests[1].model);
-  assert.equal(requests[2].model, "gpt-6-luna");
-  assert.equal(result.provider.model, "gpt-6-luna");
-  assert.equal(result.provider.routingFallback.to, "gpt-6-luna");
+  assert.ok(requests.every(request => request.model === "gpt-6.1-sol"));
+  assert.equal(result.provider.model, "gpt-6.1-sol");
+  assert.equal(result.provider.routingFallback, null);
   assert.equal(result.provider.recovery.attempts, 3);
 });
 

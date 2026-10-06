@@ -2,7 +2,7 @@ import { deriveReasoningDemand, isSolClassModel, resolveOwnerInteractiveModel } 
 
 // ARI vNext model routing.
 
-export const MODEL_POLICY_VERSION = "4.3.0";
+export const MODEL_POLICY_VERSION = "4.4.0";
 
 export function resolveModelPolicy(route = {}) {
   const intelligence = route?.intelligenceEntitlement || null;
@@ -54,7 +54,8 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
     intelligence?.accessClass === "premium"
   );
   const casualConversation = route?.casualConversation === true;
-  const mode = resolveWorkMode(route);
+  const requestedMode = resolveWorkMode(route);
+  const mode = owner && requestedMode === "fast" ? "standard" : requestedMode;
   const freshness = resolveFreshness(route);
   const reasoningProfile = normalizeAdvancedReasoningProfile(intelligence?.reasoningProfile);
   const baseReasoningDemand =
@@ -115,7 +116,6 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
   const persistReasoning = Boolean(
     supportsReasoning &&
     owner &&
-    !casualConversation &&
     isGpt6ClassModel(model) &&
     String(process.env.ARI_OWNER_PERSISTED_REASONING || "true").toLowerCase() !== "false"
   );
@@ -129,7 +129,8 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
     freshness,
     model,
     fallbackModel: owner ? ownerRouting?.fallbackModel || null : null,
-    availabilityFallbackModel: owner && route?.creativeConversation ? ownerRouting?.budgetModel || null : null,
+    availabilityFallbackModel: owner ? ownerRouting?.fallbackModel || null : null,
+    ownerUltra: owner,
     supportsReasoning,
     reasoningProfile,
     reasoningEffort,
@@ -137,18 +138,16 @@ function resolveAdvancedModelPolicy(route = {}, intelligence = {}) {
     reasoningContext,
     persistReasoning,
     reasoningDemand,
-    maxOutputTokens: route?.creativeConversation
+    maxOutputTokens: owner ? 8000 : route?.creativeConversation
       ? 2400
       : casualConversation
-      ? owner
-        ? 700
-        : 650
+        ? 650
       : mode === "deep"
         ? 2400
         : mode === "fast"
           ? 1100
           : 1800,
-    timeoutMs: casualConversation
+    timeoutMs: owner ? 60000 : casualConversation
       ? 16000
       : reasoningMode === "pro"
         ? 60000
@@ -265,8 +264,8 @@ function resolveAdvancedReasoningEffort({
   owner = false,
   reasoningDemand = null
 } = {}) {
+  if (owner) return reasoningProfile === "deep" || reasoningDemand?.band === "critical" ? "xhigh" : "high";
   if (casualConversation) return "low";
-  if (owner && route?.ownerModelRequest === "astra") return reasoningProfile === "deep" ? "xhigh" : "high";
   if (reasoningProfile === "economy") return "low";
   if (reasoningProfile === "balanced") {
     return reasoningDemand?.band === "low" ? "low" : "medium";
@@ -290,7 +289,7 @@ function resolveAdvancedReasoningMode({
   casualConversation = false,
   reasoningDemand = null
 } = {}) {
-  if (!owner || casualConversation || !isSolClassModel(model)) return "standard";
+  if (!owner || !isSolClassModel(model)) return "standard";
   if (String(process.env.ARI_OWNER_SOL_PRO_MODE || "true").toLowerCase() === "false") return "standard";
 
   const critical = reasoningDemand?.band === "critical";

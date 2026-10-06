@@ -1,3 +1,5 @@
+import { isOwnerUltraRoute } from "./owner-ultra.js";
+
 // ARI vNext — decide which existing app context is relevant to this turn.
 // This is intentionally small. The primary model still owns semantic judgment.
 
@@ -175,7 +177,7 @@ export function buildRelevantContext(turn = {}, route = {}) {
     ]);
   }
 
-  if (source?.initiativeContext && typeof source.initiativeContext === "object") {
+  if (!route.creativeConversation && source?.initiativeContext && typeof source.initiativeContext === "object") {
     selected.initiativeContext = source.initiativeContext;
   }
 
@@ -306,6 +308,19 @@ function buildProtectedContext(context = {}) {
     output.intelligenceEntitlement = compactContextField("intelligenceEntitlement", context.intelligenceEntitlement);
   }
 
+  if (isOwnerUltraRoute({ intelligenceEntitlement: context.intelligenceEntitlement })) {
+    const model = context.userWorldModel || {};
+    // The person and recurrence must not compete with a large workspace JSON
+    // blob for the optional-context budget. Executive state is compiled separately.
+    output.userWorldModel = pickObject(model, [
+      "identity", "preferences", "constraints", "goals", "relationship", "tensions", "privacyControls"
+    ]);
+    const workspace = model.ariCognitiveWorkspace;
+    if (workspace) output.ownerCognitiveContinuity = pickObject(workspace, [
+      "mode", "ownerOnly", "functionalExperiment", "recurrence", "attention", "salience", "continuity", "motivationalContinuity"
+    ]);
+  }
+
   return output;
 }
 
@@ -320,6 +335,7 @@ function buildSupplementalContextText(context = {}, maxChars = 0) {
     "accountEntitlements",
     "intelligenceEntitlement"
   ]);
+  if (isOwnerUltraRoute({ intelligenceEntitlement: context.intelligenceEntitlement })) protectedKeys.add("userWorldModel");
   const priority = [
     "userWorldModel",
     "dreaming",
