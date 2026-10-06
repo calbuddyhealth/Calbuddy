@@ -2256,7 +2256,8 @@ export async function callResponses({ turn, policy, instructions, input, tools =
   if (!apiKey) throw new Error("Ari model provider key is not configured.");
 
   const controller = new AbortController();
-  const deadlineAt = Date.now() + (policy?.timeoutMs || 25000);
+  const startedAt = Date.now();
+  const deadlineAt = startedAt + (policy?.timeoutMs || 25000);
   const timeoutId = setTimeout(() => controller.abort(), policy?.timeoutMs || 25000);
   let attempts = 0;
   const normalizedTools = Array.isArray(tools) ? tools : [];
@@ -2408,6 +2409,13 @@ export async function callResponses({ turn, policy, instructions, input, tools =
     throw lastFailure || providerError({ attempts });
   } catch (error) {
     if (error?.name === "AbortError" || controller.signal.aborted) {
+      // Metadata only: never log personal context, prompts, or provider credentials.
+      console.warn("[ARI provider timeout]", {
+        model: policy?.model || null, accessClass: policy?.accessClass || null,
+        timeoutMs: policy?.timeoutMs || 25000, elapsedMs: Date.now() - startedAt,
+        reasoningEffort: policy?.reasoningEffort || null,
+        instructionChars: String(instructions || "").length, attempts
+      });
       throw providerError({ status: 504, message: "Ari vNext model request timed out.", attempts });
     }
     throw error;

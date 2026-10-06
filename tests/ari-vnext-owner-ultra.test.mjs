@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { runAriVNext, callResponses } from "../api/_lib/ari-vnext/orchestrator.js";
 import { routeContext } from "../api/_lib/ari-vnext/context-router.js";
 import { advanceCognitiveState, deriveCognitiveWorkspace, resolveOwnerCognitionMode } from "../api/_lib/ari-vnext/cognitive-loop.js";
@@ -225,4 +226,54 @@ test("creative world-model learning does not turn a fictional goal into a person
     route: { creativeConversation: true }
   });
   assert.deepEqual(model.goals.stated, ["An existing verified goal"]);
+});
+
+test("reported natural-language horror request retains Ultra and completes beyond the former minute cutoff", async t => {
+  env(t);
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const message = "So I really need a scary story about a witch in a town that would prey on kids. Have the ending be that a kid escaped with missing ears and an eye. Make it modernized and like silence of the lambs. At the end the witch gets caught by the town people and lynched her for her crimes";
+  const { turn } = turnWithState(message);
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    calls++;
+    const body = JSON.parse(options.body);
+    assert.equal(body.model, "gpt-6.1-sol");
+    assert.equal(body.tools, undefined);
+    assert.match(body.instructions, /ARI EXECUTIVE/);
+    assert.match(body.instructions, /ARI COMPANION CORE/);
+    assert.equal(body.reasoning.effort, "high");
+    t.mock.timers.tick(61000);
+    assert.equal(options.signal.aborted, false, "A working owner request must survive the old timeout");
+    return response(answer(body.model, "The town's streetlights went out one by one."));
+  });
+  const result = await runAriVNext(turn);
+  assert.equal(result.route.creativeConversation, true);
+  assert.equal(result.success, true);
+  assert.equal(calls, 1);
+  assert.equal(routeContext({ message: "Continue", history: [{ role: "user", content: message }], context: {} }).creativeConversation, true);
+  for (const text of ["I need a story, then log a banana", "So I really need a story and also delete my account", "I need to fix the story router", "I need a story about this repository error and check the logs"]) {
+    assert.equal(routeContext({ message: text, context: {} }).creativeConversation, false, text);
+  }
+});
+
+test("owner timeout remains bounded and reports diagnostic metadata without retrying a hung call", async t => {
+  env(t);
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const policy = resolveModelPolicy(routeContext({ message: "Tell me a story", context: { intelligenceEntitlement: owner } }));
+  const config = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url)));
+  assert.ok(config.functions["api/ari-vnext.js"].maxDuration * 1000 >= policy.timeoutMs + 60000);
+  let calls = 0;
+  const logs = [];
+  t.mock.method(console, "warn", (...args) => logs.push(args));
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    calls++;
+    t.mock.timers.tick(policy.timeoutMs + 1);
+    assert.equal(options.signal.aborted, true);
+    throw options.signal.reason;
+  });
+  await assert.rejects(callResponses({ turn: {}, policy, instructions: "PRIVATE-CONTEXT", input: [] }), { code: "ARI_PROVIDER_TIMEOUT", attempts: 1 });
+  assert.equal(calls, 1);
+  assert.equal(logs[0][1].timeoutMs, 180000);
+  assert.equal(logs[0][1].model, "gpt-6.1-sol");
+  assert.doesNotMatch(JSON.stringify(logs), /PRIVATE-CONTEXT|test-only/);
 });
