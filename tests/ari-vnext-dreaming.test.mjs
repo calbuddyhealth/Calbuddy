@@ -170,9 +170,11 @@ test("dreaming cron endpoint fails closed without the cron secret", async () => 
   }
 });
 
-test("Vercel owner dreaming remains unscheduled while background automation is frozen", () => {
+test("Vercel owner dreaming remains unscheduled while only bounded cognitive dialogue runs", () => {
   const config = JSON.parse(fs.readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
-  assert.deepEqual(config.crons || [], []);
+  const paths = (config.crons || []).map((entry) => entry.path);
+  assert.equal(paths.includes("/api/ari-dreaming-cycle"), false);
+  assert.ok(paths.every((path) => path === "/api/ari-cognitive-cycle"));
 });
 
 test("dreaming migration keeps the new tables server-only", () => {
