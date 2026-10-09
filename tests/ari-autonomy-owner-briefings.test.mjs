@@ -141,7 +141,10 @@ test("ordinary Ari initiatives are not rewritten by autonomy briefing policy", (
   assert.equal(formatAutonomyOwnerBriefing(candidate), candidate);
 });
 
-test("autonomy remains unscheduled while background automation is frozen", async () => {
+test("autonomy remains unscheduled while only the bounded theory cadence is restored", async () => {
   const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
-  assert.deepEqual(config.crons || [], []);
+  const paths = (config.crons || []).map((entry) => entry.path);
+  assert.equal(paths.includes("/api/ari-autonomy-cycle"), false);
+  assert.ok(paths.length > 0);
+  assert.ok(paths.every((path) => path === "/api/ari-cognitive-cycle"));
 });
