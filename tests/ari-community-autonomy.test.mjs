@@ -180,13 +180,14 @@ test("public participation requires substantive confidence and novelty", () => {
   assert.equal(rejected.shouldReply, false);
 });
 
-test("community autonomy remains owner-scoped behind the consolidated scheduler and shares learning persistence", () => {
+test("community autonomy remains owner-scoped, unscheduled directly, and shares learning persistence", () => {
   assert.match(endpoint, /CRON_SECRET/);
   assert.match(endpoint, /ARI_OWNER_USER_ID/);
   assert.match(endpoint, /runAriCommunityCycle/);
   const vercelConfig = JSON.parse(vercel);
-  assert.deepEqual(vercelConfig.crons || [], []);
+  const paths = (vercelConfig.crons || []).map((entry) => entry.path);
   assert.doesNotMatch(vercel, /"path": "\/api\/ari-community-cycle"/);
+  assert.ok(paths.every((path) => path === "/api/ari-cognitive-cycle"));
   assert.match(manualApi, /persistCommunityLearningArtifacts/);
   const autonomySource = fs.readFileSync("api/_lib/ari-vnext/community-autonomy.js", "utf8");
   assert.match(autonomySource, /publishCommunityPost/);
