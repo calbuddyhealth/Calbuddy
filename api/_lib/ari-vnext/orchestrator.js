@@ -2361,6 +2361,7 @@ export async function callResponses({ turn, policy, instructions, input, tools =
       const attempt = await send(buildBody(activeModel, routingFallback?.from || null, { forceFreshReasoning }));
       if (attempt.response.ok) {
         attempt.data._ariPromptBudget = promptBudgetTelemetry({ instructions: attempt.body.instructions, input: attempt.body.input });
+        attempt.data._ariContextRender = input?.contextRender || null;
         attempt.data._ariReasoningContinuity = attempt.body._ariReasoningContinuity || null;
         if (reasoningReset) {
           attempt.data._ariReasoningThreadReset = reasoningReset;
@@ -3021,6 +3022,7 @@ function providerSummary(data = {}) {
     model: data?.model || null,
     usage: data?.usage || null,
     promptBudget: data?._ariPromptBudget || null,
+    contextRender: data?._ariContextRender || null,
     routingFallback: data?._ariRoutingFallback || null,
     recovery: data?._ariProviderRecovery || null,
     reasoningContinuity: data?._ariReasoningContinuity || null

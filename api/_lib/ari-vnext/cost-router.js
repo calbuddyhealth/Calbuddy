@@ -3,7 +3,8 @@
 
 import { estimateOpenAICost } from "../ai-provider-usage.js";
 
-export const ARI_COST_ROUTER_VERSION = "1.3.0";
+export const ARI_COST_ROUTER_VERSION = "1.4.0";
+export const ARI_CONTEXT_RENDER_VERSION = "1.0.0";
 export const ARI_REASONING_GOVERNOR_VERSION = "1.0.0";
 
 const DEFAULT_OWNER_MODEL = "gpt-6.1-sol";
@@ -222,19 +223,38 @@ export function applyInteractiveCostGuard({
 }
 
 export function compileConversationInput(turn = {}) {
+  const rendered = compileConversationInputWithManifest(turn);
+  const input = rendered.input;
+  Object.defineProperty(input, "contextRender", {
+    value: rendered.manifest,
+    enumerable: false,
+    configurable: false,
+    writable: false
+  });
+  return input;
+}
+
+export function compileConversationInputWithManifest(turn = {}) {
   const history = Array.isArray(turn?.history) ? turn.history : [];
-  const maxHistoryMessages = boundedInt(
+  const requestedRestore = shouldRestoreConversationContext(turn);
+  const configuredHistoryMessages = boundedInt(
     process.env.ARI_CONTEXT_HISTORY_MESSAGES,
     6,
     2,
     12
   );
-  const maxHistoryChars = boundedInt(
+  const configuredHistoryChars = boundedInt(
     process.env.ARI_CONTEXT_HISTORY_CHARS,
     6000,
     2000,
     16000
   );
+  const maxHistoryMessages = requestedRestore
+    ? Math.max(configuredHistoryMessages, 12)
+    : configuredHistoryMessages;
+  const maxHistoryChars = requestedRestore
+    ? Math.max(configuredHistoryChars, 14000)
+    : configuredHistoryChars;
   const maxPerHistoryMessage = boundedInt(
     process.env.ARI_CONTEXT_HISTORY_MESSAGE_CHARS,
     1600,
@@ -248,32 +268,121 @@ export function compileConversationInput(turn = {}) {
     20000
   );
 
+  const normalized = history
+    .map((item, sourceIndex) => ({
+      sourceIndex,
+      role: item?.role === "assistant" ? "assistant" : "user",
+      content: cleanMessage(item?.content, requestedRestore ? Math.max(maxPerHistoryMessage, 3000) : maxPerHistoryMessage)
+    }))
+    .filter((item) => item.content);
   const selected = [];
   let usedChars = 0;
+  const foldReserve = requestedRestore ? 0 : 440;
+  const selectionBudget = Math.max(800, maxHistoryChars - foldReserve);
 
-  for (let index = history.length - 1; index >= 0 && selected.length < maxHistoryMessages; index -= 1) {
-    const item = history[index] || {};
-    const role = item?.role === "assistant" ? "assistant" : "user";
-    const content = cleanMessage(item?.content, maxPerHistoryMessage);
-    if (!content) continue;
-
-    const remaining = maxHistoryChars - usedChars;
+  for (let index = normalized.length - 1; index >= 0 && selected.length < maxHistoryMessages; index -= 1) {
+    const item = normalized[index];
+    const remaining = selectionBudget - usedChars;
     if (remaining <= 0) break;
 
-    const fitted = content.slice(Math.max(0, content.length - remaining));
+    const fitted = item.content.slice(Math.max(0, item.content.length - remaining));
     if (!fitted) continue;
 
-    selected.push({ role, content: fitted });
+    selected.push({ ...item, content: fitted });
     usedChars += fitted.length;
   }
 
   selected.reverse();
-  selected.push({
+  const selectedIndexes = new Set(selected.map((item) => item.sourceIndex));
+  const omitted = normalized.filter((item) => !selectedIndexes.has(item.sourceIndex));
+  const fold = omitted.length ? buildContextFold(omitted, { requestedRestore }) : null;
+  const input = [
+    ...(fold ? [{ role: "developer", content: fold.note }] : []),
+    ...selected.map(({ role, content }) => ({ role, content })),
+    {
     role: "user",
     content: cleanMessage(turn?.message, maxCurrentMessageChars)
-  });
+    }
+  ];
 
-  return selected;
+  return {
+    input,
+    manifest: {
+      version: ARI_CONTEXT_RENDER_VERSION,
+      reversible: true,
+      canonicalHistoryMutated: false,
+      restoreRequested: requestedRestore,
+      restoreComplete: requestedRestore && omitted.length === 0,
+      sourceMessageCount: normalized.length,
+      renderedMessageCount: selected.length,
+      foldedMessageCount: omitted.length,
+      renderedHistoryChars: usedChars + (fold?.note.length || 0),
+      sourceHistoryChars: normalized.reduce((sum, item) => sum + item.content.length, 0),
+      fold: fold ? {
+        id: fold.id,
+        sourceStartIndex: fold.sourceStartIndex,
+        sourceEndIndex: fold.sourceEndIndex,
+        sourceHash: fold.sourceHash,
+        reason: requestedRestore ? "restore_capacity_limit" : "bounded_reversible_render"
+      } : null
+    }
+  };
+}
+
+export function shouldRestoreConversationContext(turn = {}) {
+  if (turn?.context?.contextRestoreRequested === true || turn?.context?.restoreConversationContext === true) {
+    return true;
+  }
+
+  const message = cleanMessage(turn?.message, 4000).toLowerCase();
+  if (!message) return false;
+
+  return (
+    /\b(?:do you remember|remember when|where were we|what did we|what was (?:that|the)|earlier (?:in|conversation|chat)|previous (?:conversation|chat)|go back to|pick up where|restore (?:the )?context)\b/i.test(message) ||
+    /^(?:yes|no|why|how|continue|go on|keep going|do it|do that|fix it|merge it|deploy it|tell me more|what about that|and then)\b[\s?!.,-]*$/i.test(message) ||
+    (message.length <= 120 && /\b(?:that|this|it|them|those|the other one|same thing)\b/i.test(message))
+  );
+}
+
+function buildContextFold(items = [], { requestedRestore = false } = {}) {
+  const first = items[0];
+  const last = items.at(-1);
+  const sourceText = items.map((item) => `${item.sourceIndex}:${item.role}:${item.content}`).join("\n");
+  const sourceHash = stableHash(sourceText);
+  const id = `fold_${sourceHash}`;
+  const firstAnchor = contextAnchor(items.find((item) => item.role === "user")?.content || first?.content);
+  const lastAnchor = contextAnchor([...items].reverse().find((item) => item.role === "user")?.content || last?.content);
+  const note = [
+    `REVERSIBLE CONTEXT FOLD ${id}`,
+    `${items.length} earlier message${items.length === 1 ? "" : "s"} (source indexes ${first?.sourceIndex}-${last?.sourceIndex}) remain in canonical history but are folded from this rendered view${requestedRestore ? " because the expanded view still exceeded its bounded capacity" : " to avoid repeatedly billing unchanged context"}.`,
+    firstAnchor ? `Earliest user anchor: ${firstAnchor}` : "",
+    lastAnchor && lastAnchor !== firstAnchor ? `Latest user anchor: ${lastAnchor}` : "",
+    "If the current request depends on hidden details, do not invent them; request or trigger restoration from canonical history."
+  ].filter(Boolean).join("\n").slice(0, 440);
+
+  return {
+    id,
+    note,
+    sourceHash,
+    sourceStartIndex: first?.sourceIndex ?? null,
+    sourceEndIndex: last?.sourceIndex ?? null
+  };
+}
+
+function contextAnchor(value = "") {
+  return cleanMessage(value, 180)
+    .replace(/\s+/g, " ")
+    .replace(/\b(?:password|passcode|api[_ -]?key|access token|refresh token|secret|private key|credit card|card number|cvv|ssn)\b[^\n,.!?;:]*/gi, "[private detail]")
+    .slice(0, 180);
+}
+
+function stableHash(value = "") {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 export function compactInstructionText(value = "", {

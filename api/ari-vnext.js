@@ -66,6 +66,7 @@ import { listUserExperiments, summarizeExperimentLedger } from "./_lib/ari-vnext
 import { recordInitiativeSurface } from "./_lib/ari-vnext/initiative-events.js";
 import { filterMemoryResultForPrivacy, retrieveRelevantMemories } from "./_lib/ari-vnext/memory-service.js";
 import { runAriVNext } from "./_lib/ari-vnext/orchestrator.js";
+import { deriveTaskEconomics } from "./_lib/ari-vnext/task-economics.js";
 import { publicTurnFailure } from "./_lib/ari-vnext/provider-recovery.js";
 import { persistAriActionProposal } from "./_lib/ari-vnext/action-ledger.js";
 import { retrieveInstitutionalMemory } from "./_lib/ari-vnext/institutional-memory.js";
@@ -880,6 +881,7 @@ export default async function handler(req, res) {
           turn
         });
 
+    const taskEconomics = deriveTaskEconomics({ turn, result });
     const usageTask = result?.provider?.usage
       ? recordOpenAIUsage({
           userId: auth.userId,
@@ -932,6 +934,8 @@ export default async function handler(req, res) {
             routingReason: result?.modelPolicy?.routingReason || null,
             costGuard: result?.modelPolicy?.costGuard || null,
             promptBudget: result?.provider?.promptBudget || null,
+            contextRender: result?.provider?.contextRender || null,
+            taskEconomics,
             casualConversation,
             serverHydrationMs,
             modelMs,
