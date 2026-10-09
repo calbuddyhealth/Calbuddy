@@ -6,6 +6,7 @@ import {
   applyInteractiveCostGuard,
   compactInstructionText,
   compileConversationInput,
+  compileConversationInputWithManifest,
   deriveReasoningDemand,
   promptBudgetTelemetry,
   resolveBackgroundModel,
@@ -188,7 +189,7 @@ test("oversized owner Astra calls retain the selected reasoning tier", () => {
   assert.equal(guarded.escalated, true);
 });
 
-test("conversation compiler keeps only bounded recent history", () => {
+test("conversation compiler keeps bounded recent history behind a reversible fold", () => {
   process.env.ARI_CONTEXT_HISTORY_MESSAGES = "4";
   process.env.ARI_CONTEXT_HISTORY_CHARS = "2400";
 
@@ -202,11 +203,32 @@ test("conversation compiler keeps only bounded recent history", () => {
     message: "current question"
   });
 
-  assert.ok(compiled.length <= 5);
+  assert.ok(compiled.length <= 6);
   assert.equal(compiled.at(-1).content, "current question");
-  assert.equal(compiled.some((item) => item.content.includes("turn-0")), false);
+  assert.equal(compiled.some((item) => item.role !== "developer" && item.content.includes("turn-0")), false);
+  assert.equal(compiled[0].role, "developer");
+  assert.match(compiled[0].content, /REVERSIBLE CONTEXT FOLD/);
+  assert.equal(compiled.contextRender.reversible, true);
+  assert.ok(compiled.contextRender.foldedMessageCount > 0);
   const historyChars = compiled.slice(0, -1).reduce((sum, item) => sum + item.content.length, 0);
   assert.ok(historyChars <= 2400);
+});
+
+test("referential continuation restores the expanded raw view without mutating history", () => {
+  process.env.ARI_CONTEXT_HISTORY_MESSAGES = "4";
+  process.env.ARI_CONTEXT_HISTORY_CHARS = "2400";
+  const history = Array.from({ length: 10 }, (_, index) => ({
+    role: index % 2 ? "assistant" : "user",
+    content: `turn-${index} ${"x".repeat(80)}`
+  }));
+
+  const rendered = compileConversationInputWithManifest({ history, message: "Do it" });
+
+  assert.equal(rendered.manifest.restoreRequested, true);
+  assert.equal(rendered.manifest.restoreComplete, true);
+  assert.equal(rendered.manifest.foldedMessageCount, 0);
+  assert.equal(rendered.input.some((item) => item.content.includes("turn-0")), true);
+  assert.equal(history[0].content.startsWith("turn-0"), true);
 });
 
 test("instruction compiler preserves the beginning and action rules at the tail", () => {

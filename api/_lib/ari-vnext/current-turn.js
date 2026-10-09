@@ -1,6 +1,6 @@
 // ARI vNext — current-turn normalization and action isolation.
 
-export const CURRENT_TURN_VERSION = "1.1.0";
+export const CURRENT_TURN_VERSION = "1.2.0";
 
 export function buildCurrentTurn(body = {}, userId = null) {
   const message = cleanText(body?.message, 8000);
@@ -33,17 +33,24 @@ export function normalizeHistory(history = []) {
   const output = [];
   let characters = 0;
 
-  for (const item of history.slice(-16)) {
+  // Walk newest-first so the bounded request can never keep an older turn at
+  // the expense of the immediate continuation, then restore chronological
+  // order for the provider. The canonical server history is not changed.
+  for (const item of history.slice(-16).reverse()) {
     const role = item?.role === "assistant" ? "assistant" : "user";
     const content = cleanText(item?.content, 2200);
     if (!content) continue;
 
-    characters += content.length;
-    if (characters > 14000) break;
-    output.push({ role, content });
+    const remaining = 14000 - characters;
+    if (remaining <= 0) break;
+    const fitted = content.slice(Math.max(0, content.length - remaining));
+    if (!fitted) continue;
+
+    characters += fitted.length;
+    output.push({ role, content: fitted });
   }
 
-  return output;
+  return output.reverse();
 }
 
 export function normalizePendingAction(value) {
