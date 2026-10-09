@@ -128,7 +128,7 @@ test("supplemental reservations share one call and dollar ledger", () => {
   assert.equal(publicState.blockedCount, 1);
 });
 
-test("repo hard-freezes background worker execution paths and declares no Vercel crons", async () => {
+test("repo hard-freezes background workers while permitting only the bounded cognitive dialogue schedule", async () => {
   const [agentWorker, moderationWorker, backgroundBudget, scheduler, vercel] = await Promise.all([
     readFile(new URL("../api/ari-agent-worker.js", import.meta.url), "utf8"),
     readFile(new URL("../api/ari-circle-moderation-worker.js", import.meta.url), "utf8"),
@@ -141,7 +141,10 @@ test("repo hard-freezes background worker execution paths and declares no Vercel
   assert.match(moderationWorker, /isBackgroundWorkerEnabled\("ARI_CIRCLE_MODERATION_WORKER_ENABLED"\)/);
   assert.match(backgroundBudget, /background_ai_master_disabled/);
   assert.match(scheduler, /isBackgroundAiEnabled\(\)/);
-  assert.deepEqual(JSON.parse(vercel).crons, []);
+  const crons = JSON.parse(vercel).crons || [];
+  assert.equal(crons.length, 3);
+  assert.ok(crons.every((entry) => entry.path === "/api/ari-cognitive-cycle"));
+  assert.equal(crons.some((entry) => /worker|autonomy|dreaming|community|theory-dialogue/.test(entry.path)), false);
 });
 
 test("turn governor is wired into live Ari and supplemental systems consume it", async () => {

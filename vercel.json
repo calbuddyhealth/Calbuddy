@@ -44,5 +44,18 @@
       ]
     }
   ],
-  "crons": []
+  "crons": [
+    {
+      "path": "/api/ari-cognitive-cycle",
+      "schedule": "47 3 * * *"
+    },
+    {
+      "path": "/api/ari-cognitive-cycle",
+      "schedule": "6 4 * * *"
+    },
+    {
+      "path": "/api/ari-cognitive-cycle",
+      "schedule": "6 6 * * *"
+    }
+  ]
 }
