@@ -1,4 +1,4 @@
-import { runTheoryDialogueCycle } from "./_lib/ari-vnext/chatgpt-theory-dialogue.js";
+import { runTheoryLaneWithReceipts } from "./_lib/ari-vnext/theory-dialogue-runtime.js";
 
 export const config = { maxDuration: 120 };
 
@@ -26,7 +26,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const result = await runTheoryDialogueCycle({ userId, now: new Date() });
+    const result = await runTheoryLaneWithReceipts({ userId, now: new Date() });
     return res.status(result?.success === false ? 500 : 200).json(
       result || { success: false, code: "EMPTY_THEORY_DIALOGUE_RESULT" }
     );
@@ -44,7 +44,7 @@ function setHeaders(res) {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.setHeader("Cache-Control", "private, no-store, max-age=0");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-ARI-Theory-Dialogue", "v1");
+  res.setHeader("X-ARI-Theory-Dialogue", "v2");
 }
 
 function clean(value, max = 1000) {
