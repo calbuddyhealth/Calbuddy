@@ -638,6 +638,7 @@ create policy "ARI admins update reports"
   with check (public.is_ari_admin());
 
 grant select, insert, update on public.ari_reports to authenticated;
+grant select, insert, update on public.ari_reports to service_role;
 
 drop trigger if exists ari_reports_set_updated_at
   on public.ari_reports;

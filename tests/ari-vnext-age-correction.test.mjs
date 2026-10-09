@@ -165,3 +165,14 @@ test("Circle authorization remains separate from editable adult Goals age", () =
   assert.doesNotMatch(entitlement, /profiles\.age/i);
   assert.doesNotMatch(goalsPolicy, /circleAllowed\s*=/i);
 });
+
+test("privileged owner/admin birthday changes cannot self-suspend the moderation identity", () => {
+  const sql = source("supabase/migrations/20260926194700_guard_privileged_age_correction_self_lockout.sql");
+  assert.match(sql, /privileged_account boolean := false/i);
+  assert.match(sql, /privileged_account and requested_age < 13/i);
+  assert.match(sql, /Owner\/admin accounts cannot request an under-13 birthday/i);
+  assert.match(sql, /privileged_target boolean := false/i);
+  assert.match(sql, /requested_decision = 'approved' and privileged_target and requested_age < 13/i);
+  assert.match(sql, /would suspend privileged access/i);
+  assert.match(sql, /case when requested_age < 13 then 'suspended_by_admin' else status end/i);
+});
