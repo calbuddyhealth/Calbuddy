@@ -52,10 +52,6 @@
     {
       "path": "/api/ari-cognitive-cycle",
       "schedule": "6 4 * * *"
-    },
-    {
-      "path": "/api/ari-cognitive-cycle",
-      "schedule": "6 6 * * *"
     }
   ]
 }

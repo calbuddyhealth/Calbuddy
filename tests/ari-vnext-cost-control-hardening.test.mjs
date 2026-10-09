@@ -142,7 +142,7 @@ test("repo hard-freezes background workers while permitting only the bounded cog
   assert.match(backgroundBudget, /background_ai_master_disabled/);
   assert.match(scheduler, /isBackgroundAiEnabled\(\)/);
   const crons = JSON.parse(vercel).crons || [];
-  assert.equal(crons.length, 3);
+  assert.equal(crons.length, 2);
   assert.ok(crons.every((entry) => entry.path === "/api/ari-cognitive-cycle"));
   assert.equal(crons.some((entry) => /worker|autonomy|dreaming|community|theory-dialogue/.test(entry.path)), false);
 });

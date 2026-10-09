@@ -314,8 +314,7 @@ test("Vercel keeps only the bounded cognitive dialogue cadence", async () => {
   const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
   assert.deepEqual(config.crons || [], [
     { path: "/api/ari-cognitive-cycle", schedule: "47 3 * * *" },
-    { path: "/api/ari-cognitive-cycle", schedule: "6 4 * * *" },
-    { path: "/api/ari-cognitive-cycle", schedule: "6 6 * * *" }
+    { path: "/api/ari-cognitive-cycle", schedule: "6 4 * * *" }
   ]);
 });
 
