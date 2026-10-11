@@ -277,3 +277,57 @@ test("owner timeout remains bounded and reports diagnostic metadata without retr
   assert.equal(logs[0][1].model, "gpt-6.1-sol");
   assert.doesNotMatch(JSON.stringify(logs), /PRIVATE-CONTEXT|test-only/);
 });
+
+test("owner API sends its answer and persists core state before optional reflection starts", async t => {
+  env(t, { SUPABASE_URL: "https://ari-ultra.invalid", SUPABASE_ANON_KEY: "test-only", SUPABASE_SERVICE_ROLE_KEY: "test-only", ARI_OWNER_USER_ID: "22222222-2222-4222-8222-222222222222", ARI_REASONING_ARENA_ENABLED: "false" });
+  const pending = [];
+  const symbol = Symbol.for("@vercel/request-context"), priorContext = globalThis[symbol];
+  globalThis[symbol] = { get: () => ({ waitUntil: promise => pending.push(promise) }) };
+  t.after(() => { if (priorContext === undefined) delete globalThis[symbol]; else globalThis[symbol] = priorContext; });
+  let queued, sent = false, stored = false, reflectionStarted = false, releaseReflection;
+  const reflectionGate = new Promise(resolve => { releaseReflection = resolve; });
+  t.mock.method(globalThis, "fetch", async (url, options = {}) => {
+    const uri = new URL(url), body = options.body ? JSON.parse(options.body) : {};
+    if (uri.pathname === "/auth/v1/user") return response({ id: "22222222-2222-4222-8222-222222222222" });
+    if (uri.pathname.endsWith("/responses")) {
+      if (body.text?.format?.type === "json_schema") {
+        assert.equal(sent, true, "Reflection cannot delay response delivery");
+        assert.equal(stored, true, "Required persistence finishes before delivery");
+        reflectionStarted = true;
+        await reflectionGate;
+        return response(answer(body.model, JSON.stringify({ shouldPropose: false, appliedStrategies: [] })));
+      }
+      return response(answer(body.model, "Let's reassess that assumption."));
+    }
+    const table = uri.pathname.split("/").at(-1);
+    if (table === "ari_claim_reflection_job") {
+      assert.equal(sent, true);
+      // Give this synthetic reflection an allowance to exercise the slow-provider
+      // boundary independently of the routing policy under test elsewhere.
+      const input = structuredClone(queued.input);
+      input.turn.context.turnComputeGovernor.maxCalls = 3;
+      input.turn.context.turnComputeGovernor.maxUsd = 10;
+      return response([{ id: "job1", ...queued, input }]);
+    }
+    if (!options.method || options.method === "GET") {
+      if (table === "ari_intelligence_controls") return response([{ advanced_enabled: true, reasoning_profile: "adaptive" }]);
+      if (table === "ari_vnext_cognitive_states") return response([{ state: { turnCount: 19 } }]);
+      return response([]);
+    }
+    if (table === "ari_vnext_reflection_jobs" && options.method === "POST") { queued = body; return response([{ id: "job1", ...body }]); }
+    if (table === "ari_vnext_cognitive_states") stored = true;
+    return response(Array.isArray(body) ? body : [body]);
+  });
+  const res = { setHeader() {}, status() { return this; }, json(body) { this.body = body; sent = true; return this; } };
+  try {
+    await handler({ method: "POST", headers: { authorization: "Bearer test-only" }, body: { turnId: "deferred-turn", conversationId, message: "That is wrong.", history: [] } }, res);
+    assert.equal(res.body.success, true, res.body.error);
+    assert.equal(res.body.adaptiveStrategyLayer.reflectionQueued, true, JSON.stringify(res.body.adaptiveStrategyLayer));
+    assert.equal(res.body.adaptiveStrategyLayer.reflectionAttempted, false);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(reflectionStarted, true);
+  } finally {
+    releaseReflection();
+    await Promise.all(pending);
+  }
+});

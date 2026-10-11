@@ -1,3 +1,4 @@
+import { validateStrategyApplications } from "./strategy-evidence.js";
 // ARI vNext — owner-only reasoning academy + adaptive strategy reflection.
 // A stronger teacher model may critique Ari's visible work and distill a compact
 // reusable reasoning method. Hidden chain-of-thought is never requested, copied,
@@ -106,7 +107,8 @@ export async function reflectOnAdaptiveStrategy({
   turn = {},
   result = {},
   adaptiveStrategyState = null,
-  reflectionContext = null
+  reflectionContext = null,
+  preparedPayload = null
 } = {}) {
   const apiKey = clean(process.env.ARI_PROVIDER_API_KEY || process.env.OPENAI_API_KEY, 8000);
   if (!apiKey) return { attempted: false, reason: "missing_openai_key", proposal: null };
@@ -119,75 +121,19 @@ export async function reflectOnAdaptiveStrategy({
       : "low"
     : null;
 
-  const payload = {
-    academy: {
-      version: ARI_REASONING_ACADEMY_VERSION,
-      active: academyMode,
-      goal: academyMode
-        ? "distill a transferable reasoning skill from Ari's visible attempt"
-        : "extract a compact reusable interaction strategy when warranted",
-      hiddenChainOfThoughtAvailable: false,
-      hiddenChainOfThoughtShouldBeStored: false
-    },
-    userMessage: clean(turn?.message, 3500),
-    ariReply: clean(result?.reply, 5000),
-    route: compactRoute(result?.route),
-    modelPolicy: {
-      mode: clean(result?.modelPolicy?.mode, 40),
-      model: clean(result?.provider?.model || result?.modelPolicy?.model, 120)
-    },
-    metacognition: {
-      confidence: clean(result?.metacognition?.confidence, 60),
-      missingEvidence: compactArray(result?.metacognition?.missingEvidence, 6, 140),
-      evidenceSignals: compactArray(result?.metacognition?.evidenceSignals, 6, 140)
-    },
-    judgment: compactJudgment(
-      reflectionContext?.cognitiveWorkspace ||
-      result?.cognitiveWorkspace ||
-      result?.userWorldModel?.ariCognitiveWorkspace ||
-      turn?.context?.userWorldModel?.ariCognitiveWorkspace ||
-      null
-    ),
-    convictionLearning: compactConvictionContext(reflectionContext?.convictionLearning || turn?.context?.convictionLearning),
-    beliefSystem: compactBeliefSystem(
-      reflectionContext?.cognitiveWorkspace?.beliefSystem ||
-      turn?.context?.userWorldModel?.ariCognitiveWorkspace?.beliefSystem ||
-      null
-    ),
-    dreaming: compactDreamingContext(reflectionContext?.dreaming || turn?.context?.dreaming),
-    outcomeLearningApplied: Boolean(result?.scientificIntelligence?.outcomeLearning?.applied),
-    realWorldDecisionOutcome: compactDecisionOutcome(turn?.context?.decisionOutcomeLearning),
-    executionProgress: compactExecutionSession(
-      reflectionContext?.executionSession ||
-      result?.executionSession ||
-      turn?.context?.userWorldModel?.ariCognitiveWorkspace?.executionSession ||
-      null
-    ),
-    activeStrategies: (Array.isArray(adaptiveStrategyState?.active) ? adaptiveStrategyState.active : [])
-      .slice(0, 6)
-      .map((item) => ({
-        strategyKey: clean(item?.strategyKey, 100),
-        title: clean(item?.title, 120),
-        instruction: clean(item?.instruction, 520),
-        lessonSummary: clean(item?.lessonSummary, 420),
-        status: clean(item?.status, 30),
-        confidence: finiteOrNull(item?.confidence),
-        maturityScore: finiteOrNull(item?.maturityScore),
-        domains: compactArray(item?.domains, 6, 40),
-        replacesStrategyKey: clean(item?.replacesStrategyKey, 100)
-      }))
-  };
+  const payload = preparedPayload || buildAdaptiveReflectionPayload({ turn, result, adaptiveStrategyState, reflectionContext, academyMode });
 
   const instructions = academyMode
     ? reasoningAcademyInstructions()
     : adaptiveReflectionInstructions();
+  const applicationInstructions = "For appliedStrategies, assess only supplied activeStrategies demonstrably used in ariReply. Cite an exact passage of at least 16 characters per application. Merely being supplied in the context does not mean a strategy was applied. If use is not observable, return an empty array. This is an application assessment, not evidence of success or causal benefit.";
 
   const body = {
     model,
     store: false,
     max_output_tokens: academyMode ? 1300 : 900,
     reasoning: reasoningEffort ? { effort: reasoningEffort } : undefined,
-    instructions,
+    instructions: instructions + "\n" + applicationInstructions,
     input: [
       {
         role: "user",
@@ -310,6 +256,7 @@ export async function reflectOnAdaptiveStrategy({
           ? "no_transferable_reasoning_lesson"
           : "no_reusable_strategy",
       proposal,
+      applications: validateStrategyApplications(parsed?.appliedStrategies, adaptiveStrategyState?.active || [], result.reply),
       academy,
       arena,
       provider: providerSummary(data, model)
@@ -452,6 +399,7 @@ function adaptiveReflectionSchema() {
     type: "object",
     additionalProperties: false,
     required: [
+      "appliedStrategies",
       "shouldPropose",
       "strategyKey",
       "title",
@@ -464,6 +412,11 @@ function adaptiveReflectionSchema() {
       "userVisibleSummary"
     ],
     properties: {
+      appliedStrategies: {
+        type: "array", maxItems: 6,
+        items: { type: "object", additionalProperties: false, required: ["strategyKey", "evidenceQuote"],
+          properties: { strategyKey: { type: "string" }, evidenceQuote: { type: "string" } } }
+      },
       shouldPropose: { type: "boolean" },
       strategyKey: { type: "string" },
       title: { type: "string" },
@@ -509,6 +462,7 @@ function academySchema() {
       "transferConditions",
       "disconfirmingCase",
       "teacherConfidence",
+      "appliedStrategies",
       "shouldPropose",
       "strategyKey",
       "title",
@@ -532,6 +486,11 @@ function academySchema() {
       },
       disconfirmingCase: { type: "string" },
       teacherConfidence: { type: "number" },
+      appliedStrategies: {
+        type: "array", maxItems: 6,
+        items: { type: "object", additionalProperties: false, required: ["strategyKey", "evidenceQuote"],
+          properties: { strategyKey: { type: "string" }, evidenceQuote: { type: "string" } } }
+      },
       shouldPropose: { type: "boolean" },
       strategyKey: { type: "string" },
       title: { type: "string" },
@@ -687,4 +646,65 @@ function clamp01(value) {
 
 function clean(value, max = 1000) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+export function buildAdaptiveReflectionPayload({ turn = {}, result = {}, adaptiveStrategyState = null, reflectionContext = null, academyMode = shouldUseReasoningAcademy({ turn, result }) } = {}) {
+  return {
+    academy: {
+      version: ARI_REASONING_ACADEMY_VERSION,
+      active: academyMode,
+      goal: academyMode
+        ? "distill a transferable reasoning skill from Ari's visible attempt"
+        : "extract a compact reusable interaction strategy when warranted",
+      hiddenChainOfThoughtAvailable: false,
+      hiddenChainOfThoughtShouldBeStored: false
+    },
+    userMessage: clean(turn?.message, 3500),
+    ariReply: clean(result?.reply, 5000),
+    route: compactRoute(result?.route),
+    modelPolicy: {
+      mode: clean(result?.modelPolicy?.mode, 40),
+      model: clean(result?.provider?.model || result?.modelPolicy?.model, 120)
+    },
+    metacognition: {
+      confidence: clean(result?.metacognition?.confidence, 60),
+      missingEvidence: compactArray(result?.metacognition?.missingEvidence, 6, 140),
+      evidenceSignals: compactArray(result?.metacognition?.evidenceSignals, 6, 140)
+    },
+    judgment: compactJudgment(
+      reflectionContext?.cognitiveWorkspace ||
+      result?.cognitiveWorkspace ||
+      result?.userWorldModel?.ariCognitiveWorkspace ||
+      turn?.context?.userWorldModel?.ariCognitiveWorkspace ||
+      null
+    ),
+    convictionLearning: compactConvictionContext(reflectionContext?.convictionLearning || turn?.context?.convictionLearning),
+    beliefSystem: compactBeliefSystem(
+      reflectionContext?.cognitiveWorkspace?.beliefSystem ||
+      turn?.context?.userWorldModel?.ariCognitiveWorkspace?.beliefSystem ||
+      null
+    ),
+    dreaming: compactDreamingContext(reflectionContext?.dreaming || turn?.context?.dreaming),
+    outcomeLearningApplied: Boolean(result?.scientificIntelligence?.outcomeLearning?.applied),
+    realWorldDecisionOutcome: compactDecisionOutcome(turn?.context?.decisionOutcomeLearning),
+    executionProgress: compactExecutionSession(
+      reflectionContext?.executionSession ||
+      result?.executionSession ||
+      turn?.context?.userWorldModel?.ariCognitiveWorkspace?.executionSession ||
+      null
+    ),
+    activeStrategies: (Array.isArray(adaptiveStrategyState?.active) ? adaptiveStrategyState.active : [])
+      .slice(0, 6)
+      .map((item) => ({
+        strategyKey: clean(item?.strategyKey, 100),
+        title: clean(item?.title, 120),
+        instruction: clean(item?.instruction, 520),
+        lessonSummary: clean(item?.lessonSummary, 420),
+        status: clean(item?.status, 30),
+        confidence: finiteOrNull(item?.confidence),
+        maturityScore: finiteOrNull(item?.maturityScore),
+        domains: compactArray(item?.domains, 6, 40),
+        replacesStrategyKey: clean(item?.replacesStrategyKey, 100)
+      }))
+  };
 }

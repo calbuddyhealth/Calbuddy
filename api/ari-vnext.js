@@ -6,11 +6,10 @@ import {
   buildStrategyAdoptionSignal,
   shouldRunAdaptiveStrategyReflection
 } from "./_lib/ari-vnext/adaptive-strategy.js";
-import { reflectOnAdaptiveStrategy } from "./_lib/ari-vnext/adaptive-strategy-reflection.js";
+import { enqueueReflection, scheduleReflectionDrain } from "./_lib/ari-vnext/deferred-reflection.js";
 import {
   prepareAdaptiveStrategiesForTurn,
-  recordAdaptiveStrategyUses,
-  upsertAdaptiveStrategyProposal
+  recordAdaptiveStrategyUses
 } from "./_lib/ari-vnext/adaptive-strategy-store.js";
 import {
   advanceCognitiveState,
@@ -282,7 +281,8 @@ export default async function handler(req, res) {
       ? prepareAdaptiveStrategiesForTurn({
           userId: auth.userId,
           route: routePreview,
-          message: turn.message
+          message: turn.message,
+          conversationId: turn.conversationId, history: turn.history, turnId: turn.turnId
         })
       : Promise.resolve({
           state: null,
@@ -824,31 +824,22 @@ export default async function handler(req, res) {
       decisionOutcomeLearning,
       executionSession: nextCognitiveState?.executionSession || null
     });
-    const adaptiveStrategyReflection = shouldReflectOnStrategy
-      ? await reflectOnAdaptiveStrategy({
-          turn,
-          result,
-          adaptiveStrategyState,
-          reflectionContext: {
-            cognitiveWorkspace,
-            executionSession: nextCognitiveState?.executionSession || null,
-            dreaming: dreamingContext,
-            experiences: experienceContext,
-            convictionLearning: goalOutcomePersistence?.goal
-              ? summarizeGoals([goalOutcomePersistence.goal, ...loadedGoals.filter(goal => goal.id !== trackedGoal?.id)], {
-                  message: turn.message, activeGoalId: trackedGoal?.id
-                })
-              : convictionLearning
-          }
-        })
-      : { attempted: false, reason: "not_triggered", proposal: null, provider: null };
-    const adaptiveStrategyProposalPersistence = adaptiveStrategyReflection?.proposal
-      ? await upsertAdaptiveStrategyProposal({
-          userId: auth.userId,
-          proposal: adaptiveStrategyReflection.proposal,
-          sourceModel: adaptiveStrategyReflection?.provider?.model || result?.provider?.model || result?.modelPolicy?.model
-        })
-      : { stored: false, reason: adaptiveStrategyReflection?.reason || "no_proposal" };
+    const reflectionInput = shouldReflectOnStrategy ? {
+      turn, result, adaptiveStrategyState,
+      reflectionContext: {
+        cognitiveWorkspace,
+        executionSession: nextCognitiveState?.executionSession || null,
+        dreaming: dreamingContext,
+        experiences: experienceContext,
+        convictionLearning: goalOutcomePersistence?.goal
+          ? summarizeGoals([goalOutcomePersistence.goal, ...loadedGoals.filter(goal => goal.id !== trackedGoal?.id)], {
+              message: turn.message, activeGoalId: trackedGoal?.id
+            })
+          : convictionLearning
+      }
+    } : null;
+    const adaptiveStrategyReflection = { attempted: false, reason: shouldReflectOnStrategy ? "deferred" : "not_triggered", proposal: null, provider: null };
+    const adaptiveStrategyProposalPersistence = { stored: false, reason: shouldReflectOnStrategy ? "deferred" : "not_triggered" };
 
     const scientificDecisionRecord = fitnessRoute
       ? buildDecisionRecord({ turnId: turn.turnId, route: result?.route || routePreview, result })
@@ -1003,27 +994,7 @@ export default async function handler(req, res) {
         })
       : Promise.resolve(null);
 
-    const strategyReflectionUsageTask = adaptiveStrategyReflection?.provider?.usage
-      ? recordOpenAIUsage({
-          userId: auth.userId,
-          endpoint: "/api/ari-vnext",
-          usageType: "reasoning_reflection",
-          requestCategory: "ari_adaptive_strategy_reflection",
-          model: adaptiveStrategyReflection.provider.model,
-          responseData: {
-            id: adaptiveStrategyReflection.provider.id,
-            model: adaptiveStrategyReflection.provider.model,
-            usage: adaptiveStrategyReflection.provider.usage
-          },
-          providerRequestId: adaptiveStrategyReflection.provider.id || null,
-          metadata: {
-            turnId: turn.turnId,
-            cognitiveTurnCount,
-            strategyProposalCreated: Boolean(adaptiveStrategyReflection.proposal),
-            activeStrategyCount: adaptiveStrategyState?.activeCount || 0
-          }
-        })
-      : Promise.resolve(null);
+    const strategyReflectionUsageTask = Promise.resolve(null); // Deferred job records its own measured usage.
 
     const institutionalLearningReservation =
       result?.multiAgent?.active === true &&
@@ -1215,7 +1186,7 @@ export default async function handler(req, res) {
       ? recordAdaptiveStrategyUses({
           userId: auth.userId,
           strategies: adaptiveStrategyState.active,
-          turnId: turn.turnId,
+          turnId: turn.turnId, conversationId: turn.conversationId, reply: result.reply,
           route: result?.route || routePreview,
           message: turn.message
         })
@@ -1544,6 +1515,15 @@ export default async function handler(req, res) {
       }
     };
 
+    // Snapshot the remaining governor after foreground supplemental work. A
+    // deferred job cannot reset the turn's allowance or create extra spending.
+    const reflectionQueue = reflectionInput ? await enqueueReflection(reflectionInput) : { queued: false, reason: "not_triggered" };
+    if (responsePayload.adaptiveStrategyLayer) {
+      responsePayload.adaptiveStrategyLayer.reflectionQueued = reflectionQueue.queued;
+      responsePayload.adaptiveStrategyLayer.reflectionJobId = reflectionQueue.jobId || null;
+      responsePayload.adaptiveStrategyLayer.reflectionReason = reflectionQueue.reason;
+    }
+
     if (requestClaim?.enabled === true && requestClaim?.claimed === true) {
       const stored = await completeAriRequest({
         userId: auth.userId,
@@ -1557,7 +1537,9 @@ export default async function handler(req, res) {
     }
 
     responsePayload.timing.totalMs = Date.now() - startedAt;
-    return res.status(200).json(responsePayload);
+    const sent = res.status(200).json(responsePayload);
+    if (deepCognitionEnabled) scheduleReflectionDrain(auth.userId);
+    return sent;
   } catch (error) {
     if (requestClaim?.enabled === true && requestClaim?.claimed === true && requestIdentity) {
       await releaseAriRequest(requestIdentity);

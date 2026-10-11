@@ -1,8 +1,8 @@
 // ARI vNext — owner-only adaptive reasoning strategy policy.
 // Strategies are compact reusable instructions, not hidden chain-of-thought.
 
-export const ARI_ADAPTIVE_STRATEGY_VERSION = "0.4.0";
-export const ARI_ADAPTIVE_STRATEGY_STATE_VERSION = "0.4.0";
+export const ARI_ADAPTIVE_STRATEGY_VERSION = "0.5.0";
+export const ARI_ADAPTIVE_STRATEGY_STATE_VERSION = "0.5.0";
 
 const ACTIVE_STATUSES = new Set(["testing", "adopted", "practical_prior"]);
 const ALLOWED_DOMAINS = new Set([
@@ -23,12 +23,19 @@ const ALLOWED_DOMAINS = new Set([
 
 export function deriveAdaptiveStrategyState({ strategies = [], route = {}, message = "" } = {}) {
   const currentDomains = deriveAdaptiveStrategyContextDomains(route, message);
-  const active = (Array.isArray(strategies) ? strategies : [])
+  const eligible = (Array.isArray(strategies) ? strategies : [])
     .map(normalizeStrategyRow)
     .filter((item) => ACTIVE_STATUSES.has(item.status))
     .filter((item) => appliesToDomains(item.domains, currentDomains))
-    .sort((a, b) => strategyWeight(b) - strategyWeight(a))
-    .slice(0, 6);
+    .sort((a, b) => strategyWeight(b) - strategyWeight(a));
+  // A challenger must be exposed before it can earn outcome evidence. Keep the
+  // five strongest incumbents and rotate challengers by least recent exposure.
+  const challengers = eligible.filter(item => item.status === "testing")
+    .sort((a, b) => String(a.lastUsedAt || "").localeCompare(String(b.lastUsedAt || "")) || a.strategyKey.localeCompare(b.strategyKey));
+  const active = eligible.slice(0, 6);
+  if (challengers.length && !active.some(item => item.strategyKey === challengers[0].strategyKey)) {
+    active.splice(5, 1, challengers[0]);
+  }
 
   return {
     version: ARI_ADAPTIVE_STRATEGY_STATE_VERSION,
@@ -79,34 +86,13 @@ export function classifyStrategyFeedback(message = "") {
   const text = clean(message, 3000).toLowerCase();
   if (!text) return "neutral";
 
-  const negative = [
-    /\bthat's wrong\b/,
-    /\byou're wrong\b/,
-    /\byou are wrong\b/,
-    /\bnot what i (?:meant|asked|wanted)\b/,
-    /\byou misunderstood\b/,
-    /\bthat doesn't make sense\b/,
-    /\bthat's not what i mean\b/,
-    /\bthat's worse\b/,
-    /\bstop doing that\b/,
-    /\bdon't do that again\b/,
-    /\bincorrect\b/
-  ];
-  if (negative.some((pattern) => pattern.test(text))) return "negative";
-
-  const positive = [
-    /\bexactly\b/,
-    /\bthat's better\b/,
-    /\bthat is better\b/,
-    /\bmuch better\b/,
-    /\bperfect\b/,
-    /\byou got it\b/,
-    /\bthat's what i mean\b/,
-    /\bthat's what i wanted\b/,
-    /\bgood answer\b/,
-    /\bi like that approach\b/
-  ];
-  return positive.some((pattern) => pattern.test(text)) ? "positive" : "neutral";
+  // Only direct evaluations of Ari's preceding answer count. Quoted speech,
+  // hypothetical reactions and incidental adjectives are not feedback.
+  if (/^(?:if|suppose|imagine|what if|he said|she said|they said|["“>])\b/i.test(text)) return "neutral";
+  const negative = /\b(?:that(?:'s| is) wrong|you(?:'re| are) wrong|not what i (?:meant|asked|wanted)|you misunderstood|that doesn(?:'t| not) make sense|that(?:'s| is) not what i mean|that(?:'s| is) worse|stop doing that|don(?:'t| not) do that again|(?:your|that|this) (?:answer|response|approach|explanation) is (?:wrong|incorrect))\b/;
+  if (negative.test(text) || /^(?:wrong|incorrect)[.!]?$/.test(text)) return "negative";
+  const positive = /\b(?:that(?:'s| is) better|much better|you got it|that(?:'s| is) what i (?:mean|wanted)|good answer|i like that approach)\b/;
+  return positive.test(text) || /^(?:exactly|perfect)(?:[.!]|$)/.test(text) ? "positive" : "neutral";
 }
 
 export function evaluateStrategyOutcome(strategy = {}, outcome = "neutral", now = new Date(), maturityEvidence = {}) {
@@ -114,16 +100,23 @@ export function evaluateStrategyOutcome(strategy = {}, outcome = "neutral", now 
   const evidence = normalizeMaturityEvidence(maturityEvidence);
   const result = ["positive", "negative", "neutral"].includes(outcome) ? outcome : "neutral";
   const confidenceDelta = current.status === "practical_prior"
-    ? (result === "positive" ? 0.03 : result === "negative" ? -0.04 : 0.002)
+    ? (result === "positive" ? 0.03 : result === "negative" ? -0.04 : 0)
     : (result === "positive" ? 0.06 : result === "negative" ? -0.08 : 0);
   const next = {
     ...current,
-    trials: current.trials + 1,
+    trials: current.trials + (result === "neutral" ? 0 : 1),
     positiveOutcomes: current.positiveOutcomes + (result === "positive" ? 1 : 0),
     negativeOutcomes: current.negativeOutcomes + (result === "negative" ? 1 : 0),
     neutralOutcomes: current.neutralOutcomes + (result === "neutral" ? 1 : 0),
     confidence: clamp01(current.confidence + confidenceDelta),
     lastUsedAt: iso(now)
+  };
+
+  if (result === "neutral") return {
+    strategy: { ...current, neutralOutcomes: next.neutralOutcomes, lastUsedAt: next.lastUsedAt },
+    statusChanged: false, priorStatus: current.status, nextStatus: current.status,
+    outcome: result, replacementRecommended: false, maturityScore: current.maturityScore,
+    maturityEvidence: evidence
   };
 
   const priorStatus = current.status;

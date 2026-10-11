@@ -1,3 +1,4 @@
+import { reconcilePreferences } from "./preference-records.js";
 // ARI vNext — structured persistent model of the person.
 // This is not a transcript. It separates stated goals/preferences from observed
 // behavior and measured response so Ari can notice mismatches without shaming.
@@ -5,7 +6,7 @@
 import { advanceCuriosityState, normalizeCuriosityState } from "./curiosity-core.js";
 import { advanceImaginationState, normalizeImaginationState } from "./imagination-core.js";
 
-export const ARI_USER_WORLD_MODEL_VERSION = "1.1.1";
+export const ARI_USER_WORLD_MODEL_VERSION = "1.2.0";
 const TABLE = "ari_vnext_user_models";
 const PRIVACY_CATEGORIES = new Set(["identity", "preferences", "goals", "constraints", "behavior", "fitness_outcomes", "relationship"]);
 
@@ -51,10 +52,10 @@ export function deriveUserWorldModel({
     : Object.keys(incomingGoalsContext).length
       ? mergeObject(persisted?.goals?.current, incomingGoalsContext)
       : compactObject(persisted?.goals?.current);
-  const preferences = blocked.has("preferences") ? [] : uniqueText([
-    ...arrayValues(persisted?.preferences?.items),
-    ...memoryLines.filter((line) => /\b(prefer|like|love|favorite|favourite|dislike|hate|want ari to|prefer ari to)\b/i.test(line))
-  ], 18, 360);
+  const preferences = blocked.has("preferences") ? { items: [] } : reconcilePreferences({
+    previous: persisted?.preferences || {}, memoryLines, message: turn?.message,
+    turnId: turn?.turnId || null, at: turn?.createdAt || new Date().toISOString(), creative: route.creativeConversation === true
+  });
   const constraints = blocked.has("constraints") ? [] : uniqueText([
     ...arrayValues(persisted?.constraints?.items),
     ...memoryLines.filter((line) => /\b(can't|cannot|unable|schedule|shift|time constraint|injur|pain|allerg|budget|equipment|access)\b/i.test(line))
@@ -135,7 +136,7 @@ export function deriveUserWorldModel({
     version: ARI_USER_WORLD_MODEL_VERSION,
     privacyControls,
     identity: blocked.has("identity") ? {} : mergeObject(persisted?.identity, profile),
-    preferences: blocked.has("preferences") ? { items: [] } : { items: preferences },
+    preferences,
     goals: blocked.has("goals") ? { stated: [], current: {} } : { stated: explicitGoals, current: goalsContext },
     constraints: blocked.has("constraints") ? { items: [] } : { items: constraints },
     behavior: observedBehavior,
