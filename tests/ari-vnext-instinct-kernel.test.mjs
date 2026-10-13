@@ -40,12 +40,39 @@ function ownerExperimentalContext(extra = {}) {
   };
 }
 
+function ecologyContext({ reward = 0.8, predictionError = 0.2, penalty = 0, exploration = "high", verification = "normal", persistence = "normal", signals = ["investigate"] } = {}) {
+  return ownerExperimentalContext({
+    rewardCore: {
+      lastEvent: {
+        id: "reward:prior",
+        actualReward: reward,
+        predictionError,
+        penalties: { total: penalty }
+      },
+      aggregate: {}
+    },
+    causalObservability: {
+      latest: {
+        traceId: "trace:prior",
+        reward,
+        predictionError,
+        executiveExplorationDepth: exploration,
+        executiveVerificationDepth: verification,
+        executivePersistence: persistence,
+        activeSignalActions: signals
+      },
+      retainedTraceCount: 1,
+      hiddenChainOfThoughtStored: false
+    }
+  });
+}
+
 test("Instinct Kernel is deterministic and performs no provider call", async () => {
   const source = await readFile(
     new URL("../api/_lib/ari-vnext/instinct-kernel.js", import.meta.url),
     "utf8"
   );
-  assert.equal(ARI_INSTINCT_KERNEL_VERSION, "1.1.0");
+  assert.equal(ARI_INSTINCT_KERNEL_VERSION, "1.2.0");
   assert.doesNotMatch(source, /fetch\s*\(/);
   assert.doesNotMatch(source, /OPENAI_|api\.openai\.com|\/v1\/responses/i);
 });
@@ -156,6 +183,104 @@ test("owner ARI XP activates frontier exploration and reflective execution as on
   assert.ok(state.suppressions.includes("blanket_rejection_when_safe_test_exists"));
 });
 
+test("cognitive ecology rewards a successful exploratory control posture without eliminating challengers", () => {
+  const baseline = deriveInstinctKernel({
+    turn: { message: "Try an unconventional architecture and compare it." },
+    route: { developer: true, complexity: "standard" },
+    safety: { highStakes: false },
+    communication: {},
+    relevantContext: ownerExperimentalContext(),
+    modelPolicy: { reasoningDemand: { band: "high", reasons: [] } }
+  });
+  const learned = deriveInstinctKernel({
+    turn: { message: "Try an unconventional architecture and compare it." },
+    route: { developer: true, complexity: "standard" },
+    safety: { highStakes: false },
+    communication: {},
+    relevantContext: ecologyContext({
+      reward: 0.86,
+      predictionError: 0.28,
+      exploration: "high",
+      verification: "normal",
+      persistence: "normal",
+      signals: ["investigate", "consider_alternative"]
+    }),
+    modelPolicy: { reasoningDemand: { band: "high", reasons: [] } }
+  });
+
+  const baseExplorer = baseline.drives.find((item) => item.id === "frontier_explorer_drive");
+  const learnedExplorer = learned.drives.find((item) => item.id === "frontier_explorer_drive");
+  assert.ok(learnedExplorer.strength > baseExplorer.strength);
+  assert.equal(learned.cognitiveEcology.active, true);
+  assert.equal(learned.cognitiveEcology.outcomeAdaptive, true);
+  assert.equal(learned.cognitiveEcology.learning.outcome, "positive");
+  assert.ok(learned.cognitiveEcology.learning.biases.exploration > 0);
+  assert.ok(learned.cognitiveEcology.participants.length >= 5);
+  assert.ok(learned.cognitiveEcology.leaders.length >= 2);
+  assert.ok(learned.cognitiveEcology.challenger);
+  assert.ok(learned.cognitiveEcology.diversity > 0.7);
+  assert.equal(learned.policy.cognitiveEcologyPreservesChallengers, true);
+});
+
+test("failed exploration shifts influence toward verification and reversible testing instead of global retreat", () => {
+  const baseline = deriveInstinctKernel({
+    turn: { message: "Find another approach and test it." },
+    route: { developer: true, complexity: "standard" },
+    safety: { highStakes: false },
+    communication: {},
+    relevantContext: ownerExperimentalContext(),
+    modelPolicy: { reasoningDemand: { band: "high", reasons: [] } }
+  });
+  const learned = deriveInstinctKernel({
+    turn: { message: "Find another approach and test it." },
+    route: { developer: true, complexity: "standard" },
+    safety: { highStakes: false },
+    communication: {},
+    relevantContext: ecologyContext({
+      reward: 0.22,
+      predictionError: -0.33,
+      penalty: 0.32,
+      exploration: "high",
+      verification: "normal",
+      persistence: "normal",
+      signals: ["investigate", "consider_alternative"]
+    }),
+    modelPolicy: { reasoningDemand: { band: "high", reasons: [] } }
+  });
+
+  const baseExplorer = baseline.drives.find((item) => item.id === "frontier_explorer_drive");
+  const learnedExplorer = learned.drives.find((item) => item.id === "frontier_explorer_drive");
+  assert.ok(learnedExplorer.strength < baseExplorer.strength);
+  assert.ok(learned.modulation.executive.verificationBias > baseline.modulation.executive.verificationBias);
+  assert.ok(learned.cognitiveEcology.learning.biases.experiment > 0);
+  assert.ok(learned.cognitiveEcology.learning.biases.reflection > 0);
+  assert.equal(learned.cognitiveEcology.learning.policy.negativeOutcomeDoesNotEraseExploration, true);
+  assert.ok(learnedExplorer.strength >= 0.8);
+});
+
+test("successful verification can gain control without disabling frontier exploration", () => {
+  const state = deriveInstinctKernel({
+    turn: { message: "Investigate this carefully and keep alternatives alive." },
+    route: { developer: true, complexity: "standard" },
+    safety: { highStakes: false },
+    communication: {},
+    relevantContext: ecologyContext({
+      reward: 0.84,
+      predictionError: 0.24,
+      exploration: "normal",
+      verification: "high",
+      persistence: "normal",
+      signals: ["verify_evidence"]
+    }),
+    modelPolicy: { reasoningDemand: { band: "high", reasons: [] } }
+  });
+
+  assert.ok(state.cognitiveEcology.learning.biases.verification > 0);
+  assert.ok(state.modulation.executive.verificationBias >= 0.84);
+  assert.ok(state.drives.some((item) => item.id === "frontier_explorer_drive"));
+  assert.ok(state.cognitiveEcology.challenger);
+});
+
 test("hybrid seeker pressures stay owner-only and do not alter ordinary users", () => {
   const state = deriveInstinctKernel({
     turn: { message: "Find an unconventional way to improve this architecture." },
@@ -167,6 +292,7 @@ test("hybrid seeker pressures stay owner-only and do not alter ordinary users", 
   });
 
   assert.equal(state.hybridSeeker.active, false);
+  assert.equal(state.cognitiveEcology.active, false);
   assert.equal(state.drives.some((item) => item.id === "frontier_explorer_drive"), false);
   assert.equal(state.tendencies.some((item) => item.id === "reflective_execution_tendency"), false);
   assert.equal(state.modulation.executive.proposalFreedomBias, 0);
@@ -187,6 +313,7 @@ test("high-stakes turns suppress frontier experimentation while preserving refle
   assert.ok(state.tendencies.some((item) => item.id === "reflective_execution_tendency"));
   assert.equal(state.modulation.deliberation.verificationGate, true);
   assert.ok(state.modulation.executive.verificationBias >= 0.84);
+  assert.equal(state.cognitiveEcology.highStakes, true);
 });
 
 test("persisted outcome and personality state can calibrate instinct strength within bounds", () => {
@@ -333,4 +460,5 @@ test("live vNext derives instincts before metacognition, Companion Core, and del
   assert.ok(instinctIndex < deliberationIndex);
   assert.match(authorityMap, /Instinct Kernel/i);
   assert.match(authorityMap, /control substrate/i);
+  assert.match(authorityMap, /cognitive ecology/i);
 });
