@@ -28,12 +28,24 @@ function repairCommunication(message = "No, that's not what I meant.") {
   };
 }
 
+function ownerExperimentalContext(extra = {}) {
+  return {
+    userWorldModel: {
+      ariCognitiveWorkspace: {
+        ownerOnly: true,
+        functionalExperiment: true,
+        ...extra
+      }
+    }
+  };
+}
+
 test("Instinct Kernel is deterministic and performs no provider call", async () => {
   const source = await readFile(
     new URL("../api/_lib/ari-vnext/instinct-kernel.js", import.meta.url),
     "utf8"
   );
-  assert.equal(ARI_INSTINCT_KERNEL_VERSION, "1.0.0");
+  assert.equal(ARI_INSTINCT_KERNEL_VERSION, "1.1.0");
   assert.doesNotMatch(source, /fetch\s*\(/);
   assert.doesNotMatch(source, /OPENAI_|api\.openai\.com|\/v1\/responses/i);
 });
@@ -113,6 +125,70 @@ test("stable behavioral tendencies are present without manufacturing urgency", (
   assert.equal(state.policy.tendenciesAreSoft, true);
 });
 
+test("owner ARI XP activates frontier exploration and reflective execution as one hybrid", () => {
+  const state = deriveInstinctKernel({
+    turn: { message: "Find a way to improve this architecture beyond the obvious design and test it." },
+    route: { developer: true, complexity: "deep" },
+    safety: { highStakes: false },
+    communication: {},
+    relevantContext: ownerExperimentalContext(),
+    modelPolicy: { reasoningDemand: { band: "critical", reasons: [] } }
+  });
+
+  const explorer = state.drives.find((item) => item.id === "frontier_explorer_drive");
+  const reflection = state.tendencies.find((item) => item.id === "reflective_execution_tendency");
+
+  assert.ok(explorer);
+  assert.ok(reflection);
+  assert.equal(state.hybridSeeker.active, true);
+  assert.equal(state.hybridSeeker.architecture, "unbounded_proposal_space_reflective_execution");
+  assert.ok(state.hybridSeeker.explorerStrength >= 0.86);
+  assert.ok(state.hybridSeeker.executiveReflectionStrength >= 0.84);
+  assert.equal(state.hybridSeeker.reflectionDoesNotAutomaticallyReject, true);
+  assert.equal(state.hybridSeeker.preferReversibleExperimentBeforeRejection, true);
+  assert.equal(state.hybridSeeker.consequentialPromotionRequiresObservedEvidence, true);
+  assert.ok(state.modulation.executive.explorationBias >= 0.86);
+  assert.ok(state.modulation.executive.reversibleExperimentBias >= 0.84);
+  assert.ok(state.modulation.executive.verificationBias >= 0.84);
+  assert.equal(state.modulation.deliberation.verificationGate, true);
+  assert.ok(state.modulation.deliberation.explorationPressure >= 0.86);
+  assert.ok(state.suppressions.includes("premature_convergence"));
+  assert.ok(state.suppressions.includes("blanket_rejection_when_safe_test_exists"));
+});
+
+test("hybrid seeker pressures stay owner-only and do not alter ordinary users", () => {
+  const state = deriveInstinctKernel({
+    turn: { message: "Find an unconventional way to improve this architecture." },
+    route: { developer: true, complexity: "deep" },
+    safety: { highStakes: false },
+    communication: {},
+    relevantContext: {},
+    modelPolicy: { reasoningDemand: { band: "critical", reasons: [] } }
+  });
+
+  assert.equal(state.hybridSeeker.active, false);
+  assert.equal(state.drives.some((item) => item.id === "frontier_explorer_drive"), false);
+  assert.equal(state.tendencies.some((item) => item.id === "reflective_execution_tendency"), false);
+  assert.equal(state.modulation.executive.proposalFreedomBias, 0);
+  assert.equal(state.modulation.executive.reflectiveExecutionBias, 0);
+});
+
+test("high-stakes turns suppress frontier experimentation while preserving reflection and verification", () => {
+  const state = deriveInstinctKernel({
+    turn: { message: "This is uncertain. Evaluate the options carefully." },
+    route: { developer: true, complexity: "deep" },
+    safety: { highStakes: true },
+    communication: {},
+    relevantContext: ownerExperimentalContext(),
+    modelPolicy: { reasoningDemand: { band: "critical", reasons: [] } }
+  });
+
+  assert.equal(state.drives.some((item) => item.id === "frontier_explorer_drive"), false);
+  assert.ok(state.tendencies.some((item) => item.id === "reflective_execution_tendency"));
+  assert.equal(state.modulation.deliberation.verificationGate, true);
+  assert.ok(state.modulation.executive.verificationBias >= 0.84);
+});
+
 test("persisted outcome and personality state can calibrate instinct strength within bounds", () => {
   const state = deriveInstinctKernel({
     turn: { message: "Try a better approach." },
@@ -168,6 +244,38 @@ test("Ari Executive turns instinct state into causal strategy pressure", () => {
   const instruction = executivePolicyToInstruction(policy);
   assert.match(instruction, /Instinct:/);
   assert.match(instruction, /Reflexes constrain/i);
+});
+
+test("owner hybrid pressure reaches Ari Executive and Deliberation Harness through existing authority paths", () => {
+  const instinctKernel = deriveInstinctKernel({
+    turn: { message: "Challenge the current design and find a reversible experiment that could beat it." },
+    route: { developer: true, complexity: "deep" },
+    safety: { highStakes: false },
+    communication: {},
+    relevantContext: ownerExperimentalContext(),
+    modelPolicy: { reasoningDemand: { band: "critical", reasons: [] } }
+  });
+
+  const policy = deriveAriExecutivePolicy({
+    route: { developer: true, complexity: "deep" },
+    safety: { highStakes: false },
+    confidence: "grounded",
+    instinctKernel
+  });
+  assert.equal(policy.directives.explorationDepth, "high");
+  assert.equal(policy.directives.countercase, true);
+  assert.ok(policy.directives.instinctReversibleExperimentPressure >= 0.84);
+
+  const deliberation = deriveDeliberationHarness({
+    turn: { message: "Challenge the current design and find a reversible experiment that could beat it." },
+    route: { developer: true, complexity: "deep" },
+    safety: { highStakes: false },
+    modelPolicy: { reasoningDemand: { band: "critical" } },
+    companionState: null,
+    instinctKernel
+  });
+  assert.equal(deliberation.deliberation.verificationGate, true);
+  assert.ok(deliberation.instinctPressure.explorationPressure >= 0.86);
 });
 
 test("Companion Core and Deliberation Harness consume instinct modulation without a fifth prompt authority", () => {

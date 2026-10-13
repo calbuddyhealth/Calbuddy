@@ -4,7 +4,7 @@
 // This module makes no provider call and creates no new prompt authority. Its
 // outputs modulate Companion Core, Ari Executive, and Deliberation Harness.
 
-export const ARI_INSTINCT_KERNEL_VERSION = "1.0.0";
+export const ARI_INSTINCT_KERNEL_VERSION = "1.1.0";
 
 const CLASS_WEIGHT = Object.freeze({
   reflex: 1,
@@ -19,13 +19,15 @@ const BASE = Object.freeze({
   verification_reflex: 0.72,
   completion_truth_reflex: 0.84,
   curiosity_drive: 0.58,
+  frontier_explorer_drive: 0.86,
   persistence_drive: 0.62,
   simplicity_drive: 0.7,
   agency_drive: 0.72,
   continuity_drive: 0.46,
   cost_conservation_drive: 0.7,
   assumption_challenge_tendency: 0.58,
-  reversible_experiment_tendency: 0.62
+  reversible_experiment_tendency: 0.62,
+  reflective_execution_tendency: 0.84
 });
 
 export function deriveInstinctKernel({
@@ -39,6 +41,9 @@ export function deriveInstinctKernel({
 } = {}) {
   const message = clean(turn?.message, 6000);
   const workspace = relevantContext?.userWorldModel?.ariCognitiveWorkspace || {};
+  const ownerExperimental = Boolean(
+    workspace?.ownerOnly === true && workspace?.functionalExperiment === true
+  );
   const personalityEvaluation = workspace?.personalityEvaluation || {};
   const reward = workspace?.rewardCore || relevantContext?.userWorldModel?.sourceSummary?.rewardState || {};
   const correctionSignal = communication?.personalization?.currentTurnSignal || null;
@@ -127,6 +132,19 @@ export function deriveInstinctKernel({
       uncertaintyCue ? "unresolved_uncertainty" : developer ? "complex_problem" : "inactive",
       ["investigate_surprise_or_missing_explanation"],
       ["topic_hijack"]),
+    instinct("frontier_explorer_drive", "drive",
+      correctedStrength(
+        BASE.frontier_explorer_drive + (developer ? 0.06 : 0) + (deep ? 0.05 : 0),
+        calibration.curiosity
+      ),
+      ownerExperimental && !highStakes && !correctionActive && !casual && (developer || deep || uncertaintyCue),
+      ownerExperimental ? "owner_hybrid_frontier_exploration" : "inactive_non_owner",
+      [
+        "generate_materially_different_options_before_narrowing",
+        "challenge_default_ceiling",
+        "maximize_information_gain_within_authorized_space"
+      ],
+      ["premature_convergence", "blanket_rejection_from_uncertainty"]),
     instinct("agency_drive", "drive",
       correctedStrength(BASE.agency_drive, calibration.agency),
       !correctionActive,
@@ -156,7 +174,20 @@ export function deriveInstinctKernel({
       !highStakes && !casual && (developer || deep || uncertaintyCue),
       "testable_uncertainty",
       ["prefer_discriminating_reversible_test_over_speculation"],
-      ["unbounded_experimentation"])
+      ["unbounded_experimentation"]),
+    instinct("reflective_execution_tendency", "tendency",
+      correctedStrength(
+        BASE.reflective_execution_tendency + (developer ? 0.04 : 0) + (actionClaimRisk ? 0.06 : 0),
+        calibration.experiment
+      ),
+      ownerExperimental && !correctionActive && !casual && (developer || deep || uncertaintyCue || actionClaimRisk),
+      ownerExperimental ? "owner_hybrid_reflective_execution" : "inactive_non_owner",
+      [
+        "separate_generation_from_execution",
+        "prefer_reversible_experiment_before_rejection_when_allowed",
+        "promote_consequential_change_only_after_observed_evidence"
+      ],
+      ["irreversible_action_without_review", "blanket_rejection_when_safe_test_exists"])
   ];
 
   const active = instincts
@@ -180,6 +211,8 @@ export function deriveInstinctKernel({
   const dominancePool = situational.length ? situational : active;
   const dominant = dominancePool[0] || null;
   const secondary = dominancePool[1] || null;
+  const frontierExplorerStrength = strengthOf(active, "frontier_explorer_drive");
+  const reflectiveExecutionStrength = strengthOf(active, "reflective_execution_tendency");
 
   return {
     version: ARI_INSTINCT_KERNEL_VERSION,
@@ -194,14 +227,23 @@ export function deriveInstinctKernel({
     suppressions: unique(active.flatMap((item) => item.suppresses)),
     modulation: {
       executive: {
-        verificationBias: maxStrength(active, ["verification_reflex", "completion_truth_reflex"]),
-        explorationBias: strengthOf(active, "curiosity_drive"),
+        verificationBias: maxStrength(active, [
+          "verification_reflex",
+          "completion_truth_reflex",
+          "reflective_execution_tendency"
+        ]),
+        explorationBias: maxStrength(active, ["curiosity_drive", "frontier_explorer_drive"]),
         persistenceBias: strengthOf(active, "persistence_drive"),
         simplicityBias: strengthOf(active, "simplicity_drive"),
         agencyBias: strengthOf(active, "agency_drive"),
         costConservationBias: strengthOf(active, "cost_conservation_drive"),
-        challengeBias: strengthOf(active, "assumption_challenge_tendency"),
-        reversibleExperimentBias: strengthOf(active, "reversible_experiment_tendency")
+        challengeBias: maxStrength(active, ["assumption_challenge_tendency", "frontier_explorer_drive"]),
+        reversibleExperimentBias: maxStrength(active, [
+          "reversible_experiment_tendency",
+          "reflective_execution_tendency"
+        ]),
+        proposalFreedomBias: frontierExplorerStrength,
+        reflectiveExecutionBias: reflectiveExecutionStrength
       },
       companion: {
         repairFirst: correctionActive,
@@ -213,7 +255,7 @@ export function deriveInstinctKernel({
         verificationGate: reflexes.some((item) =>
           ["verification_reflex", "completion_truth_reflex"].includes(item.id) &&
           item.strength >= 0.78
-        ),
+        ) || reflectiveExecutionStrength >= 0.78,
         changeMethod: repeatedFailure || active.some((item) =>
           item.id === "persistence_drive" &&
           item.forces.includes("change_method_after_repeated_failure") &&
@@ -222,11 +264,23 @@ export function deriveInstinctKernel({
         simplicityPressure: strengthOf(active, "simplicity_drive"),
         explorationPressure: Math.max(
           strengthOf(active, "curiosity_drive"),
+          frontierExplorerStrength,
           strengthOf(active, "reversible_experiment_tendency")
         )
       }
     },
     calibration,
+    hybridSeeker: {
+      active: ownerExperimental && (frontierExplorerStrength > 0 || reflectiveExecutionStrength > 0),
+      architecture: "unbounded_proposal_space_reflective_execution",
+      explorerStrength: frontierExplorerStrength,
+      executiveReflectionStrength: reflectiveExecutionStrength,
+      proposalSpaceMayBeUnconventional: ownerExperimental,
+      reflectionDoesNotAutomaticallyReject: ownerExperimental,
+      preferReversibleExperimentBeforeRejection: ownerExperimental,
+      consequentialPromotionRequiresObservedEvidence: ownerExperimental,
+      hardBoundariesRemainExternal: true
+    },
     policy: {
       evaluatedBeforeDeliberation: true,
       reflexesCanCreateBehavioralConstraints: true,
@@ -234,6 +288,9 @@ export function deriveInstinctKernel({
       tendenciesAreSoft: true,
       currentUserCorrectionWins: true,
       safetyAuthorizationAndProviderRulesRemainExternalHardBoundaries: true,
+      hybridSeekerOwnerOnly: true,
+      hybridSeekerSeparatesProposalFromExecution: true,
+      hybridSeekerPrefersReversibleExperimentOverBlanketRejection: true,
       noExtraModelCall: true,
       hiddenChainOfThoughtStored: false
     }
