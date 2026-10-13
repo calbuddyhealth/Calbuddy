@@ -1,6 +1,8 @@
+import { responseFingerprint, selectFeedbackTarget } from "./strategy-evidence.js";
 // ARI vNext — server-only persistence and lifecycle for adaptive strategies.
 
 import {
+  classifyStrategyFeedback,
   deriveAdaptiveStrategyContextDomains,
   deriveAdaptiveStrategyState,
   evaluateStrategyOutcome,
@@ -13,13 +15,14 @@ const STRATEGY_TABLE = "ari_vnext_adaptive_strategies";
 const USE_TABLE = "ari_vnext_strategy_uses";
 const TIMEOUT_MS = 1100;
 
-export async function prepareAdaptiveStrategiesForTurn({ userId, route = {}, message = "" } = {}) {
+export async function prepareAdaptiveStrategiesForTurn({ userId, route = {}, message = "", conversationId = null, history = [], turnId = null } = {}) {
   const id = cleanUserId(userId);
   if (!id) return emptyPreparation();
 
   const feedbackResolution = await resolveLatestPendingStrategyUses({
     userId: id,
-    feedback: classifyFeedback(message)
+    feedback: classifyStrategyFeedback(message), message, conversationId, feedbackTurnId: turnId,
+    previousReply: history.filter(item => item.role === "assistant").at(-1)?.content || ""
   });
   const [rows, arenaResults] = await Promise.all([
     loadStrategyRows({ userId: id }),
@@ -35,7 +38,7 @@ export async function prepareAdaptiveStrategiesForTurn({ userId, route = {}, mes
   };
 }
 
-export async function recordAdaptiveStrategyUses({ userId, strategies = [], turnId, route = {}, message = "" } = {}) {
+export async function recordAdaptiveStrategyUses({ userId, strategies = [], turnId, route = {}, message = "", conversationId = null, reply = "" } = {}) {
   const id = cleanUserId(userId);
   const turn = clean(turnId, 220);
   const config = supabaseConfig();
@@ -50,7 +53,8 @@ export async function recordAdaptiveStrategyUses({ userId, strategies = [], turn
     strategy_id: clean(item.id, 120),
     turn_id: turn,
     outcome: "pending",
-    context_domains: contextDomains
+    context_domains: contextDomains,
+    conversation_id: conversationId, response_hash: responseFingerprint(reply)
   }));
 
   try {
@@ -60,6 +64,12 @@ export async function recordAdaptiveStrategyUses({ userId, strategies = [], turn
       headers: serverHeaders(config.key, { Prefer: "resolution=ignore-duplicates,return=minimal" }),
       body: JSON.stringify(rows)
     }, TIMEOUT_MS);
+    if (response.ok) {
+      const used = new URLSearchParams({ user_id: `eq.${id}`, id: `in.(${active.map(item => item.id).join(",")})` });
+      await timedFetch(`${config.url}/rest/v1/${STRATEGY_TABLE}?${used}`, {
+        method: "PATCH", headers: serverHeaders(config.key), body: JSON.stringify({ last_used_at: new Date().toISOString() })
+      }, TIMEOUT_MS);
+    }
     return { stored: response.ok ? rows.length : 0 };
   } catch {
     return { stored: 0 };
@@ -155,110 +165,53 @@ export async function upsertAdaptiveStrategyProposal({ userId, proposal, sourceM
   }
 }
 
-async function resolveLatestPendingStrategyUses({ userId, feedback = "neutral" } = {}) {
-  const id = cleanUserId(userId);
-  const config = supabaseConfig();
-  if (!id || !config) return { resolved: 0, feedback: "neutral", lifecycleChanges: [] };
-
+async function resolveLatestPendingStrategyUses({ userId, feedback = "neutral", message = "", conversationId, previousReply, feedbackTurnId } = {}) {
+  const id = cleanUserId(userId), config = supabaseConfig();
+  const empty = { resolved: 0, feedback, lifecycleChanges: [] };
+  if (!id || !config || !conversationId || !previousReply || !feedbackTurnId || feedback === "neutral") return empty;
   try {
-    const params = new URLSearchParams({
-      user_id: `eq.${id}`,
-      outcome: "eq.pending",
-      select: "id,strategy_id,turn_id,context_domains,created_at",
-      order: "created_at.desc",
-      limit: "12"
-    });
-    const response = await timedFetch(`${config.url}/rest/v1/${USE_TABLE}?${params.toString()}`, {
-      headers: serverHeaders(config.key)
+    const params = new URLSearchParams({ user_id: `eq.${id}`, conversation_id: `eq.${conversationId}`,
+      outcome: "eq.pending", response_hash: `eq.${responseFingerprint(previousReply)}`,
+      created_at: `gt.${new Date(Date.now() - 86400000).toISOString()}`,
+      select: "id,strategy_id,turn_id,context_domains,created_at,response_hash,application_evidence",
+      order: "created_at.desc", limit: "6" });
+    const response = await timedFetch(`${config.url}/rest/v1/${USE_TABLE}?${params}`, { headers: serverHeaders(config.key) }, TIMEOUT_MS);
+    if (!response.ok) return empty;
+    const uses = await response.json();
+    if (!Array.isArray(uses) || !uses.length) return empty;
+    const strategies = await loadStrategiesByIds({ userId: id, ids: uses.map(use => use.strategy_id) });
+    const target = selectFeedbackTarget({ uses, strategies, message, previousReply });
+    if (!target) return { ...empty, reason: "application_or_feedback_ambiguous" };
+    const strategy = strategies.find(item => item.id === target.strategy_id);
+    const maturityEvidence = await loadMaturityEvidence({ userId: id, strategyId: strategy.id, currentTurnId: target.turn_id, currentFeedback: feedback });
+    if (strategy.replacesStrategyKey) maturityEvidence.replacementTargetStatus = (await loadStrategyByKey({ userId: id, strategyKey: strategy.replacesStrategyKey }))?.status;
+    const evaluated = evaluateStrategyOutcome(strategy, feedback, new Date(), maturityEvidence);
+    const saved = await timedFetch(`${config.url}/rest/v1/rpc/ari_apply_strategy_feedback`, {
+      method: "POST", headers: serverHeaders(config.key), body: JSON.stringify({
+        p_user_id: id, p_use_id: target.id, p_feedback_turn_id: feedbackTurnId,
+        p_outcome: feedback, p_expected_trials: strategy.trials, p_next: evaluated.strategy
+      })
     }, TIMEOUT_MS);
-    if (!response.ok) return { resolved: 0, feedback, lifecycleChanges: [] };
-    const rows = await response.json().catch(() => []);
-    if (!Array.isArray(rows) || !rows.length) return { resolved: 0, feedback, lifecycleChanges: [] };
+    const applied = saved.ok && await saved.json() === true;
+    return { ...empty, resolved: applied ? 1 : 0, turnId: target.turn_id,
+      lifecycleChanges: applied && evaluated.statusChanged ? [{ ...evaluated, strategy: evaluated.strategy }] : [] };
+  } catch { return { ...empty, reason: "feedback_resolution_failed" }; }
+}
 
-    const latestTurnId = clean(rows[0]?.turn_id, 220);
-    const latestUses = rows.filter((row) => clean(row?.turn_id, 220) === latestTurnId).slice(0, 6);
-    const strategyIds = [...new Set(latestUses.map((row) => clean(row?.strategy_id, 120)).filter(Boolean))];
-    if (!latestTurnId || !strategyIds.length) return { resolved: 0, feedback, lifecycleChanges: [] };
-
-    const strategies = await loadStrategiesByIds({ userId: id, ids: strategyIds });
-    const now = new Date();
-    const lifecycleChanges = [];
-
-    for (const strategy of strategies) {
-      const maturityEvidence = await loadMaturityEvidence({
-        userId: id,
-        strategyId: strategy.id,
-        currentTurnId: latestTurnId,
-        currentFeedback: feedback
-      });
-      if (strategy.replacesStrategyKey) {
-        const target = await loadStrategyByKey({ userId: id, strategyKey: strategy.replacesStrategyKey });
-        maturityEvidence.replacementTargetStatus = target?.status || null;
-      }
-
-      const evaluated = evaluateStrategyOutcome(strategy, feedback, now, maturityEvidence);
-      const next = evaluated.strategy;
-      const patch = {
-        status: next.status,
-        confidence: next.confidence,
-        maturity_score: next.maturityScore,
-        trials: next.trials,
-        positive_outcomes: next.positiveOutcomes,
-        negative_outcomes: next.negativeOutcomes,
-        neutral_outcomes: next.neutralOutcomes,
-        last_used_at: next.lastUsedAt,
-        adopted_at: next.adoptedAt,
-        matured_at: next.maturedAt,
-        retired_at: next.retiredAt,
-        updated_at: now.toISOString()
-      };
-      const patchResponse = await timedFetch(
-        `${config.url}/rest/v1/${STRATEGY_TABLE}?id=eq.${encodeURIComponent(strategy.id)}&user_id=eq.${id}`,
-        {
-          method: "PATCH",
-          headers: serverHeaders(config.key, { Prefer: "return=representation" }),
-          body: JSON.stringify(patch)
-        },
-        TIMEOUT_MS
-      );
-      const savedData = await patchResponse.json().catch(() => []);
-      const saved = Array.isArray(savedData) ? savedData[0] : savedData;
-      if (patchResponse.ok && saved && evaluated.statusChanged) {
-        const normalized = normalizeRow(saved);
-        lifecycleChanges.push({
-          strategy: normalized,
-          priorStatus: evaluated.priorStatus,
-          nextStatus: evaluated.nextStatus,
-          outcome: evaluated.outcome,
-          maturityScore: evaluated.maturityScore
-        });
-        if (["adopted", "practical_prior"].includes(evaluated.nextStatus) && normalized.replacesStrategyKey) {
-          await retireReplacedStrategy({ userId: id, strategyKey: normalized.replacesStrategyKey, now });
-        }
-      }
-    }
-
-    const useParams = new URLSearchParams({
-      user_id: `eq.${id}`,
-      turn_id: `eq.${latestTurnId}`,
-      outcome: "eq.pending"
-    });
-    const useResponse = await timedFetch(`${config.url}/rest/v1/${USE_TABLE}?${useParams.toString()}`, {
-      method: "PATCH",
-      headers: serverHeaders(config.key, { Prefer: "return=minimal" }),
-      body: JSON.stringify({ outcome: feedback, resolved_at: now.toISOString() })
+export async function recordStrategyApplications({ userId, turnId, applications = [] } = {}) {
+  const id = cleanUserId(userId), config = supabaseConfig();
+  if (!id || !turnId || !config) return { stored: 0 };
+  let stored = 0;
+  for (const application of applications) {
+    if (!application.strategyId) continue;
+    const params = new URLSearchParams({ user_id: `eq.${id}`, turn_id: `eq.${turnId}`, strategy_id: `eq.${application.strategyId}`, outcome: "eq.pending" });
+    const response = await timedFetch(`${config.url}/rest/v1/${USE_TABLE}?${params}`, {
+      method: "PATCH", headers: serverHeaders(config.key, { Prefer: "return=representation" }),
+      body: JSON.stringify({ application_evidence: application })
     }, TIMEOUT_MS);
-
-    return {
-      resolved: useResponse.ok ? latestUses.length : 0,
-      feedback,
-      turnId: latestTurnId,
-      lifecycleChanges
-    };
-  } catch (error) {
-    if (error?.name !== "AbortError") console.warn("[ARI Adaptive Strategy] Outcome resolution failed:", error?.message || error);
-    return { resolved: 0, feedback, lifecycleChanges: [] };
+    if (response.ok) { const rows = await response.json(); stored += Array.isArray(rows) ? rows.length : 0; }
   }
+  return { stored };
 }
 
 async function loadMaturityEvidence({ userId, strategyId, currentTurnId, currentFeedback } = {}) {
@@ -373,36 +326,6 @@ async function loadStrategiesByIds({ userId, ids = [] } = {}) {
   } catch {
     return [];
   }
-}
-
-async function retireReplacedStrategy({ userId, strategyKey, now = new Date() } = {}) {
-  const id = cleanUserId(userId);
-  const key = clean(strategyKey, 100);
-  const config = supabaseConfig();
-  if (!id || !key || !config) return false;
-  try {
-    const params = new URLSearchParams({
-      user_id: `eq.${id}`,
-      strategy_key: `eq.${key}`,
-      status: "in.(adopted,practical_prior)"
-    });
-    const response = await timedFetch(`${config.url}/rest/v1/${STRATEGY_TABLE}?${params.toString()}`, {
-      method: "PATCH",
-      headers: serverHeaders(config.key, { Prefer: "return=minimal" }),
-      body: JSON.stringify({ status: "retired", retired_at: now.toISOString(), updated_at: now.toISOString() })
-    }, TIMEOUT_MS);
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
-function classifyFeedback(message) {
-  const text = clean(message, 3000).toLowerCase();
-  if (!text) return "neutral";
-  if (/\b(that's wrong|you(?:'re| are) wrong|not what i (?:meant|asked|wanted)|you misunderstood|that doesn't make sense|that's not what i mean|that's worse|stop doing that|don't do that again|incorrect)\b/.test(text)) return "negative";
-  if (/\b(exactly|that's better|that is better|much better|perfect|you got it|that's what i mean|that's what i wanted|good answer|i like that approach)\b/.test(text)) return "positive";
-  return "neutral";
 }
 
 function normalizeRow(row) {

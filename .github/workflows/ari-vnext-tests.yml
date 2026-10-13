@@ -135,5 +135,8 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
       - name: Run Ari vNext, Action Network, personalization, and nutrition trust deterministic tests
         run: node --test tests/ari-vnext-*.test.mjs tests/ari-action-ledger-server.test.mjs tests/ari-durable-action-contract.test.mjs tests/ari-pending-action-*.test.mjs tests/ari-response-pipeline-contract.test.mjs tests/home-ios-resilience.test.mjs tests/ari-circle-action-network-*.test.mjs tests/ari-personalization.test.mjs tests/nutrition-*.test.mjs
