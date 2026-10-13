@@ -172,6 +172,48 @@ test("network failure recovers, long Retry-After is honored, and continuation re
   assert.equal(retryDelayMs({ headers: new Headers({ "retry-after": "2" }) }), 2000);
 });
 
+test("context overflow rebuilds a saved thread with the original compiled conversation", async t => {
+  const requests = provider(t, [failure(400, "Context window exceeded", "context_length_exceeded"), output("Recovered with context")]);
+  const input = [{ role: "user", content: "Earlier context" }, { role: "assistant", content: "Earlier response" }, { role: "user", content: "Continue" }];
+  const result = await callResponses({
+    turn: { message: "Continue", context: { reasoningContinuity: { model: "gpt-6.1-sol", previousResponseId: "resp-large" } } },
+    policy: { model: "gpt-6.1-sol", persistReasoning: true, timeoutMs: 5000 },
+    instructions: "Preserve the request and its constraints", input
+  });
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].previous_response_id, "resp-large");
+  assert.equal(requests[1].previous_response_id, undefined);
+  assert.deepEqual(requests[1].input, input);
+  assert.equal(requests[1].instructions, requests[0].instructions);
+  assert.equal(requests[1].model, requests[0].model);
+  assert.equal(result._ariReasoningContinuity.resetReason, "context_window_exceeded");
+});
+
+test("fresh context overflow stops instead of discarding user input", async t => {
+  const requests = provider(t, [failure(400, "Context window exceeded", "context_length_exceeded")]);
+  await assert.rejects(callResponses({ turn: {}, policy: { model: "gpt-6.1-sol" }, instructions: "Keep constraints", input: [] }), { attempts: 1, retryable: false });
+  assert.equal(requests.length, 1);
+});
+
+test("policy and quota failures never reset saved threads or switch models", async t => {
+  for (const [code, expected] of [["content_policy_violation", "ARI_PROVIDER_POLICY_RESTRICTION"], ["insufficient_quota", "ARI_PROVIDER_QUOTA_EXHAUSTED"]]) {
+    await t.test(code, async sub => {
+      const requests = provider(sub, [failure(400, "Previous response cannot continue", code)]);
+      await assert.rejects(callResponses({
+        turn: { message: "Continue", context: { reasoningContinuity: { model: "gpt-6.1-sol", previousResponseId: "resp-test" } } },
+        policy: { model: "gpt-6.1-sol", persistReasoning: true, fallbackModel: "gpt-6-astra" }, instructions: "Be helpful", input: []
+      }), error => {
+        assert.equal(error.code, expected);
+        assert.equal(error.retryable, false);
+        assert.equal(error.attempts, 1);
+        assert.doesNotMatch(publicTurnFailure(error).reply, /try again/i);
+        return true;
+      });
+      assert.equal(requests.length, 1);
+    });
+  }
+});
+
 function browser(fetchImpl) {
   const storage = () => { const data = new Map(); return { getItem: key => data.get(key) || null, setItem: (key, value) => data.set(key, value), removeItem: key => data.delete(key) }; };
   let hydration = 0;
