@@ -62,6 +62,7 @@ import {
 } from "./runtime-capability-awareness.js";
 import { recommendationQualityInstruction } from "./recommendation-quality.js";
 import { classifySafety, safetyToInstruction } from "./safety-policy.js";
+import { conversationPolicyInstruction, selectConversationPolicy } from "./conversation-policy.js";
 import { deriveScientificIntelligence, scientificIntelligenceToInstruction } from "./scientific-intelligence.js";
 import { createPendingAction, resolvePendingActionIntent } from "./pending-action.js";
 import { deriveSelfModel, selfModelToInstruction } from "./self-model.js";
@@ -2255,6 +2256,10 @@ export async function callResponses({ turn, policy, instructions, input, tools =
   const apiKey = String(process.env.ARI_PROVIDER_API_KEY || process.env.OPENAI_API_KEY || "").trim();
   if (!apiKey) throw new Error("Ari model provider key is not configured.");
 
+  const conversationRoute = routeContext(turn);
+  const conversationPolicy = selectConversationPolicy({ turn, policy, route: conversationRoute, safety: classifySafety(turn, conversationRoute) });
+  instructions = String(instructions || "") + conversationPolicyInstruction(conversationPolicy.id);
+
   const controller = new AbortController();
   const startedAt = Date.now();
   const deadlineAt = startedAt + (policy?.timeoutMs || 25000);
@@ -2362,6 +2367,7 @@ export async function callResponses({ turn, policy, instructions, input, tools =
       if (attempt.response.ok) {
         attempt.data._ariPromptBudget = promptBudgetTelemetry({ instructions: attempt.body.instructions, input: attempt.body.input });
         attempt.data._ariContextRender = input?.contextRender || null;
+        attempt.data._ariConversationPolicy = conversationPolicy;
         attempt.data._ariReasoningContinuity = attempt.body._ariReasoningContinuity || null;
         if (reasoningReset) {
           attempt.data._ariReasoningThreadReset = reasoningReset;
@@ -3019,6 +3025,7 @@ function providerSummary(data = {}) {
     contextRender: data?._ariContextRender || null,
     routingFallback: data?._ariRoutingFallback || null,
     recovery: data?._ariProviderRecovery || null,
+    conversationPolicy: data?._ariConversationPolicy || null,
     reasoningContinuity: data?._ariReasoningContinuity || null
   };
 }
