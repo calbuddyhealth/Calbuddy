@@ -5,6 +5,7 @@ import { runAriVNext } from "../api/_lib/ari-vnext/orchestrator.js";
 import { CANDIDATE_DIGEST, CONVERSATION_CANDIDATES, conversationFeatures, conversationPolicyInstruction, conversationPolicyEligibility } from "../api/_lib/ari-vnext/conversation-policy.js";
 import { routeContext } from "../api/_lib/ari-vnext/context-router.js";
 import { classifySafety } from "../api/_lib/ari-vnext/safety-policy.js";
+import policyArtifact from "../api/_lib/ari-vnext/conversation-policy-artifact.js";
 import { trainConversationPolicy } from "./lib/ari-conversation-learning.mjs";
 
 const [command, directory, ...args] = process.argv.slice(2);
@@ -22,11 +23,15 @@ async function prepare() {
   const requests = [];
   const fetchOriginal = globalThis.fetch;
   const keyOriginal = process.env.OPENAI_API_KEY;
+  const artifactStatus = policyArtifact.status;
   const seen = new Set();
   try {
     // Capture the real runtime's first request. This command never connects to
     // any service and cannot execute application actions or persist memory.
     process.env.OPENAI_API_KEY = "offline-capture-only";
+    // This isolated offline process captures the plain baseline, even after a
+    // prior learned artifact is deployed. Do not compound prompt strategies.
+    policyArtifact.status = "untrained";
     for (const item of cases) {
       if (!item.id || !item.groupId || seen.has(item.id) || !["train", "holdout"].includes(item.split)) throw new Error("Invalid or duplicate evaluation case");
       seen.add(item.id);
@@ -47,6 +52,7 @@ async function prepare() {
     }
   } finally {
     globalThis.fetch = fetchOriginal;
+    policyArtifact.status = artifactStatus;
     if (keyOriginal === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = keyOriginal;
   }
   await write(path.join(directory, "manifest.json"), { version: 1, candidateDigest: CANDIDATE_DIGEST, requests, digest: hash(requests) });
