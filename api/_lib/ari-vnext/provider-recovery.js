@@ -2,8 +2,29 @@
 // Retry only transport failures, with one shared deadline and attempt budget.
 export const MAX_PROVIDER_ATTEMPTS = 3;
 
+export function providerStopReason({ status = 0, code = "", message = "" } = {}) {
+  const detail = `${code} ${message}`;
+  if (/content_policy|content_filter|safety|moderation|policy_violation/i.test(detail)) return "policy";
+  if (/insufficient_quota|billing|credit|spend|budget|payment/i.test(detail)) return "quota";
+  if (Number(status) === 401) return "access";
+  return null;
+}
+
+// Recover only a rejected saved thread. Keep instructions, model, tools and
+// compiled current conversation unchanged; never rewrite user intent.
+export function providerThreadRecovery({ status = 0, code = "", message = "", previousResponseId = null } = {}) {
+  if (!previousResponseId || providerStopReason({ status, code, message })) return null;
+  if (![400, 404, 409, 410, 422].includes(Number(status))) return null;
+  if (code === "context_length_exceeded") return "context_window_exceeded";
+  if (/previous_response_not_found|invalid_previous_response_id/.test(code) ||
+      /previous[_ ]?response|response id|continuation|invalid.*response|unknown response/i.test(message)) {
+    return "provider_rejected_continuation";
+  }
+  return null;
+}
+
 export function isTransientProviderFailure({ status = 0, code = "", message = "" } = {}) {
-  if (/insufficient_quota|billing|credit|spend|budget|payment|content_policy|safety|moderation/i.test(`${code} ${message}`)) return false;
+  if (providerStopReason({ status, code, message })) return false;
   return [408, 429, 500, 502, 503, 504].includes(Number(status));
 }
 
@@ -36,7 +57,9 @@ export function providerError({ status = 503, message = "Model provider unavaila
   const error = new Error(message);
   error.status = Number(status) || 503;
   const detail = `${code} ${message}`;
-  error.code = /insufficient_quota|billing|credit|spend|budget|payment/i.test(detail)
+  error.code = providerStopReason({ status, code, message }) === "policy"
+    ? "ARI_PROVIDER_POLICY_RESTRICTION"
+    : /insufficient_quota|billing|credit|spend|budget|payment/i.test(detail)
     ? "ARI_PROVIDER_QUOTA_EXHAUSTED"
     : error.status === 401 || error.status === 403
       ? "ARI_PROVIDER_ACCESS_FAILED"
@@ -55,6 +78,7 @@ export function providerError({ status = 503, message = "Model provider unavaila
 export function publicTurnFailure(error = {}) {
   const code = String(error.code || "ARI_VNEXT_RUNTIME_FAILED");
   const replies = {
+    ARI_PROVIDER_POLICY_RESTRICTION: "My AI provider declined this request under its content policy. I couldn't complete it as requested.",
     ARI_PROVIDER_UNAVAILABLE: "My AI provider is temporarily unavailable. Please try again in a moment.",
     ARI_PROVIDER_TIMEOUT: "My AI provider took too long to respond. Please try again.",
     ARI_PROVIDER_RATE_LIMIT: "My AI provider is temporarily busy. Please try again shortly.",

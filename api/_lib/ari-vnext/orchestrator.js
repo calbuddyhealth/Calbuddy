@@ -43,7 +43,7 @@ import {
 } from "./developer-task-controller.js";
 import { deriveMetacognition, metacognitionToInstruction } from "./metacognition.js";
 import { resolveModelPolicy } from "./model-policy.js";
-import { MAX_PROVIDER_ATTEMPTS, isTransientProviderFailure, providerError, retryDelayMs, waitForProviderRetry } from "./provider-recovery.js";
+import { MAX_PROVIDER_ATTEMPTS, isTransientProviderFailure, providerError, providerStopReason, providerThreadRecovery, retryDelayMs, waitForProviderRetry } from "./provider-recovery.js";
 import {
   applyInteractiveCostGuard,
   compactInstructionText,
@@ -2365,7 +2365,7 @@ export async function callResponses({ turn, policy, instructions, input, tools =
         attempt.data._ariReasoningContinuity = attempt.body._ariReasoningContinuity || null;
         if (reasoningReset) {
           attempt.data._ariReasoningThreadReset = reasoningReset;
-          attempt.data._ariReasoningContinuity.resetReason = "provider_rejected_continuation";
+          attempt.data._ariReasoningContinuity.resetReason = reasoningReset.reason;
         }
         if (routingFallback) attempt.data._ariRoutingFallback = routingFallback;
         attempt.data._ariProviderRecovery = { attempts, recovered: attempts > 1 };
@@ -2376,11 +2376,12 @@ export async function callResponses({ turn, policy, instructions, input, tools =
       const message = String(attempt.data?.error?.message || "ARI model provider request failed.");
       const code = String(attempt.data?.error?.code || attempt.data?.error?.type || "");
       lastFailure = providerError({ status, message, code, attempts });
-      if (attempts >= MAX_PROVIDER_ATTEMPTS) break;
+      if (attempts >= MAX_PROVIDER_ATTEMPTS || providerStopReason({ status, code, message })) break;
 
-      if (!forceFreshReasoning && attempt.body?.previous_response_id && shouldRetryFreshReasoningThread(attempt)) {
+      const threadRecovery = providerThreadRecovery({ status, code, message, previousResponseId: attempt.body?.previous_response_id });
+      if (!forceFreshReasoning && threadRecovery && Date.now() + 500 < deadlineAt) {
         forceFreshReasoning = true;
-        reasoningReset = { reason: "provider_rejected_continuation", originalStatus: status };
+        reasoningReset = { reason: threadRecovery, originalStatus: status };
         continue;
       }
 
@@ -2501,13 +2502,6 @@ function resolveProviderReasoningContinuity({
     resetReason: null,
     input: continuationInput
   };
-}
-
-function shouldRetryFreshReasoningThread({ response, data = {} } = {}) {
-  const status = Number(response?.status || 0);
-  if (![400, 404, 409, 410, 422].includes(status)) return false;
-  const message = String(data?.error?.message || data?.error || "").toLowerCase();
-  return /previous[_ ]?response|response id|conversation|continuation|not found|expired|invalid.*response|unknown response/.test(message);
 }
 
 function shouldTryProviderModelFallback({ response, data = {}, policy = {} } = {}) {

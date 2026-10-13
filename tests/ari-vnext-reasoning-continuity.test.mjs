@@ -126,7 +126,7 @@ test("live provider path uses stored response chaining and effort configuration 
   assert.match(orchestrator, /context:\s*policy\.reasoningContext/);
   assert.match(orchestrator, /ARI_REASONING_CONTINUITY_MAX_CHAIN_DEPTH/);
   assert.match(orchestrator, /ARI_REASONING_CONTINUITY_MAX_BILLED_INPUT_TOKENS/);
-  assert.match(orchestrator, /provider_rejected_continuation/);
+  assert.match(orchestrator, /providerThreadRecovery\(/);
   assert.match(api, /openReasoningContinuityToken/);
   assert.match(api, /sealReasoningContinuityToken/);
   const continuity = await readFile(
