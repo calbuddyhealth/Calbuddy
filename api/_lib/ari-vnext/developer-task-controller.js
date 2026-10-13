@@ -45,12 +45,10 @@ export function recordDeveloperTaskStep(state = null, {
   const fingerprint = evidenceFingerprint(evidence);
   const previousFingerprint = base.lastEvidenceFingerprint;
   const evidenceChanged = Boolean(fingerprint && fingerprint !== previousFingerprint);
-  const verificationProgress = Boolean(
-    evidence?.verification?.status &&
-    evidence?.verification?.status !== "attempted"
-  );
-  const usefulFailure = toolResult?.success === false || evidence?.verification?.status === "failed";
-  const productive = evidenceChanged || verificationProgress || usefulFailure;
+  // A different query string is not new evidence when every search is empty.
+  // Repeated failures or unchanged verification also do not reset stagnation.
+  const emptySearch = toolResult?.operation === "repo_search" && toolResult?.resultCount === 0;
+  const productive = evidenceChanged && !emptySearch && toolResult?.success !== false;
   const runtime = boundedNumber(runtimeMs, 0, 120_000, 0);
   const nowIso = validIso(now) || new Date().toISOString();
 
@@ -137,7 +135,6 @@ export function developerTaskBudgetDecision(state = null) {
   }
 
   if (
-    window.steps >= limits.minimumSteps &&
     window.consecutiveUnproductiveSteps >= limits.maxConsecutiveUnproductiveSteps
   ) {
     return {

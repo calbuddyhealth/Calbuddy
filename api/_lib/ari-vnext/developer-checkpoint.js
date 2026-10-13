@@ -10,6 +10,7 @@ const READ_ARGUMENTS = {
   owner_repo_read: ["filePath", "branch", "startLine", "endLine"],
   owner_repo_search: ["query", "path", "branch"],
   owner_repo_ci_status: ["branch", "commitSha"],
+  owner_deployment_status: ["environment"],
   owner_memory_search: ["query"],
   owner_cognitive_trace_read: ["limit"],
   owner_agent_mailbox_list: ["recipient", "sender", "kind", "limit"],
@@ -77,6 +78,7 @@ export function developerCheckpointNextStep(value) {
   const { name, arguments: args } = checkpoint.nextOperation;
   if (name === "owner_repo_read") return `Read ${args.filePath}${args.branch ? ` on ${args.branch}` : ""}${args.startLine || args.endLine ? ` (lines ${args.startLine || 1}–${args.endLine || "end"})` : ""} and reassess the evidence before any edit.`;
   if (name === "owner_repo_search") return `Search the repository for ${JSON.stringify(args.query)}${args.path ? ` in ${args.path}` : ""}.`;
+  if (name === "owner_deployment_status") return `Read recent Vercel ${args.environment || "production"} deployment statuses from GitHub.`;
   if (name === "owner_repo_ci_status") return `Check CI for ${args.commitSha || args.branch || "the current development branch"}.`;
   if (name === "owner_memory_search") return `Search owner memory for ${JSON.stringify(args.query)}.`;
   if (name === "owner_cognitive_trace_read") return `Inspect the latest ${args.limit} cognitive trace record(s).`;

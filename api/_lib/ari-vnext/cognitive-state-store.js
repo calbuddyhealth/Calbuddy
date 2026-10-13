@@ -5,6 +5,7 @@ import { ARI_COGNITIVE_STATE_VERSION } from "./cognitive-loop.js";
 const TABLE = "ari_vnext_cognitive_states";
 const READ_TIMEOUT_MS = 900;
 const WRITE_TIMEOUT_MS = 900;
+const CHECKPOINT_WRITE_TIMEOUT_MS = 3000;
 
 export async function loadAriCognitiveState({ userId } = {}) {
   const id = cleanUserId(userId);
@@ -44,11 +45,16 @@ export async function persistAriCognitiveState({ userId, state } = {}) {
   const config = supabaseConfig();
   if (!id || !config || !state || typeof state !== "object" || Array.isArray(state)) return false;
 
+  const storedState = compactState(state);
+  if (!storedState) {
+    console.warn("[ARI Cognitive Loop] State persistence failed: serialization");
+    return false;
+  }
   const now = new Date().toISOString();
   const payload = {
     user_id: id,
     state_version: ARI_COGNITIVE_STATE_VERSION,
-    state: compactState(state),
+    state: storedState,
     updated_at: now
   };
 
@@ -58,12 +64,11 @@ export async function persistAriCognitiveState({ userId, state } = {}) {
       method: "POST",
       headers: serverHeaders(config.key, { Prefer: "resolution=merge-duplicates,return=minimal" }),
       body: JSON.stringify(payload)
-    }, WRITE_TIMEOUT_MS);
+    }, storedState.executionSession?.developerCheckpoint ? CHECKPOINT_WRITE_TIMEOUT_MS : WRITE_TIMEOUT_MS);
+    if (!response.ok) console.warn("[ARI Cognitive Loop] State persistence rejected:", response.status);
     return response.ok;
   } catch (error) {
-    if (error?.name !== "AbortError") {
-      console.warn("[ARI Cognitive Loop] State persistence failed:", error?.message || error);
-    }
+    console.warn("[ARI Cognitive Loop] State persistence failed:", error?.name === "AbortError" ? "timeout" : "transport");
     return false;
   }
 }
@@ -74,11 +79,7 @@ function compactState(state) {
     delete copy.persistedAt;
     return copy;
   } catch {
-    return {
-      version: ARI_COGNITIVE_STATE_VERSION,
-      turnCount: Math.max(0, Number(state?.turnCount || 0)),
-      openLoops: []
-    };
+    return null;
   }
 }
 
