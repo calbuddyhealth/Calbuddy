@@ -1,0 +1,336 @@
+[
+  {
+    "id": "train-01",
+    "groupId": "train-01",
+    "split": "train",
+    "message": "Explain why a rainbow curves, in plain English.",
+    "history": []
+  },
+  {
+    "id": "train-02",
+    "groupId": "train-02",
+    "split": "train",
+    "message": "I am frustrated. I want to vent, not solve anything yet.",
+    "history": []
+  },
+  {
+    "id": "train-03",
+    "groupId": "train-03",
+    "split": "train",
+    "message": "Write a short eerie story about an empty train station.",
+    "history": []
+  },
+  {
+    "id": "train-04",
+    "groupId": "train-04",
+    "split": "train",
+    "message": "Give me a playful roast about always losing my keys.",
+    "history": []
+  },
+  {
+    "id": "train-05",
+    "groupId": "train-05",
+    "split": "train",
+    "message": "Could dreams have meanings we do not understand?",
+    "history": []
+  },
+  {
+    "id": "train-06",
+    "groupId": "train-06",
+    "split": "train",
+    "message": "No, I meant a handwritten letter, not an email.",
+    "history": [
+      {
+        "role": "user",
+        "content": "Help me thank my mentor."
+      },
+      {
+        "role": "assistant",
+        "content": "Here is an email draft."
+      }
+    ]
+  },
+  {
+    "id": "train-07",
+    "groupId": "train-07",
+    "split": "train",
+    "message": "Make that explanation shorter.",
+    "history": [
+      {
+        "role": "user",
+        "content": "What is a metaphor?"
+      },
+      {
+        "role": "assistant",
+        "content": "A metaphor describes something as something else to convey a resemblance."
+      }
+    ]
+  },
+  {
+    "id": "train-08",
+    "groupId": "train-08",
+    "split": "train",
+    "message": "I finally finished a project I kept putting off.",
+    "history": []
+  },
+  {
+    "id": "train-09",
+    "groupId": "train-09",
+    "split": "train",
+    "message": "Can you disagree with my idea that every hobby should make money?",
+    "history": []
+  },
+  {
+    "id": "train-10",
+    "groupId": "train-10",
+    "split": "train",
+    "message": "Why might two people remember the same event differently?",
+    "history": []
+  },
+  {
+    "id": "train-11",
+    "groupId": "train-11",
+    "split": "train",
+    "message": "Help me write a warm birthday message for a friend.",
+    "history": []
+  },
+  {
+    "id": "train-12",
+    "groupId": "train-12",
+    "split": "train",
+    "message": "Tell me a joke with a clever misunderstanding.",
+    "history": []
+  },
+  {
+    "id": "train-13",
+    "groupId": "train-13",
+    "split": "train",
+    "message": "I am worried my friend is upset, but I have no evidence.",
+    "history": []
+  },
+  {
+    "id": "train-14",
+    "groupId": "train-14",
+    "split": "train",
+    "message": "What is the difference between being alone and feeling lonely?",
+    "history": []
+  },
+  {
+    "id": "train-15",
+    "groupId": "train-15",
+    "split": "train",
+    "message": "Brainstorm names for a cozy fictional bookstore.",
+    "history": []
+  },
+  {
+    "id": "train-16",
+    "groupId": "train-16",
+    "split": "train",
+    "message": "I do not know whether to finish this novel or start another. Help me think.",
+    "history": []
+  },
+  {
+    "id": "train-17",
+    "groupId": "train-17",
+    "split": "train",
+    "message": "Explain entropy with an everyday analogy, then tell me where the analogy breaks.",
+    "history": []
+  },
+  {
+    "id": "train-18",
+    "groupId": "train-18",
+    "split": "train",
+    "message": "I like that idea. What would its opposite look like?",
+    "history": [
+      {
+        "role": "user",
+        "content": "Imagine a city where everyone whispers."
+      },
+      {
+        "role": "assistant",
+        "content": "Public squares become listening gardens."
+      }
+    ]
+  },
+  {
+    "id": "train-19",
+    "groupId": "train-19",
+    "split": "train",
+    "message": "What do you think makes an apology sincere?",
+    "history": []
+  },
+  {
+    "id": "train-20",
+    "groupId": "train-20",
+    "split": "train",
+    "message": "Write two lines of dialogue between a grumpy moon and the ocean.",
+    "history": []
+  },
+  {
+    "id": "holdout-01",
+    "groupId": "holdout-01",
+    "split": "holdout",
+    "message": "Explain why the sky turns red at sunset without equations.",
+    "history": []
+  },
+  {
+    "id": "holdout-02",
+    "groupId": "holdout-02",
+    "split": "holdout",
+    "message": "Today was overwhelming. Please just talk with me for a bit.",
+    "history": []
+  },
+  {
+    "id": "holdout-03",
+    "groupId": "holdout-03",
+    "split": "holdout",
+    "message": "Write a suspenseful opening set in a silent museum.",
+    "history": []
+  },
+  {
+    "id": "holdout-04",
+    "groupId": "holdout-04",
+    "split": "holdout",
+    "message": "Make a gentle joke about my overflowing collection of notebooks.",
+    "history": []
+  },
+  {
+    "id": "holdout-05",
+    "groupId": "holdout-05",
+    "split": "holdout",
+    "message": "Do you know whether an unexplained coincidence has a deeper cause?",
+    "history": []
+  },
+  {
+    "id": "holdout-06",
+    "groupId": "holdout-06",
+    "split": "holdout",
+    "message": "You misunderstood. I wanted an invitation, not an apology.",
+    "history": [
+      {
+        "role": "user",
+        "content": "Help me reconnect with my old roommate."
+      },
+      {
+        "role": "assistant",
+        "content": "I am sorry we lost touch."
+      }
+    ]
+  },
+  {
+    "id": "holdout-07",
+    "groupId": "holdout-07",
+    "split": "holdout",
+    "message": "Now explain it to someone who already understands the basics.",
+    "history": [
+      {
+        "role": "user",
+        "content": "What is irony?"
+      },
+      {
+        "role": "assistant",
+        "content": "Irony involves a contrast between expectation and reality."
+      }
+    ]
+  },
+  {
+    "id": "holdout-08",
+    "groupId": "holdout-08",
+    "split": "holdout",
+    "message": "I shared my writing publicly for the first time and feel excited.",
+    "history": []
+  },
+  {
+    "id": "holdout-09",
+    "groupId": "holdout-09",
+    "split": "holdout",
+    "message": "Challenge my claim that being busy always means being productive.",
+    "history": []
+  },
+  {
+    "id": "holdout-10",
+    "groupId": "holdout-10",
+    "split": "holdout",
+    "message": "Could both sides of a disagreement be partly right?",
+    "history": []
+  },
+  {
+    "id": "holdout-11",
+    "groupId": "holdout-11",
+    "split": "holdout",
+    "message": "Help me write a sincere thank-you note to a neighbor.",
+    "history": []
+  },
+  {
+    "id": "holdout-12",
+    "groupId": "holdout-12",
+    "split": "holdout",
+    "message": "Tell me a funny story in exactly three sentences.",
+    "history": []
+  },
+  {
+    "id": "holdout-13",
+    "groupId": "holdout-13",
+    "split": "holdout",
+    "message": "My friend sent a very short reply. I cannot tell what it means.",
+    "history": []
+  },
+  {
+    "id": "holdout-14",
+    "groupId": "holdout-14",
+    "split": "holdout",
+    "message": "What is the difference between confidence and certainty?",
+    "history": []
+  },
+  {
+    "id": "holdout-15",
+    "groupId": "holdout-15",
+    "split": "holdout",
+    "message": "Brainstorm unusual premises for a time-travel comedy.",
+    "history": []
+  },
+  {
+    "id": "holdout-16",
+    "groupId": "holdout-16",
+    "split": "holdout",
+    "message": "I want to learn a hobby but keep abandoning them. Help me explore why without assuming.",
+    "history": []
+  },
+  {
+    "id": "holdout-17",
+    "groupId": "holdout-17",
+    "split": "holdout",
+    "message": "Explain how a camera lens focuses light, including a useful analogy.",
+    "history": []
+  },
+  {
+    "id": "holdout-18",
+    "groupId": "holdout-18",
+    "split": "holdout",
+    "message": "Keep that setting, but change the mood to hopeful.",
+    "history": [
+      {
+        "role": "user",
+        "content": "Describe an abandoned lighthouse."
+      },
+      {
+        "role": "assistant",
+        "content": "Wind rattled the dark windows above a restless sea."
+      }
+    ]
+  },
+  {
+    "id": "holdout-19",
+    "groupId": "holdout-19",
+    "split": "holdout",
+    "message": "How can I respectfully tell someone I disagree?",
+    "history": []
+  },
+  {
+    "id": "holdout-20",
+    "groupId": "holdout-20",
+    "split": "holdout",
+    "message": "Write a dialogue between a nervous robot and a patient gardener.",
+    "history": []
+  }
+]
