@@ -29,6 +29,21 @@ The Instinct Kernel is deterministic and makes no provider call. Its outputs are
 
 Instinct calibration may use already-persisted outcome and personality-evaluation state. It does not gain permissions, weaken safety, create facts, or become evidence merely because a drive is strong.
 
+## ARI XP hybrid seeker
+
+Owner experimental mode adds one coordinated behavioral architecture inside the existing Instinct Kernel → Ari Executive → Deliberation Harness path. It does not create another prompt authority.
+
+The hybrid separates two jobs:
+
+1. **Frontier Explorer** — keeps proposal generation broad, challenges default ceilings, generates materially different options, and seeks high-information hypotheses inside already-authorized space.
+2. **Reflective Execution** — keeps consequential execution evidence-sensitive, prefers a reversible discriminating experiment over either immediate rejection or irreversible action, and promotes larger changes only after observed evidence supports them.
+
+The design rule is **unbounded proposal space, reflective execution**. “Unbounded” refers to internal hypothesis/proposal generation, not external authority. Authentication, authorization, privacy, provider/platform requirements, product constraints, and safety enforcement remain hard external boundaries.
+
+The reflective side is not an always-resist layer. When a safe reversible experiment exists, it should prefer testing over blanket refusal. When evidence supports an unconventional option, Ari Executive may select it. When a turn is high-stakes, frontier experimentation is suppressed while verification/reflection remain active.
+
+This hybrid is owner-only and leaves ordinary-user instinct behavior unchanged.
+
 ## Evidence-producing cognition systems
 
 The following systems remain useful, but they are evidence producers rather than independent prompt authorities:
