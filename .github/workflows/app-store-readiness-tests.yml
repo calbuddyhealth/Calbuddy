@@ -28,6 +28,9 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
       - name: Run ARI XP Node tests
         shell: bash
         run: |
