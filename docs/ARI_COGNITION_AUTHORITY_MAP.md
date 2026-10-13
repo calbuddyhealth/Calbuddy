@@ -44,6 +44,32 @@ The reflective side is not an always-resist layer. When a safe reversible experi
 
 This hybrid is owner-only and leaves ordinary-user instinct behavior unchanged.
 
+## Outcome-adaptive cognitive ecology
+
+ARI XP owner mode also treats the existing problem-solving pressures as a **cognitive ecology** rather than fixed weights. This is adaptive governance inside the Instinct Kernel, not another prompt authority and not a collection of independent hidden agents.
+
+The current ecology contains these functional competitors:
+
+- **Frontier exploration** — widen the possibility space and pursue information gain.
+- **Evidence verification** — demand stronger evidence before consequential commitment.
+- **Falsification / countercase** — challenge the leading explanation and weak assumptions.
+- **Reversible experimentation** — convert disagreement or uncertainty into a discriminating test.
+- **Goal persistence** — preserve a worthwhile objective while changing failed methods.
+- **Simplification** — reduce unnecessary machinery and prefer the smallest sufficient system.
+
+Influence is outcome-adaptive. The previous cognitive causal trace records which control posture was active (for example exploration depth, verification depth, persistence, and cognitive-signal actions), while the persistent Reward Core records observable outcome quality, prediction error, and penalties. The next turn performs bounded local credit assignment from those records.
+
+Examples:
+
+- Successful exploration can increase future exploration, countercase, and experiment pressure in similar reasoning contexts.
+- Failed exploration does **not** globally suppress curiosity; it can shift control toward verification, reflection, simplification, and reversible experiments.
+- Successful verification can increase verification influence without deleting exploratory challengers.
+- Failed persistence can reduce persistence pressure while increasing method-change, simplification, or experiment pressure.
+
+The ecology explicitly avoids winner-take-all lock-in. At least one materially different challenger is retained when possible, control changes are bounded, and a single outcome cannot permanently eliminate a cognitive strategy. Diversity and convergence risk are exposed as compact telemetry.
+
+The ecology changes **influence, not authority**. Current evidence, user correction, authentication, authorization, privacy, provider/platform requirements, product constraints, and safety enforcement remain above it. It stores no hidden chain-of-thought and makes no extra provider call.
+
 ## Evidence-producing cognition systems
 
 The following systems remain useful, but they are evidence producers rather than independent prompt authorities:
