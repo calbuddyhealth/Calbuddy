@@ -65,7 +65,12 @@ export function routeContext(turn = {}) {
   const currentInfo = !creativeConversation && needsCurrentInfo(semanticText);
   const webSearchRequired = currentInfo || referenceResolutionSearch;
   const cognitiveAudit = !creativeConversation && ownerEligible && PATTERNS.cognitiveSystemAudit.test(semanticText);
+  const deploymentInspection = !creativeConversation && ownerEligible &&
+    /\bdeployments?\b/i.test(message) &&
+    /\b(?:look|inspect|check|show|status|latest|recent|current)\b/i.test(message) &&
+    !/\b(?:fix|implement|add|create|build|change|deploy|redeploy|rollback|promote|delete|cancel|merge|debug|logs?|why|investigate|and|then|also)\b/i.test(message);
   const developer = !creativeConversation && (
+    deploymentInspection ||
     PATTERNS.developer.test(semanticText) ||
     (ownerEligible && Boolean(developerResumeCheckpoint(turn))) ||
     cognitiveAudit ||
@@ -129,6 +134,7 @@ export function routeContext(turn = {}) {
     webSearchRequired,
     developer,
     cognitiveAudit,
+    deploymentInspection,
     recommendationIntent,
     solEscalationEligible,
     reasoningDemand,

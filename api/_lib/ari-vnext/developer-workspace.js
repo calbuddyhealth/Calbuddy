@@ -8,6 +8,7 @@ import {
   readAgentMailboxMessage,
   sendAgentMailboxMessage
 } from "../../../server/ari-supabase-agent-mailbox.js";
+import { readDeploymentStatus } from "./deployment-status.js";
 import { loadAriCognitiveState } from "./cognitive-state-store.js";
 import { publicCognitiveCausalTrace } from "./cognitive-causal-trace.js";
 
@@ -123,6 +124,8 @@ export async function executeDeveloperWorkspaceTool({
     });
   }
 
+  if (applicationAction === "deployment_status") return await readDeploymentStatus({ ...config, environment: args.environment });
+
   if (applicationAction === "repo_ci_status") {
     return await readCiStatus({
       ...config,
@@ -140,6 +143,11 @@ export async function executeDeveloperWorkspaceTool({
 
 export function developerToolResultToExecutionEvidence(result = {}, applicationAction = "") {
   if (!result || typeof result !== "object") return null;
+
+  if (applicationAction === "deployment_status") {
+    return { observations: [{ kind: "deployment_status", source: "github_deployments", verified: result.success === true,
+      summary: result.success ? `GitHub records ${result.deployments.length} recent Vercel ${result.environment} deployment(s): ${result.deployments.map(item => `${item.sha.slice(0, 8)} ${item.status}`).join(", ") || "none in the bounded search"}. Live health and production aliases were not checked.` : `Deployment inspection unavailable: ${result.code}.` }] };
+  }
 
   if (applicationAction === "repo_read") {
     return {

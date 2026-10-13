@@ -60,6 +60,7 @@ const DEVELOPER_TOOL_NAMES = new Set([
   "owner_repo_search",
   "owner_repo_read",
   "owner_repo_ci_status",
+  "owner_deployment_status",
   "owner_cognitive_trace_read",
   "owner_agent_mailbox_list",
   "owner_agent_mailbox_read",
@@ -284,6 +285,11 @@ function developerTools(route = {}) {
         },
         required: ["filePath", "branch", "startLine", "endLine"]
       }
+    ),
+    functionTool(
+      "owner_deployment_status",
+      "Read the latest Vercel deployment records and statuses from the configured GitHub repository. Use for deployment-status questions, not repository search. Read-only, owner-only. Reports GitHub-recorded deployment status, not live health, alias assignment, or runtime logs.",
+      { type: "object", additionalProperties: false, properties: { environment: { type: "string", enum: ["production", "preview"] } }, required: ["environment"] }
     ),
     functionTool(
       "owner_repo_ci_status",
@@ -608,6 +614,11 @@ export function validateToolCall(call = {}, route = {}) {
       };
     }
 
+    if (name === "owner_deployment_status") {
+      if (!["production", "preview"].includes(args.environment)) return { valid: false, error: "deployment_environment_invalid" };
+      return { valid: true, name, arguments: { environment: args.environment } };
+    }
+
     if (name === "owner_repo_ci_status") {
       return {
         valid: true,
@@ -844,6 +855,7 @@ export function toolToApplicationAction(name = "") {
     owner_repo_search: "repo_search",
     owner_repo_read: "repo_read",
     owner_repo_ci_status: "repo_ci_status",
+    owner_deployment_status: "deployment_status",
     owner_cognitive_trace_read: "cognitive_trace_read",
     owner_agent_mailbox_list: "agent_mailbox_list",
     owner_agent_mailbox_read: "agent_mailbox_read",

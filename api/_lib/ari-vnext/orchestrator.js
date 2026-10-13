@@ -93,6 +93,7 @@ const LOW_RISK_PRIMARY_FAST_PATHS = new Set([
   "owner_repo_search",
   "owner_repo_read",
   "owner_repo_ci_status",
+  "owner_deployment_status",
   "owner_cognitive_trace_read",
   "owner_agent_mailbox_list",
   "owner_agent_mailbox_read",
@@ -133,6 +134,7 @@ const OWNER_DEVELOPER_ACTIONS = new Set([
   "repo_search",
   "repo_read",
   "repo_ci_status",
+  "deployment_status",
   "cognitive_trace_read",
   "agent_mailbox_list",
   "agent_mailbox_read",
@@ -145,6 +147,7 @@ const OWNER_DEVELOPER_DIRECT_ACTIONS = new Set([
   "repo_search",
   "repo_read",
   "repo_ci_status",
+  "deployment_status",
   "cognitive_trace_read",
   "agent_mailbox_list",
   "agent_mailbox_read",
@@ -478,6 +481,10 @@ export async function runAriVNext(turn = {}) {
     // Replay only the validated read, then let current evidence drive the model.
     // This replaces the initial provider call rather than adding another one.
     first = { output: [resumeCall] };
+  } else if (route.deploymentInspection && tools.some(tool => tool.name === "owner_deployment_status")) {
+    first = { output: [{ type: "function_call", name: "owner_deployment_status",
+      arguments: JSON.stringify({ environment: /\bpreview\b/i.test(turn.message) ? "preview" : "production" }),
+      call_id: `deployment_status_${turn.turnId || "current"}` }] };
   } else if (route.referenceResolutionSearch && referenceResolutionTools.length) {
     try {
       first = await callResponses({
@@ -1312,6 +1319,7 @@ async function executeOwnerDeveloperWorkspaceTurn({
       "owner_repo_search",
       "owner_repo_read",
       "owner_repo_ci_status",
+      "owner_deployment_status",
       "owner_cognitive_trace_read",
       "owner_agent_mailbox_list",
       "owner_agent_mailbox_read",
@@ -1329,12 +1337,13 @@ async function executeOwnerDeveloperWorkspaceTurn({
   let continuationInput = [...input];
   let evidence = emptyDeveloperEvidence();
   const verifiedReads = new Map();
+  let emptySearches = 0;
   const resumedCheckpoint = developerResumeCheckpoint(turn);
   let taskController = startDeveloperTaskController(
     resumedCheckpoint?.taskController || null,
     { limits: { maxModelCalls: 25 } }
   );
-  if (!resumedCheckpoint) taskController = recordDeveloperInitialModelCall(taskController, first);
+  if (!resumedCheckpoint && !route.deploymentInspection) taskController = recordDeveloperInitialModelCall(taskController, first);
   if (resumedCheckpoint) {
     const session = turn.context.userWorldModel.ariCognitiveWorkspace.executionWorkspace.session;
     evidence = mergeDeveloperEvidence(evidence, { observations: session.evidence, artifacts: session.artifacts });
@@ -1497,6 +1506,7 @@ async function executeOwnerDeveloperWorkspaceTurn({
       userId: turn?.userId,
       privacyControls: turn?.context?.userWorldModel?.privacyControls || null
     });
+    if (action === "repo_search" && toolResult?.success) emptySearches = toolResult.resultCount === 0 ? emptySearches + 1 : 0;
     const observed = developerToolResultToExecutionEvidence(toolResult, action);
     evidence = mergeDeveloperEvidence(evidence, observed);
     metacognition.cognitiveSignals = observeCognitiveToolResult({
@@ -1536,17 +1546,27 @@ async function executeOwnerDeveloperWorkspaceTurn({
     response = await callResponses({
       turn,
       policy: modelPolicy,
-      instructions: instructions + "\n" + cognitiveSignalDecisionToInstruction(metacognition.executivePolicy?.directives) + "\n" + developerTaskBudgetInstruction(taskController) + "\nOWNER DEVELOPER EXECUTION WORKSPACE\nThe preceding function output is observed repository/CI/memory/cognitive-trace/mailbox evidence. Prefer one broad repository search followed by targeted exact reads. Avoid repeating an unchanged read or search when it cannot add evidence. Let that evidence determine the next step. You may inspect persisted cognitive causal traces, search owner memory for a prior analogy, search the repository, read another exact file, check CI, inspect the configured Supabase mailbox, send a bounded handoff/finding/question to another authorized Ari/SOL worker, or prepare one exact isolated-branch edit. A causal trace is compact structured telemetry, not hidden reasoning. Supabase is an explicit audited mailbox datastore, never a sandbox escape or arbitrary network proxy. Do not repeat a failed step unchanged. Do not claim a test passed unless repo_ci_status reports conclusion=success.",
+      instructions: instructions + "\n" + cognitiveSignalDecisionToInstruction(metacognition.executivePolicy?.directives) + "\n" + developerTaskBudgetInstruction(taskController) + (route.deploymentInspection ? "\nDEPLOYMENT STATUS ANSWER: Answer the status question from the observed deployment result now. State its source and limits. If access failed, explain the specific missing capability; do not search code or claim success. No further tool calls." : emptySearches >= 2 ? "\nSEARCH STRATEGY EXHAUSTED: Two repository searches returned no matches. Repository search is unavailable for the remainder of this turn. Use a different available evidence source or report the concrete limitation. Do not propose another reworded search." : emptySearches ? "\nEMPTY SEARCH: Do not repeat a long natural-language query. Choose a short discriminative code identifier or a different evidence source." : "") + "\nOWNER DEVELOPER EXECUTION WORKSPACE\nThe preceding function output is observed repository/CI/memory/cognitive-trace/mailbox evidence. Prefer one broad repository search followed by targeted exact reads. Avoid repeating an unchanged read or search when it cannot add evidence. Let that evidence determine the next step. You may inspect persisted cognitive causal traces, search owner memory for a prior analogy, search the repository, read another exact file, check CI, inspect the configured Supabase mailbox, send a bounded handoff/finding/question to another authorized Ari/SOL worker, or prepare one exact isolated-branch edit. A causal trace is compact structured telemetry, not hidden reasoning. Supabase is an explicit audited mailbox datastore, never a sandbox escape or arbitrary network proxy. Do not repeat a failed step unchanged. Do not claim a test passed unless repo_ci_status reports conclusion=success.",
       input: continuationInput,
-      tools: developerTools
+      tools: route.deploymentInspection ? [] : developerTools.filter(tool => emptySearches < 2 || tool.name !== "owner_repo_search")
     });
     taskController = recordDeveloperTaskStep(taskController, {
       response,
       evidence: observed,
+      toolResult,
       runtimeMs: Date.now() - stepStartedAt
     });
     step += 1;
     call = findFunctionCall(response?.output);
+    if (call && (route.deploymentInspection || (emptySearches >= 2 && call.name === "owner_repo_search"))) {
+      const boundedReply = route.deploymentInspection
+        ? toolResult.success
+          ? `GitHub records these recent Vercel ${toolResult.environment} deployments: ${toolResult.deployments.map(item => `${item.sha.slice(0, 8)}: ${item.status}`).join("; ") || "none in the bounded search"}. Live health, logs, and production aliases were not checked.`
+          : `I couldn't read deployment status (${toolResult.code}). The configured integration needs working repository and deployment read access; searching source code won't establish live status.`
+        : "Two repository searches returned no matches. I don't have enough evidence to complete this investigation; another rewording would not establish the answer. I need a concrete file path or a different evidence source.";
+      response = { ...response, output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: boundedReply }] }] };
+      call = null;
+    }
 
     if (!call) {
       const guarded = guardUnpreparedActionReply(extractOutputText(response));
