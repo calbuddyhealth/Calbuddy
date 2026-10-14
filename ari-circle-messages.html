@@ -102,5 +102,25 @@
   <script src="js/ari-circle/messaging/messages-v6-hide-deleted.js?v=1.0.0" defer></script>
   <script src="js/ari-circle/messaging/messages-v6-menu-position.js?v=6.6.0" defer></script>
   <script src="js/ari-circle/messaging/messages-thread-shell.js?v=1.0.0" defer></script>
+  <script>
+    (() => {
+      const bindReliableThreadBack = () => {
+        const back = document.getElementById("threadBack");
+        if (!back || back.dataset.reliableBackBound === "true") return;
+        back.dataset.reliableBackBound = "true";
+        back.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          window.location.assign("ari-circle-messages.html");
+        }, true);
+      };
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", bindReliableThreadBack, { once: true });
+      } else {
+        bindReliableThreadBack();
+      }
+    })();
+  </script>
 </body>
 </html>
