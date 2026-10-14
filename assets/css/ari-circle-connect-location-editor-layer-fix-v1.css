@@ -16,14 +16,13 @@ body.circle-connect-next .ari-circle-location-orb .ari-circle-location-panel:not
 }
 
 @media (max-width:560px) {
+  /* Do not place a full-screen pseudo-element above the page on iOS.
+     Safari can composite that layer above the fixed editor, tinting the sheet
+     and swallowing taps after the keyboard is dismissed. */
   body.circle-connect-next .circle-connect-actionbar > [data-ari-circle-search-location][data-surface="meetup"]:has(.ari-circle-location-panel:not([hidden]))::before {
-    content:"";
-    position:fixed;
-    z-index:500;
-    inset:0;
-    background:rgba(5,14,32,.28);
-    -webkit-backdrop-filter:none !important;
-    backdrop-filter:none !important;
+    content:none !important;
+    display:none !important;
+    pointer-events:none !important;
   }
 
   body.circle-connect-next .ari-circle-location-orb .ari-circle-location-panel:not([hidden]) {
@@ -43,6 +42,8 @@ body.circle-connect-next .ari-circle-location-orb .ari-circle-location-panel:not
     transform:none !important;
     overscroll-behavior:contain;
     -webkit-overflow-scrolling:touch;
+    pointer-events:auto !important;
+    isolation:isolate;
     border:1px solid rgba(111,149,214,.22) !important;
     border-radius:22px !important;
     background:#fff !important;
@@ -50,6 +51,13 @@ body.circle-connect-next .ari-circle-location-orb .ari-circle-location-panel:not
     backdrop-filter:none !important;
     filter:none !important;
     box-shadow:0 28px 70px rgba(4,14,36,.28),0 10px 28px rgba(43,86,164,.13) !important;
+  }
+
+  body.circle-connect-next .ari-circle-location-panel__form,
+  body.circle-connect-next .ari-circle-location-panel button,
+  body.circle-connect-next .ari-circle-location-panel input,
+  body.circle-connect-next .ari-circle-location-panel select {
+    pointer-events:auto !important;
   }
 
   body.circle-connect-next .ari-circle-location-panel__form {
@@ -60,6 +68,7 @@ body.circle-connect-next .ari-circle-location-orb .ari-circle-location-panel:not
   body.circle-connect-next .ari-circle-location-panel__form button {
     grid-column:1 / -1 !important;
     width:100% !important;
+    touch-action:manipulation;
   }
 }
 
