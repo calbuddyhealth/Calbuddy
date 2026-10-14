@@ -18,6 +18,12 @@ test("mobile location editor uses a fixed keyboard-safe sheet", () => {
   assert.match(css, /overflow-y:auto !important/);
 });
 
-test("location editor hotfix stylesheet is loaded", () => {
-  assert.match(adapter, /ari-circle-connect-location-editor-layer-fix-v1\.css\?v=1\.0\.0/);
+test("mobile location editor does not blur its backdrop or panel", () => {
+  assert.doesNotMatch(css, /backdrop-filter:blur\(/);
+  assert.match(css, /-webkit-backdrop-filter:none !important/);
+  assert.match(css, /backdrop-filter:none !important/);
+});
+
+test("location editor hotfix stylesheet is loaded with current cache version", () => {
+  assert.match(adapter, /ari-circle-connect-location-editor-layer-fix-v1\.css\?v=1\.0\.1/);
 });
