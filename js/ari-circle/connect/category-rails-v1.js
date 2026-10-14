@@ -6,7 +6,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.0.0";
+  const VERSION = "1.0.1";
   const ROOT_ID = "meetupCategorySections";
   const EMPTY_ID = "meetupEmpty";
   const LEGACY = Object.freeze([
@@ -148,3 +148,8 @@
 
   window.AriCircleCategoryRails = Object.freeze({ version: VERSION, refresh: scheduleRegroup });
 })();
+
+/* Connect-only presentation enhancement. Kept separate from the discovery/data controller. */
+import("/js/ari-circle/connect/scroll-header-v1.js?v=1.0.0").catch((error) => {
+  console.warn("ARI Circle scroll header failed to load:", error);
+});
