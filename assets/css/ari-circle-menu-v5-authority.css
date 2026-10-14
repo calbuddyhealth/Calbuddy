@@ -1,94 +1,370 @@
 /* =============================================================
-   ARI CIRCLE — DRAWER COLOR AUTHORITY
-   Version: 1.0.0
+   ARI CIRCLE — CONTROL DRAWER VISUAL AUTHORITY
+   Version: 1.1.0
 
-   The V5 drawer is portaled directly to <body>. Profile still loads legacy
-   compatibility CSS, so these selectors intentionally key off the portal
-   marker instead of a page/theme class. This keeps the drawer visually
-   identical on Feed, Profile, Meet Up, and Quests.
+   Premium compact glass drawer shared across Circle surfaces.
+   This stylesheet loads last because Profile and the shared V5 shell still
+   carry legacy menu rules that otherwise override the drawer.
 ============================================================= */
+
+:root {
+  --ari-drawer-ink: #142238;
+  --ari-drawer-soft: #77849a;
+  --ari-drawer-line: rgba(91, 115, 157, .13);
+  --ari-drawer-blue: #2e63ff;
+  --ari-drawer-cyan: #26caed;
+  --ari-drawer-violet: #8559ff;
+  --ari-drawer-danger: #bd5065;
+}
+
+/* Dim + blur the page while keeping the Circle header visible above the veil. */
+body.circle-v5-menu-open::before {
+  position: fixed;
+  inset: 0;
+  z-index: 126;
+  pointer-events: none;
+  content: "";
+  background: rgba(20, 31, 54, .12);
+  -webkit-backdrop-filter: blur(10px) saturate(112%);
+  backdrop-filter: blur(10px) saturate(112%);
+  animation: ariCircleDrawerVeilIn 180ms ease-out both;
+}
+
+/* The bottom Connect/Profile dock competes with the drawer and is hidden while open. */
+body.circle-v5-menu-open .circle-v5-bottom-nav,
+body.circle-v5-menu-open .circle-v51-bottom-nav,
+body.circle-v5-menu-open .circle-v4-bottom-nav {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  transform: translateY(16px) !important;
+  transition: opacity 150ms ease, transform 180ms ease, visibility 150ms ease !important;
+}
 
 body .circle-v5-menu__panel[data-circle-v5-portal="true"],
 body .circle-v4-menu__panel[data-circle-v5-portal="true"] {
+  position: fixed !important;
+  top: calc(env(safe-area-inset-top) + 72px) !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: max(14px, 4vw) !important;
+  z-index: 131 !important;
+  box-sizing: border-box !important;
+  width: min(92vw, 392px) !important;
+  max-width: 392px !important;
+  max-height: calc(100dvh - env(safe-area-inset-top) - 96px) !important;
+  margin: 0 !important;
+  padding: 14px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
   color-scheme: light !important;
-  color: #132036 !important;
-  border-color: rgba(221, 229, 239, .98) !important;
-  background: rgba(255, 255, 255, .985) !important;
-  box-shadow: 0 28px 70px rgba(32, 46, 70, .18) !important;
+  color: var(--ari-drawer-ink) !important;
+  border: 1px solid rgba(255, 255, 255, .78) !important;
+  border-radius: 28px !important;
+  background:
+    radial-gradient(circle at 5% 0%, rgba(38, 202, 237, .14), transparent 14rem),
+    radial-gradient(circle at 100% 10%, rgba(133, 89, 255, .11), transparent 14rem),
+    linear-gradient(145deg, rgba(255,255,255,.91), rgba(248,251,255,.86)) !important;
+  box-shadow:
+    0 30px 80px rgba(20, 35, 70, .22),
+    0 8px 28px rgba(46, 99, 255, .08),
+    inset 0 1px 0 rgba(255,255,255,.98) !important;
+  -webkit-backdrop-filter: blur(34px) saturate(155%) !important;
+  backdrop-filter: blur(34px) saturate(155%) !important;
+  overscroll-behavior: contain !important;
+  transform-origin: 26px 0 !important;
+  animation: ariCircleDrawerIn 230ms cubic-bezier(.18,.78,.22,1) both !important;
 }
 
 body .circle-v5-menu__panel[data-circle-v5-portal="true"]::before,
 body .circle-v4-menu__panel[data-circle-v5-portal="true"]::before {
+  position: absolute !important;
+  inset: 0 !important;
+  border-radius: inherit !important;
+  pointer-events: none !important;
+  content: "" !important;
   box-shadow:
-    inset 1px 0 0 rgba(31, 205, 247, .08),
-    inset -1px 0 0 rgba(130, 85, 255, .07) !important;
+    inset 1px 0 0 rgba(38, 202, 237, .13),
+    inset -1px 0 0 rgba(133, 89, 255, .10),
+    inset 0 -1px 0 rgba(255,255,255,.82) !important;
+}
+
+/* Compact identity area. */
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__identity,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__identity {
+  min-height: 52px !important;
+  gap: 10px !important;
+  margin: 0 0 6px !important;
+  padding: 4px 6px 9px !important;
+  border-bottom: 1px solid rgba(91,115,157,.08) !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__mark,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__mark {
+  width: 36px !important;
+  height: 28px !important;
+  flex-basis: 36px !important;
+  filter: drop-shadow(0 5px 10px rgba(73, 94, 255, .12));
 }
 
 body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__identity strong,
 body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__identity strong {
-  color: #142033 !important;
+  color: #132039 !important;
+  font-size: .76rem !important;
+  letter-spacing: .10em !important;
 }
 
 body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__identity small,
 body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__identity small {
-  color: #94a0b2 !important;
+  color: #8a96a9 !important;
+  font-size: .63rem !important;
+  font-weight: 680 !important;
+}
+
+/* Section labels are quiet signposts rather than full rows. */
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group + .circle-v52-menu-group,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group + .circle-v52-menu-group {
+  margin-top: 9px !important;
 }
 
 body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group__label,
 body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group__label {
-  color: #2492b0 !important;
+  margin: 0 !important;
+  padding: 7px 7px 6px !important;
+  color: #1f94b2 !important;
+  font-size: .59rem !important;
+  font-weight: 850 !important;
+  line-height: 1 !important;
+  letter-spacing: .16em !important;
+  text-transform: uppercase !important;
 }
 
-body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group__items,
-body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group__items {
-  border-color: #e1e8f1 !important;
-  background: #fff !important;
-  box-shadow: 0 6px 18px rgba(43, 60, 91, .055) !important;
-}
-
-body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group__items .circle-v5-menu__item,
-body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group__items .circle-v5-menu__item {
-  color: #1d2b41 !important;
-  border-color: transparent !important;
-  background: #fff !important;
+/* Main actions float individually so the screen feels lighter than a settings table. */
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group:first-of-type .circle-v52-menu-group__items,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group:first-of-type .circle-v52-menu-group__items {
+  display: grid !important;
+  gap: 6px !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
   box-shadow: none !important;
 }
 
-body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group__items .circle-v5-menu__item + .circle-v5-menu__item,
-body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group__items .circle-v5-menu__item + .circle-v5-menu__item {
-  border-top: 1px solid #edf1f5 !important;
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group:first-of-type .circle-v5-menu__item,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group:first-of-type .circle-v5-menu__item {
+  min-height: 52px !important;
+  padding: 6px 10px 6px 7px !important;
+  border: 1px solid rgba(113, 133, 170, .11) !important;
+  border-radius: 17px !important;
+  background: rgba(255,255,255,.64) !important;
+  box-shadow: 0 5px 16px rgba(36, 55, 91, .045) !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group:first-of-type .circle-v5-menu__item + .circle-v5-menu__item,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group:first-of-type .circle-v5-menu__item + .circle-v5-menu__item {
+  border-top: 1px solid rgba(113, 133, 170, .11) !important;
+}
+
+/* Notifications is intentionally the hero action. */
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] a[href*="panel=notifications"],
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] a[href*="panel=notifications"] {
+  min-height: 62px !important;
+  border-color: rgba(68, 169, 236, .23) !important;
+  background:
+    radial-gradient(circle at 95% 15%, rgba(133,89,255,.12), transparent 8rem),
+    linear-gradient(115deg, rgba(229,250,255,.94), rgba(244,247,255,.92) 56%, rgba(247,240,255,.94)) !important;
+  box-shadow:
+    0 9px 24px rgba(46, 99, 255, .10),
+    inset 0 1px 0 rgba(255,255,255,.94) !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] a[href*="panel=notifications"] .circle-v5-menu__icon,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] a[href*="panel=notifications"] .circle-v5-menu__icon {
+  color: #2f72df !important;
+  border-color: rgba(49, 145, 226, .17) !important;
+  background: linear-gradient(145deg, rgba(255,255,255,.98), rgba(227,247,255,.92)) !important;
+  box-shadow: 0 7px 18px rgba(38, 169, 224, .12), 0 0 0 4px rgba(38,202,237,.045) !important;
+}
+
+/* Account controls stay grouped and intentionally quieter. */
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group:nth-of-type(2) .circle-v52-menu-group__items,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group:nth-of-type(2) .circle-v52-menu-group__items {
+  overflow: hidden !important;
+  border: 1px solid rgba(116, 137, 171, .11) !important;
+  border-radius: 17px !important;
+  background: rgba(255,255,255,.52) !important;
+  box-shadow: 0 5px 16px rgba(36,55,91,.035) !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group:nth-of-type(2) .circle-v5-menu__item,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group:nth-of-type(2) .circle-v5-menu__item {
+  min-height: 47px !important;
+  padding: 5px 9px 5px 7px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group:nth-of-type(2) .circle-v5-menu__item + .circle-v5-menu__item,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-group:nth-of-type(2) .circle-v5-menu__item + .circle-v5-menu__item {
+  border-top: 1px solid rgba(116, 137, 171, .09) !important;
+}
+
+/* Shared icon tiles. */
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__item,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__item {
+  grid-template-columns: 38px minmax(0,1fr) 22px !important;
+  gap: 10px !important;
+  color: #1c2a42 !important;
+  text-decoration: none !important;
+  transition: transform 150ms ease, border-color 150ms ease, background 150ms ease, box-shadow 150ms ease !important;
 }
 
 body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__icon,
 body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__icon {
-  color: #3973d0 !important;
-  border-color: #e2e9f2 !important;
-  background: #f8fbff !important;
+  width: 36px !important;
+  height: 36px !important;
+  color: #4674c8 !important;
+  border: 1px solid rgba(83, 111, 165, .10) !important;
+  border-radius: 12px !important;
+  background: linear-gradient(145deg, rgba(255,255,255,.94), rgba(240,246,255,.80)) !important;
   box-shadow: none !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__icon svg,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__icon svg {
+  width: 18px !important;
+  height: 18px !important;
+  stroke-width: 1.8 !important;
 }
 
 body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__label,
 body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__label {
-  color: #1d2b41 !important;
+  color: #1c2a42 !important;
+  font-size: .81rem !important;
+  font-weight: 790 !important;
+  letter-spacing: -.015em !important;
 }
 
 body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__chevron,
 body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__chevron {
-  color: #9aa6b7 !important;
+  color: #a0aabc !important;
+  font-size: 1.06rem !important;
 }
 
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__item:hover,
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__item:focus-visible,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__item:hover,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__item:focus-visible {
+  color: #194fdb !important;
+  border-color: rgba(46,99,255,.18) !important;
+  background: linear-gradient(135deg, rgba(229,250,255,.88), rgba(255,255,255,.88) 54%, rgba(246,240,255,.87)) !important;
+  box-shadow: 0 8px 22px rgba(46,99,255,.08) !important;
+  outline: none !important;
+  transform: translateX(2px) !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__item:active,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__item:active {
+  transform: scale(.985) !important;
+}
+
+/* Give the unread badge room and a more deliberate glow on the hero row. */
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] a[href*="panel=notifications"] > .ari-social-badge,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] a[href*="panel=notifications"] > .ari-social-badge {
+  right: 13px !important;
+  min-width: 22px !important;
+  height: 22px !important;
+  padding: 0 6px !important;
+  font-size: 10px !important;
+  box-shadow: 0 6px 16px rgba(70, 74, 255, .26), 0 0 0 3px rgba(255,255,255,.88) !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] a[href*="panel=notifications"] .circle-v5-menu__chevron,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] a[href*="panel=notifications"] .circle-v5-menu__chevron {
+  opacity: .22 !important;
+}
+
+/* Exit stays visually separate but no longer looks like a second giant card. */
 body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-exit,
 body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-exit {
-  border-color: #f0dfe4 !important;
-  background: #fff !important;
+  margin-top: 10px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(189, 80, 101, .12) !important;
+  border-radius: 16px !important;
+  background: rgba(255,247,249,.58) !important;
+  box-shadow: none !important;
 }
 
 body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-exit .circle-v5-menu__item,
 body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-exit .circle-v5-menu__item {
-  background: #fff !important;
+  min-height: 46px !important;
+  padding: 5px 9px 5px 7px !important;
+  color: var(--ari-drawer-danger) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-exit .circle-v5-menu__icon,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-exit .circle-v5-menu__icon {
+  color: var(--ari-drawer-danger) !important;
+  border-color: rgba(189,80,101,.10) !important;
+  background: rgba(255,255,255,.72) !important;
+}
+
+body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-exit .circle-v5-menu__label,
+body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-exit .circle-v5-menu__label {
+  color: #a94158 !important;
 }
 
 body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-footer,
 body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v52-menu-footer {
-  color: #a0a9b8 !important;
+  display: none !important;
+}
+
+@keyframes ariCircleDrawerIn {
+  from { opacity: 0; transform: translate3d(-12px,-5px,0) scale(.965); }
+  70% { opacity: 1; transform: translate3d(1px,0,0) scale(1.003); }
+  to { opacity: 1; transform: translate3d(0,0,0) scale(1); }
+}
+
+@keyframes ariCircleDrawerVeilIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 520px) {
+  body .circle-v5-menu__panel[data-circle-v5-portal="true"],
+  body .circle-v4-menu__panel[data-circle-v5-portal="true"] {
+    top: calc(env(safe-area-inset-top) + 70px) !important;
+    left: 4vw !important;
+    width: 92vw !important;
+    max-width: none !important;
+    max-height: calc(100dvh - env(safe-area-inset-top) - 92px) !important;
+    padding: 12px !important;
+    border-radius: 26px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.circle-v5-menu-open::before,
+  body .circle-v5-menu__panel[data-circle-v5-portal="true"],
+  body .circle-v4-menu__panel[data-circle-v5-portal="true"] {
+    animation: none !important;
+  }
+
+  body .circle-v5-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__item,
+  body .circle-v4-menu__panel[data-circle-v5-portal="true"] .circle-v5-menu__item {
+    transition: none !important;
+  }
 }
