@@ -154,7 +154,7 @@ const OWNER_DEVELOPER_DIRECT_ACTIONS = new Set([
   "agent_mailbox_send"
 ]);
 
-export async function runAriVNext(turn = {}) {
+export async function runAriVNext(turn = {}, { prepareComparison = false } = {}) {
   const route = routeContext(turn);
   const actionContinuation = deriveAuthorizedActionContinuation(turn);
   const safety = classifySafety(turn, route);
@@ -254,6 +254,22 @@ export async function runAriVNext(turn = {}) {
     coachingState
   });
   const temporalContext = deriveTemporalContext(turn);
+  // Internal-only evaluation seam. No provider calls, tools, persistence, or
+  // advice side calls occur before this return. HTTP clients cannot set options.
+  if (prepareComparison) {
+    if (route?.intelligenceEntitlement?.ownerEligible !== true) {
+      throw new Error("Owner comparison access required.");
+    }
+    return {
+      instructions: buildInstructions({ route, communication, safety, selfModel,
+        companionState, cognitionCoordinator, deliberationHarness, biblicalWisdom,
+        goalHierarchy, metacognition, scientificIntelligence, experimentReviewState,
+        temporalContext, relevantContext, coachingState, longitudinalState }),
+      baselineInstructions: "You are Ari, a helpful assistant. Answer the user's request directly and accurately. Preserve explicit constraints. State material uncertainty. Do not claim actions or evidence you do not have.\n" + safetyToInstruction(safety),
+      input: buildInput(turn),
+      tier: deliberationHarness.tier
+    };
+  }
   // Every conversation route reaches the same cognitive core first. Creative
   // delivery changes tools/action handling, never the owner mind or persistence.
   if (route.creativeConversation) {
@@ -3049,3 +3065,4 @@ function providerSummary(data = {}) {
     reasoningContinuity: data?._ariReasoningContinuity || null
   };
 }
+

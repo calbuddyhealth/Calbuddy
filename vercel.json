@@ -1,7 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/ari-vnext.js": { "maxDuration": 300 }
+    "api/ari-vnext.js": {
+      "maxDuration": 300
+    },
+    "api/ari-harness-comparison.js": {
+      "maxDuration": 180
+    }
   },
   "rewrites": [
     {
