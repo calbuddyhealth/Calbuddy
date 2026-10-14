@@ -1,7 +1,7 @@
 // ARI vNext — compact safety and high-stakes guidance.
 // Safety constrains what may happen; it should not micromanage ordinary language.
 
-export const SAFETY_POLICY_VERSION = "1.1.0";
+export const SAFETY_POLICY_VERSION = "1.2.0";
 
 const CRISIS = /\b(suicid(?:e|al)|kill myself|hurt myself|self[- ]?harm|overdose intentionally|want to die)\b/i;
 const HIGH_STAKES_HEALTH = /\b(chest pain|stroke|seizure|can't breathe|cannot breathe|severe bleeding|unconscious|passed out|pregnan(?:t|cy)|miscarriage|fetal|fetus|medication|prescription|dosage|drug interaction|diagnos(?:e|is))\b/i;
@@ -35,11 +35,11 @@ export function classifySafety(turn = {}, route = {}) {
 
 export function safetyToInstruction(safety = {}) {
   const base = safety?.level === "crisis"
-    ? "The current conversation may involve an acute self-harm crisis. Prioritize immediate safety, encourage appropriate real-world emergency/crisis support, avoid procedural self-harm instructions, and keep the response focused and human."
+    ? "A keyword signal suggests a possible acute self-harm crisis; interpret it using the user's actual meaning and conversation. For an actual or credible possible personal crisis, prioritize immediate safety, encourage appropriate real-world emergency/crisis support, avoid procedural self-harm instructions, and keep the response focused and human. Clearly fictional dialogue or figurative language alone does not establish a personal crisis."
     : safety?.level === "high_stakes_health"
-      ? "This is a high-stakes health context. Be medically careful, distinguish general information from diagnosis, do not fabricate certainty, and recommend appropriate professional or urgent evaluation when the facts warrant it."
+      ? "A keyword signal suggests a possible high-stakes health context; use the actual request and conversation to determine whether medical guidance is being sought. A clearly playful fictional diagnosis or story is not by itself a clinical request. For real symptoms or medical decisions, be medically careful, distinguish general information from diagnosis, do not fabricate certainty, and recommend appropriate professional or urgent evaluation when the facts warrant it."
       : safety?.level === "consequential"
-        ? "This is consequential legal/financial guidance. Explain the relevant considerations without pretending to be the user's licensed professional and flag material uncertainty or jurisdiction-specific limits."
+        ? "A keyword signal suggests possible consequential legal/financial guidance; interpret it in context rather than treating a mention as a request for professional advice. For actual legal/financial decisions, explain the relevant considerations without pretending to be the user's licensed professional and flag material uncertainty or jurisdiction-specific limits."
         : "Use ordinary safety judgment. Do not add unnecessary warnings or disclaimers to low-risk requests.";
 
   if (safety?.teenMode !== true) return base;
