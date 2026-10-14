@@ -1,0 +1,160 @@
+/* =============================================================
+   ARI CIRCLE CONNECT — COLLAPSING GLASS HEADER V1
+   Keeps the branded ARI CIRCLE state at the top of Connect, then
+   condenses into a compact sticky Connect header while scrolling.
+============================================================= */
+
+body.circle-connect-next .circle-v51-halo-header,
+body.circle-connect-next .circle-v51-halo-header.feed-header,
+body.circle-connect-next .circle-v51-halo-header.circle-v5-header {
+  --circle-scroll-header-cyan: rgba(55, 220, 247, .48);
+  --circle-scroll-header-violet: rgba(167, 105, 255, .46);
+  position: sticky !important;
+  z-index: 110 !important;
+  will-change: min-height, margin, padding, border-radius, transform, background, box-shadow;
+  transition:
+    min-height 240ms cubic-bezier(.2,.8,.2,1),
+    grid-template-columns 240ms cubic-bezier(.2,.8,.2,1),
+    margin 240ms cubic-bezier(.2,.8,.2,1),
+    padding 240ms cubic-bezier(.2,.8,.2,1),
+    border-radius 240ms cubic-bezier(.2,.8,.2,1),
+    background 240ms ease,
+    box-shadow 240ms ease,
+    transform 180ms ease !important;
+}
+
+/* Give the center link one stable box so ARI CIRCLE can cross-fade into Connect. */
+body.circle-connect-next .circle-v51-halo-header .circle-v51-brand {
+  position: relative !important;
+  min-height: 46px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+body.circle-connect-next .circle-v51-halo-header .circle-v51-brand::after {
+  content: "Connect";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #10213a;
+  font: 850 1.02rem/1 Inter, system-ui, sans-serif;
+  letter-spacing: -.025em;
+  opacity: 0;
+  transform: translateY(5px) scale(.96);
+  transition: opacity 170ms ease, transform 220ms cubic-bezier(.2,.8,.2,1);
+  pointer-events: none;
+}
+
+body.circle-connect-next .circle-v51-halo-header .circle-v51-wordmark {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: opacity 150ms ease, transform 220ms cubic-bezier(.2,.8,.2,1) !important;
+}
+
+/* Compact sticky state after the discovery hero begins moving under the header. */
+body.circle-connect-next .circle-v51-halo-header.is-circle-scroll-compact,
+body.circle-connect-next .circle-v51-halo-header.feed-header.is-circle-scroll-compact,
+body.circle-connect-next .circle-v51-halo-header.circle-v5-header.is-circle-scroll-compact {
+  min-height: 58px !important;
+  grid-template-columns: 44px minmax(0, 1fr) 44px !important;
+  gap: 5px !important;
+  top: max(6px, env(safe-area-inset-top)) !important;
+  margin: 6px 14px 10px !important;
+  padding: 6px 7px !important;
+  border-radius: 23px !important;
+  background:
+    linear-gradient(120deg, rgba(255,255,255,.955), rgba(247,251,255,.935) 48%, rgba(252,248,255,.945)) padding-box,
+    linear-gradient(110deg, var(--circle-scroll-header-cyan), rgba(218,231,255,.82) 46%, var(--circle-scroll-header-violet)) border-box !important;
+  box-shadow:
+    0 12px 28px rgba(30, 48, 82, .135),
+    0 3px 10px rgba(73, 149, 239, .065),
+    inset 0 1px 0 rgba(255,255,255,.99) !important;
+  backdrop-filter: blur(28px) saturate(155%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(155%) !important;
+}
+
+body.circle-connect-next .circle-v51-halo-header.is-circle-scroll-compact::before {
+  inset: 8px 24px -6px !important;
+  opacity: .5 !important;
+  filter: blur(10px) !important;
+}
+
+body.circle-connect-next .circle-v51-halo-header.is-circle-scroll-compact .circle-v51-wordmark {
+  opacity: 0;
+  transform: translateY(-5px) scale(.96);
+}
+
+body.circle-connect-next .circle-v51-halo-header.is-circle-scroll-compact .circle-v51-brand::after {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+body.circle-connect-next .circle-v51-halo-header.is-circle-scroll-compact .circle-v4-menu > summary.feed-icon-button,
+body.circle-connect-next .circle-v51-halo-header.is-circle-scroll-compact .circle-v4-message.circle-v51-header-action {
+  width: 42px !important;
+  height: 42px !important;
+  min-width: 42px !important;
+  min-height: 42px !important;
+  border-color: rgba(214, 227, 243, .92) !important;
+  box-shadow:
+    0 6px 15px rgba(32, 52, 85, .09),
+    0 0 0 2px rgba(255,255,255,.33),
+    inset 0 1px 0 rgba(255,255,255,1) !important;
+}
+
+body.circle-connect-next .circle-v51-halo-header.is-circle-scroll-compact .circle-v4-menu > summary svg,
+body.circle-connect-next .circle-v51-halo-header.is-circle-scroll-compact .circle-v4-message svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+/* Slightly deepen the glass when darker content is passing underneath it. */
+body.circle-connect-next .circle-v51-halo-header.is-circle-scroll-deep {
+  box-shadow:
+    0 14px 32px rgba(26, 45, 81, .16),
+    0 4px 12px rgba(73,149,239,.075),
+    inset 0 1px 0 rgba(255,255,255,.99) !important;
+}
+
+/* Unread messages get a restrained halo instead of another large visual element. */
+body.circle-connect-next .circle-v51-halo-header .circle-v4-message.circle-v51-header-action:has(.ari-social-badge:not([hidden])) {
+  border-color: rgba(93, 173, 246, .72) !important;
+  box-shadow:
+    0 7px 18px rgba(43, 133, 238, .14),
+    0 0 0 3px rgba(70, 211, 248, .10),
+    inset 0 1px 0 #fff !important;
+}
+
+@media (max-width: 420px) {
+  body.circle-connect-next .circle-v51-halo-header.is-circle-scroll-compact,
+  body.circle-connect-next .circle-v51-halo-header.feed-header.is-circle-scroll-compact,
+  body.circle-connect-next .circle-v51-halo-header.circle-v5-header.is-circle-scroll-compact {
+    min-height: 56px !important;
+    grid-template-columns: 42px minmax(0, 1fr) 42px !important;
+    margin-inline: 12px !important;
+    padding: 6px !important;
+    border-radius: 22px !important;
+  }
+
+  body.circle-connect-next .circle-v51-halo-header.is-circle-scroll-compact .circle-v4-menu > summary.feed-icon-button,
+  body.circle-connect-next .circle-v51-halo-header.is-circle-scroll-compact .circle-v4-message.circle-v51-header-action {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+  }
+
+  body.circle-connect-next .circle-v51-halo-header .circle-v51-brand::after {
+    font-size: .98rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.circle-connect-next .circle-v51-halo-header,
+  body.circle-connect-next .circle-v51-halo-header .circle-v51-wordmark,
+  body.circle-connect-next .circle-v51-halo-header .circle-v51-brand::after {
+    transition: none !important;
+  }
+}
