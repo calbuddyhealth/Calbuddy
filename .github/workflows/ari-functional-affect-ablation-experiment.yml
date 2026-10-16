@@ -1,0 +1,37 @@
+name: Ari Functional Affect Ablation Experiment
+
+on:
+  push:
+    branches:
+      - experiment/ari-affect-ablation-20260921
+    paths:
+      - "scripts/ari-functional-affect-ablation-live.mjs"
+      - "experiments/ari-functional-affect-ablation-v1.preregistered.json"
+      - ".github/workflows/ari-functional-affect-ablation-experiment.yml"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  experiment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ARI_VNEXT_FAST_MODEL: gpt-4o-mini
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Run preregistered functional affect ablation
+        run: node scripts/ari-functional-affect-ablation-live.mjs --policy-only

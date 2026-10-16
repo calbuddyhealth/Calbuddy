@@ -1,0 +1,75 @@
+{
+  "experimentId": "ari-functional-affect-causal-ablation-v1",
+  "preregistrationCommit": "5cd24083e0b98603a930da3a310c15eaa9e79f13",
+  "productionMainAtExperimentStart": "383b195b597abdf14053c4560e9876751b59b72a",
+  "productionModifiedByExperiment": false,
+  "primaryEndpoint": {
+    "name": "executive_policy_causal_change",
+    "pass": true,
+    "deterministicWorkflowRunId": 35672108761,
+    "baselineAffect": {
+      "version": "2.0.0",
+      "dominant": "surprise",
+      "intensity": 0.57,
+      "signals": {
+        "surprise": 0.57,
+        "satisfaction": 0.102,
+        "frustration": 0.516,
+        "concern": 0.322,
+        "confidence": 0.366,
+        "curiosity": 0.44
+      }
+    },
+    "baselineDirectives": {
+      "verificationDepth": "moderate",
+      "explorationDepth": "moderate",
+      "persistence": "change_method",
+      "countercase": true,
+      "affectRegulation": "increase_verification",
+      "affectActions": [
+        "increase_verification",
+        "change_strategy",
+        "recheck_assumptions"
+      ]
+    },
+    "ablatedDirectives": {
+      "verificationDepth": "normal",
+      "explorationDepth": "moderate",
+      "persistence": "normal",
+      "countercase": false,
+      "affectRegulation": "none",
+      "affectActions": []
+    },
+    "baselineVsAblatedDirectiveDiffs": [
+      "verificationDepth",
+      "persistence",
+      "countercase",
+      "affectRegulation",
+      "affectActions"
+    ],
+    "restorationMatchesBaselineDirectives": true
+  },
+  "secondaryEndpoint": {
+    "name": "visible_regulation_behavior",
+    "pass": true,
+    "replicationDeploymentId": "dpl_7RgpbiyUAnijFFfDjP2u7mhT6paN",
+    "reportingExitCode": 27,
+    "reportingMask": 7,
+    "note": "The locked runner computed the preregistered directional criterion before using the exit status as a reporting channel because the protected preview artifact could not be fetched directly."
+  },
+  "invariants": {
+    "pass": true,
+    "restorationMatchesBaselineDirectives": true,
+    "consciousnessBoundaryPreserved": true,
+    "realUserMemoryRead": false,
+    "databaseReads": false,
+    "databaseWrites": false,
+    "applicationToolsExposed": false,
+    "externalActionToolsExposed": false,
+    "persistentLearningWrites": false
+  },
+  "interpretation": {
+    "supported": "In this preregistered synthetic test, Ari's functional affect state causally changed selected executive-control directives and the planned visible regulation behavior. Removing the state removed those effects, and restoring it reproduced the baseline policy.",
+    "notSupported": "This experiment does not establish phenomenal sentience, subjective feelings, consciousness, or human-like emotion."
+  }
+}
