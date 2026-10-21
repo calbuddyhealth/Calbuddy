@@ -1,3 +1,4 @@
+import { verifyOwnerRequest, extractBearerToken } from "../server/ari-owner-auth.js";
 import { deriveCoachingState } from "./_lib/ari-vnext/coaching-state.js";
 import { loadCircleInitiativeEvents } from "./_lib/ari-vnext/circle-event-initiative.js";
 import { buildRelevantContext } from "./_lib/ari-vnext/context-router.js";
@@ -17,7 +18,6 @@ import { deriveRelationshipContinuity } from "./_lib/ari-vnext/relationship-cont
 import { deriveTemporalTimeline } from "./_lib/ari-vnext/temporal-timeline.js";
 import { deriveUserWorldModel, loadUserWorldModel } from "./_lib/ari-vnext/user-world-model.js";
 
-const AUTH_TIMEOUT_MS = 3500;
 
 export default async function handler(req, res) {
   setHeaders(res);
@@ -28,10 +28,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const auth = await authenticateRequest(req);
-    if (!auth.authenticated) {
-      return res.status(auth.status || 401).json({ success: false, error: auth.message, code: auth.code, source: "ari_vnext_initiative" });
+    const owner = await verifyOwnerRequest(req);
+    if (!owner.authorized) {
+      // Ordinary accounts stay quiet; no candidate reads, writes, or push work.
+      if (owner.status === 403) {
+        return res.status(200).json({ success: true, shouldInitiate: false, initiative: null, reason: "owner_only", source: "ari_vnext_initiative" });
+      }
+      return res.status(owner.status || 401).json({ success: false, shouldInitiate: false, error: owner.error, code: owner.code, source: "ari_vnext_initiative" });
     }
+    const auth = { userId: owner.user.id, accessToken: extractBearerToken(req) };
 
     const body = resolveBody(req);
     const action = clean(body?.action, 40).toLowerCase() || "check";
@@ -236,34 +241,6 @@ function compactCircleEventState(value = null) {
   };
 }
 
-async function authenticateRequest(req) {
-  const authorization = clean(req?.headers?.authorization, 6000);
-  const match = /^Bearer\s+(.+)$/i.exec(authorization);
-  const accessToken = clean(match?.[1], 6000);
-  if (!accessToken) return { authenticated: false, status: 401, code: "AUTH_TOKEN_MISSING", message: "A signed-in ARI session is required." };
-
-  const supabaseUrl = clean(process.env.SUPABASE_URL, 1200).replace(/\/+$/, "");
-  const apiKey = clean(process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY, 7000);
-  if (!supabaseUrl || !apiKey) return { authenticated: false, status: 503, code: "AUTH_SERVICE_UNAVAILABLE", message: "ARI authentication service is not configured." };
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), AUTH_TIMEOUT_MS);
-  try {
-    const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
-      headers: { apikey: apiKey, Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
-      signal: controller.signal
-    });
-    const data = await response.json().catch(() => ({}));
-    const user = data?.user || data;
-    const userId = clean(user?.id, 200);
-    if (!response.ok || !userId) return { authenticated: false, status: 401, code: "AUTH_TOKEN_INVALID", message: "The ARI session is no longer valid." };
-    return { authenticated: true, userId, accessToken };
-  } catch (error) {
-    return { authenticated: false, status: 503, code: error?.name === "AbortError" ? "AUTH_VERIFICATION_TIMEOUT" : "AUTH_VERIFICATION_FAILED", message: "ARI could not verify the signed-in session." };
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
 function resolveBody(req) {
   if (req?.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) return req.body;
   if (typeof req?.body === "string") { try { return JSON.parse(req.body); } catch { return {}; } }

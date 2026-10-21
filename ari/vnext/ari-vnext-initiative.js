@@ -7,7 +7,7 @@ window.Ari = window.Ari || {};
 (() => {
   "use strict";
 
-  const VERSION = "1.2.1";
+  const VERSION = "1.2.2";
   const OPERATION_REGISTRY_SRC = "ari/vnext/ari-vnext-operation-registry.js?v=1.9.0";
 
   function registryReady() {
@@ -55,6 +55,11 @@ window.Ari = window.Ari || {};
       source: "ari-vnext-initiative-client",
 
       async check(options = {}) {
+        // Fail closed until the app has resolved Owner Mode.
+        const userContext = await window.CalBuddy?.getUserContext?.().catch(() => null);
+        if (userContext?.ownerMode !== true) {
+          return { success: true, shouldInitiate: false, initiative: null, reason: "owner_only" };
+        }
         const bridge = window.AriVNextBridge;
         if (!bridge?.getSession || !bridge?.buildContext) throw new Error("Ari vNext bridge is not available.");
 
