@@ -438,7 +438,10 @@
     await executePendingTurn(pending);
   }
 
-  function renderInitiative(event) {
+  async function renderInitiative(event) {
+    let userContext;
+    try { userContext = await window.CalBuddy?.getUserContext?.(); } catch { return; }
+    if (userContext?.ownerMode !== true) return;
     const data = event?.detail || {};
     const initiative = data?.initiative || null;
     const opener = cleanText(initiative?.opener || initiative?.message || data?.opener);
