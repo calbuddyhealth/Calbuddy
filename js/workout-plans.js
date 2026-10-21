@@ -1,11 +1,11 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/workout-plans.js
-// Version: 3.7.0
+// Version: 3.7.1
 // Purpose:
 //   Page controller for workout-plans.html.
 //
-// V3.7.0:
+// V3.7.1:
 //   - Opens the current Sunday-Saturday week on a normal page visit.
 //   - Honors an explicit ?date=YYYY-MM-DD link from ARI Training.
 //   - Stops a previously browsed week from overriding today on refresh.
@@ -2856,6 +2856,27 @@ function renderWeek() {
 
       summary.hidden =
         !value;
+    }
+
+    const exerciseList = fragment.querySelector(".workout-day-card__exercises");
+    if (exerciseList) {
+      const entries = Array.isArray(dayState.exercises) ? dayState.exercises : [];
+      exerciseList.hidden = entries.length === 0;
+      entries.forEach((entry, index) => {
+        const exercise = ExerciseRegistry.get(entry.exerciseId);
+        const item = document.createElement("span");
+        item.className = "workout-day-card__exercise";
+        item.setAttribute("role", "listitem");
+        const number = document.createElement("span");
+        number.className = "workout-day-card__exercise-number";
+        number.textContent = String(index + 1).padStart(2, "0");
+        number.setAttribute("aria-hidden", "true");
+        const name = document.createElement("span");
+        name.textContent = exercise?.name || entry.name || entry.title || "Exercise";
+        item.appendChild(number);
+        item.appendChild(name);
+        exerciseList.appendChild(item);
+      });
     }
 
     if (

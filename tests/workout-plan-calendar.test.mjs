@@ -21,7 +21,7 @@ class Element {
 function setup(search = '') {
   const nodes = Object.fromEntries(['workoutWeekGrid', 'workoutDaySelector', 'workoutWeekRelativeLabel', 'workoutWeekDateRange'].map(id => [id, new Element()]));
   nodes.workoutDayCardTemplate = { content: { cloneNode() {
-    const card = Object.fromEntries(['', '__button', '__day', '__date', '__type', '__title', '__summary', '__open'].map(suffix => ['.workout-day-card' + suffix, new Element()]));
+    const card = Object.fromEntries(['', '__button', '__day', '__date', '__type', '__title', '__summary', '__exercises', '__open'].map(suffix => ['.workout-day-card' + suffix, new Element()]));
     card['.workout-day-card__button'].dataset.workoutAction = 'edit-day';
     return { querySelector: selector => card[selector] };
   } } };
@@ -31,8 +31,9 @@ function setup(search = '') {
     document: { querySelectorAll: () => [], getElementById: id => nodes[id] || null, createElement: () => new Element() },
     window: { location: { search } },
     WorkoutFocuses: { get: () => ({ label: 'Cardio' }) },
+    ExerciseRegistry: { get: id => id === 'running' ? { name: 'Running' } : null },
     WorkoutPlanController: { getDate: date => date === '2026-10-18'
-      ? { type: 'workout', title: 'Cardio', focusId: 'cardio', exercises: [{}, {}, {}] }
+      ? { type: 'workout', title: 'Cardio', focusId: 'cardio', exercises: [{ exerciseId: 'running' }, { exerciseId: 'custom', name: 'Custom intervals' }, { exerciseId: 'missing' }] }
       : { type: 'off', exercises: [] } }
   });
   vm.runInContext(source + `\ncacheDom(); renderTemplates = () => {}; openDayEditor = (day, date) => { globalThis.opened = { day, date }; };`, context);
@@ -50,6 +51,7 @@ test('selects local today with seven dates and one empty card', async () => {
   assert.equal(selected(nodes).attributes['aria-current'], 'date');
   assert.equal(cardText(nodes, 'title'), 'No workout planned');
   assert.match(cardText(nodes, 'open'), /Plan Workout/);
+  assert.equal(nodes.workoutWeekGrid.children[0].querySelector('.workout-day-card__exercises').hidden, true);
   const button = nodes.workoutWeekGrid.children[0].querySelector('.workout-day-card__button');
   context.handleClick({ target: button });
   assert.equal(context.opened.date, '2026-10-21');
@@ -63,6 +65,9 @@ test('selecting a planned day shows its summary and edits its exact date', async
   assert.equal(cardText(nodes, 'title'), 'Cardio');
   assert.equal(cardText(nodes, 'summary'), '3 exercises');
   assert.match(cardText(nodes, 'open'), /Edit Workout/);
+  const list = nodes.workoutWeekGrid.children[0].querySelector('.workout-day-card__exercises');
+  assert.equal(list.hidden, false);
+  assert.deepEqual(list.children.map(item => item.children[1].textContent), ['Running', 'Custom intervals', 'Exercise']);
   assert.equal(selected(nodes).focused, true);
   context.handleClick({ target: nodes.workoutWeekGrid.children[0].querySelector('.workout-day-card__button') });
   assert.equal(context.opened.date, '2026-10-18');

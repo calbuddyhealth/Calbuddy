@@ -20,7 +20,7 @@
 
   <link rel="stylesheet" href="assets/css/base.css?v=16" />
   <link rel="stylesheet" href="assets/css/animations.css?v=16" />
-  <link rel="stylesheet" href="assets/css/workout-plans.css?v=3.7.0" />
+  <link rel="stylesheet" href="assets/css/workout-plans.css?v=3.7.1" />
 </head>
 
 <body class="ari-workout-plans-page">
@@ -40,8 +40,10 @@
         class="workout-plans-header__back"
         type="button"
         aria-label="Back to ARI Training"
+        title="Back to Training"
       >
-        &larr;
+        <span aria-hidden="true">&larr;</span>
+        <span class="workout-back-label" aria-hidden="true">Training</span>
       </button>
 
       <div class="workout-plans-header__brand">
@@ -995,6 +997,8 @@
 
           <p class="workout-day-card__summary"></p>
 
+          <span class="workout-day-card__exercises" role="list" aria-label="Planned exercises" hidden></span>
+
           <span class="workout-day-card__open">
             Plan Workout &rarr;
           </span>
@@ -1164,7 +1168,7 @@
 
   <script
     type="module"
-    src="js/workout-plans.js?v=3.7.0"
+    src="js/workout-plans.js?v=3.7.1"
   ></script>
 
 </body>
