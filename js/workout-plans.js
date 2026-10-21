@@ -1,11 +1,11 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/workout-plans.js
-// Version: 3.6.2
+// Version: 3.7.0
 // Purpose:
 //   Page controller for workout-plans.html.
 //
-// V3.6.2:
+// V3.7.0:
 //   - Opens the current Sunday-Saturday week on a normal page visit.
 //   - Honors an explicit ?date=YYYY-MM-DD link from ARI Training.
 //   - Stops a previously browsed week from overriding today on refresh.
@@ -171,6 +171,9 @@ const state = {
   selectedWeekStart:
     null,
 
+  selectedPlanDate:
+    null,
+
   autosaveTimer:
     null,
 
@@ -233,6 +236,7 @@ function cacheDom() {
     "workoutCancelClearWeekButton",
     "workoutConfirmClearWeekButton",
 
+    "workoutDaySelector",
     "workoutWeekGrid",
 
     "workoutTemplateWeekRange",
@@ -2607,6 +2611,15 @@ function renderWeek() {
 
   renderWeekHeader();
 
+  const todayKey = toLocalDateKey(new Date());
+  const weekDates = DAYS.map((_, index) =>
+    toLocalDateKey(addDays(state.selectedWeekStart, index))
+  );
+  if (!weekDates.includes(state.selectedPlanDate)) {
+    state.selectedPlanDate = weekDates.includes(todayKey) ? todayKey : weekDates[0];
+  }
+  dom.workoutDaySelector?.replaceChildren();
+
   dom.workoutWeekGrid
     .innerHTML =
       "";
@@ -2671,6 +2684,33 @@ function renderWeek() {
         exercises:
           []
       };
+
+    if (dom.workoutDaySelector) {
+      const dayButton = document.createElement("button");
+      dayButton.type = "button";
+      dayButton.className = "workout-date-button";
+      dayButton.dataset.workoutAction = "select-plan-day";
+      dayButton.dataset.date = dateKey;
+      dayButton.setAttribute("aria-pressed", String(dateKey === state.selectedPlanDate));
+      dayButton.setAttribute("aria-controls", "workoutWeekGrid");
+      dayButton.setAttribute("aria-label", `${formatDayCardDate(day, date)}${dateKey === todayKey ? ", today" : ""}, ${dayState.type === "off" ? "no workout planned" : dayState.title || "workout planned"}`);
+      if (dateKey === todayKey) dayButton.setAttribute("aria-current", "date");
+      dayButton.dataset.planned = String(dayState.type !== "off");
+      for (const [className, text] of [
+        ["workout-date-button__day", DAY_SHORT_LABELS[day]],
+        ["workout-date-button__number", String(date.getDate())],
+        ["workout-date-button__marker", dateKey === todayKey ? "TODAY" : ""]
+      ]) {
+        const label = document.createElement("span");
+        label.className = className;
+        label.textContent = text;
+        dayButton.appendChild(label);
+      }
+      dom.workoutDaySelector.appendChild(dayButton);
+    }
+
+    // Keep the existing planner/editor; only the selected day's card is shown.
+    if (dateKey !== state.selectedPlanDate) continue;
 
     const fragment =
       dom.workoutDayCardTemplate
@@ -2774,7 +2814,7 @@ function renderWeek() {
       type.textContent =
         dayState.type ===
           "off"
-          ? "OFF"
+          ? "UNPLANNED"
           : dayState.type ===
               "recovery"
             ? "RECOVERY"
@@ -2789,7 +2829,7 @@ function renderWeek() {
         "off"
       ) {
         title.textContent =
-          "Off Day";
+          "No workout planned";
       } else {
         const focus =
           WorkoutFocuses.get(
@@ -6441,6 +6481,19 @@ function handleClick(
       break;
 
 
+    case "select-plan-day": {
+      const dateKey = actionNode.dataset.date;
+      const inWeek = DAYS.some((_, index) =>
+        toLocalDateKey(addDays(state.selectedWeekStart, index)) === dateKey
+      );
+      if (!inWeek) break;
+      state.selectedPlanDate = dateKey;
+      renderWeek();
+      // Re-rendering must not drop keyboard focus back to the page body.
+      dom.workoutDaySelector?.querySelector('[aria-pressed="true"]')?.focus({ preventScroll: true });
+      break;
+    }
+
     case "edit-day":
       openDayEditor(
         actionNode.dataset.day ||
@@ -7082,6 +7135,8 @@ async function initializeSelectedWeek() {
     requestedDate ||
     new Date();
 
+  state.selectedPlanDate = toLocalDateKey(weekAnchor);
+
   state.selectedWeekStart =
     getSundayStart(
       weekAnchor
@@ -7389,3 +7444,4 @@ export {
   VERSION,
   SOURCE
 };
+

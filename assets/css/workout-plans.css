@@ -5458,3 +5458,50 @@ body.ari-workout-plans-page::before {
   }
 }
 
+
+
+
+/* Compact calendar selection; the existing day card remains the editor entry. */
+.workout-day-selector {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: clamp(4px, 1.5vw, 10px);
+  margin: 14px 0 8px;
+}
+.workout-date-button {
+  appearance: none;
+  min-width: 0;
+  min-height: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px 2px 7px;
+  border: 1px solid #d9e2ef;
+  border-radius: 17px;
+  background: rgba(255, 255, 255, .8);
+  color: #53637c;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(25, 55, 100, .04);
+}
+.workout-date-button__day { font-size: clamp(9px, 2.5vw, 12px); font-weight: 700; }
+.workout-date-button__number { font-size: clamp(19px, 5vw, 25px); font-weight: 800; line-height: 1.15; }
+.workout-date-button__marker { height: 12px; font-size: clamp(7px, 2vw, 9px); font-weight: 800; line-height: 12px; }
+.workout-date-button[data-planned="true"] .workout-date-button__marker:empty::after {
+  content: ""; display: block; width: 5px; height: 5px; margin: 4px auto;
+  background: #7555cf; border-radius: 50%;
+}
+.workout-date-button[aria-current="date"] { border-color: #13bcd4; box-shadow: 0 0 0 2px rgba(19, 188, 212, .16); }
+.workout-date-button[aria-pressed="true"] {
+  color: #fff;
+  border-color: #219de8;
+  background: linear-gradient(145deg, #3159f4, #138ebf);
+  box-shadow: 0 5px 16px rgba(41, 101, 230, .24);
+}
+.workout-date-button[aria-pressed="true"] .workout-date-button__marker:empty::after { background: #fff; }
+.workout-date-button:focus-visible { outline: 3px solid #233bae; outline-offset: 3px; }
+#workoutPanelWeek .workout-week-actions { display: flex; justify-content: flex-end; margin: 0 0 12px; }
+#workoutRepeatLastWeekButton { width: auto; min-height: 40px; padding: 8px 12px; font-size: 12px; }
+#workoutWeekGrid { grid-template-columns: minmax(0, 1fr); }

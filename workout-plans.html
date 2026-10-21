@@ -20,7 +20,7 @@
 
   <link rel="stylesheet" href="assets/css/base.css?v=16" />
   <link rel="stylesheet" href="assets/css/animations.css?v=16" />
-  <link rel="stylesheet" href="assets/css/workout-plans.css?v=3.6.0" />
+  <link rel="stylesheet" href="assets/css/workout-plans.css?v=3.7.0" />
 </head>
 
 <body class="ari-workout-plans-page">
@@ -251,6 +251,13 @@
 
       </section>
 
+      <div
+        id="workoutDaySelector"
+        class="workout-day-selector"
+        role="group"
+        aria-label="Choose a day to plan"
+      ></div>
+
       <!-- =================================================
            WEEK ACTIONS
       ================================================== -->
@@ -276,6 +283,8 @@
       <div
         id="workoutWeekGrid"
         class="workout-week-grid"
+        aria-live="polite"
+        aria-label="Selected day's workout"
       >
         <!-- Rendered by js/workout-plans.js -->
       </div>
@@ -1155,8 +1164,9 @@
 
   <script
     type="module"
-    src="js/workout-plans.js?v=3.6.2"
+    src="js/workout-plans.js?v=3.7.0"
   ></script>
 
 </body>
 </html>
+
