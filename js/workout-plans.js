@@ -1,7 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/workout-plans.js
-// Version: 3.7.3
+// Version: 3.7.4
 // V3.7.3: route Add Exercise to strict focus pools; show 18 first with an expandable full focus catalog.
 // V3.7.2: clearer single-day cards, action CTA, compact exercises, and open-day prompt.
 // Purpose:
@@ -99,7 +99,7 @@ import ExerciseTypes
 
 
 const VERSION =
-  "3.7.3";
+  "3.7.4";
 
 const SOURCE =
   "js/workout-plans";
@@ -2839,7 +2839,7 @@ function renderWeek() {
         "off"
       ) {
         title.textContent =
-          "Ready to plan your workout?";
+          "";
       } else {
         const focus =
           WorkoutFocuses.get(
@@ -2863,11 +2863,11 @@ function renderWeek() {
 
       summary.textContent =
         dayState.type === "off"
-          ? "Build your training day and add exercises."
+          ? ""
           : value;
 
       summary.hidden =
-        dayState.type !== "off" && !value;
+        dayState.type === "off" || !value;
     }
 
     const exerciseList = fragment.querySelector(".workout-day-card__exercises");
@@ -2901,10 +2901,14 @@ function renderWeek() {
     if (
       open
     ) {
-      open.textContent =
-        getDayActionLabel(
-          dayState
-        );
+      const isOpenDay = dayState.type === "off";
+      open.innerHTML = isOpenDay
+        ? '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" /></svg>'
+        : '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15l-1 6Z" /></svg>';
+      const caption = document.createElement("span");
+      caption.className = "workout-day-card__action-caption";
+      caption.textContent = isOpenDay ? "Add workout" : "Edit workout";
+      open.appendChild(caption);
     }
 
     dom.workoutWeekGrid
@@ -7512,4 +7516,5 @@ export {
   VERSION,
   SOURCE
 };
+
 

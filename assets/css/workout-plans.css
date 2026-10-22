@@ -5839,3 +5839,64 @@ body.ari-workout-plans-page::before {
   outline: 3px solid #4978ed;
   outline-offset: 2px;
 }
+
+
+/* Compact calendar entry: plus for open days, pencil for existing plans. */
+#workoutWeekGrid .workout-day-card__button { gap: 6px; padding: 18px; }
+#workoutWeekGrid .workout-day-card[data-type="off"] .workout-day-card__title,
+#workoutWeekGrid .workout-day-card[data-type="off"] .workout-day-card__summary,
+#workoutWeekGrid .workout-day-card__empty-illustration { display: none; }
+#workoutWeekGrid .workout-day-card__open {
+  align-self: flex-end;
+  flex-direction: column;
+  width: auto;
+  min-height: 0;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: #245be0;
+  text-shadow: none;
+}
+#workoutWeekGrid .workout-day-card__open::after { content: none; }
+#workoutWeekGrid .workout-day-card__open svg {
+  display: block;
+  box-sizing: border-box;
+  width: 46px;
+  height: 46px;
+  padding: 12px;
+  border: 2px solid #457ff0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(40, 89, 173, .1);
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#workoutWeekGrid .workout-day-card[data-type="off"] .workout-day-card__open {
+  align-self: center;
+  margin: 4px 0 8px;
+}
+#workoutWeekGrid .workout-day-card[data-type="off"] .workout-day-card__open svg {
+  width: 64px;
+  height: 64px;
+  padding: 17px;
+}
+#workoutWeekGrid .workout-day-card__action-caption {
+  font: 600 12px/1.4 system-ui, sans-serif;
+  letter-spacing: 0;
+}
+#workoutWeekGrid .workout-day-card__button:hover .workout-day-card__open,
+#workoutWeekGrid .workout-day-card__button:focus-visible .workout-day-card__open {
+  filter: none;
+  box-shadow: none;
+}
+#workoutWeekGrid .workout-day-card__button:hover .workout-day-card__open svg,
+#workoutWeekGrid .workout-day-card__button:focus-visible .workout-day-card__open svg {
+  border-color: #245be0;
+  box-shadow: 0 0 0 4px rgba(69, 127, 240, .12);
+}
