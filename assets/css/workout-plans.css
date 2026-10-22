@@ -5738,7 +5738,7 @@ body.ari-workout-plans-page::before {
   overflow-wrap: anywhere;
 }
 #workoutWeekGrid .workout-day-card__exercise::after {
-  content: "\u203a";
+  content: "›";
   display: block;
   margin-left: auto;
   color: #2454ad;
@@ -5790,7 +5790,7 @@ body.ari-workout-plans-page::before {
   transition: filter .18s ease, box-shadow .18s ease, transform .18s ease;
 }
 #workoutWeekGrid .workout-day-card__open::after {
-  content: "\u2192";
+  content: "→";
   margin-left: 10px;
   font-family: Arial, sans-serif;
   font-size: 21px;
