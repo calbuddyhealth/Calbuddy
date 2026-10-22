@@ -1,7 +1,8 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/workout-plans.js
-// Version: 3.7.2
+// Version: 3.7.3
+// V3.7.3: route Add Exercise to strict focus pools; show 18 first with an expandable full focus catalog.
 // V3.7.2: clearer single-day cards, action CTA, compact exercises, and open-day prompt.
 // Purpose:
 //   Page controller for workout-plans.html.
@@ -98,7 +99,7 @@ import ExerciseTypes
 
 
 const VERSION =
-  "3.7.2";
+  "3.7.3";
 
 const SOURCE =
   "js/workout-plans";
@@ -165,6 +166,9 @@ const state = {
 
   pickerQuery:
     "",
+
+  pickerShowAllMatches:
+    false,
 
   libraryQuery:
     "",
@@ -3928,6 +3932,29 @@ function renderExerciseLibrary() {
    FOCUS FILTERING
 ===================================================== */
 
+/*
+ * Use the registry's canonical owning module for targeted strength days.
+ * bodyParts includes supporting muscles and broad tags such as lower_body,
+ * so matching those alone admitted unrelated exercises to the picker.
+ */
+const FOCUS_STRENGTH_MODULES = Object.freeze({
+  chest_day: ["chest"],
+  back_day: ["back"],
+  shoulder_day: ["shoulders"],
+  arm_day: ["biceps", "triceps", "forearms"],
+  leg_day: ["legs", "glutes", "calves"],
+  glute_day: ["glutes"],
+  core_day: ["core"],
+  upper_body: ["chest", "back", "shoulders", "biceps", "triceps", "forearms"],
+  lower_body: ["legs", "glutes", "calves"],
+  full_body: ["chest", "back", "shoulders", "biceps", "triceps", "forearms", "legs", "glutes", "calves", "core", "functional"],
+  push_day: ["chest", "shoulders", "triceps"],
+  pull_day: ["back", "biceps", "forearms"],
+  chest_triceps: ["chest", "triceps"],
+  back_biceps: ["back", "biceps"],
+  legs_core: ["legs", "glutes", "calves", "core"]
+});
+
 function exerciseMatchesFocus(
   exercise,
   focus
@@ -3957,6 +3984,42 @@ function exerciseMatchesFocus(
     "off_day"
   ) {
     return false;
+  }
+
+  const moduleId = normalizeLower(exercise.moduleId);
+  const focusCategory = normalizeLower(focus.category);
+  const exerciseCategory = normalizeLower(exercise.category);
+  const movementMatches = intersects(
+    exercise.movementPatterns || [],
+    focus.movementPatterns || []
+  );
+
+  if (focusCategory === "strength") {
+    const targetModules = FOCUS_STRENGTH_MODULES[focus.id];
+    if (Array.isArray(targetModules)) {
+      if (targetModules.includes(moduleId)) return true;
+      // A glute day can include hip-dominant compound leg movements.
+      if (focus.id === "glute_day" && moduleId === "legs") {
+        return intersects(
+          exercise.movementPatterns || [],
+          ["hip_extension", "hip_hinge", "hip_abduction", "lunge", "step", "squat"]
+        );
+      }
+      // Focused core/legs sessions can also include matched functional movements.
+      if (moduleId === "functional" &&
+          ["core_day", "legs_core"].includes(focus.id)) {
+        return movementMatches;
+      }
+      return false;
+    }
+  }
+
+  if (focusCategory === "cardio") {
+    if (exerciseCategory !== "cardio") return false;
+    // 'lower_body' isn't sufficient evidence that an exercise is a run.
+    return focus.id === "running"
+      ? intersects(exercise.movementPatterns || [], ["running"])
+      : movementMatches;
   }
 
   const focusPrimaryBodyParts =
@@ -5235,6 +5298,7 @@ function openExercisePicker() {
 
   state.pickerQuery =
     "";
+  state.pickerShowAllMatches = false;
 
   if (
     dom.workoutExercisePickerSearch
@@ -5270,105 +5334,68 @@ function openExercisePicker() {
 
 
 function renderExercisePicker() {
-  if (
-    !state.activeDay ||
-    !dom.workoutExercisePickerList
-  ) {
+  if (!state.activeDay || !dom.workoutExercisePickerList) return;
+
+  const dayState = getCurrentDayState();
+  if (!dayState || dayState.type === "off") {
+    dom.workoutExercisePickerList.replaceChildren();
     return;
   }
 
-  const dayState =
-    getCurrentDayState();
+  const focus = WorkoutFocuses.get(dayState.focusId);
+  const allFocused = getFocusedExercisePool(dayState);
+  const filtered = filterFocusedPoolBySearch(allFocused, state.pickerQuery);
+  const hasQuery = Boolean(normalizeText(state.pickerQuery));
+  const pageSize = 18;
+  const isTruncated =
+    !hasQuery && !state.pickerShowAllMatches && filtered.length > pageSize;
+  const visible = isTruncated ? filtered.slice(0, pageSize) : filtered;
+  const focusLabel = focus?.label || "this workout";
 
-  if (
-    !dayState ||
-    dayState.type ===
-      "off"
-  ) {
-    dom.workoutExercisePickerList
-      .innerHTML =
-        "";
+  if (dom.workoutExercisePickerContext) {
+    const count = allFocused.length;
+    dom.workoutExercisePickerContext.textContent = hasQuery
+      ? `${filtered.length} results for ${focusLabel} (searching ${count} focus-matched exercises).`
+      : isTruncated
+        ? `Showing ${visible.length} of ${count} exercises for ${focusLabel}. Search or show more below.`
+        : `${count} exercises for ${focusLabel}.`;
+  }
 
+  if (dom.workoutExercisePickerSearch) {
+    dom.workoutExercisePickerSearch.placeholder =
+      focus?.id === "custom"
+        ? "Search all exercises..."
+        : `Search ${focusLabel} exercises...`;
+  }
+
+  dom.workoutExercisePickerList.replaceChildren();
+
+  if (filtered.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "workout-exercise-picker__empty";
+    empty.textContent = hasQuery
+      ? "No exercises match your search within this Training Focus."
+      : "No exercises are currently mapped to this Training Focus. Choose Custom Workout to browse the full library.";
+    dom.workoutExercisePickerList.appendChild(empty);
     return;
   }
 
-  const focus =
-    WorkoutFocuses.get(
-      dayState.focusId
-    );
-
-  let exercises =
-    getFocusedExercisePool(
-      dayState
-    );
-
-  exercises =
-    filterFocusedPoolBySearch(
-      exercises,
-      state.pickerQuery
-    );
-
-  if (
-    dom.workoutExercisePickerContext
-  ) {
-    const focusLabel =
-      focus?.label ||
-      "this workout";
-
-    dom.workoutExercisePickerContext
-      .textContent =
-        focus?.id ===
-          "custom"
-          ? `Browse all ${exercises.length} matching exercises.`
-          : `${exercises.length} exercises for ${focusLabel}.`;
+  for (const exercise of visible) {
+    renderExerciseCard(exercise, {
+      addEnabled: true,
+      container: dom.workoutExercisePickerList
+    });
   }
 
-  dom.workoutExercisePickerList
-    .innerHTML =
-      "";
-
-  if (
-    exercises.length ===
-    0
-  ) {
-    const empty =
-      document.createElement(
-        "p"
-      );
-
-    empty.className =
-      "workout-exercise-picker__empty";
-
-    empty.textContent =
-      state.pickerQuery
-        ? "No matching exercises."
-        : "No exercises are mapped to this focus.";
-
-    dom.workoutExercisePickerList
-      .appendChild(
-        empty
-      );
-
-    return;
-  }
-
-  for (
-    const exercise
-    of exercises
-  ) {
-    renderExerciseCard(
-      exercise,
-      {
-        addEnabled:
-          true,
-
-        container:
-          dom.workoutExercisePickerList
-      }
-    );
+  if (isTruncated) {
+    const more = document.createElement("button");
+    more.type = "button";
+    more.className = "workout-focus-show-more";
+    more.dataset.workoutAction = "show-all-focus-exercises";
+    more.textContent = `Show all ${filtered.length} matching exercises \u2192`;
+    dom.workoutExercisePickerList.appendChild(more);
   }
 }
-
 
 /* =====================================================
    EXERCISE DETAIL
@@ -6615,6 +6642,11 @@ function handleClick(
 
     case "close-exercise-picker":
       closePickerAndReturnToDayEditor();
+      break;
+
+    case "show-all-focus-exercises":
+      state.pickerShowAllMatches = true;
+      renderExercisePicker();
       break;
 
 

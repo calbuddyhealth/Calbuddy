@@ -5813,3 +5813,29 @@ body.ari-workout-plans-page::before {
   #workoutWeekGrid .workout-day-card,
   #workoutWeekGrid .workout-day-card__open { transition: none; }
 }
+
+/* Scoped focus-specific exercise picker paging control */
+#workoutExercisePickerList .workout-focus-show-more {
+  grid-column: 1 / -1;
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  margin-top: 6px;
+  border: 1px solid #acc9fa;
+  border-radius: 14px;
+  background: linear-gradient(120deg, #f0f8ff, #f5f0ff);
+  box-shadow: 0 5px 16px rgba(32, 85, 167, .1);
+  color: #2059cb;
+  font: 800 13px system-ui, sans-serif;
+  cursor: pointer;
+}
+#workoutExercisePickerList .workout-focus-show-more:hover,
+#workoutExercisePickerList .workout-focus-show-more:focus-visible {
+  border-color: #4777e9;
+  background: #edf4ff;
+}
+#workoutExercisePickerList .workout-focus-show-more:focus-visible {
+  outline: 3px solid #4978ed;
+  outline-offset: 2px;
+}
