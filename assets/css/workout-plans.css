@@ -5512,24 +5512,75 @@ body.ari-workout-plans-page::before {
   color: #245be0;
   text-shadow: 0 2px 0 #fff, 0 4px 16px rgba(38, 109, 239, .2);
 }
+
+/* Back to Training: premium white button with visible violet dual-ring pulse. */
 #workoutPlansBackButton {
-  width: 52px;
-  height: 52px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  color: #693fc0;
-  border-color: #c7b1f1;
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 2px solid #884be0;
+  border-radius: 19px;
+  color: #753bd0;
   background: #fff;
-  animation: workout-back-glow 3s ease-in-out infinite;
+  box-shadow: 0 0 0 4px rgba(145,90,229,.1),
+              0 6px 17px rgba(93,53,161,.2),
+              inset 0 1px 0 #fff;
+  animation: workout-back-breathe 1.6s ease-in-out infinite;
+  -webkit-tap-highlight-color: transparent;
 }
-.workout-back-label { font-family: sans-serif; font-size: 9px; font-weight: 700; line-height: 1.2; }
-@keyframes workout-back-glow {
-  0%, 100% { box-shadow: 0 2px 6px rgba(110, 63, 192, .08); }
-  50% { box-shadow: 0 0 0 3px rgba(150, 109, 232, .18), 0 0 19px rgba(139, 83, 224, .32); }
+#workoutPlansBackButton::before,
+#workoutPlansBackButton::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -5px;
+  border: 2px solid rgba(143,80,235,.7);
+  border-radius: 24px;
+  pointer-events: none;
+  opacity: 0;
+  animation: workout-back-ripple 1.6s ease-out infinite;
 }
-#workoutPlansBackButton:focus-visible { outline: 3px solid #7843c4; outline-offset: 4px; }
+#workoutPlansBackButton::after { animation-delay: -.8s; }
+#workoutPlansBackButton > span:first-child {
+  display: block;
+  font-family: Arial, system-ui, sans-serif;
+  font-size: 33px;
+  font-weight: 600;
+  line-height: 1;
+  transform: translateY(-2px);
+  animation: workout-back-arrow 1.6s ease-in-out infinite;
+}
+#workoutPlansBackButton .workout-back-label { display: none; }
+@keyframes workout-back-breathe {
+  0%, 100% {
+    box-shadow: 0 0 0 4px rgba(145,90,229,.1),
+                0 6px 17px rgba(93,53,161,.2),
+                inset 0 1px 0 #fff;
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(145,90,229,.23),
+                0 7px 22px rgba(117,62,211,.34),
+                inset 0 1px 0 #fff;
+  }
+}
+@keyframes workout-back-ripple {
+  0% { opacity: .66; transform: scale(.94); }
+  75% { opacity: .16; }
+  100% { opacity: 0; transform: scale(1.23); }
+}
+@keyframes workout-back-arrow {
+  0%, 100% { transform: translate(0,-2px); }
+  38% { transform: translate(-3px,-2px); }
+  66% { transform: translate(0,-2px); }
+}
+#workoutPlansBackButton:hover,
+#workoutPlansBackButton:focus-visible { border-color: #7435dc; background: #fff; }
+#workoutPlansBackButton:focus-visible { outline: 3px solid #6937c5; outline-offset: 8px; }
+#workoutPlansBackButton:active { transform: scale(.94); }
 #workoutWeekGrid .workout-day-card {
   border: 1px solid #4c80e8;
   background: #fff;
@@ -5557,8 +5608,15 @@ body.ari-workout-plans-page::before {
 .workout-day-card__exercise:last-child { border-bottom: 0; }
 .workout-day-card__exercise-number { flex-shrink: 0; color: #187e9e; font-size: 11px; font-weight: 700; }
 @media (prefers-reduced-motion: reduce) {
-  #workoutPlansBackButton { animation: none; box-shadow: 0 0 0 3px rgba(150, 109, 232, .18); }
+  #workoutPlansBackButton,
+  #workoutPlansBackButton > span:first-child { animation: none; }
+  #workoutPlansBackButton::before,
+  #workoutPlansBackButton::after { display: none; animation: none; }
 }
 
-/* Reserve room for the larger Training button at every viewport size. */
-.workout-plans-header { grid-template-columns: 52px minmax(0, 1fr) auto; }
+/* Reserve room for the back button on mobile. */
+.workout-plans-header { grid-template-columns: 56px minmax(0, 1fr) auto; }
+@media (max-width: 360px) {
+  .workout-plans-header { grid-template-columns: 52px minmax(0, 1fr) auto; }
+  #workoutPlansBackButton { width: 52px; height: 52px; }
+}
