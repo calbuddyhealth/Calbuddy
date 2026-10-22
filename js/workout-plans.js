@@ -1,7 +1,8 @@
 // =====================================================
 // ARI REBIRTH
 // File: js/workout-plans.js
-// Version: 3.7.1
+// Version: 3.7.2
+// V3.7.2: clearer single-day cards, action CTA, compact exercises, and open-day prompt.
 // Purpose:
 //   Page controller for workout-plans.html.
 //
@@ -97,7 +98,7 @@ import ExerciseTypes
 
 
 const VERSION =
-  "3.6.2";
+  "3.7.2";
 
 const SOURCE =
   "js/workout-plans";
@@ -2594,10 +2595,10 @@ function getDayActionLabel(
     dayState.type ===
       "off"
   ) {
-    return "Plan Workout \u2192";
+    return "Plan Workout";
   }
 
-  return "Edit Workout \u2192";
+  return "Edit Workout";
 }
 
 
@@ -2788,6 +2789,11 @@ function renderWeek() {
     button.dataset.date =
       dateKey;
 
+    button.setAttribute(
+      "aria-label",
+      `${dayState.type === "off" ? "Plan" : "Edit"} workout for ${formatDayCardDate(day, date)}`
+    );
+
     if (
       dayLabel
     ) {
@@ -2814,7 +2820,7 @@ function renderWeek() {
       type.textContent =
         dayState.type ===
           "off"
-          ? "UNPLANNED"
+          ? "OPEN DAY"
           : dayState.type ===
               "recovery"
             ? "RECOVERY"
@@ -2829,7 +2835,7 @@ function renderWeek() {
         "off"
       ) {
         title.textContent =
-          "No workout planned";
+          "Ready to plan your workout?";
       } else {
         const focus =
           WorkoutFocuses.get(
@@ -2852,17 +2858,19 @@ function renderWeek() {
         );
 
       summary.textContent =
-        value;
+        dayState.type === "off"
+          ? "Build your training day and add exercises."
+          : value;
 
       summary.hidden =
-        !value;
+        dayState.type !== "off" && !value;
     }
 
     const exerciseList = fragment.querySelector(".workout-day-card__exercises");
     if (exerciseList) {
       const entries = Array.isArray(dayState.exercises) ? dayState.exercises : [];
       exerciseList.hidden = entries.length === 0;
-      entries.forEach((entry, index) => {
+      entries.slice(0, 3).forEach((entry, index) => {
         const exercise = ExerciseRegistry.get(entry.exerciseId);
         const item = document.createElement("span");
         item.className = "workout-day-card__exercise";
@@ -2872,11 +2880,18 @@ function renderWeek() {
         number.textContent = String(index + 1).padStart(2, "0");
         number.setAttribute("aria-hidden", "true");
         const name = document.createElement("span");
+        name.className = "workout-day-card__exercise-name";
         name.textContent = exercise?.name || entry.name || entry.title || "Exercise";
         item.appendChild(number);
         item.appendChild(name);
         exerciseList.appendChild(item);
       });
+      if (entries.length > 3) {
+        const remaining = document.createElement("span");
+        remaining.className = "workout-day-card__more";
+        remaining.textContent = `View all ${entries.length} exercises in editor \u2192`;
+        exerciseList.appendChild(remaining);
+      }
     }
 
     if (

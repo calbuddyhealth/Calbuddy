@@ -370,7 +370,7 @@
 
     const script = document.createElement("script");
     script.id = WORKOUT_PLAN_POLISH_SCRIPT_ID;
-    script.src = "js/training/workout-plans-card-polish.js?v=1.0.0";
+    script.src = "js/training/workout-plans-card-polish.js?v=1.1.2";
     script.defer = true;
     document.head.append(script);
   }

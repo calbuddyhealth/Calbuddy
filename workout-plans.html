@@ -20,7 +20,7 @@
 
   <link rel="stylesheet" href="assets/css/base.css?v=16" />
   <link rel="stylesheet" href="assets/css/animations.css?v=16" />
-  <link rel="stylesheet" href="assets/css/workout-plans.css?v=3.7.3" />
+  <link rel="stylesheet" href="assets/css/workout-plans.css?v=3.7.4" />
 </head>
 
 <body class="ari-workout-plans-page">
@@ -999,6 +999,14 @@
 
           <span class="workout-day-card__exercises" role="list" aria-label="Planned exercises" hidden></span>
 
+          <span class="workout-day-card__empty-illustration" aria-hidden="true">
+            <svg viewBox="0 0 80 80" width="74" height="74" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="19" y="17" width="42" height="51" rx="9" stroke="#4A82E9" stroke-width="3"/>
+              <path d="M32 18v-3a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v3" stroke="#21B8E0" stroke-width="3" stroke-linecap="round"/>
+              <path d="M40 34v19M30.5 43.5h19" stroke="#5368E9" stroke-width="4" stroke-linecap="round"/>
+            </svg>
+          </span>
+
           <span class="workout-day-card__open">
             Plan Workout &rarr;
           </span>
@@ -1168,7 +1176,7 @@
 
   <script
     type="module"
-    src="js/workout-plans.js?v=3.7.1"
+    src="js/workout-plans.js?v=3.7.2"
   ></script>
 
 </body>

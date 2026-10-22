@@ -1,7 +1,7 @@
 // =====================================================
 // ARI XP
 // File: js/training/workout-plans-card-polish.js
-// Version: 1.1.1
+// Version: 1.1.2
 // Purpose:
 //   Improve My Week card hierarchy and mobile day-editor readability
 //   without changing workout-plan logic.
@@ -10,7 +10,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "1.1.1";
+  const VERSION = "1.1.2";
   const GRID_ID = "workoutWeekGrid";
   const STYLE_ID = "ariWorkoutPlanCardHierarchyStyle";
   const EDITOR_STYLE_ID = "ariWorkoutDayEditorMobileStyle";
@@ -48,7 +48,7 @@
     const title = clean(titleText).toLowerCase();
 
     if (baseType === "off" || title === "off day") {
-      return { kind: "off", label: "OFF DAY" };
+      return { kind: "off", label: "OPEN DAY" };
     }
 
     if (baseType === "recovery" || title.includes("recovery")) {
@@ -91,7 +91,7 @@
       if (classification.kind === "custom") {
         summary.textContent = "Build your session";
       } else if (classification.kind === "off") {
-        summary.textContent = "Rest and recover";
+        summary.textContent = "Build your training day and add exercises.";
       }
     }
   }
